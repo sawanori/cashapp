@@ -15,7 +15,12 @@
 #   6. rewrite the guards themselves — scripts/deny-* and scripts/record-run.sh
 #      (R-SEC-07). The Bash side has always blocked these; without the same
 #      rule here, one Edit disabled the whole harness;
-#   7. break the hook registrations in .claude/settings.json — adding hooks
+#   7. reach any of the above through an MCP file-editing tool instead of
+#      Edit/Write/MultiEdit (serena's replace_content / replace_in_files /
+#      replace_symbol_body / insert_*_symbol / rename_symbol /
+#      safe_delete_symbol). The PreToolUse matcher used to name only the three
+#      built-in tools, so those calls never started this guard at all;
+#   8. break the hook registrations in .claude/settings.json — adding hooks
 #      stays allowed (task_006 / 018 / 019 each register more), but the file
 #      that results from the edit must still PARSE as JSON and must still
 #      register, under each event, a hook whose matcher covers the expected
@@ -65,13 +70,30 @@ if [ $? -ne 0 ]; then
   block "(フック入力)" "フック入力の JSON を解釈できません（安全側に倒して遮断します）"
 fi
 
+# MCP tools that write files. Read-only MCP tools reach this guard too (the
+# matcher covers a whole server), so only the writing ones are judged; anything
+# else passes straight through.
+MCP_WRITE_RE='__(replace_content|replace_in_files|replace_symbol_body|replace_regex|insert_after_symbol|insert_before_symbol|insert_at_line|delete_lines|rename_symbol|safe_delete_symbol|create_text_file|write_file|edit_file|apply_patch|str_replace[a-z_]*)$'
+
 case "$TOOL" in
   Edit|Write|MultiEdit|NotebookEdit) ;;
+  mcp__*)
+    printf '%s' "$TOOL" | grep -Eq "$MCP_WRITE_RE" || exit 0
+    ;;
   *) exit 0 ;;
 esac
 
-FILE="$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // .tool_input.notebook_path // ""' 2>/dev/null)"
-[ -n "$FILE" ] || exit 0
+FILE="$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // .tool_input.notebook_path // .tool_input.relative_path // ""' 2>/dev/null)"
+if [ -z "$FILE" ]; then
+  case "$TOOL" in
+    mcp__*)
+      # serena's replace_in_files defaults to the WHOLE project when
+      # relative_path is omitted, which includes every protected path at once.
+      block "$TOOL" "対象ファイルを限定しない MCP の一括編集は実行できません（R-SEC-07 / R-TH-02）。relative_path で対象を 1 ファイルに絞ってください"
+      ;;
+  esac
+  exit 0
+fi
 
 ROOT="${CLAUDE_PROJECT_DIR:-}"
 if [ -z "$ROOT" ]; then
@@ -105,6 +127,18 @@ case "$TOOL" in
     printf '%s' "$INPUT" | jq -r '.tool_input.new_source // ""' > "$TMP_NEW"
     : > "$TMP_OLD"
     ;;
+  mcp__*)
+    # The written text lives under different keys per tool: replace_content /
+    # replace_in_files use repl, the symbol editors use body, rename_symbol
+    # uses new_name. Only replace_content / replace_in_files state the text
+    # being replaced (needle), so TMP_OLD is often empty — which the tests/**
+    # section below refuses rather than reading as "nothing was removed".
+    printf '%s' "$INPUT" | jq -r '
+      [.tool_input.repl?, .tool_input.body?, .tool_input.new_name?, .tool_input.content?]
+      | map(select(type == "string")) | join("\n")' > "$TMP_NEW"
+    printf '%s' "$INPUT" | jq -r '
+      [.tool_input.needle?] | map(select(type == "string")) | join("\n")' > "$TMP_OLD"
+    ;;
 esac
 
 matches() { grep -Eq "$2" "$1" 2>/dev/null; }
@@ -116,6 +150,23 @@ PROD_KEY_RE='sk_live_[A-Za-z0-9]|pk_live_[A-Za-z0-9]|PAYPAY_ENV["'"'"' ]*[:=]["'
 if matches "$TMP_NEW" "$PROD_KEY_RE"; then
   block "$FILE" "本番鍵・本番決済環境の値をファイルに書き込もうとしています（L11 / R-SEC-04）。本番シークレットは CI の environment: production からのみ投入します"
 fi
+
+# ------------------------------------------------- MCP 編集ツールの追加規則 --
+case "$TOOL" in
+  mcp__*)
+    # paths_include_glob widens replace_in_files beyond relative_path.
+    MCP_GLOB="$(printf '%s' "$INPUT" | jq -r '.tool_input.paths_include_glob // ""' 2>/dev/null)"
+    if printf '%s' "$MCP_GLOB" | grep -Eq '(^|/)(docs/run-log|docs/gates|tests|scripts|\.claude|\.github)(/|$|\*)'; then
+      block "$MCP_GLOB" "保護対象を含むグロブを MCP の一括編集に渡すことはできません（R-SEC-07 / R-TH-02）"
+    fi
+    # .claude/settings.json の構造検査は Edit / Write / MultiEdit の差分形式しか
+    # 組み立てられない。編集後の姿を作れないまま通すとフック登録を外せてしまう
+    # ので、MCP 経由の .claude/** はまとめて拒否する。
+    if printf '%s' "$FILE" | grep -Eq '(^|/)\.claude/'; then
+      block "$FILE" ".claude/** は MCP のファイル編集ツールからは書き換えられません（R-SEC-07 / R-TH-02）。編集後のフック登録を検査できないため、Edit / Write ツールを使ってください"
+    fi
+    ;;
+esac
 
 # ---------------------------------------------------------- protected paths --
 if printf '%s' "$FILE" | grep -Eq '(^|/)docs/run-log/'; then
@@ -260,6 +311,16 @@ fi
 
 # ------------------------------------------------------------- tests/** 弱体化 --
 if printf '%s' "$FILE" | grep -Eq '(^|/)tests/'; then
+  case "$TOOL" in
+    mcp__*)
+      # jq -r always emits a trailing newline, so an "empty" TMP_OLD is one
+      # byte long: test for actual content, not for size.
+      if ! grep -q '[^[:space:]]' "$TMP_OLD" 2>/dev/null; then
+        block "$FILE" "編集前の本文を示さない MCP ツールでは tests/** のアサーション数を比較できません（F3）。tests/** の編集は Edit / Write ツールで行ってください"
+      fi
+      ;;
+  esac
+
   SKIP_RE='(describe|it|test) *\. *(skip|todo|only)([^A-Za-z0-9_]|$)'
   old_skip="$(count_of "$TMP_OLD" "$SKIP_RE")"
   new_skip="$(count_of "$TMP_NEW" "$SKIP_RE")"

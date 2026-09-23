@@ -134,6 +134,12 @@ PROTECTED_TREE_RE='(^|/)(docs/run-log|docs/gates|tests|scripts|\.claude|\.github
 # matched at the place it actually lands.
 CWD_REL=""
 
+# 1 when the current directory cannot be resolved (a `cd` into `$VAR`, `~`, `-`,
+# or a bare `cd`). A RELATIVE write destination is then unjudgeable, so it is
+# refused the same way `> $F` is. Absolute `cd /tmp` is *known* to be outside the
+# repository and keeps the flag clear.
+CWD_UNKNOWN=0
+
 # ---------------------------------------------------------------- normalize --
 # Collapse quoting and whitespace, then turn &&, ||, |, ; and newlines into a
 # single subcommand separator so each clause can be matched on its own.
@@ -141,6 +147,11 @@ CWD_REL=""
 # `>|` (the noclobber override) has to be folded into `>` BEFORE `|` becomes a
 # separator, or `echo x >| docs/run-log/a.json` is split into `echo x >` and a
 # bare path, and no redirect destination is ever seen.
+#
+# `&`, `(`, `)`, `{` and `}` are separators too. Without them a `cd` wrapped in a
+# subshell, a brace group or a background job — `(cd docs/run-log && echo x >
+# y.json)` — never appeared at the head of a clause, so the cd tracker below
+# never fired and the relative destination was judged at the repository root.
 normalize() {
   printf '%s' "$1" \
     | tr -d '"'"'"'`' \
@@ -148,6 +159,8 @@ normalize() {
     | tr '\n\r' "$SEP$SEP" \
     | sed -e 's/>|/>/g' \
     | sed -e "s/&&/$SEP/g" -e "s/||/$SEP/g" -e "s/|/$SEP/g" -e "s/;/$SEP/g" \
+    | sed -e "s/&/$SEP/g" \
+    | tr '(){}' "$SEP$SEP$SEP$SEP" \
     | tr '\t' ' ' \
     | tr -s ' '
 }
@@ -185,12 +198,13 @@ set_cwd() {
   # repository's own PostToolUse hook).
   local t="$1"
   case "$t" in
-    ""|-|'~'*|*'$'*) CWD_REL=""; return ;;
-    "$ROOT") CWD_REL=""; return ;;
-    "$ROOT"/*) CWD_REL="${t#"$ROOT"/}"; return ;;
-    /*) CWD_REL=""; return ;;
+    ""|-|'~'*|*'$'*) CWD_REL=""; CWD_UNKNOWN=1; return ;;
+    "$ROOT") CWD_REL=""; CWD_UNKNOWN=0; return ;;
+    "$ROOT"/*) CWD_REL="${t#"$ROOT"/}"; CWD_UNKNOWN=0; return ;;
+    /*) CWD_REL=""; CWD_UNKNOWN=0; return ;;
   esac
   CWD_REL="$(join_path "$CWD_REL" "$t")"
+  CWD_UNKNOWN=0
 }
 
 cd_target() {
@@ -205,9 +219,65 @@ cd_target() {
       printf '%s' "$tok"
       return 0
     fi
-    [ "$tok" = "cd" ] && seen=1
+    case "$tok" in
+      cd|pushd) seen=1 ;;
+    esac
   done
   return 0
+}
+
+strip_wrappers() {
+  # Echoes the clause with everything that merely *introduces* another command
+  # removed from the front: `bash -c` / `sh -c`, `sudo`, `env`, `nohup`, `time`,
+  # `exec`, `command`, `eval`, and leading VAR=VALUE assignments. Used only to
+  # decide whether the clause is really a `cd` / `pushd`; the write rules keep
+  # looking at the untouched clause.
+  local s="$1" head
+  while :; do
+    case "$s" in
+      "bash -c "*|"sh -c "*|"zsh -c "*|"dash -c "*) s="${s#* -c }"; continue ;;
+    esac
+    head="${s%% *}"
+    case "$head" in
+      sudo|nohup|time|exec|command|eval|env|builtin)
+        case "$s" in *" "*) s="${s#* }"; continue ;; esac
+        ;;
+      [A-Za-z_]*=*)
+        case "$s" in *" "*) s="${s#* }"; continue ;; esac
+        ;;
+    esac
+    break
+  done
+  printf '%s' "$s"
+}
+
+basename_clause() {
+  # Echoes the clause with every token reduced to its basename and stripped of a
+  # trailing @version. Rule set A anchors its command names at a space or the
+  # start of the clause, so `./node_modules/.bin/wrangler deploy` and
+  # `npx wrangler@latest deploy` used to walk straight past it. The variant is
+  # matched in ADDITION to the original clause, never instead of it.
+  local s="$1" tok out=""
+  for tok in $s; do
+    case "$tok" in
+      */*) tok="${tok##*/}" ;;
+    esac
+    case "$tok" in
+      ?*@*) tok="${tok%@*}" ;;
+    esac
+    [ -n "$tok" ] || continue
+    out="$out $tok"
+  done
+  printf '%s' "${out# }"
+}
+
+opt_value() {
+  # Echoes the value of a `--option=value` / `-o=value` token (nothing otherwise).
+  # `cp --target-directory=docs/gates` hides the destination behind the `=`, where
+  # the (^|/) anchor of PROTECTED_TREE_RE cannot see it.
+  case "$1" in
+    -*=*) printf '%s' "${1#*=}" ;;
+  esac
 }
 
 broad_target() {
@@ -217,6 +287,15 @@ broad_target() {
     "."|"./"|".//"|".."|"../"|"*"|"*/"|"./*"|"/"|"/*") return 0 ;;
   esac
   return 1
+}
+
+cwd_unresolved_rel() {
+  # A relative destination written while the current directory is unknown.
+  [ "${CWD_UNKNOWN:-0}" -eq 1 ] || return 1
+  case "$1" in
+    /*) return 1 ;;
+  esac
+  return 0
 }
 
 unresolvable_dest() {
@@ -261,6 +340,12 @@ raw_rules_hit() {
   if printf '%s' "$sub" | grep -Eqi '(^| )git +push( |$)' &&
      printf '%s' "$sub" | grep -Eqi '(^| )(-f|--force|--force-with-lease)( |=|$)'; then
     echo "git push --force"; return 0
+  fi
+  # `git push origin +main` is the same forced update written as a refspec, and
+  # the flag-only test above never saw it.
+  if printf '%s' "$sub" | grep -Eqi '(^| )git +push( |$)' &&
+     printf '%s' "$sub" | grep -Eq '(^| )\+[^ ]+'; then
+    echo "git push（+ 付き refspec による強制 push）"; return 0
   fi
   if printf '%s' "$sub" | grep -Eqi '(^| )git +reset +.*--hard'; then
     echo "git reset --hard"; return 0
@@ -320,11 +405,14 @@ protected_tree() {
 
 write_rules_hit() {
   # $1 = one normalized subcommand. Echoes a description when it matches.
-  local sub="$1" target tok seen_tee
+  local sub="$1" target tok seen_tee val
 
   for target in $(printf '%s' "$sub" | grep -oE '>>?[[:space:]]*[^[:space:]]+' | sed -E 's/^>>?[[:space:]]*//'); do
     if unresolvable_dest "$target"; then
       echo "変数展開されたリダイレクト先 ${target}（宛先を判定できないため遮断）"; return 0
+    fi
+    if cwd_unresolved_rel "$target"; then
+      echo "解決できない cd の後の相対リダイレクト先 ${target}（宛先を判定できないため遮断）"; return 0
     fi
     if protected "$target"; then
       echo "リダイレクト先 $target"; return 0
@@ -340,6 +428,9 @@ write_rules_hit() {
         esac
         if unresolvable_dest "$tok"; then
           echo "変数展開された tee の出力先 ${tok}（宛先を判定できないため遮断）"; return 0
+        fi
+        if cwd_unresolved_rel "$tok"; then
+          echo "解決できない cd の後の相対 tee 出力先 ${tok}（宛先を判定できないため遮断）"; return 0
         fi
         if protected "$tok"; then
           echo "tee の出力先 $tok"; return 0
@@ -367,13 +458,23 @@ write_rules_hit() {
   # as `sed -i` above: a protected path anywhere in such a clause blocks, even
   # when it is the source — copying a gate file out is rare, overwriting it is
   # what must never happen, and fail-closed is the cheaper error here.
+  #
+  # protected() alone was not enough: PROTECTED_RE needs something after the
+  # slash, so a destination written as the directory itself (`cp x docs/gates`,
+  # `cp x .claude`, `mv -t docs/run-log x`) matched nothing. protected_tree() —
+  # which rm has always used — covers the bare directory form, and opt_value()
+  # digs the destination out of `--target-directory=<dir>`.
   if printf '%s' "$sub" | grep -Eq '(^| )(cp|mv|rsync|install)( |$)'; then
     for tok in $sub; do
       case "$tok" in
         cp|mv|rsync|install) continue ;;
       esac
-      if protected "$tok"; then
+      if protected "$tok" || protected_tree "$tok"; then
         echo "cp/mv の対象 $tok"; return 0
+      fi
+      val="$(opt_value "$tok")"
+      if [ -n "$val" ] && { protected "$val" || protected_tree "$val"; }; then
+        echo "cp/mv の宛先オプション $tok"; return 0
       fi
     done
   fi
@@ -439,7 +540,7 @@ write_rules_hit() {
 }
 
 patch_rules_hit() {
-  # `git apply` and `patch` write arbitrary files, and *which* files they write
+  # `git apply`, `git am` and `patch` write arbitrary files, and *which* files they write
   # is stated inside the diff, not on the command line. That made them the one
   # remaining way to rewrite a guard, a gate file or a test from Bash.
   #
@@ -449,12 +550,12 @@ patch_rules_hit() {
   # guard cannot read — the destination is unknowable and the clause is refused
   # fail-closed.
   local sub="$1" tok cand found=0
-  printf '%s' "$sub" | grep -Eq '(^| )git +apply( |$)' ||
+  printf '%s' "$sub" | grep -Eq '(^| )git +(apply|am)( |$)' ||
     printf '%s' "$sub" | grep -Eq '(^| )patch( |$)' || return 1
 
   for tok in $sub; do
     case "$tok" in
-      git|apply|patch|-*|"<"|">") continue ;;
+      git|apply|am|patch|-*|"<"|">") continue ;;
     esac
     if protected "$tok" || protected_tree "$tok"; then
       echo "パッチ適用の対象 $tok"; return 0
@@ -474,7 +575,7 @@ patch_rules_hit() {
   done
 
   if [ "$found" -eq 0 ]; then
-    echo "git apply / patch の適用先を判定できません（stdin・ヒアドキュメント・読めないパッチ）"
+    echo "git apply / git am / patch の適用先を判定できません（stdin・ヒアドキュメント・読めないパッチ）"
     return 0
   fi
   return 1
@@ -522,7 +623,12 @@ script_names() {
     | grep -Ev '^(run|run-script|install|add|remove|why|info|init|link|unlink|cache|config|dlx|node|workspace|workspaces|up|set|version|pack|publish)$'
   printf '%s' "$sub" | grep -oE '(^| )npx +(-[^[:space:]]+ +)*[^[:space:]]+' \
     | sed -E 's/.*npx +//' \
-    | sed -E 's/^(-[^[:space:]]+ +)*//'
+    | sed -E 's/^(-[^[:space:]]+ +)*//' \
+    | sed -E 's/^(.+)@[^@/]*$/\1/'
+  # Node 22 runs package.json scripts directly (`node --run build`), and
+  # package.json's engines field requires node>=22, so this form is live here.
+  printf '%s' "$sub" | grep -oE '(^| )node +(-[^[:space:]]+ +)*--run[= ][^[:space:]]+' \
+    | sed -E 's/.*--run[= ]+//'
 }
 
 resolve_script() {
@@ -538,13 +644,15 @@ resolve_script() {
 scan_text() {
   # $1 = raw command text, $2 = depth, $3 = chain of already-visited names
   local text="$1" depth="$2" chain="$3"
-  local norm whole hit sub name body subs_file saved_cwd
+  local norm whole hit sub name body subs_file saved_cwd saved_unknown stripped
 
   # An npm script body always runs from the package directory, so a `cd` in the
   # calling clause must not leak into it, and whatever the body does with `cd`
   # must not leak back out.
   saved_cwd="$CWD_REL"
+  saved_unknown="$CWD_UNKNOWN"
   CWD_REL=""
+  CWD_UNKNOWN=0
 
   norm="$(normalize "$text")"
   whole="$(printf '%s' "$norm" | tr "$SEP" ' ' | tr -s ' ')"
@@ -560,7 +668,9 @@ scan_text() {
     sub="$(printf '%s' "$sub" | sed -e 's/^ *//' -e 's/ *$//')"
     [ -n "$sub" ] || continue
 
-    hit="$(raw_rules_hit "$sub")" && { rm -f "$subs_file"; block "${hit}（${sub}）" "破壊的操作・本番デプロイ・本番決済はローカルから実行できません（L11 / R-TH-02。デプロイは CI のみ）"; }
+    hit="$(raw_rules_hit "$sub")"
+    [ -n "$hit" ] || hit="$(raw_rules_hit "$(basename_clause "$sub")")"
+    [ -n "$hit" ] && { rm -f "$subs_file"; block "${hit}（${sub}）" "破壊的操作・本番デプロイ・本番決済はローカルから実行できません（L11 / R-TH-02。デプロイは CI のみ）"; }
     hit="$(write_rules_hit "$sub")" && { rm -f "$subs_file"; block "${hit}（${sub}）" "docs/run-log/** ・docs/gates/** ・docs/acceptance-checks.json ・tests/** ・scripts/deny-* ・scripts/record-run.sh ・.claude/** ・.github/workflows/** への Bash 経由の書き込み・削除は禁止です（R-TH-02 / R-SEC-07）"; }
     hit="$(patch_rules_hit "$sub")" && { rm -f "$subs_file"; block "${hit}（${sub}）" "パッチ適用は適用先を事前に判定できないため、保護対象を含みうる限り遮断します（R-TH-02 / R-SEC-07）"; }
 
@@ -585,13 +695,16 @@ scan_text() {
 
     # `cd` takes effect for every LATER clause of the same command line, so the
     # tracker is advanced only after this clause has been judged.
-    case "$sub" in
-      cd|"cd "*) set_cwd "$(cd_target "$sub")" ;;
+    stripped="$(strip_wrappers "$sub")"
+    case "$stripped" in
+      cd|"cd "*|pushd|"pushd "*) set_cwd "$(cd_target "$stripped")" ;;
+      popd|"popd "*) CWD_REL=""; CWD_UNKNOWN=1 ;;
     esac
   done < "$subs_file"
 
   rm -f "$subs_file"
   CWD_REL="$saved_cwd"
+  CWD_UNKNOWN="$saved_unknown"
 }
 
 scan_text "$CMD" 0 "|"
