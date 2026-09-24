@@ -653,5 +653,59 @@
     "commit": "455e5943bfd30ac9065c5710d0523f72057e01a0",
     "ran_at": "2026-09-24T11:06:34Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "8abccdd8cf7e851ec67bea559b0a98f80cad568f",
+    "ran_at": "2026-09-24T11:08:43Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run lint",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 lint\n> eslint .",
+    "commit": "8abccdd8cf7e851ec67bea559b0a98f80cad568f",
+    "ran_at": "2026-09-24T11:08:47Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 1,
+    "stdout_tail": "\n ❯ tests/unit/gate-constraints.test.ts (17 tests | 2 failed) 16568ms\n   ❯ scripts/gate-constraints.sh (real docs/constraints.json against a fixture tree) (3)\n     × passes on a clean tree 5627ms\n     × catches the real forbidden patterns 5088ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  tests/unit/gate-constraints.test.ts > scripts/gate-constraints.sh (real docs/constraints.json against a fixture tree) > passes on a clean tree\nError: Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n ❯ tests/unit/gate-constraints.test.ts:377:3\n    375|   }\n    376|\n    377|   it(\"passes on a clean tree\", () => {\n       |   ^\n    378|     const root = makeTempRepo();\n    379|     seedCleanTree(root);\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n FAIL  tests/unit/gate-constraints.test.ts > scripts/gate-constraints.sh (real docs/constraints.json against a fixture tree) > catches the real forbidden patterns\nError: Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n ❯ tests/unit/gate-constraints.test.ts:387:3\n    385|   });\n    386|\n    387|   it(\"catches the real forbidden patterns\", () => {\n       |   ^\n    388|     const root = makeTempRepo();\n    389|     seedCleanTree(root);\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯\n\n\n Test Files  1 failed | 27 passed (28)\n      Tests  2 failed | 788 passed (790)\n   Start at  11:08:53\n   Duration  50.54s (tests 90%, setup 4%, environment 4%, import 1%, transform 1%)",
+    "commit": "8abccdd8cf7e851ec67bea559b0a98f80cad568f",
+    "ran_at": "2026-09-24T11:08:52Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run build",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 build\n> NEXT_PUBLIC_LIFF_MOCK=0 next build\n\n▲ Next.js 16.3.6 (Turbopack)\n✓ Running next.config.ts took 584ms\n\n⚠ The \"middleware\" file convention is deprecated. Please use \"proxy\" instead.\n\n  To migrate automatically, run:\n  npx @next/codemod@canary middleware-to-proxy .\n\n  Learn more: https://nextjs.org/docs/messages/middleware-to-proxy\n  Creating an optimized production build ...\n✓ Compiled successfully in 669ms\n  Running TypeScript ...\n  Finished TypeScript in 1811ms ...\n  Collecting page data using 9 workers ...\n  Generating static pages using 9 workers (0/8) ...\n  Generating static pages using 9 workers (2/8) \r\n  Generating static pages using 9 workers (4/8) \r\n  Generating static pages using 9 workers (6/8) \r\n✓ Generating static pages using 9 workers (8/8) in 339ms\n  Finalizing page optimization ...\n\nRoute (app)\n┌ ○ /\n├ ○ /_not-found\n├ ƒ /api/auth/line\n├ ƒ /api/consent\n├ ƒ /api/health\n├ ƒ /api/me\n└ ƒ /api/telemetry/client-error\n\n\nƒ Proxy (Middleware)\n\n○  (Static)   prerendered as static content\nƒ  (Dynamic)  server-rendered on demand",
+    "commit": "8abccdd8cf7e851ec67bea559b0a98f80cad568f",
+    "ran_at": "2026-09-24T11:09:47Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run build:web-only",
+    "exit_code": 0,
+    "stdout_tail": "build:web-only: import グラフを 24 ファイル走査しました（起点: src/app/** の (liff) 以外 と src/middleware.ts）\n▲ Next.js 16.3.6 (Turbopack)\n✓ Running next.config.ts took 239ms\n\n⚠ The \"middleware\" file convention is deprecated. Please use \"proxy\" instead.\n\n  To migrate automatically, run:\n  npx @next/codemod@canary middleware-to-proxy .\n\n  Learn more: https://nextjs.org/docs/messages/middleware-to-proxy\n  Creating an optimized production build ...\n✓ Compiled successfully in 130ms\n  Running TypeScript ...\n  Finished TypeScript in 1828ms ...\n  Collecting page data using 9 workers ...\n  Generating static pages using 9 workers (0/8) ...\n  Generating static pages using 9 workers (2/8) \r\n  Generating static pages using 9 workers (4/8) \r\n  Generating static pages using 9 workers (6/8) \r\n✓ Generating static pages using 9 workers (8/8) in 419ms\n  Finalizing page optimization ...\n\nRoute (app)\n┌ ○ /\n├ ○ /_not-found\n├ ƒ /api/auth/line\n├ ƒ /api/consent\n├ ƒ /api/health\n├ ƒ /api/me\n└ ƒ /api/telemetry/client-error\n\n\nƒ Proxy (Middleware)\n\n○  (Static)   prerendered as static content\nƒ  (Dynamic)  server-rendered on demand\n\nbuild:web-only: 注意 — .next/static に LIFF 由来の文字列が 1 つも無い。まだ (liff) のページが bootLiff() を呼んでいないため、モック混入の grep は現時点では空振りに近い。(liff) 画面が入る task_014 / task_015 で再確認すること。\nbuild:web-only: .next/static を検査しました（禁止マーカー 4 件）\nbuild:web-only: OK（(web) は LINE SDK に依存せず、バンドルにモックも dev LIFF ID も無い）",
+    "commit": "8abccdd8cf7e851ec67bea559b0a98f80cad568f",
+    "ran_at": "2026-09-24T11:10:27Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 28 file(s))\nok    L2 (forbid, 28 file(s))\nok    L3 (forbid, 28 file(s))\nok    L8 (forbid, 28 file(s))\nok    L12 (forbid, 28 file(s))\nok    P1 (forbid, 28 file(s))\ndefer P2 (0 targets; waiting on task_018)\nok    P9 (forbid, 3 file(s))\nok    W3 (forbid, 35 file(s))\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 26 file(s))\nok    N5 (forbid, 28 file(s))\nok    N7 (forbid, 28 file(s))\nok    N9 (forbid, 28 file(s))\nok    N11 (forbid, 28 file(s))\nok    I1 (require, 1 file(s))\nok    I2 (require, 1 file(s))\nok    I3 (forbid, 7 file(s))\nok    I4 (forbid, 2 file(s))\nok    X-TIME (forbid, 8 file(s))\nok    X-ID (forbid, 9 file(s))\ndefer X-MONEY (0 targets; waiting on task_017)\nok    GC-XSS (forbid, 28 file(s))\nok    GC-ENV-PUBLIC (forbid, 33 file(s))\nok    GC-SERVER-ONLY (require, 1 file(s))\n\ngate:constraints — scanned 22 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "8abccdd8cf7e851ec67bea559b0a98f80cad568f",
+    "ran_at": "2026-09-24T11:11:19Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]

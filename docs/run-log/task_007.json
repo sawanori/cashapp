@@ -434,5 +434,50 @@
     "commit": "8066980cc0b9ae7e3e531b6d4477c62b734403a5",
     "ran_at": "2026-09-24T10:43:13Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 1,
+    "stdout_tail": "\n ❯ tests/unit/gate-constraints.test.ts (17 tests | 2 failed) 19399ms\n   ❯ scripts/gate-constraints.sh (real docs/constraints.json against a fixture tree) (3)\n     × passes on a clean tree 6079ms\n     × catches the real forbidden patterns 5813ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  tests/unit/gate-constraints.test.ts > scripts/gate-constraints.sh (real docs/constraints.json against a fixture tree) > passes on a clean tree\nError: Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n ❯ tests/unit/gate-constraints.test.ts:377:3\n    375|   }\n    376|\n    377|   it(\"passes on a clean tree\", () => {\n       |   ^\n    378|     const root = makeTempRepo();\n    379|     seedCleanTree(root);\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n FAIL  tests/unit/gate-constraints.test.ts > scripts/gate-constraints.sh (real docs/constraints.json against a fixture tree) > catches the real forbidden patterns\nError: Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n ❯ tests/unit/gate-constraints.test.ts:387:3\n    385|   });\n    386|\n    387|   it(\"catches the real forbidden patterns\", () => {\n       |   ^\n    388|     const root = makeTempRepo();\n    389|     seedCleanTree(root);\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯\n\n\n Test Files  1 failed | 25 passed (26)\n      Tests  2 failed | 726 passed (728)\n   Start at  10:46:50\n   Duration  75.16s (tests 87%, setup 6%, environment 5%, import 1%, transform 1%)",
+    "commit": "d722cc4a27c3597f5bb95865a249d30a3d06541c",
+    "ran_at": "2026-09-24T10:46:49Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 28 file(s))\nok    L2 (forbid, 28 file(s))\nok    L3 (forbid, 28 file(s))\nok    L8 (forbid, 28 file(s))\nok    L12 (forbid, 28 file(s))\nok    P1 (forbid, 28 file(s))\ndefer P2 (0 targets; waiting on task_018)\nok    P9 (forbid, 3 file(s))\nok    W3 (forbid, 35 file(s))\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 26 file(s))\nok    N5 (forbid, 28 file(s))\nok    N7 (forbid, 28 file(s))\nok    N9 (forbid, 28 file(s))\nok    N11 (forbid, 28 file(s))\nok    I1 (require, 1 file(s))\nok    I2 (require, 1 file(s))\nok    I3 (forbid, 7 file(s))\nok    I4 (forbid, 2 file(s))\nok    X-TIME (forbid, 8 file(s))\nok    X-ID (forbid, 9 file(s))\ndefer X-MONEY (0 targets; waiting on task_017)\nok    GC-XSS (forbid, 28 file(s))\nok    GC-ENV-PUBLIC (forbid, 33 file(s))\nok    GC-SERVER-ONLY (require, 1 file(s))\n\ngate:constraints — scanned 22 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "d722cc4a27c3597f5bb95865a249d30a3d06541c",
+    "ran_at": "2026-09-24T10:48:08Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 28 file(s))\nok    L2 (forbid, 28 file(s))\nok    L3 (forbid, 28 file(s))\nok    L8 (forbid, 28 file(s))\nok    L12 (forbid, 28 file(s))\nok    P1 (forbid, 28 file(s))\ndefer P2 (0 targets; waiting on task_018)\nok    P9 (forbid, 3 file(s))\nok    W3 (forbid, 35 file(s))\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 26 file(s))\nok    N5 (forbid, 28 file(s))\nok    N7 (forbid, 28 file(s))\nok    N9 (forbid, 28 file(s))\nok    N11 (forbid, 28 file(s))\nok    I1 (require, 1 file(s))\nok    I2 (require, 1 file(s))\nok    I3 (forbid, 7 file(s))\nok    I4 (forbid, 2 file(s))\nok    X-TIME (forbid, 8 file(s))\nok    X-ID (forbid, 9 file(s))\ndefer X-MONEY (0 targets; waiting on task_017)\nok    GC-XSS (forbid, 28 file(s))\nok    GC-ENV-PUBLIC (forbid, 33 file(s))\nok    GC-SERVER-ONLY (require, 1 file(s))\n\ngate:constraints — scanned 22 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "8abccdd8cf7e851ec67bea559b0a98f80cad568f",
+    "ran_at": "2026-09-24T11:09:48Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  28 passed (28)\n      Tests  790 passed (790)\n   Start at  11:09:54\n   Duration  33.47s (tests 91%, setup 3%, environment 3%, import 1%, transform 1%)",
+    "commit": "8abccdd8cf7e851ec67bea559b0a98f80cad568f",
+    "ran_at": "2026-09-24T11:09:53Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 1,
+    "stdout_tail": "\n ❯ tests/unit/gate-constraints.test.ts (17 tests | 2 failed) 17255ms\n   ❯ scripts/gate-constraints.sh (real docs/constraints.json against a fixture tree) (3)\n     × passes on a clean tree 6018ms\n     × catches the real forbidden patterns 5451ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  tests/unit/gate-constraints.test.ts > scripts/gate-constraints.sh (real docs/constraints.json against a fixture tree) > passes on a clean tree\nError: Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n ❯ tests/unit/gate-constraints.test.ts:377:3\n    375|   }\n    376|\n    377|   it(\"passes on a clean tree\", () => {\n       |   ^\n    378|     const root = makeTempRepo();\n    379|     seedCleanTree(root);\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n FAIL  tests/unit/gate-constraints.test.ts > scripts/gate-constraints.sh (real docs/constraints.json against a fixture tree) > catches the real forbidden patterns\nError: Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n ❯ tests/unit/gate-constraints.test.ts:387:3\n    385|   });\n    386|\n    387|   it(\"catches the real forbidden patterns\", () => {\n       |   ^\n    388|     const root = makeTempRepo();\n    389|     seedCleanTree(root);\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯\n\n\n Test Files  1 failed | 27 passed (28)\n      Tests  2 failed | 788 passed (790)\n   Start at  11:10:33\n   Duration  45.82s (tests 90%, setup 4%, environment 3%, import 1%, transform 1%)",
+    "commit": "8abccdd8cf7e851ec67bea559b0a98f80cad568f",
+    "ran_at": "2026-09-24T11:10:33Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]
