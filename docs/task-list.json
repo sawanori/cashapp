@@ -2074,13 +2074,17 @@
       "completion_status": "DONE_WITH_CONCERNS",
       "concerns": [
         "[severity: high] Hyperdrive 経路（A21 / premortem P-05・P-09）を 1 度も通していない。全テストは direct 接続（app_rw）でのみ緑 / deferred: task_035 完了後に Hyperdrive 経路で test:integration と test:contract を再実行する",
-        "[severity: medium] Stop フックへの test:gate 登録は行っていない（共通規約と §16-4 により task_019 の担当）。npm スクリプト test:gate の定義までを本タスクで実施 / task_019 が .claude/settings.json に登録する",
+        "[severity: medium] G5 敵対レビュー round1 は reject（実効 high 3）。3 件（W8 の受取先突合欠落・部分返金を不一致扱い・audit:verify の既定上限 10000 行）と medium の CIDR 書式（/ 欠落で全許可）は本ラウンドで修正済み。規約により再レビューはしない / 残る medium 3 件は docs/concerns/task_018.md C-018-10〜12",
+        "[severity: medium] 部分返金は台帳残高を減らすが settlement_status は paid のまま（残高が 0 以下になるまで前進させない） / 一覧・集計での見せ方を task_020 で決める（C-018-10）",
+        "[severity: medium] ledgerDedupeKey の既定はイベント ID 単位。同じ事実を別イベント ID で送る事業者は宣言が必須 / Phase 2 の各アダプタで ledgerDedupeKey を宣言する（C-018-11）",
+        "[severity: medium] sortKeysDeep が __proto__ キーを落とし監査ハッシュの死角になる。src/lib/audit.ts と写しの同時修正が必要で本タスクの files_to_modify 外 / src/lib/audit.ts の所有タスク（C-018-12）",
+        "[severity: medium] 返金では payment_attempt.status が更新されない（閉じた試行には書かない仕様のため succeeded のまま残る） / 試行にもランクを入れる案を task_020 で（C-018-13）",
         "[severity: medium] 適用保留に専用の apply_result 値が無い（CHECK に held が無いため NULL＝未処理で表す） / CHECK への held 追加か check_095 の文言改訂を task_020 で確定する",
         "[severity: medium] tests/unit/gate-check.test.ts の G2 2 件が test:contract の実在で赤（task_006 のフィクスチャが未定義であることを前提にしている） / フィクスチャの placeholder を替えるのは当該テストの所有者（task_006）",
         "[severity: medium] trust='unverified' は applyToLedger で適用せず apply_result='ignored' にする（再照会のアダプタを持たないため） / task_020 の reconcile が getPaymentStatus で reverified にして流し直す",
         "[severity: low] audit:verify のローカル実行は rowsChecked=0（統合テストが全てロールバックするため） / 連鎖破壊の検出は verifyChain の合成行テストと写し一致テストで担保、実データは task_035 以降",
         "[severity: low] WEBHOOK_IP_ALLOWLIST / WEBHOOK_SIGNING_SECRETS を env 雛形に未記載（未設定なら fail-closed） / task_035 / task_024 の env 台帳整備で登録する",
-        "[severity: low] npm run test:integration の 3 件が他タスクの未コミット成果物（tests/integration/admin.test.ts）で赤。当該ファイルを除けば 13 ファイル 204/204 pass / 当該ファイルの所有タスク（task_021）が解消する"
+        "[severity: low] npm run gate:constraints が他タスクの未追跡ファイル src/lib/reconcile.ts の W11（advisory lock 欠落）1 件で exit 1。本タスクのファイルは全て ok / 当該ファイルの所有タスク（task_020）が解消する"
       ]
     },
     {

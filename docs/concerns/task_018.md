@@ -17,6 +17,57 @@
   `test:contract` を再実行し、`docs/run-log/task_018.json` に追記する。
 - **対応予定タスク**: task_035（PO 作業）→ 本タスクの再検証
 
+## C-018-9 G5 敵対レビュー round1 は reject（high 3 件。本ラウンドで修正済み）
+
+- **指摘**: `docs/review-log/task_018.json` の merge は `decision: reject`（有効票 2・実効 high 3）。
+  F-1 受取先の突合欠落 / F-3 部分返金を不一致扱い / F-4 `audit:verify` の既定上限 10000 行。
+- **深刻度**: high → 3 件とも本ラウンドで修正（W8 の binding 突合・部分返金の残高反映・全件走査）。
+  medium の F-6（CIDR の `/` 欠落）も修正。規約により**再レビューはしない**。
+- **対応案**: 残る medium（F-2 / F-5 / F-7）は下の C-018-10〜12 に分けて記録した。
+- **対応予定タスク**: なし（本ラウンドで完了）／残りは各項参照
+
+## C-018-10 部分返金は請求状態を動かさない
+
+- **指摘**: 一部返金は `ledger_entry(kind='refund')` の debit として残高を減らすが、
+  残高が 0 以下になるまで `settlement_status` は `paid` のまま（前進のみ。W3）。
+- **深刻度**: medium（一覧上は「支払い済み」に見えるが、残高は減っている）
+- **対応案**: 一覧・集計で残高を出すか、部分返金のバッジを足す。
+- **対応予定タスク**: task_020（reconcile / 集計の実装時）
+
+## C-018-11 `ledgerDedupeKey` の既定はイベント ID 単位
+
+- **指摘**: 既定鍵は `<providerKey>:<kind>:<providerEventId>`。同じ事実を**別のイベント ID**で
+  複数回送る事業者では W2 の 2 段目が効かず二重計上になる（F-2）。
+- **深刻度**: medium（Phase 2 のアダプタ実装要件。Phase 1 の出荷アダプタは該当なし）
+- **対応案**: 実事業者アダプタは決済 ID 由来の `ledgerDedupeKey` を必ず宣言する。
+- **対応予定タスク**: Phase 2 の各アダプタ（task_030 系）
+
+## C-018-12 `sortKeysDeep` が `__proto__` キーを落とす
+
+- **指摘**: JSON 由来の `__proto__` を通常オブジェクトへ代入すると `JSON.stringify` から消え、
+  監査ハッシュがその配下の改変を検出できない（F-7）。
+- **深刻度**: medium（`detail` に `__proto__` を持つ書き込み経路は現状無い）
+- **対応案**: `Object.create(null)` に切り替える。ただし `src/lib/audit.ts` と
+  `scripts/audit-verify.mjs` の写しを**同時に**直す必要があり、前者は本タスクの
+  `files_to_modify` 外。
+- **対応予定タスク**: `src/lib/audit.ts` の所有タスク（task_017）
+
+## C-018-13 返金で `payment_attempt.status` が更新されない
+
+- **指摘**: `advanceOpenAttempt` は `is_open` の行だけを更新するため、`succeeded` で閉じた試行に
+  `refunded` が届いても試行の状態は `succeeded` のまま（F-5）。請求と台帳は正しい。
+- **深刻度**: medium（試行の最終状態が配信順に依存する）
+- **対応案**: 試行にもランクを持たせて前進のみで更新する（`is_open` 条件の置き換え）。
+- **対応予定タスク**: task_020
+
+## C-018-14 fixture 5 本が `captured_at` を持たない
+
+- **指摘**: `provenance.ts`（task_019 が後から必須化）の検査を通らない。
+- **深刻度**: low
+- **対応案**: 追加は task_019 の `tests/conformance/fixture-provider.conformance.test.ts` が
+  「欠落していること」を検査しているため**同時に直す**（片方だけでは赤）。
+- **対応予定タスク**: task_019 と同ラウンド
+
 ## C-018-2 Stop フックへの `test:gate` 登録を行っていない
 
 - **指摘**: scope に「Stop フックに test:gate」とあるが、共通規約は
@@ -25,7 +76,7 @@
   `test:gate`（= `test:contract` ＋ `test:conformance`）の定義までを本タスクで行った。
 - **深刻度**: medium
 - **対応案**: `.claude/settings.json` の Stop フックへの登録は task_019 が行う。
-- **対応予定タスク**: task_019
+- **対応予定タスク**: task_019（2026-09-24 時点で登録済み。`docs/PROGRESS.md` の task_019 行）
 
 ## C-018-3 「適用保留」に専用の `apply_result` 値が無い
 
@@ -80,11 +131,10 @@
 - **対応案**: env 台帳（`docs/ops/env-baseline.json`）の整備時に名前を登録する。
 - **対応予定タスク**: task_035 / task_024
 
-## C-018-8 `npm run test:integration` の 3 件が他タスクの未コミット成果物で赤
+## C-018-8 `npm run test:integration` の 3 件が他タスクの未コミット成果物で赤（解消）
 
-- **指摘**: `tests/integration/admin.test.ts`（未追跡。task_021 の作業中ファイル）の 3 件が
-  `append_only_violation: DELETE on audit_log is forbidden` ほかで落ちる。当該ファイルを
-  除いた `tests/integration` は **13 ファイル 204/204 pass**（run-log に両方を記録した）。
-- **深刻度**: low（並行実行中の他タスクの作業ツリー由来。本タスクのコードは原因ではない）
-- **対応案**: 当該ファイルの所有タスクが自タスクの検証で解消する。
-- **対応予定タスク**: task_021
+- **指摘**: `tests/integration/admin.test.ts`（task_021）の 3 件が落ちていた。
+- **深刻度**: low → **解消**。task_021 のコミット後に再実行し **21 ファイル 249/249 pass**
+  （2026-09-24 の run-log）。
+- **対応案**: なし。
+- **対応予定タスク**: なし

@@ -16,6 +16,11 @@
  *      （`balance.ts`。`mixed` は DB に保存できないので非自動側へ倒す）。
  *   7. 取消済み（`lifecycle_state='void'`）の請求への入金は**前進させたうえで**
  *      `void` を維持し、`needs_attention` と outbox `paid_after_void` を立てる（check_021）。
+ *   8. **受取先の突合**（W8）。受信の宛先 binding と試行の `provider_binding_id` が違えば、
+ *      請求にも台帳にも触れずに `mismatch` で終える（他人の請求を前進させない）。
+ *   9. 返金は**部分返金を正当なイベントとして扱う**。通貨一致・1 以上・突合基準未満なら
+ *      `kind='refund'` の debit として残高に反映し、残高が 0 以下になったときだけ
+ *      `refunded` へ前進させる。
  *
  * ★ `trust='unverified'`（署名を持たない事業者）のイベントは**ここでは適用しない**。
  *   §3-3 のとおり `getPaymentStatus` で再照会してから `reverified` として流し直す。
@@ -69,6 +74,12 @@ export interface ApplyToLedgerInput {
   readonly requestId: string;
   /** `ledger_entry.recorded_by`。秘密値・生 userId を入れない。 */
   readonly recordedBy: string;
+  /**
+   * ★ 受取先の突合（W8）。Webhook の宛先 `bindingRef` で解決した `provider_binding.id` を渡す。
+   *   試行の `provider_binding_id` がこれと違えば、**他人の請求には一切触れない**。
+   *   `null` / 未指定は「受取先を照合しない経路」（再照合ジョブなど）を表す。
+   */
+  readonly expectedBindingId?: string | null;
   readonly now?: Date;
 }
 
@@ -176,10 +187,34 @@ export interface ApplyPlanInput {
   readonly lifecycleState: string;
   /** このイベントを適用する前の台帳残高（`adjustment` を除く。`balance.ts`）。 */
   readonly ledgerBalanceBeforeMinor: number;
+  /** 試行の `provider_binding_id`（受取先。W8）。 */
+  readonly attemptBindingId?: string | null;
+  /** 受信の宛先 binding。`null` / 未指定なら受取先を照合しない。 */
+  readonly expectedBindingId?: string | null;
 }
 
-/** 何をするかの決定。`hold` は再照会待ち（`trust='unverified'`）。 */
-export type ApplyDecision = "apply" | "mismatch" | "attempt_only" | "hold";
+/**
+ * 何をするかの決定。`hold` は再照会待ち（`trust='unverified'`）、
+ * `binding_mismatch` は受取先が違う（他人の請求なので何も書かない。W8）。
+ */
+export type ApplyDecision =
+  | "apply"
+  | "mismatch"
+  | "binding_mismatch"
+  | "attempt_only"
+  | "hold";
+
+/**
+ * 受取先の突合（W8）。`expected` が無いときは照合しない（再照合ジョブのように
+ * 宛先の概念が無い経路がある）。あるときは**完全一致だけ**を通す。
+ */
+export function bindingMatches(
+  expected: string | null | undefined,
+  actual: string | null | undefined,
+): boolean {
+  if (expected === null || expected === undefined) return true;
+  return actual === expected;
+}
 
 export interface ApplyPlan {
   readonly decision: ApplyDecision;
@@ -209,6 +244,12 @@ export function planApply(input: ApplyPlanInput): ApplyPlan {
   const confidence = confidenceFor(input.trust);
   if (confidence === null) return holdPlan();
 
+  // ★ 受取先の突合（W8）。宛先 binding と試行の binding が違うイベントは**何も書かない**。
+  //   自分宛の URL に他人の `external_ref` を投げて請求を前進させる経路を塞ぐ。
+  if (!bindingMatches(input.expectedBindingId, input.attemptBindingId ?? null)) {
+    return bindingMismatchPlan();
+  }
+
   if (isAttemptOnlyKind(input.kind)) {
     // `failed` / `canceled` / `expired` は `payment_attempt.status` の CHECK と同名の値である
     // （`supabase/migrations/0001_init.sql`）。`isAttemptOnlyKind` がこの 3 値に限っている。
@@ -230,12 +271,22 @@ export function planApply(input: ApplyPlanInput): ApplyPlan {
   }
 
   const shape = LEDGER_SHAPE[input.kind];
-  const amountMatches =
-    input.eventAmountMinor === input.attemptAmountMinor &&
-    input.eventCurrency === input.attemptCurrency;
+  const currencyMatches = input.eventCurrency === input.attemptCurrency;
+  const amountMatches = input.eventAmountMinor === input.attemptAmountMinor && currencyMatches;
+
+  // ★ 部分返金は「金額不一致」ではない（事業者は 1 件の決済を複数回に分けて返金できる）。
+  //   通貨が一致し、金額が 1 以上・突合基準未満なら**正当な返金**として台帳の残高に反映する。
+  //   `adjustment` にしてしまうと `balance.ts` が残高から除外し、全額を分割返金しても
+  //   入金が残ったままになる。
+  const isPartialRefund =
+    input.kind === "refunded" &&
+    currencyMatches &&
+    input.eventAmountMinor !== null &&
+    input.eventAmountMinor > 0 &&
+    input.eventAmountMinor < input.attemptAmountMinor;
 
   // 金額を伴う種別なのに突合できないものは、ランクを動かさない（W8 / check_023）。
-  if (shape !== undefined && !amountMatches) {
+  if (shape !== undefined && !amountMatches && !isPartialRefund) {
     return {
       decision: "mismatch",
       ledgerDirection: shape.direction,
@@ -254,8 +305,7 @@ export function planApply(input: ApplyPlanInput): ApplyPlan {
     };
   }
 
-  const target = targetStatusFor(input.kind);
-  const rankAdvances = target !== null && input.invoiceRank < rankOf(target);
+  let target = targetStatusFor(input.kind);
 
   let ledgerKind: LedgerKind | null = shape?.kind ?? null;
   let ledgerAmount: number | null = null;
@@ -263,11 +313,15 @@ export function planApply(input: ApplyPlanInput): ApplyPlan {
   if (shape !== undefined && input.eventAmountMinor !== null) {
     ledgerAmount = input.eventAmountMinor;
     const delta = shape.direction === "credit" ? ledgerAmount : -ledgerAmount;
-    overpay =
-      shape.kind === "payment" &&
-      isOverpaid(input.ledgerBalanceBeforeMinor + delta, input.invoiceAmountMinor);
+    const balanceAfter = input.ledgerBalanceBeforeMinor + delta;
+    overpay = shape.kind === "payment" && isOverpaid(balanceAfter, input.invoiceAmountMinor);
     if (overpay) ledgerKind = "overpay";
+    // 返金は**残高が 0 以下になったときだけ**「返金済み」へ前進させる。
+    // 残高が残る一部返金は台帳だけを動かし、請求の状態は据え置く（前進のみ。W3）。
+    if (input.kind === "refunded" && balanceAfter > 0) target = null;
   }
+
+  const rankAdvances = target !== null && input.invoiceRank < rankOf(target);
 
   const paidAfterVoid = input.lifecycleState === "void" && input.kind === "succeeded";
   const outboxKinds: string[] = [];
@@ -287,6 +341,27 @@ export function planApply(input: ApplyPlanInput): ApplyPlan {
     needsAttention: paidAfterVoid || overpay,
     autoDetected: input.ingestionSource !== "manual",
     outboxKinds,
+  };
+}
+
+/**
+ * 受取先が違うイベント（W8）。台帳にも請求にも**触れない**。
+ * 被害側の請求に `needs_attention` を立てないのは、外部から誰でも押せるフラグに
+ * なってしまうためで、事実は運用アラート（`mismatch_alert`）と監査ログに残す。
+ */
+function bindingMismatchPlan(): ApplyPlan {
+  return {
+    decision: "binding_mismatch",
+    ledgerDirection: null,
+    ledgerKind: null,
+    ledgerAmountMinor: null,
+    confidence: null,
+    targetStatus: null,
+    rankAdvances: false,
+    attemptStatus: null,
+    needsAttention: false,
+    autoDetected: false,
+    outboxKinds: ["mismatch_alert"],
   };
 }
 
@@ -366,6 +441,41 @@ export async function applyToLedger(
     return { ...emptyOutcome("orphan"), outboxKinds };
   }
 
+  // ------------------------------------------------------ 受取先の突合（W8。他人の請求を守る）
+  // 宛先 binding と試行の binding が違うなら、**請求を読むことすらしない**。
+  // ランクを前進させないだけでなく、被害側の行に副作用を残さない。
+  if (!bindingMatches(input.expectedBindingId, attempt.providerBindingId)) {
+    await enqueueOutbox(tx, {
+      kind: "mismatch_alert",
+      payload: {
+        reason: "binding_mismatch",
+        providerKey: ev.providerKey,
+        externalRef: ev.externalRef,
+        expectedBindingId: input.expectedBindingId ?? null,
+        attemptId: attempt.id,
+      },
+      runAfter: now,
+    });
+    await appendAuditLog(tx, {
+      actorType: actorTypeFor(input.ingestionSource),
+      action: "ledger.apply.binding_mismatch",
+      targetType: "payment_attempt",
+      targetId: attempt.id,
+      providerKey: ev.providerKey,
+      externalRef: ev.externalRef,
+      requestId: input.requestId,
+      detail: { kind: ev.kind, applyResult: "mismatch", reason: "binding_mismatch" },
+      now,
+    });
+    await finishPaymentEvent(tx, input.paymentEventId, "mismatch", now);
+    return {
+      ...emptyOutcome("mismatch"),
+      attemptId: attempt.id,
+      needsAttention: false,
+      outboxKinds: ["mismatch_alert"],
+    };
+  }
+
   const invoiceRows = await tx<InvoiceRow[]>`
     SELECT id, event_id, amount_minor, currency, settlement_status, settlement_rank,
            lifecycle_state, needs_attention, auto_detected
@@ -397,6 +507,8 @@ export async function applyToLedger(
     invoiceRank: invoice.settlement_rank,
     lifecycleState: invoice.lifecycle_state,
     ledgerBalanceBeforeMinor: ledgerBalanceMinor(before),
+    attemptBindingId: attempt.providerBindingId,
+    expectedBindingId: input.expectedBindingId ?? null,
   });
 
   // -------------------------------------------- 失敗・キャンセル・期限切れは試行にだけ記録

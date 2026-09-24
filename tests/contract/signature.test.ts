@@ -130,6 +130,47 @@ describe("C3 Webhook 署名不一致", () => {
     });
   });
 
+  it("別 binding の bindingRef から他人の external_ref を送っても前進しない（W8）", async () => {
+    await withRollback(appRw, async (tx) => {
+      const attacker = await insertFixtureScenario(tx, "sigx-a");
+      const victim = await insertFixtureScenario(tx, "sigx-b");
+      const ctx = await makeContractContext(tx);
+
+      // 署名も IP も正しい。違うのは「宛先 binding が自分のもので、外部参照は他人のもの」だけ。
+      const raw = loadFixtureBody("succeeded", { externalRef: victim.externalRef });
+      const response = await handleWebhookRequest(
+        ctx,
+        await buildSignedRequest(raw, { bindingRef: attacker.bindingId }),
+        { providerKey: FIXTURE_PROVIDER_KEY, bindingRef: attacker.bindingId },
+        "req-sigx",
+      );
+      expect(response.status).toBe(200);
+
+      const invoice = await tx<{ settlement_status: string; needs_attention: boolean }[]>`
+        SELECT settlement_status, needs_attention FROM invoice WHERE id = ${victim.invoiceId}
+      `;
+      expect(invoice[0]?.settlement_status).toBe("unpaid");
+      // 外部から押せるフラグにしない（被害側の請求には触れない）。
+      expect(invoice[0]?.needs_attention).toBe(false);
+
+      const ledger = await tx<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM ledger_entry WHERE invoice_id = ${victim.invoiceId}
+      `;
+      expect(ledger[0]?.count).toBe("0");
+
+      const events = await tx<{ apply_result: string | null }[]>`
+        SELECT apply_result FROM payment_event WHERE external_ref = ${victim.externalRef}
+      `;
+      expect(events.length).toBe(1);
+      expect(events[0]?.apply_result).toBe("mismatch");
+
+      const alerts = await tx<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM outbox WHERE kind = 'mismatch_alert'
+      `;
+      expect(alerts[0]?.count).toBe("1");
+    });
+  });
+
   it("どのシークレットとも一致しない署名は 400（シークレット 0 本でも同じ）", async () => {
     await withRollback(appRw, async (tx) => {
       const scenario = await insertFixtureScenario(tx, "sig3");

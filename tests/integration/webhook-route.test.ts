@@ -462,5 +462,15 @@ describe("audit:verify の写しが src/lib/audit.ts とずれていない", () 
     expect(verifyChain([row1, { ...row2, target_id: "tampered" }]).ok).toBe(false);
     // prev_hash を切る → 連鎖が途切れる。
     expect(verifyChain([row1, { ...row2, prev_hash: null }]).ok).toBe(false);
+
+    // ★ 塊をまたぐ検証（CLI は id のカーソルで 10000 行ずつ読む）。直前の塊の
+    //   row_hash を渡すので、境界にある改変も検出できる（上限で打ち切らない）。
+    const first = verifyChain([row1]);
+    expect(first.ok).toBe(true);
+    expect(first.lastId).toBe("1");
+    expect(verifyChain([row2], first.lastRowHash).ok).toBe(true);
+    expect(verifyChain([{ ...row2, target_id: "tampered" }], first.lastRowHash).ok).toBe(false);
+    // 前の塊を渡し忘れた形（prev=null）なら境界で必ず不一致になる。
+    expect(verifyChain([row2], null).ok).toBe(false);
   });
 });

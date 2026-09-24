@@ -2398,6 +2398,22 @@ GPT-6 Astra 7 件のうち重複を除く 7 件を**全件修正**した（詳�
 - required_status_checksへの`contract`追加はgit push後にCIで確認するdeferred。
   task_018の既存5 fixtureがcaptured_atを欠く点はtask_018の次ラウンド待ち。
 
+## task_018（レビュー修正・G5 reject の high 3 件）
+
+### 決まったこと
+
+- Webhook の受取先突合（W8）は `bindingMatches()` を `planApply` と `applyToLedger` の両方に置き、
+  不一致は**被害側の請求を読まずに** `apply_result='mismatch'` ＋ `mismatch_alert` で終える。
+- 部分返金は `kind='refund'` の debit として残高に反映し、残高が 0 以下になったときだけ `refunded` へ前進。
+  `audit:verify` は `id` カーソルで全件走査（`--limit` 時だけ `truncated` を出力）。
+
+### 未解決
+
+- `npm run test:unit` は exit 1 のまま。原因は task_006 の `tests/unit/gate-check.test.ts` が
+  「`test:contract` は未定義」を前提にしたフィクスチャで、本タスク側に打つ手が無い（C-018-4）。
+- fixture 5 本の `captured_at` 欠落は、task_019 の `tests/conformance/fixture-provider.conformance.test.ts`
+  が「欠落していること」を検査しているため**同時に直す必要がある**（片方だけ直すと赤になる）。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。

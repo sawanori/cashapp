@@ -133,6 +133,89 @@ describe("planApply — 金額不一致（check_023）", () => {
   });
 });
 
+describe("planApply — 受取先の突合（W8）", () => {
+  it("宛先 binding と試行の binding が違えば何も書かない（他人の請求を前進させない）", () => {
+    const plan = planApply(
+      input({ attemptBindingId: "binding-b", expectedBindingId: "binding-a" }),
+    );
+    expect(plan.decision).toBe("binding_mismatch");
+    expect(plan.rankAdvances).toBe(false);
+    expect(plan.targetStatus).toBeNull();
+    expect(plan.ledgerKind).toBeNull();
+    expect(plan.ledgerAmountMinor).toBeNull();
+    expect(plan.attemptStatus).toBeNull();
+    expect(plan.outboxKinds).toEqual(["mismatch_alert"]);
+  });
+
+  it("受取先が一致すれば通常どおり適用する", () => {
+    const plan = planApply(
+      input({ attemptBindingId: "binding-a", expectedBindingId: "binding-a" }),
+    );
+    expect(plan.decision).toBe("apply");
+    expect(plan.ledgerKind).toBe("payment");
+  });
+
+  it("宛先 binding を持たない経路（再照合など）は照合しない", () => {
+    const plan = planApply(input({ attemptBindingId: "binding-b", expectedBindingId: null }));
+    expect(plan.decision).toBe("apply");
+  });
+
+  it("受取先が違えば失敗系（試行だけに書く種別）も弾く", () => {
+    const plan = planApply(
+      input({
+        kind: "expired",
+        eventAmountMinor: null,
+        eventCurrency: null,
+        attemptBindingId: "binding-b",
+        expectedBindingId: "binding-a",
+      }),
+    );
+    expect(plan.decision).toBe("binding_mismatch");
+    expect(plan.attemptStatus).toBeNull();
+  });
+});
+
+describe("planApply — 部分返金", () => {
+  it("残高が残る一部返金は refund として残高を減らし、状態は動かさない", () => {
+    const plan = planApply(
+      input({
+        kind: "refunded",
+        eventAmountMinor: 1000,
+        ledgerBalanceBeforeMinor: 3000,
+        invoiceRank: rankOf("paid"),
+      }),
+    );
+    expect(plan.decision).toBe("apply");
+    expect(plan.ledgerKind).toBe("refund");
+    expect(plan.ledgerDirection).toBe("debit");
+    expect(plan.ledgerAmountMinor).toBe(1000);
+    expect(plan.targetStatus).toBeNull();
+    expect(plan.rankAdvances).toBe(false);
+  });
+
+  it("分割返金の合計が残高に届いたら refunded へ前進する", () => {
+    const plan = planApply(
+      input({
+        kind: "refunded",
+        eventAmountMinor: 2000,
+        ledgerBalanceBeforeMinor: 2000,
+        invoiceRank: rankOf("paid"),
+      }),
+    );
+    expect(plan.decision).toBe("apply");
+    expect(plan.ledgerKind).toBe("refund");
+    expect(plan.targetStatus).toBe("refunded");
+    expect(plan.rankAdvances).toBe(true);
+  });
+
+  it("突合基準を超える返金・通貨違いの返金は不一致のまま", () => {
+    expect(planApply(input({ kind: "refunded", eventAmountMinor: 4000 })).decision).toBe("mismatch");
+    expect(
+      planApply(input({ kind: "refunded", eventAmountMinor: 1000, eventCurrency: "USD" })).decision,
+    ).toBe("mismatch");
+  });
+});
+
 describe("planApply — 取消後入金（check_021）", () => {
   it("void 済みでも前進させ、要対応と paid_after_void を立てる", () => {
     const plan = planApply(input({ lifecycleState: "void" }));

@@ -676,3 +676,20 @@
   `gate:constraints`は他タスク未追跡の`src/lib/reconcile.ts`（W11）1件のみでexit 1
   （task_019のファイルではない）。required_status_checksへの追加はgit push後にCIで確認する
   deferred項目。残懸念6件（high 1・medium 2・low 3）は`docs/concerns/task_019.md`。
+- task_018（レビュー修正）: DONE_WITH_CONCERNS — G5 reject の high 3 件を修正した。(1) **W8 の受取先突合が
+  無く、自分の bindingRef 宛てに他人の `external_ref` を署名付きで投げると他 organizer の請求を paid に
+  できた**（`tests/contract/signature.test.ts` に再現ケースを足し、修正前 fail / 修正後 pass を実測）→
+  `bindingMatches()` を `planApply` と `applyToLedger` の両方に入れ、不一致は請求を読まずに
+  `apply_result='mismatch'` ＋ `mismatch_alert` で終える（被害側の請求には触れない）。(2) **部分返金を
+  すべて金額不一致として `adjustment` にしていたため、分割返金しても残高が減らなかった** → 通貨一致・
+  1 以上・突合基準未満の `refunded` を `kind='refund'` の debit として残高に反映し、残高が 0 以下に
+  なったときだけ `refunded` へ前進させる。(3) **`audit:verify` が既定で先頭 10000 行しか見ず、以降の
+  連鎖破壊を成功として返していた** → `id` カーソルで全件走査し、`--limit` 指定時だけ `truncated` を
+  出力に明示。併せて medium 2 件（`webhook_delivery` が適用ループの例外時に 1 行も残らない／CIDR の
+  `203.0.113.0/` が `/0`＝全 IPv4 許可として通る）も修正。**実測**: `scripts/record-run.sh task_018`
+  経由で `typecheck` exit 0、`test:contract` 8/8 pass、`test:integration` 21 ファイル 249/249 pass、
+  `audit:verify` exit 0。`test:unit` は 1212/1214 pass で **exit 1**（失敗 2 件は task_006 所有の
+  `tests/unit/gate-check.test.ts`。`test:contract` が実在することを前提にできないフィクスチャ）、
+  `gate:constraints` は他タスク未追跡の `src/lib/reconcile.ts` の W11 1 件で exit 1。G5 は規約により
+  再レビューせず、残る medium 3 件（dedupe 既定鍵・`__proto__`・試行の終端状態）は
+  `docs/concerns/task_018.md` C-018-10〜13 に記録。

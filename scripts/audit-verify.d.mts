@@ -45,11 +45,18 @@ export interface AuditChainResult {
   rowsChecked: number;
   brokenAtId: string | null;
   reason: string | null;
+  /** 検証が進んだ最後の行の id（塊をまたいで続けるためのカーソル）。 */
+  lastId: string | null;
+  /** 次の塊の `prev_hash` として期待される値。 */
+  lastRowHash: Uint8Array | null;
 }
 
 export function sortKeysDeep(value: unknown): unknown;
 export function computeRowHash(input: AuditRowHashInput): Buffer;
-export function verifyChain(rows: readonly AuditChainRowLike[]): AuditChainResult;
+export function verifyChain(
+  rows: readonly AuditChainRowLike[],
+  expectedPrevHash?: Uint8Array | null,
+): AuditChainResult;
 export function resolveConnectionString(
   env?: Record<string, string | undefined>,
   argUrl?: string | null,

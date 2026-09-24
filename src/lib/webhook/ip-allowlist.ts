@@ -51,7 +51,11 @@ export function parseIpAllowlist(spec: string | undefined | null): readonly IpRu
     const slash = entry.indexOf("/");
     if (slash >= 0) {
       const network = parseIpv4(entry.slice(0, slash));
-      const maskBits = Number(entry.slice(slash + 1));
+      const suffix = entry.slice(slash + 1);
+      // ★ `Number("")` は 0 になる。書式を先に検査しないと `203.0.113.0/` が `/0`
+      //   （全 IPv4 許可）として通ってしまい、入口防御が逆向きに働く。
+      if (!/^\d{1,2}$/.test(suffix)) return [];
+      const maskBits = Number(suffix);
       if (network === null || !Number.isInteger(maskBits) || maskBits < 0 || maskBits > 32) {
         return [];
       }

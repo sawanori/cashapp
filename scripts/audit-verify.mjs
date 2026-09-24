@@ -16,6 +16,9 @@
  *
  * ★ 出力に秘密値を入れない。出すのは行 ID・件数・理由だけ。
  *
+ * ★ 既定で**全件**を検査する（`id` のカーソルで 10000 行ずつ読む）。`--limit` を渡したときだけ
+ *   検査を打ち切り、後続行が残っていることを出力の `truncated: true` で明示する。
+ *
  * 使い方:
  *   node scripts/audit-verify.mjs [--limit <n>] [--url <connection string>] [--quiet]
  *
@@ -31,7 +34,8 @@ import { fileURLToPath } from "node:url";
 
 import postgres from "postgres";
 
-const DEFAULT_LIMIT = 10000;
+/** 1 回の SELECT で読む行数。全件を読み切るまでカーソル（`id`）で繰り返す。 */
+const CHUNK_SIZE = 10000;
 
 /** ローカル（`supabase start`）の既定。CI / 本番は `--url` か環境変数で渡す。 */
 const DEFAULT_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres";
@@ -92,9 +96,16 @@ function buffersEqual(a, b) {
   return Buffer.from(a).equals(Buffer.from(b));
 }
 
-/** DB 行の配列（`id` 昇順）を検証する。 */
-export function verifyChain(rows) {
-  let expectedPrevHash = null;
+/**
+ * DB 行の配列（`id` 昇順）を検証する。
+ *
+ * ★ `expectedPrevHash` を渡せるのは、**分割して読んだ塊をまたいで連鎖を続ける**ため。
+ *   直前の塊の最後の `row_hash` を渡すと、境界で連鎖が切れていても検出できる。
+ *   戻り値の `lastRowHash` / `lastId` を次の塊にそのまま渡す。
+ */
+export function verifyChain(rows, expectedPrevHashInput = null) {
+  let expectedPrevHash = expectedPrevHashInput;
+  let lastId = null;
   for (const row of rows) {
     if (!buffersEqual(row.prev_hash, expectedPrevHash)) {
       return {
@@ -102,6 +113,8 @@ export function verifyChain(rows) {
         rowsChecked: rows.length,
         brokenAtId: String(row.id),
         reason: "prev_hash does not match the previous row's row_hash",
+        lastId,
+        lastRowHash: expectedPrevHash,
       };
     }
     const recomputed = computeRowHash({
@@ -127,15 +140,27 @@ export function verifyChain(rows) {
         rowsChecked: rows.length,
         brokenAtId: String(row.id),
         reason: "row_hash does not match the recomputed hash of the row content",
+        lastId,
+        lastRowHash: expectedPrevHash,
       };
     }
     expectedPrevHash = row.row_hash;
+    lastId = String(row.id);
   }
-  return { ok: true, rowsChecked: rows.length, brokenAtId: null, reason: null };
+  return {
+    ok: true,
+    rowsChecked: rows.length,
+    brokenAtId: null,
+    reason: null,
+    lastId,
+    lastRowHash: expectedPrevHash,
+  };
 }
 
 async function main(argv) {
-  let limit = DEFAULT_LIMIT;
+  // ★ 既定は**全件**。上限を既定に置くと、件数が増えた日から上限より後ろの改変を
+  //   「合格」と報告するようになる（検証の意味が静かに失われる）。
+  let limit = null;
   let url = null;
   let quiet = false;
   for (let i = 0; i < argv.length; i += 1) {
@@ -164,27 +189,55 @@ async function main(argv) {
     onnotice: () => {},
   });
   try {
-    const rows = await sql`
-      SELECT id, occurred_at, actor_type, actor_ref, action, target_type, target_id,
-             before_rank, after_rank, amount_minor, provider_key, external_ref,
-             request_id, source_ip_hash, detail, prev_hash, row_hash
-      FROM audit_log
-      ORDER BY id ASC
-      LIMIT ${limit}
-    `;
-    const result = verifyChain(rows);
+    // `id` のカーソルで塊ごとに読む。全件を一度にメモリへ載せず、行ごとのクエリも出さない。
+    let afterId = "0"; // `audit_log.id` は 1 から始まる IDENTITY なので `> 0` が全件。
+    let prevHash = null;
+    let rowsChecked = 0;
+    let broken = null;
+    let truncated = false;
+    for (;;) {
+      const remaining = limit === null ? CHUNK_SIZE : Math.min(CHUNK_SIZE, limit - rowsChecked);
+      if (remaining <= 0) {
+        const more = await sql`SELECT 1 FROM audit_log WHERE id > ${afterId} LIMIT 1`;
+        truncated = more.length > 0;
+        break;
+      }
+      const rows = await sql`
+        SELECT id, occurred_at, actor_type, actor_ref, action, target_type, target_id,
+               before_rank, after_rank, amount_minor, provider_key, external_ref,
+               request_id, source_ip_hash, detail, prev_hash, row_hash
+        FROM audit_log
+        WHERE id > ${afterId}
+        ORDER BY id ASC
+        LIMIT ${remaining}
+      `;
+      if (rows.length === 0) break;
+      const result = verifyChain(rows, prevHash);
+      if (!result.ok) {
+        rowsChecked += result.rowsChecked;
+        broken = result;
+        break;
+      }
+      rowsChecked += result.rowsChecked;
+      prevHash = result.lastRowHash;
+      if (result.lastId === null) break;
+      afterId = result.lastId;
+    }
+
+    const ok = broken === null;
     if (!quiet) {
       console.log(
         JSON.stringify({
           gate: "audit:verify",
-          ok: result.ok,
-          rowsChecked: result.rowsChecked,
-          brokenAtId: result.brokenAtId,
-          reason: result.reason,
+          ok,
+          rowsChecked,
+          brokenAtId: broken === null ? null : broken.brokenAtId,
+          reason: broken === null ? null : broken.reason,
+          truncated,
         }),
       );
     }
-    return result.ok ? 0 : 1;
+    return ok ? 0 : 1;
   } catch (error) {
     // 接続文字列（パスワードを含む）を出さない。
     console.error(`audit-verify: database error: ${error instanceof Error ? error.name : "unknown"}`);

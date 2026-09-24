@@ -211,7 +211,12 @@ export async function handleWebhookRequest(
   const digest = await bodySha256(raw);
   const headers = pickLoggedHeaders(request.headers);
 
+  // ★ 受信記録は**高々 1 行**。失敗経路（catch）から呼んでも、正常経路で既に書いていれば
+  //   二重に残さない。「届いた事実」を消さないための不変条件（§9 ⑤ / check_019）。
+  let delivered = false;
   const deliver = async (sigOk: boolean, httpStatus: number): Promise<void> => {
+    if (delivered) return;
+    delivered = true;
     await recordWebhookDelivery(ctx.sql, {
       providerKey: params.providerKey,
       sigOk,
@@ -252,6 +257,8 @@ export async function handleWebhookRequest(
         requestId,
       );
     }
+    // 署名検証以外の失敗（アダプタ未登録・本文の構造化失敗）でも受信の事実は残す。
+    await deliver(false, 500).catch(() => undefined);
     throw error;
   }
 
@@ -268,60 +275,74 @@ export async function handleWebhookRequest(
 
   // ── 台帳適用のゲート。未通過でも受信・保存はする（適用だけ保留）。
   const gate = ctx.applyGate ?? ((b: ProviderBinding) => defaultApplyGate(ctx.sql, ctx.appEnv, b, now));
-  const holdReason = await gate(binding);
 
+  let holdReason: string | null = null;
   let applied = 0;
   let duplicates = 0;
   let held = 0;
 
-  for (const ev of events) {
-    const providerEventId = await providerEventIdOf(ev, raw);
-    const outcome = await ctx.runTransaction(async (tx) => {
-      const paymentEventId = await insertPaymentEvent(tx, {
-        providerKey: ev.providerKey,
-        providerEventId,
-        eventType: ev.eventType,
-        kind: ev.kind,
-        externalRef: ev.externalRef,
-        businessIdemKey: businessIdemKey({
-          externalRef: ev.externalRef,
-          kind: ev.kind,
-          declared: ev.businessIdemKey,
-        }),
-        invoiceId: null,
-        attemptId: null,
-        amountMinor: ev.money?.amountMinor ?? null,
-        currency: ev.money?.currency ?? null,
-        occurredAt: ev.occurredAt,
-        ingestionSource: "webhook",
-        trust: ev.trust,
-        rawRedacted: redactRawPayload({
+  // ★ ゲート判定・適用ループが例外で抜けても `webhook_delivery` を必ず 1 行残す。
+  //   残さないと「届いたが失敗した」と「届いていない」が観測から区別できなくなる（R-OPS-01）。
+  try {
+    holdReason = await gate(binding);
+    await applyEvents();
+  } catch (error) {
+    await deliver(true, 500).catch(() => undefined);
+    throw error;
+  }
+
+  async function applyEvents(): Promise<void> {
+    for (const ev of events) {
+      const providerEventId = await providerEventIdOf(ev, raw);
+      const outcome = await ctx.runTransaction(async (tx) => {
+        const paymentEventId = await insertPaymentEvent(tx, {
+          providerKey: ev.providerKey,
+          providerEventId,
           eventType: ev.eventType,
           kind: ev.kind,
           externalRef: ev.externalRef,
-          providerEventId,
+          businessIdemKey: businessIdemKey({
+            externalRef: ev.externalRef,
+            kind: ev.kind,
+            declared: ev.businessIdemKey,
+          }),
+          invoiceId: null,
+          attemptId: null,
           amountMinor: ev.money?.amountMinor ?? null,
           currency: ev.money?.currency ?? null,
           occurredAt: ev.occurredAt,
-        }),
+          ingestionSource: "webhook",
+          trust: ev.trust,
+          rawRedacted: redactRawPayload({
+            eventType: ev.eventType,
+            kind: ev.kind,
+            externalRef: ev.externalRef,
+            providerEventId,
+            amountMinor: ev.money?.amountMinor ?? null,
+            currency: ev.money?.currency ?? null,
+            occurredAt: ev.occurredAt,
+          }),
+        });
+        // W1: 0 行 = 既処理。台帳にも請求にも触らない（check_017）。
+        if (paymentEventId === null) return "duplicate" as const;
+        // ゲート未通過: 保存だけして apply_result / processed_at を NULL のまま残す。
+        if (holdReason !== null) return "held" as const;
+        const result = await applyToLedger(tx, {
+          event: { ...ev, providerEventId },
+          paymentEventId,
+          ingestionSource: "webhook",
+          requestId,
+          recordedBy: `webhook:${ev.providerKey}`,
+          // ★ 受取先の突合（W8）。この URL の宛先 binding に属さない試行は動かさない。
+          expectedBindingId: binding.id,
+          now,
+        });
+        return result.result === "duplicate" ? ("duplicate" as const) : ("applied" as const);
       });
-      // W1: 0 行 = 既処理。台帳にも請求にも触らない（check_017）。
-      if (paymentEventId === null) return "duplicate" as const;
-      // ゲート未通過: 保存だけして apply_result / processed_at を NULL のまま残す。
-      if (holdReason !== null) return "held" as const;
-      const result = await applyToLedger(tx, {
-        event: { ...ev, providerEventId },
-        paymentEventId,
-        ingestionSource: "webhook",
-        requestId,
-        recordedBy: `webhook:${ev.providerKey}`,
-        now,
-      });
-      return result.result === "duplicate" ? ("duplicate" as const) : ("applied" as const);
-    });
-    if (outcome === "duplicate") duplicates += 1;
-    else if (outcome === "held") held += 1;
-    else applied += 1;
+      if (outcome === "duplicate") duplicates += 1;
+      else if (outcome === "held") held += 1;
+      else applied += 1;
+    }
   }
 
   await deliver(true, 200);
