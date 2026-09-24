@@ -586,5 +586,14 @@
     "commit": "455e5943bfd30ac9065c5710d0523f72057e01a0",
     "ran_at": "2026-09-24T11:03:45Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "node scripts/gate-integrity.mjs --write-baseline",
+    "exit_code": 0,
+    "stdout_tail": "gate:integrity — 基準値を書きました: docs/gates/integrity-baseline.json",
+    "commit": "0042281aeb8bb8d5c557c977f6e9178e07d79045",
+    "ran_at": "2026-09-24T11:15:20Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]
