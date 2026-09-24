@@ -67,6 +67,12 @@
             "command": "cd \"$CLAUDE_PROJECT_DIR\" && npm run --silent gate:constraints",
             "timeout": 300,
             "statusMessage": "gate:constraints"
+          },
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && npm run --silent gate:plan",
+            "timeout": 120,
+            "statusMessage": "gate:plan（task-list / acceptance-checks の構造検査）"
           }
         ]
       }
@@ -78,6 +84,12 @@
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/append-handoff.sh\"",
             "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && npm run --silent gate:check",
+            "timeout": 300,
+            "statusMessage": "gate:check（G0〜G14）"
           }
         ]
       }

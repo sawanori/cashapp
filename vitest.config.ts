@@ -32,6 +32,10 @@ export default defineConfig({
       // DB が要るため、ディレクトリを明示しない素の `vitest run` からは外したいが、
       // vitest は include に無いファイルを位置指定フィルタでも拾えないため、ここに載せる。
       "tests/integration/**/*.test.ts",
+      // task_006: `npm run test:gate-meta`（違反フィクスチャで各ゲートが非ゼロ終了することの検証）。
+      // vitest の位置指定フィルタは include に無いファイルを拾えないので、`vitest run tests/gates`
+      // を成立させるにはここに載せる必要がある（task_011 の tests/integration と同じ理由）。
+      "tests/gates/**/*.test.ts",
     ],
     exclude: [
       "node_modules/**",
