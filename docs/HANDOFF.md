@@ -588,6 +588,25 @@
 - [low] `gate:env` の「期待名の突き合わせ」は `docs/ops/env-baseline.json`（task_035 所有）待ちで pending（C-012-11）。
 - [low, deferred] CI 実走は GitHub リモート未作成のため未実施（C-012-12）。
 
+### ⚠ コミットの取り違え（task_006 へ）
+
+`20f379f`（コミットメッセージは task_012 の run-log 再実行ログ）に、**task_006 の成果物が
+巻き込まれている**（`scripts/gate-check.mjs` / `scripts/assert-acceptance.mjs` /
+`scripts/assert-verify-commands.mjs` / `scripts/gate-integrity.mjs` /
+`scripts/validate-plan-json.mjs` / `scripts/test-hook-enforcement.sh` /
+`docs/gates/integrity-baseline.json` / `docs/harness-capability.md` /
+`docs/concerns/task_006.md` / `docs/run-log/task_006.json` / `tests/gates/**` /
+`tests/unit/gate-check.test.ts`）。
+
+原因: task_012 側が `git add docs/run-log/task_012.json` を **`scripts/with-lock.sh git` の外**で
+実行し、その直後の `git commit`（ロック内）との間に、並行していた task_006 が共有インデックスへ
+ステージした分を一緒に拾ってしまった。`git add` もロックの内側で行う必要がある（規約の運用漏れ）。
+
+**履歴は書き換えていない**。task_006 が `scripts/record-run.sh` で残した evidence の `commit` が
+`20f379f` を指している可能性があり、rebase するとその evidence が無効になるため。
+task_006 側は「自分のファイルは既にコミット済み」として扱い、PROGRESS / HANDOFF の追記だけを
+別コミットにすればよい。
+
 ## task_006（gate-check G0〜G14・違反フィクスチャ・メタゲート・フック実在マトリクス）
 
 ### 決まったこと
@@ -704,3 +723,4 @@
 - 2026-09-24T06:59:38Z HEAD=c053281 決まったこと: chore: 検証エージェントが残した run-log / HANDOFF の追記をコミット（hardening 完了時点） / 未解決: 未コミット 3 件: docs/HANDOFF.md docs/run-log/task_012.json tests/gates/ 
 - 2026-09-24T06:59:43Z HEAD=c053281 決まったこと: chore: 検証エージェントが残した run-log / HANDOFF の追記をコミット（hardening 完了時点） / 未解決: 未コミット 3 件: docs/HANDOFF.md docs/run-log/task_012.json tests/gates/ 
 - 2026-09-24T07:41:49Z HEAD=c053281 決まったこと: chore: 検証エージェントが残した run-log / HANDOFF の追記をコミット（hardening 完了時点） / 未解決: 未コミット 41 件: .claude/settings.json .env.example docs/HANDOFF.md docs/PROGRESS.md package.json src/app/api/health/route.ts tests/unit/health.test.ts vitest.config.ts 
+- 2026-09-24T07:43:56Z HEAD=3cc3a19 決まったこと: task_006: gate-check（G0〜G14）・違反フィクスチャ 23 本・メタゲート・フック実在マトリクスの実測 / 未解決: 未コミット 1 件: tests/gates/probe.test.ts 
