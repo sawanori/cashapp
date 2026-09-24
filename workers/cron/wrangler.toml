@@ -1,0 +1,38 @@
+## workers/cron/wrangler.toml — Cron Triggers 専用 Worker（雛形。§7-7）
+## メインアプリの wrangler.toml とは独立。npm scripts からは直接呼ばない
+## （このディレクトリ内で `wrangler dev` / `wrangler deploy --env <env>` を叩く運用。
+## deploy は .github/workflows/release.yml からのみ。ローカルの wrangler deploy は
+## PreToolUse の deny-dangerous-bash.sh が遮断する対象 — task_005/006）。
+
+name = "cashapp-cron"
+main = "index.ts"
+compatibility_date = "2026-09-24"
+compatibility_flags = ["nodejs_compat"]
+
+[triggers]
+crons = [
+  "*/5 * * * *", # reconcile
+  "* * * * *",   # outbox
+  "0 19 * * *",  # retention (JST 04:00)
+  "10 19 * * *", # idempotency-cleanup (JST 04:10)
+  "20 19 * * *", # audit-verify (JST 04:20)
+]
+
+[vars]
+APP_BASE_URL = "http://127.0.0.1:8787"
+
+# CRON_SECRETS はシークレットのためここに書かない。
+# ローカル: workers/cron/.dev.vars（.dev.vars.example 参照）
+# staging/production: `wrangler secret put CRON_SECRETS --env <env>`（task_012/024）
+
+[env.staging]
+name = "cashapp-cron-staging"
+
+[env.staging.vars]
+APP_BASE_URL = "https://REPLACE_WITH_STAGING_DOMAIN_TASK_035"
+
+[env.production]
+name = "cashapp-cron-production"
+
+[env.production.vars]
+APP_BASE_URL = "https://REPLACE_WITH_PRODUCTION_DOMAIN_TASK_035"

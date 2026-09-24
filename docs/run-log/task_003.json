@@ -1,0 +1,99 @@
+[
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "4faf3be05e5b008613b623a0433af9053bb2b9e2",
+    "ran_at": "2026-09-24T03:26:20Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run lint",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 lint\n> eslint .",
+    "commit": "4faf3be05e5b008613b623a0433af9053bb2b9e2",
+    "ran_at": "2026-09-24T03:26:23Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run build",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 build\n> next build\n\n▲ Next.js 16.3.6 (Turbopack)\n✓ Running next.config.ts took 264ms\n\n  Creating an optimized production build ...\n✓ Compiled successfully in 1318ms\n  Running TypeScript ...\n  Finished TypeScript in 1310ms ...\n  Collecting page data using 5 workers ...\n  Generating static pages using 5 workers (0/4) ...\n  Generating static pages using 5 workers (1/4) \r\n  Generating static pages using 5 workers (2/4) \r\n  Generating static pages using 5 workers (3/4) \r\n✓ Generating static pages using 5 workers (4/4) in 176ms\n  Finalizing page optimization ...\n\nRoute (app)\n┌ ○ /\n├ ○ /_not-found\n└ ƒ /api/health\n\n\n○  (Static)   prerendered as static content\nƒ  (Dynamic)  server-rendered on demand",
+    "commit": "4faf3be05e5b008613b623a0433af9053bb2b9e2",
+    "ran_at": "2026-09-24T03:26:26Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  1 passed (1)\n      Tests  1 passed (1)\n   Start at  03:26:32\n   Duration  122ms (setup 66%, transform 15%, tests 11%, import 4%, worker 3%, environment 1%)",
+    "commit": "4faf3be05e5b008613b623a0433af9053bb2b9e2",
+    "ran_at": "2026-09-24T03:26:32Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run build:cf",
+    "exit_code": 0,
+    "stdout_tail": "\n  Creating an optimized production build ...\n✓ Compiled successfully in 549ms\n  Running TypeScript ...\n  Finished TypeScript in 1177ms ...\n  Collecting page data using 5 workers ...\n  Generating static pages using 5 workers (0/4) ...\n  Generating static pages using 5 workers (1/4) \r\n  Generating static pages using 5 workers (2/4) \r\n  Generating static pages using 5 workers (3/4) \r\n✓ Generating static pages using 5 workers (4/4) in 175ms\n  Finalizing page optimization ...\n\nRoute (app)\n┌ ○ /\n├ ○ /_not-found\n└ ƒ /api/health\n\n\n○  (Static)   prerendered as static content\nƒ  (Dynamic)  server-rendered on demand\n\n\n┌──────────────────────────────┐\n│ OpenNext — Generating bundle │\n└──────────────────────────────┘\n\nBundling middleware function...\nBundling static assets...\nBundling cache assets...\nBuilding server function: default...\nApplying code patches: 1.156s\n# copyPackageTemplateFiles\n\u001b[35m⚙️ Bundling the OpenNext server...\n\u001b[0m\n\u001b[35mWorker saved in `.open-next/worker.js` 🚀\n\u001b[0m\nOpenNext build complete.\nworker-size: .open-next/worker.js entry point = 2278 bytes (thin, dynamic-imports the rest).\nworker-size: ESTIMATED upper bound (all of .open-next/ except assets/, raw/unbundled) = 20352234 bytes (19.41 MiB) = 30.3% of the 64 MiB uncompressed limit (A25, check_040). This over-counts vs. the real wrangler-bundled+minified size — see this script's header comment and ADR-012.",
+    "commit": "4faf3be05e5b008613b623a0433af9053bb2b9e2",
+    "ran_at": "2026-09-24T03:26:35Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "スパイク①②③④(build:cf→wrangler dev, port 8799)を実施。①GET /api/health=200 OK。②request.text()のSHA-256がローカルshasumと完全一致(49バイト、改行/タブ/多バイト文字/NULバイト含む)、import server-onlyはnext buildをexit 1で失敗させることを確認。③middlewareで付与したヘッダが/, /api/health, 404パスの全てに付与。④同ヘッダは/_next/static/配下の静的アセットには付与されない(ASSETSバインディング経由でmiddlewareをバイパスするため、部分成立)。詳細はADR-012参照。workers/cron/index.tsもwrangler dev(port 8798)で起動確認、GET/ で5件のcronルート一覧を返却、curl /__scheduled?cron=*/5+*+*+*+*でscheduled handlerがreconcileルートへのfetchを試み(相手先未起動のため接続失敗はするが例外は正しくcatchされconsole.errorのみでクラッシュしない)ことを確認。",
+    "commit": "4faf3be05e5b008613b623a0433af9053bb2b9e2",
+    "ran_at": "2026-09-24T03:26:55Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "4faf3be05e5b008613b623a0433af9053bb2b9e2",
+    "ran_at": "2026-09-24T03:31:04Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run lint",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 lint\n> eslint .",
+    "commit": "4faf3be05e5b008613b623a0433af9053bb2b9e2",
+    "ran_at": "2026-09-24T03:31:07Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run build",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 build\n> next build\n\n▲ Next.js 16.3.6 (Turbopack)\n✓ Running next.config.ts took 260ms\n\n  Creating an optimized production build ...\n✓ Compiled successfully in 422ms\n  Running TypeScript ...\n  Finished TypeScript in 1188ms ...\n  Collecting page data using 5 workers ...\n  Generating static pages using 5 workers (0/4) ...\n  Generating static pages using 5 workers (1/4) \r\n  Generating static pages using 5 workers (2/4) \r\n  Generating static pages using 5 workers (3/4) \r\n✓ Generating static pages using 5 workers (4/4) in 204ms\n  Finalizing page optimization ...\n\nRoute (app)\n┌ ○ /\n├ ○ /_not-found\n└ ƒ /api/health\n\n\n○  (Static)   prerendered as static content\nƒ  (Dynamic)  server-rendered on demand",
+    "commit": "4faf3be05e5b008613b623a0433af9053bb2b9e2",
+    "ran_at": "2026-09-24T03:31:10Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  1 passed (1)\n      Tests  1 passed (1)\n   Start at  03:31:15\n   Duration  120ms (setup 67%, transform 16%, tests 12%, worker 3%, import 2%, environment 1%)",
+    "commit": "4faf3be05e5b008613b623a0433af9053bb2b9e2",
+    "ran_at": "2026-09-24T03:31:15Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run build:cf",
+    "exit_code": 0,
+    "stdout_tail": "\n  Creating an optimized production build ...\n✓ Compiled successfully in 256ms\n  Running TypeScript ...\n  Finished TypeScript in 1179ms ...\n  Collecting page data using 5 workers ...\n  Generating static pages using 5 workers (0/4) ...\n  Generating static pages using 5 workers (1/4) \r\n  Generating static pages using 5 workers (2/4) \r\n  Generating static pages using 5 workers (3/4) \r\n✓ Generating static pages using 5 workers (4/4) in 178ms\n  Finalizing page optimization ...\n\nRoute (app)\n┌ ○ /\n├ ○ /_not-found\n└ ƒ /api/health\n\n\n○  (Static)   prerendered as static content\nƒ  (Dynamic)  server-rendered on demand\n\n\n┌──────────────────────────────┐\n│ OpenNext — Generating bundle │\n└──────────────────────────────┘\n\nBundling middleware function...\nBundling static assets...\nBundling cache assets...\nBuilding server function: default...\nApplying code patches: 1.151s\n# copyPackageTemplateFiles\n\u001b[35m⚙️ Bundling the OpenNext server...\n\u001b[0m\n\u001b[35mWorker saved in `.open-next/worker.js` 🚀\n\u001b[0m\nOpenNext build complete.\nworker-size: .open-next/worker.js entry point = 2278 bytes (thin, dynamic-imports the rest).\nworker-size: ESTIMATED upper bound (all of .open-next/ except assets/, raw/unbundled) = 20352234 bytes (19.41 MiB) = 30.3% of the 64 MiB uncompressed limit (A25, check_040). This over-counts vs. the real wrangler-bundled+minified size — see this script's header comment and ADR-012.",
+    "commit": "4faf3be05e5b008613b623a0433af9053bb2b9e2",
+    "ran_at": "2026-09-24T03:31:17Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  }
+]

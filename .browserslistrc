@@ -1,0 +1,20 @@
+# サポート対象ブラウザ（雛形。下限の確定は T-P1-23／R-LINE-03 で実施）
+#
+# 主戦場は LINE ミニアプリ（LINE アプリ内ブラウザ = Android は System WebView、
+# iOS は WKWebView 経由）。詳細は docs/supported-browsers.md を参照。
+# 具体的な下限バージョンは LINE 公式ドキュメント未取得のため [不明] のまま、
+# 暫定的に「広く使われている実質的な下限」を置く。
+
+# 本番ビルド（next build のブラウザターゲット判定に使用）
+[production]
+last 2 Chrome versions
+last 2 ChromeAndroid versions
+last 2 iOS versions
+last 2 Safari versions
+Android >= 10
+iOS >= 14
+
+# 開発時は手元のブラウザのみで良い
+[development]
+last 1 chrome version
+last 1 safari version

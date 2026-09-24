@@ -1,0 +1,11 @@
+# `wrangler dev` / `npm run cf:dev`（メインアプリ Worker）がローカルで読む
+# 秘密値の雛形。ここに書く値は staging 相当のダミー値に限る（本番鍵を置かない。§7-7）。
+#
+# 使い方: cp .dev.vars.example .dev.vars （.dev.vars は .gitignore 済み・絶対にコミットしない）
+#
+# workers/cron/ は別 Worker なので、そちら用の秘密値（CRON_SECRETS 等）は
+# workers/cron/.dev.vars に別途置く（wrangler はサブディレクトリの wrangler.toml と
+# 同階層の .dev.vars を読む）。
+#
+# task_003 時点で必須の秘密値はまだ無い（LINE_ENV_PROFILE・PEPPER・セッション鍵・
+# CRON_SECRETS 等は task_011/012 以降で追記される）。

@@ -1,0 +1,77 @@
+## wrangler.toml — メインアプリ Worker（Next.js on Cloudflare Workers via @opennextjs/cloudflare）
+##
+## 一次資料は docs/vendor-docs/cloudflare/opennext.md と
+## docs/vendor-docs/cloudflare/hyperdrive.md（取得日 2026-09-24）を参照。
+## cron 専用 Worker は別ファイル workers/cron/wrangler.toml（§7-7）。
+
+name = "cashapp-dev"
+main = ".open-next/worker.js"
+compatibility_date = "2026-09-24"
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+# ISR 再検証などが自身へ fetch するための自己参照バインディング（OpenNext 公式推奨構成）。
+[[services]]
+binding = "WORKER_SELF_REFERENCE"
+service = "cashapp-dev"
+
+# Supabase Tokyo 近傍への配置最適化（実測は本タスクのスパイクで未計測。効果は A24）。
+[placement]
+mode = "smart"
+
+# 既定 30,000ms から引き上げ。照合ジョブ（/api/cron/reconcile）が外部決済 API への
+# バッチ呼び出し（最大100件・並列度5・1件3秒タイムアウト、premortem R-OPS-08）を
+# 抱えるための暫定余裕値。実測して task_012/018 で再調整する。
+[limits]
+cpu_ms = 50000
+
+# Hyperdrive 経由で Cloudflare Workers から Supabase Postgres に接続する。
+# id は task_035 で `wrangler hyperdrive create` の実 ID に置き換えるまでプレースホルダ。
+# ローカル `wrangler dev` では localConnectionString がそのまま使われる
+# （Hyperdrive のクエリキャッシュは経由しない。docs/vendor-docs/cloudflare/hyperdrive.md）。
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "REPLACE_WITH_HYPERDRIVE_ID_TASK_035"
+localConnectionString = "postgres://postgres:postgres@127.0.0.1:54322/postgres"
+
+[vars]
+APP_ENV = "development"
+
+# --- staging: 独立の Supabase プロジェクト・独立のシークレットスコープ（R-SEC-05） ---
+[env.staging]
+name = "cashapp-staging"
+
+[env.staging.vars]
+APP_ENV = "staging"
+
+[[env.staging.services]]
+binding = "WORKER_SELF_REFERENCE"
+service = "cashapp-staging"
+
+[[env.staging.hyperdrive]]
+binding = "HYPERDRIVE"
+id = "REPLACE_WITH_HYPERDRIVE_ID_TASK_035_STAGING"
+
+# --- production ---
+[env.production]
+name = "cashapp-production"
+
+[env.production.vars]
+APP_ENV = "production"
+
+[[env.production.services]]
+binding = "WORKER_SELF_REFERENCE"
+service = "cashapp-production"
+
+[[env.production.hyperdrive]]
+binding = "HYPERDRIVE"
+id = "REPLACE_WITH_HYPERDRIVE_ID_TASK_035_PRODUCTION"
+
+[env.production.placement]
+mode = "smart"
+
+[env.production.limits]
+cpu_ms = 50000

@@ -4,6 +4,7 @@ node_modules/
 # next.js
 .next/
 out/
+next-env.d.ts
 
 # opennext / cloudflare
 .open-next/
@@ -18,6 +19,9 @@ out/
 coverage/
 playwright-report/
 test-results/
+
+# TypeScript incremental build cache
+*.tsbuildinfo
 
 # misc
 .DS_Store
