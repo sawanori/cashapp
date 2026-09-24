@@ -26,7 +26,7 @@
  */
 
 import { requireStaticProviderCapabilities } from "../capabilities-static";
-import { MAX_AMOUNT_MINOR, MIN_AMOUNT_MINOR } from "../money";
+import { toProviderAmount } from "../money";
 import {
   MANUAL_CONFIRM_DISCLAIMER,
   MANUAL_CONFIRM_PROVIDER_KEY,
@@ -232,12 +232,12 @@ export function createManualConfirmProvider(
       if (!EXTERNAL_REF_RE.test(cmd.externalRef)) {
         return Promise.reject(new NotSupportedError(`invalid externalRef format`));
       }
-      if (
-        cmd.money.amountMinor < MIN_AMOUNT_MINOR ||
-        cmd.money.amountMinor > MAX_AMOUNT_MINOR ||
-        cmd.money.currency !== "JPY"
-      ) {
-        return Promise.reject(new NotSupportedError(`unsupported amount for manual confirm`));
+      // 金額の検査は `toProviderAmount()`（アダプタ境界の唯一の出口）に寄せる。
+      // ブランドを保ったまま小数へ書き換えた `Money` もここで落ちる（G5 round1 GPT F-3）。
+      try {
+        toProviderAmount(cmd.money);
+      } catch {
+        return Promise.reject(new NotSupportedError("unsupported amount for manual confirm"));
       }
       // 決済を作らない。外部 API も呼ばないので timeoutMs / returnUrl は使わない
       // （型としては必須のままにして、自動アダプタと同じ呼び出し側コードが通るようにする）。

@@ -71,6 +71,9 @@ function newIdempotencyKey(): string {
 function PayPageBody(): ReactNode {
   const searchParams = useSearchParams();
   const invoiceId = searchParams.get("invoice");
+  // 招待トークン。P-6（復帰）が `GET /api/e/me` で実際の状態を引くために持ち回す
+  // （G5 round1 GPT F-4 是正）。無ければ P-6 は状態を断定せず P-3 へ誘導する。
+  const joinToken = searchParams.get("t");
 
   const [phase, setPhase] = useState<Phase>("loading");
   const [permanentLink, setPermanentLink] = useState<string | null>(null);
@@ -257,7 +260,11 @@ function PayPageBody(): ReactNode {
 
       <p className="pay__after">
         お支払いが済んだら
-        <Link href={`/e/return?invoice=${encodeURIComponent(invoiceId ?? "")}`}>
+        <Link
+          href={`/e/return?invoice=${encodeURIComponent(invoiceId ?? "")}${
+            joinToken === null ? "" : `&t=${encodeURIComponent(joinToken)}`
+          }`}
+        >
           この画面に戻って状況を確認
         </Link>
         してください。

@@ -22,6 +22,7 @@ import { StateView } from "@/components/StateView";
 function DonePageBody(): ReactNode {
   const searchParams = useSearchParams();
   const invoiceId = searchParams.get("invoice");
+  const joinToken = searchParams.get("t");
 
   if (invoiceId === null) {
     return <StateView state="error" />;
@@ -42,7 +43,13 @@ function DonePageBody(): ReactNode {
         金額や状態に行き違いがあるときは、LINE のトークで幹事へご連絡ください。
       </p>
       <p>
-        <Link href={`/e/return?invoice=${encodeURIComponent(invoiceId)}`}>状態をもう一度見る</Link>
+        <Link
+          href={`/e/return?invoice=${encodeURIComponent(invoiceId)}${
+            joinToken === null ? "" : `&t=${encodeURIComponent(joinToken)}`
+          }`}
+        >
+          状態をもう一度見る
+        </Link>
       </p>
     </section>
   );

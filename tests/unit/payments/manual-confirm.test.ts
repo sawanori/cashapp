@@ -181,6 +181,13 @@ describe("createCheckout: 決済を作らない手動案内", () => {
     ).rejects.toBeInstanceOf(NotSupportedError);
   });
 
+  it("スプレッドで作った小数金額の Money は受け付けない（G5 round1 GPT F-3）", async () => {
+    const forged = { ...yen(3000), amountMinor: 3000.5 };
+    await expect(
+      manualConfirmProvider.createCheckout(binding(), command({ money: forged })),
+    ).rejects.toBeInstanceOf(NotSupportedError);
+  });
+
   it("externalRef の書式が不正なら作らない", async () => {
     await expect(
       manualConfirmProvider.createCheckout(binding(), command({ externalRef: "iv/../x" })),

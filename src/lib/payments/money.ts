@@ -36,14 +36,7 @@ export class MoneyError extends Error {
  * 実行時の値は `{ amountMinor, currency }` の 2 キーのままである。
  */
 export function yen(amountMinor: number): Money {
-  if (!Number.isInteger(amountMinor)) {
-    throw new MoneyError(`amount must be an integer (JPY is zero-decimal): ${String(amountMinor)}`);
-  }
-  if (amountMinor < MIN_AMOUNT_MINOR || amountMinor > MAX_AMOUNT_MINOR) {
-    throw new MoneyError(
-      `amount out of range [${MIN_AMOUNT_MINOR}, ${MAX_AMOUNT_MINOR}]: ${String(amountMinor)}`,
-    );
-  }
+  assertAmountInvariant(amountMinor);
   return { amountMinor, currency: "JPY" } as unknown as Money;
 }
 
@@ -55,7 +48,23 @@ export function toProviderAmount(money: Money): number {
   if (money.currency !== "JPY") {
     throw new MoneyError(`unsupported currency: ${String(money.currency)}`);
   }
+  // G5 round1 GPT F-3 是正: ブランドは**構造的**なので `{ ...yen(3000), amountMinor: 3000.5 }` は
+  // 型アサーション無しで `Money` に化ける（スプレッドがブランドごと引き継ぐ）。`yen()` の検査を
+  // 通らない値がここへ来る経路が実在するため、境界でもう一度だけ同じ不変条件を確かめる。
+  assertAmountInvariant(money.amountMinor);
   return money.amountMinor;
+}
+
+/** `yen()` と `toProviderAmount()` が共有する不変条件（整数・範囲内）。 */
+function assertAmountInvariant(amountMinor: number): void {
+  if (!Number.isInteger(amountMinor)) {
+    throw new MoneyError(`amount must be an integer (JPY is zero-decimal): ${String(amountMinor)}`);
+  }
+  if (amountMinor < MIN_AMOUNT_MINOR || amountMinor > MAX_AMOUNT_MINOR) {
+    throw new MoneyError(
+      `amount out of range [${MIN_AMOUNT_MINOR}, ${MAX_AMOUNT_MINOR}]: ${String(amountMinor)}`,
+    );
+  }
 }
 
 /** 同値判定。`Money` は構造体なので `===` では比較しない。 */

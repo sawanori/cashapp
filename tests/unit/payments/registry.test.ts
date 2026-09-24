@@ -64,7 +64,9 @@ function fakeEnv(options: FakeEnvOptions = {}): GateEnvironment {
   return {
     appEnv: options.appEnv ?? PRODUCTION_APP_ENV,
     isPaymentsEnabled: () => Promise.resolve(options.paymentsEnabled ?? true),
-    providerMode: () => Promise.resolve(options.mode ?? "on"),
+    // `mode: null`（フラグの行が無い）を「未指定」と区別する。`??` だと null が既定値に
+    // 吸われてしまい、F-2 の回帰テストが空振りする。
+    providerMode: () => Promise.resolve("mode" in options ? (options.mode ?? null) : "on"),
     complianceGates: () => Promise.resolve(options.gates ?? allGatesPassed()),
     isOrganizerSuspended: () => Promise.resolve(options.organizerSuspended ?? false),
   };
@@ -231,6 +233,19 @@ describe("resolveProvider の 9 パターン（check_090）", () => {
   it("6. PROVIDER_<KEY>_MODE が off なら、そのアダプタだけ止まる", async () => {
     await expectBlockedBy(
       resolveProvider(AUTO_KEY, ctx({ env: fakeEnv({ mode: "off" }) })),
+      `PROVIDER_${AUTO_KEY.toUpperCase()}_MODE`,
+    );
+  });
+
+  it("6b. PROVIDER_<KEY>_MODE が未設定・不正値でも止まる（G5 round1 GPT F-2）", async () => {
+    // 修正前は `'off'` のときだけ拒否していたため、行が無い（null）・値が壊れている場合に
+    // 素通りしていた。`gates.ts` の「読めなければ無効に倒す」と同じ側へそろえる。
+    await expectBlockedBy(
+      resolveProvider(AUTO_KEY, ctx({ env: fakeEnv({ mode: null }) })),
+      `PROVIDER_${AUTO_KEY.toUpperCase()}_MODE`,
+    );
+    await expectBlockedBy(
+      resolveProvider(AUTO_KEY, ctx({ env: fakeEnv({ mode: "enabled" }) })),
       `PROVIDER_${AUTO_KEY.toUpperCase()}_MODE`,
     );
   });

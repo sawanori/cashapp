@@ -123,3 +123,32 @@ O-0 オンボーディング・適格性（`docs/task-list.json` task_017）。
 - **深刻度**: low
 - **対応案**: deferred: task_035（staging Supabase ＋ Hyperdrive）完了後に再実測する。
 - **対応予定タスク**: task_035
+
+## C-017-11 write-ahead の保証が 1 トランザクションの中では成立しない（G5 round1 GPT F-1）
+
+- **指摘**: `POST /api/e/checkout` は `payment_attempt` を INSERT してから
+  `provider.createCheckout()` を呼ぶが、両者は同じトランザクションの中にある
+  （冪等予約・業務書き込み・`done` 更新を 1 トランザクションにまとめる P-01 の是正が
+  それを要求する）。したがって「事業者を呼んだ後にコミット前で落ちても試行記録は残る」という
+  write-ahead 本来の保証は**成立しない**。落ちれば予約ごとロールバックされる。
+- **深刻度**: medium（Phase 1 は実害なし。`manual_confirm` は外部呼び出しを一切しないため、
+  ロールバックしても外部に副作用は残らない）
+- **対応案**: 自動アダプタを足す時点で「試行だけを別トランザクションで先にコミットしてから
+  事業者を呼ぶ」形へ作り替える。冪等予約との整合は、予約を `in_flight` のまま残して
+  照合ジョブに解決させるか、`payment_attempt` を outbox 経由にするかの設計判断が要る。
+  本タスクでは route の docstring を実態に合わせて訂正した（誤った保証を書かない）。
+- **対応予定タスク**: task_018 / task_026
+
+## G5 round1 の指摘と対応
+
+`docs/review-log/task_017.json`（round 1・`merge-review: pass` / 有効票 2 / 欠票 0 / 実効 high 0）。
+gemini 2.5 Pro は PASS（指摘 0）、GPT-6 Astra は medium 4 件 / low 1 件。
+**実効 high が 0 なので差し戻しではないが、5 件とも実在の穴なので同じ周で処理した**。
+
+| id | 深刻度 | 内容 | 対応 |
+|---|---|---|---|
+| F-1 | medium | write-ahead の保証が同一トランザクションでは成立しない | docstring を実態に訂正し、C-017-11 として記録（設計変更は task_018 / 026） |
+| F-2 | medium | `PROVIDER_<KEY>_MODE` が未設定・不正値でもガードを通過 | `!== "on"` で拒否する形に変更（fail-closed）。回帰テスト 1 件を追加 |
+| F-3 | medium | `{ ...yen(3000), amountMinor: 3000.5 }` がブランドを保ったまま境界を通る | `toProviderAmount()` に整数・範囲の検査を足し、`ManualConfirmAdapter` の金額検査もそこへ寄せた。回帰テスト 2 件 |
+| F-4 | medium | P-6 が状態を問い合わせず常に「幹事の確認待ち」 | 招待トークン（`?t=`）を P-4 → P-6 → P-7 で持ち回し、`GET /api/e/me` の実状態を表示する形に変更。トークンが無い場合は状態を断定せず P-3 へ誘導 |
+| F-5 | low | `mixedCount > 0` でも「すべて手動確認」と表示 | 表示条件に `mixedCount === 0` を追加 |

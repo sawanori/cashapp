@@ -79,6 +79,19 @@ describe("toProviderAmount(): アダプタ境界の唯一の出口", () => {
     }
   });
 
+  it("スプレッドでブランドごと作った小数金額を境界で止める（G5 round1 GPT F-3）", () => {
+    // ブランドは構造的なので、`{ ...yen(3000), amountMinor: 3000.5 }` は型アサーション無しで
+    // `Money` になる。`yen()` を通っていない値がここへ来る唯一の経路であり、境界で落とす。
+    const forged: Money = { ...yen(3000), amountMinor: 3000.5 };
+    expect(() => toProviderAmount(forged)).toThrow(MoneyError);
+
+    const tooBig: Money = { ...yen(3000), amountMinor: MAX_AMOUNT_MINOR + 1 };
+    expect(() => toProviderAmount(tooBig)).toThrow(MoneyError);
+
+    const zero: Money = { ...yen(3000), amountMinor: 0 };
+    expect(() => toProviderAmount(zero)).toThrow(MoneyError);
+  });
+
   it("JPY 以外は通さない", () => {
     const notJpy = { amountMinor: 100, currency: "USD" } as unknown as Money;
     expect(() => toProviderAmount(notJpy)).toThrow(MoneyError);

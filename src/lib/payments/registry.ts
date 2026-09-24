@@ -55,7 +55,7 @@ export interface GateEnvironment {
   /** `APP_ENV`。`production` 以外は自動アダプタを一切有効にしない。 */
   readonly appEnv: string | undefined;
   isPaymentsEnabled(): Promise<boolean>;
-  /** `PROVIDER_<KEY>_MODE` の生値。行が無ければ `null`。 */
+  /** `PROVIDER_<KEY>_MODE` の生値。行が無ければ `null`（= 未設定。ガードは拒否側に倒す）。 */
   providerMode(providerKey: string): Promise<string | null>;
   complianceGates(gateKeys: readonly string[]): Promise<readonly ComplianceGateRow[]>;
   isOrganizerSuspended(organizerUserId: string): Promise<boolean>;
@@ -206,9 +206,12 @@ async function runGuards(
     throw new ProviderNotEnabledError(key, blocking.gateKey);
   }
 
-  // 4. 事業者ごとのモード。`off` で当該アダプタだけを止める。
+  // 4. 事業者ごとのモード。**`'on'` のときだけ通す**（G5 round1 GPT F-2 是正）。
+  //    修正前は `'off'` のときだけ止めていたため、フラグの行が無い（`null`）・値が壊れている
+  //    場合に素通りしていた。`src/lib/db/repositories/gates.ts` が掲げる「読めなければ無効に倒す」
+  //    と食い違っていたので、既定を拒否側に寄せる。新しい事業者は人がフラグを立てるまで開かない。
   const modeKey = providerModeFlagKey(key);
-  if ((await ctx.env.providerMode(key)) === "off") {
+  if ((await ctx.env.providerMode(key)) !== "on") {
     throw new ProviderNotEnabledError(key, modeKey);
   }
 

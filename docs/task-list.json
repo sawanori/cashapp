@@ -1942,7 +1942,8 @@
         "[severity: low] 参加者画面が event.allow_cash を読めないため現金欄は条件つき文言 / GET /api/e/me が allowCash を返したら出し分ける（C-017-6）",
         "[severity: low] O-0 の選択結果を O-3 に引き渡していない（Cookie / localStorage 禁止のため）/ 幹事プロフィールに持たせるか O-3 で再掲する（C-017-7）",
         "[severity: low] e2e（check_001 / check_092）と ProviderConformanceKit（C9 / C10 / C12 / C23 / C30）は未実施 / task_019・task_022 で実施する（C-017-9）",
-        "[severity: low] deferred: task_035 完了後 — Hyperdrive 経由の実測（A21）は未実施。ローカル direct 接続（app_rw）でのみ検証した（C-017-10）"
+        "[severity: low] deferred: task_035 完了後 — Hyperdrive 経由の実測（A21）は未実施。ローカル direct 接続（app_rw）でのみ検証した（C-017-10）",
+        "[severity: medium] write-ahead の保証は同一トランザクションの中では成立しない（事業者呼び出し後にコミット前で落ちれば試行記録もロールバックされる。Phase 1 は manual_confirm が外部呼び出しをしないため実害なし）/ 自動アダプタを足すときに試行だけを別トランザクションで先にコミットする形へ作り替える（C-017-11 / G5 round1 GPT F-1）"
       ]
     },
     {
