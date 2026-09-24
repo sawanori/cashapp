@@ -271,10 +271,45 @@ describe("build:web-only の本番ビルド経路検査（fixture tree で実走
     expect(stderr).toContain("前置されていません");
   });
 
+  /**
+   * 代入だけの節は**後続コマンドの環境に渡らない**（5 巡目・gemini F-1）。
+   *
+   * 実測（`sh -c`）:
+   *   `FOO=bar; printenv FOO`        → 空
+   *   `FOO=bar && printenv FOO`      → 空
+   *   `export FOO=bar && printenv FOO` → bar
+   *   `FOO=bar printenv FOO`         → bar
+   * つまり `export` を伴わない代入はシェル変数にしかならず、子プロセスへは渡らない。
+   */
+  it("代入だけの節は後続に効かない（NEXT_PUBLIC_LIFF_MOCK=0; next build は落ちる）", async () => {
+    const root = await makeFixture("NEXT_PUBLIC_LIFF_MOCK=0; next build");
+    const { status, stderr } = runGate(root);
+    expect(status).toBe(1);
+    expect(stderr).toContain("前置されていません");
+  });
+
+  it("代入だけの節は && でも後続に効かない", async () => {
+    const root = await makeFixture("NEXT_PUBLIC_LIFF_MOCK=0 && next build");
+    const { status, stderr } = runGate(root);
+    expect(status).toBe(1);
+    expect(stderr).toContain("前置されていません");
+  });
+
   it("export で設定してからビルドする形は通る（後続コマンドにも効くため）", async () => {
     const root = await makeFixture("export NEXT_PUBLIC_LIFF_MOCK=0 && next build");
     const { status, stderr } = runGate(root);
     expect(status, stderr).toBe(0);
+  });
+
+  /**
+   * パイプの左側への代入は右側に効かない（5 巡目・GPT-6 Astra F-4）。
+   * `A=0 printf x | next build` の `A=0` は `printf` にしか掛からない。
+   */
+  it("パイプ左側だけの代入は落ちる（右側の next build に効かない）", async () => {
+    const root = await makeFixture("NEXT_PUBLIC_LIFF_MOCK=0 printf x | next build");
+    const { status, stderr } = runGate(root);
+    expect(status).toBe(1);
+    expect(stderr).toContain("前置されていません");
   });
 
   it("ビルドコマンドが見当たらなければ落ちる（検査が空振りしていない）", async () => {

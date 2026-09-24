@@ -125,13 +125,16 @@ function checkBuildCommandEnv(name, script) {
   const exported = new Map();
   let sawBuildCommand = false;
 
-  for (const segment of script.split(/&&|\|\||;/)) {
+  // `|`（パイプ）も区切りに含める。`A=0 printf x | next build` の `A=0` は左の `printf` に
+  // しか掛からないので、右側を別コマンドとして扱わないと素通りする。
+  // 選択の順序に意味がある: `\|\|` を `\|` より先に置かないと `||` が 2 個の空節に割れる。
+  for (const segment of script.split(/&&|\|\||;|\|/)) {
     const { env, rest } = splitLeadingEnv(segment);
-    if (rest.length === 0) {
-      // 代入だけの行（`FOO=1` のみ）も後続に効く。
-      for (const [key, value] of env) exported.set(key, value);
-      continue;
-    }
+    // ★ 代入だけの節（`FOO=1;` / `FOO=1 &&`）は**後続コマンドの環境に渡らない**。
+    //   `export` の無い代入はシェル変数にしかならないためである（実測:
+    //   `sh -c 'FOO=bar; printenv FOO'` は空、`sh -c 'export FOO=bar && printenv FOO'` は bar）。
+    //   したがってここで `exported` へ取り込んではならない。下の marker にも当たらないので、
+    //   この節は「何も効かせない」まま読み飛ばされる。
     if (/^export(\s|$)/.test(rest)) {
       for (const match of rest.matchAll(/([A-Za-z_][A-Za-z0-9_]*)=(\S*)/g)) {
         exported.set(match[1], match[2]);

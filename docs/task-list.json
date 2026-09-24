@@ -1488,10 +1488,11 @@
       "adversarial_review": "required",
       "evidence_label": "[設計]",
       "optional": false,
-      "completion_status": "BLOCKED",
+      "completion_status": "DONE_WITH_CONCERNS",
       "concerns": [
         "[severity: medium] 残懸念の一覧は docs/concerns/task_013.md に記録（各項目に深刻度と対応案を付記）／対応案: 同ファイルの『対応案』欄に従い、対応予定タスクで解消する",
-        "[severity: high] 4 周目 5 巡目の指摘 3 件（GPT-6 Astra F-1 保存値を読んだだけの回が退避先に残らない / F-2 liff.login() の例外が state とテレメトリを迂回する / F-3 ビルドに適用されない環境変数代入でも固定値検査を通過する）は再現→修正→実測まで済んでいるが、その修正に対する敵対レビューはこの時点では未実施（docs/concerns/task_013.md C-013-20 / C-013-21 / C-013-22）／対応案: 本コミットの直後に scripts/review-drive.sh と merge-review.sh を回す。pass なら completion_status を DONE_WITH_CONCERNS に戻し、reject なら BLOCKED のまま次の周へ送る",
+        "[severity: medium] 5 巡目レビュー（merge-review: pass / 有効票 2 / 実効 high 0）で出た medium のうち 3 件が未対応: telemetry の 429 も毎回 telemetry.rejected を書くためログ量が絞れない（C-013-26）/ tokens.css の body min-width:20rem が文字サイズ 200% で 640px を要求し 320px 幅で横スクロールする（C-013-27）/ build-web-only.mjs の readSpecifiers がコメントを挟んだ副作用 import を見落とす（C-013-28）／対応案: それぞれ task_023 / task_024・task_025 / task_022・task_022 で解消する",
+        "[severity: medium] 5 巡目レビューで出た medium のうち 3 件（SDK 状態取得の例外・パイプ左側だけの代入・代入だけの節の引き継ぎ）は再現→修正→実測まで済ませたが、その修正自体は敵対レビューに掛けていない（レビュー往復の予算を使い切った後の修正。docs/concerns/task_013.md C-013-23 / C-013-24 / C-013-25）／対応案: 次に task_013 の周が回るとき、または task_022 の CI 整備時にまとめてレビューへ掛ける",
         "[severity: medium] GPT-6 Astra F-1（high）の修正は「ページ 1 回分」しか効かない: sessionStorage が使えない端末では login() のページ遷移でメモリ退避カウンタも 0 に戻るため、再読み込みをまたぐ打ち切りは保証されない（docs/concerns/task_013.md C-013-13）／対応案: task_014 の (liff) 起動画面で、ストレージ不能時に限り試行回数を redirectUri のクエリへ載せて往復させるかを決める",
         "[severity: low] GPT-6 Astra F-3（medium）で入れた readBoundedBody が守るのはハンドラが読む量であって、ランタイム／WAF がリクエストをどこまで受信するかではない（docs/concerns/task_013.md C-013-15）／対応案: レート制限バインディングと合わせて task_024 / task_035 の環境構築で上流の受信制限を設定する"
       ]

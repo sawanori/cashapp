@@ -287,6 +287,38 @@ describe("bootLiff の起動順序", () => {
     expect(storage.dump()).toEqual({ [LOGIN_ATTEMPT_STORAGE_KEY]: "1" });
   });
 
+  /**
+   * SDK の状態取得が例外を投げる場合（5 巡目・GPT-6 Astra F-1）。
+   *
+   * `login()` だけでなく `isInClient` / `isLoggedIn` / `getIDToken` も
+   * 「**例外を投げない**」契約の内側に無ければならない。ここで投げられると
+   * `bootLiff` ごと reject し、画面は state を受け取れずテレメトリも出ない。
+   */
+  it.each([
+    ["isInClient", "init_failed"],
+    ["isLoggedIn", "init_failed"],
+    ["getIDToken", "auth_unavailable"],
+  ] as const)(
+    "%s が例外を投げても reject せず %s とテレメトリ sdk_call_failed",
+    async (method, expectedState) => {
+      const fake = fakeLiff({ inClient: true, loggedIn: true });
+      fake[method].mockImplementation(() => {
+        throw new Error(`${method} failed`);
+      });
+
+      const result = await bootLiff(LIFF_ID, {
+        loadLiff: async () => fake.liff,
+        storage: memoryStorage(),
+        report,
+      });
+
+      expect(result.state).toBe(expectedState);
+      expect(result.reportedCode).toBe(CLIENT_ERROR_CODES.SDK_CALL_FAILED);
+      expect(reported).toEqual([CLIENT_ERROR_CODES.SDK_CALL_FAILED]);
+      expect(fake.login).not.toHaveBeenCalled();
+    },
+  );
+
   it("ストレージが使えなくても（null）起動を止めない", async () => {
     const { liff, login } = fakeLiff({ inClient: true, loggedIn: false });
 

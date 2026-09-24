@@ -41,6 +41,13 @@ export const CLIENT_ERROR_CODES = {
    * こちらは「SDK が転んだ」であり、監視で数える単位も次にやることも違うためである。
    */
   LOGIN_CALL_FAILED: "login_call_failed",
+  /**
+   * SDK の状態取得（`isInClient` / `isLoggedIn` / `getIDToken`）が例外を投げた。
+   *
+   * `login_call_failed` と分けているのは、あちらが**遷移を始めようとして転んだ**のに対し、
+   * こちらは**まだ何も始めていない**からである。復旧手順も違う（後者は再読み込みで直りうる）。
+   */
+  SDK_CALL_FAILED: "sdk_call_failed",
 } as const;
 
 export type ClientErrorCode = (typeof CLIENT_ERROR_CODES)[keyof typeof CLIENT_ERROR_CODES];

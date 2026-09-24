@@ -1719,11 +1719,29 @@ GPT-6 Astra の敵対レビュー（high 1 / medium 2）。**再現 2 件・非�
   そのコマンド 1 つにしか効かないので、`NEXT_PUBLIC_LIFF_MOCK=0 echo prepare && next build` が
   合格していた（実測 exit 0）。`&&` / `||` / `;` で区切って実ビルドコマンドを探し、
   その直前の代入か先行する `export` に `=0` があることを要求する形にした。→ C-013-22
-- **`docs/PROGRESS.md` の先頭宣言行を BLOCKED に更新した**。`gate:check` の G4 は
+- **`docs/PROGRESS.md` の先頭宣言行のトークンを直した**。`gate:check` の G4 は
   task ごとに**最初の**宣言行だけを台帳と突き合わせる（`progressDeclarations` が
   `if (!out.has(...))` で最初を採る）ため、周回の途中で状態が変わったら
   **最初の行のトークンを直す**必要がある。本文は初回のまま残し、更新した旨を行内に明記した。
+  この巡では一度 BLOCKED にし、レビューが pass したので `DONE_WITH_CONCERNS` へ戻した。
   `npm run gate:acceptance` は違反 0 件（warn 2 件は task_002 / task_036 のもの）。
+
+### 5 巡目のレビュー結果 — **pass。task_013 の high は全て解消した**
+
+- `aa7a8dc..d1a2eeb` の全範囲で回した結果は **merge-review: pass**
+  （有効票 2 / gemini・gpt / 実効 high 0）。`completion_status` を `DONE_WITH_CONCERNS` に戻した。
+- 出た medium 6 件のうち 3 件をその場で直した（**ただしこの 3 件の修正は未レビュー**）。
+  - gemini F-1「代入だけの節を後続へ引き継ぐ」は **HEAD で再現せず**（当該分岐へ到達しない）。
+    それでも誤ったシェル意味論なので削除。実測表をコメントに残した。→ C-013-23
+  - GPT F-1「`isInClient` / `isLoggedIn` / `getIDToken` が例外処理の外」→ `callSdk()` で包み、
+    新コード `sdk_call_failed`。→ C-013-24
+  - GPT F-4「パイプ左側だけの代入」→ 区切りに `|` を追加。→ C-013-25
+- **持ち越した medium 3 件**（対応案は concerns に記載）:
+  429 も毎回 `telemetry.rejected` を書く（C-013-26・task_023 / 024）/
+  `tokens.css` の `min-width: 20rem` が文字サイズ 200% で 640px を要求（C-013-27・task_025 / 022）/
+  `readSpecifiers` がコメント入り import を見落とす（C-013-28・task_022。`ts.preProcessFile()` 化）。
+- **教訓**: 「例外を投げない」契約を持つ関数は、**外部 API を呼ぶ行を全部数えて**包むこと。
+  5 巡目は `login()` だけ包んで次の巡で残り 3 か所を指摘された。
 
 ## task_012（レビュー修正・2 周目）
 
@@ -2109,3 +2127,10 @@ GPT-6 Astra の敵対レビュー（high 1 / medium 3）。**4 件すべて HEAD
 - 2026-09-24T14:20:35Z HEAD=171760b 決まったこと: task_012: 直前のコミットが巻き込んだ他タスクの古い index 内容を、作業ツリーの現在の内容に戻す / 未解決: 未コミット 21 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_013.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_013.json docs/run-log/task_014.json docs/task-list.json 
 - 2026-09-24T14:21:33Z HEAD=45fc8d1 決まったこと: task_004(4周目・再適用): 2 回目の G5 の実効 high 2 / medium 3 を再現してから塞ぐ / 未解決: 未コミット 22 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_013.md docs/gates/integrity-baseline.json docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_013.json docs/run-log/task_014.json 
 - 2026-09-24T14:22:21Z HEAD=45fc8d1 決まったこと: task_004(4周目・再適用): 2 回目の G5 の実効 high 2 / medium 3 を再現してから塞ぐ / 未解決: 未コミット 22 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_013.md docs/gates/integrity-baseline.json docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_013.json docs/run-log/task_014.json 
+- 2026-09-24T14:24:33Z HEAD=d1a2eeb 決まったこと: task_013(4周目・5巡目): 読み取り時の退避先同期・login 例外の捕捉・ビルドコマンド自身への env 検査 / 未解決: 未コミット 11 件: docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json src/app/(liff)/events/[id]/page.tsx src/lib/audit.ts src/lib/db/repositories/events.ts src/lib/db/repositories/participants.ts src/lib/payments/capabilities-static.ts 
+- 2026-09-24T14:26:21Z HEAD=d1a2eeb 決まったこと: task_013(4周目・5巡目): 読み取り時の退避先同期・login 例外の捕捉・ビルドコマンド自身への env 検査 / 未解決: 未コミット 13 件: docs/HANDOFF.md docs/review-log/task_004.json docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json src/app/(liff)/events/[id]/page.tsx src/lib/audit.ts src/lib/db/repositories/events.ts 
+- 2026-09-24T14:28:23Z HEAD=d1a2eeb 決まったこと: task_013(4周目・5巡目): 読み取り時の退避先同期・login 例外の捕捉・ビルドコマンド自身への env 検査 / 未解決: 未コミット 20 件: docs/HANDOFF.md docs/concerns/task_013.md docs/constraints.json docs/review-log/task_004.json docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json scripts/build-web-only.mjs 
+- 2026-09-24T14:34:46Z HEAD=d1a2eeb 決まったこと: task_013(4周目・5巡目): 読み取り時の退避先同期・login 例外の捕捉・ビルドコマンド自身への env 検査 / 未解決: 未コミット 28 件: docs/HANDOFF.md docs/concerns/task_013.md docs/constraints.json docs/review-log/task_004.json docs/review-log/task_013.json docs/run-log/task_004.json docs/run-log/task_008.json docs/run-log/task_012.json 
+- 2026-09-24T14:40:33Z HEAD=bf51ee3 決まったこと: vitest: 並列実装下の偽陽性対策としてワーカー上限 4・タイムアウト 20 秒（テスト内容は不変） / 未解決: 未コミット 33 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/concerns/task_013.md docs/constraints.json docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/review-log/task_013.json 
+- 2026-09-24T14:40:48Z HEAD=bf51ee3 決まったこと: vitest: 並列実装下の偽陽性対策としてワーカー上限 4・タイムアウト 20 秒（テスト内容は不変） / 未解決: 未コミット 33 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/concerns/task_013.md docs/constraints.json docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/review-log/task_013.json 
+- 2026-09-24T14:41:35Z HEAD=bf51ee3 決まったこと: vitest: 並列実装下の偽陽性対策としてワーカー上限 4・タイムアウト 20 秒（テスト内容は不変） / 未解決: 未コミット 33 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/concerns/task_013.md docs/constraints.json docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/review-log/task_013.json 

@@ -309,6 +309,20 @@ function clearAttempts(storage: AttemptStorage | null, scope: object): void {
   }
 }
 
+/**
+ * SDK の同期呼び出しを 1 つ包む。**このモジュールから例外を外へ出さないため**の道具。
+ *
+ * 戻り値に `undefined` / `null` を含みうる API（`getIDToken`）があるので、
+ * 「失敗」を値ではなく `ok` フラグで表す。
+ */
+function callSdk<T>(fn: () => T): { readonly ok: true; readonly value: T } | { readonly ok: false } {
+  try {
+    return { ok: true, value: fn() };
+  } catch {
+    return { ok: false };
+  }
+}
+
 /** 3 秒で諦めるための競争。タイムアウト側が勝ったら `null`。 */
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -415,14 +429,26 @@ export async function bootLiff(liffId: string, deps: BootLiffDeps = {}): Promise
   }
 
   // --- 3. isInClient（login より前！ R-LINE-02 / check_029） ---
-  if (!liff.isInClient()) {
+  //   SDK の状態取得も「**例外を投げない**」契約の内側に置く。`init` が成功しても
+  //   SDK の内部状態が壊れていればここが投げうる。素で呼ぶと `bootLiff` ごと reject し、
+  //   画面は state を受け取れずテレメトリも出ない（R-LINE-03 の白画面）。
+  const inClient = callSdk(() => liff.isInClient());
+  if (!inClient.ok) {
+    // まだ「LINE 内かどうか」すら分からない ＝ SDK が使えない。静的フォールバックへ落とす。
+    return fail("init_failed", CLIENT_ERROR_CODES.SDK_CALL_FAILED, readAttempts(storage, scope));
+  }
+  if (!inClient.value) {
     // ここで `login()` を呼ばないことがこの分岐の全てである。テレメトリも送らない
     // （LINE 外から開くのは障害ではなく通常の利用状況であり、件数は画面表示側で数える）。
     return { state: "outside_line", loginAttempts: readAttempts(storage, scope) };
   }
 
   // --- 4. isLoggedIn と試行回数の打ち切り ---
-  if (!liff.isLoggedIn()) {
+  const loggedIn = callSdk(() => liff.isLoggedIn());
+  if (!loggedIn.ok) {
+    return fail("init_failed", CLIENT_ERROR_CODES.SDK_CALL_FAILED, readAttempts(storage, scope));
+  }
+  if (!loggedIn.value) {
     const attempts = readAttempts(storage, scope);
     if (attempts >= MAX_LOGIN_ATTEMPTS) {
       return fail("auth_unavailable", CLIENT_ERROR_CODES.LOGIN_LOOP_ABORTED, attempts);
@@ -442,7 +468,13 @@ export async function bootLiff(liffId: string, deps: BootLiffDeps = {}): Promise
   }
 
   // --- 5. ID トークン ---
-  const idToken = liff.getIDToken();
+  //   ここまで来ればログイン済みなので、取得に転んだときは `auth_unavailable`
+  //   （= 認証はできているはずなのにトークンが手に入らない）に寄せる。
+  const token = callSdk(() => liff.getIDToken());
+  if (!token.ok) {
+    return fail("auth_unavailable", CLIENT_ERROR_CODES.SDK_CALL_FAILED, readAttempts(storage, scope));
+  }
+  const idToken = token.value;
   if (idToken === null || idToken.length === 0) {
     return fail("auth_unavailable", CLIENT_ERROR_CODES.LOGIN_LOOP_ABORTED, readAttempts(storage, scope));
   }

@@ -673,3 +673,124 @@ C-013-18 / C-013-19 の修正は「書いた回」しか退避先へ残してい
 **残っていること**: パイプ（`|`）・部分シェル（`( )`）・変数展開経由の組み立ては解釈しない。
 本リポジトリの npm script はこの範囲で足りるが、将来それらを使う場合はこの検査をすり抜ける。
 その場合は npm script の書き方を平易な形に限る運用規約を置くか、シェルパーサを入れる。
+`FOO=1` と `export FOO` を 2 文に分けた形も認識しない（`export` の行に `=` が無いため）。
+その場合はゲートが違反にする＝ fail-closed 側に倒れるので、通してしまう危険は無い。
+
+---
+
+## C-013-23 [medium → 再現せず・該当分岐は削除] 代入だけの節を後続へ引き継いでいた（gemini F-1・5 巡目）
+
+**指摘**: `checkBuildCommandEnv` はコマンドを伴わない代入だけの節（`FOO=bar; next build` の
+`FOO=bar`）を「以降の全コマンドに効く」として `exported` へ取り込んでおり、シェルの実際の挙動と
+食い違う。そのため `NEXT_PUBLIC_LIFF_MOCK=0; next build` を安全と誤判定する。
+
+**シェル挙動の実測**（`sh -c`。指摘の前提はこのとおり正しい）:
+
+| 書き方 | 子プロセスに渡るか |
+|---|---|
+| `FOO=bar; printenv FOO` | **渡らない**（空） |
+| `FOO=bar && printenv FOO` | **渡らない**（空） |
+| `export FOO=bar && printenv FOO` | 渡る（`bar`） |
+| `FOO=bar printenv FOO` | 渡る（`bar`） |
+
+**HEAD での再現結果: 再現せず。** 指摘された分岐（`rest.length === 0` のとき `env` を
+`exported` へ入れる）は **到達しない**。`splitLeadingEnv` は先頭の代入を
+`^NAME=値\s+`（**後ろに空白が要る**）で削るので、`NEXT_PUBLIC_LIFF_MOCK=0` だけの節は
+`trim()` 後に末尾の空白が無く、代入として切り出されずに `rest` に残る。
+`rest` は `export` でも build marker でもないので、その節は何も効かせずに読み飛ばされる。
+`NEXT_PUBLIC_LIFF_MOCK=0; next build` と `NEXT_PUBLIC_LIFF_MOCK=0 && next build` の
+fixture を足して実測したところ、**どちらも修正前の HEAD で exit 1（違反「前置されていません」）**
+になった（＝ 誤判定は起きていない）。
+
+**対応（実施済み）**: 再現しないが、その分岐は**誤ったシェル意味論をコードに書いている**ため
+削除した。パーサを少し変えれば到達しうる（＝ 将来の誤判定の種）ので、残す理由が無い。
+上の実測表をコメントとして同じ場所に残し、2 つの fixture テストを回帰として据え置いた
+（`tests/unit/ci/web-only-workflow.test.ts` 17 件）。
+
+---
+
+## C-013-24 [medium → 解消] SDK の状態取得の例外が state とテレメトリを迂回する（GPT-6 Astra F-1・5 巡目レビュー）
+
+**指摘**: C-013-21 で `liff.login()` は `try` に入れたが、`isInClient` / `isLoggedIn` /
+`getIDToken` は例外処理の外のままだった。これらが投げると、やはり `bootLiff` が reject して
+契約（例外を投げない）が破れ、失敗コードも送られない。
+
+**HEAD での再現（実測）**: 3 つそれぞれを `throw` させるテストを足したところ、
+`Error: isInClient failed` / `Error: isLoggedIn failed` / `Error: getIDToken failed` が
+テスト側へ素通りした（`bootLiff` が reject した）。
+
+**対応（実施済み）**: 同期呼び出しを 1 つ包む `callSdk()` を足し、3 か所とも通した。
+
+- `isInClient` / `isLoggedIn` の失敗 → `init_failed`（LINE 内かどうかすら分からない ＝
+  SDK が使えないので静的フォールバックへ落とす）。
+- `getIDToken` の失敗 → `auth_unavailable`（ログイン済みのはずなのにトークンが手に入らない）。
+- テレメトリはいずれも新コード `sdk_call_failed`。`login_call_failed` と分けたのは、
+  あちらが「遷移を始めようとして転んだ」、こちらが「まだ何も始めていない」であり、
+  復旧手順（再読み込みで直りうるか）が違うためである。
+
+---
+
+## C-013-25 [medium → 解消] パイプ左側だけの代入で本番ビルド検査を通過できる（GPT-6 Astra F-4・5 巡目レビュー）
+
+**指摘**: `checkBuildCommandEnv` の区切りに `|` が入っていないため、
+`NEXT_PUBLIC_LIFF_MOCK=0 printf x | next build` の代入が右側の `next build` にも効くものとして
+扱われる。実際には左の `printf` にしか掛からない。
+
+**HEAD での再現（実測）**: その fixture で `runGate` すると **exit 0（合格）**になった
+（`AssertionError: expected +0 to be 1`）。
+
+**対応（実施済み）**: 区切りを `/&&|\|\||;|\|/` にした（`\|\|` を `\|` より先に置かないと
+`||` が空節 2 つに割れるので、選択の順序に意味がある）。同じ fixture で exit 1 になることを固定した。
+
+---
+
+## C-013-26 [medium] レート制限を超えた要求も毎回 `telemetry.rejected` を書く（GPT-6 Astra F-2・5 巡目レビュー・未対応）
+
+**指摘**: `POST /api/telemetry/client-error` の 429 は `catch` に入り、要求ごとに
+`telemetry.rejected` を 1 行出す。受理するテレメトリ件数を絞っても、**公開エンドポイントから出る
+ログ量は絞れない**（同一 IP から 1000 回叩けば 429 が 1000 行出る）。
+
+**なぜこの周で直さないか**: 「拒否した事実を残す」ことと「ログ量を抑える」ことのどちらを採るかは
+運用設計の判断であり（拒否ログを落とすと攻撃の検知材料が消える）、本周に割り当てられた
+レビュー往復の予算を使い切った後に出た指摘である。
+
+**対応案**: (a) 429 のときだけ `telemetry.rejected` を出さず、レート制限側のカウンタに任せる。
+(b) 同一キーにつき一定時間で 1 行だけ出す（ログのサンプリング）。
+Workers Logs の課金と検知要件を見てから決める。
+
+**対応予定タスク**: task_023（外形監視・ログ設計）/ task_024（production のレート制限バインディング）
+
+---
+
+## C-013-27 [medium] 文字サイズ 200% で `body` の最小幅が 640px になる（GPT-6 Astra F-3・5 巡目レビュー・未対応）
+
+**指摘**: `src/styles/tokens.css` の `body { min-width: 20rem }` は、ルート文字サイズが
+32px になると 640px を要求する。320px 幅のビューポートで横スクロールが出る。
+同ファイルが掲げる「320px で横スクロールを出さない」「文字拡大に対応する」の両立を満たさない。
+
+**なぜこの周で直さないか**: `20rem` を `20em` / `320px` のどちらにするか、そもそも `min-width` を
+外すかは、実機（LINE アプリ内 WebView）での見え方を見て決めるべきで、机上で差し替えると
+別の崩れを作る。本周のレビュー往復の予算を使い切った後に出た指摘である。
+
+**対応案**: `min-width` を `320px` の固定値にする（rem 連動をやめる）か、`min-width` 自体を外して
+中身側の `min-width: 0` と `overflow-wrap` で対処する。task_025 の実機確認と同時に決める。
+
+**対応予定タスク**: task_025（実機確認）/ task_022（a11y の E2E）
+
+---
+
+## C-013-28 [medium] `readSpecifiers` がコメントを挟んだ副作用 import を見落とす（GPT-6 Astra F-5・5 巡目レビュー・未対応）
+
+**指摘**: `scripts/build-web-only.mjs` の副作用 import 検出は `import` と引用符の間に**空白しか**
+認めない。`import /* sdk */ "@line/liff";` のように構文上妥当なコメントを挟むと、
+全走査と import グラフの**両方**が同じ参照を見落とす。
+
+**なぜこの周で直さないか**: 正規表現でコメントを飛ばすと別の取りこぼしを作りやすく、
+本来は TypeScript の AST（`typescript` は devDependency に既にある）で読むべき箇所である。
+走査を AST 化するのは本周の範囲を超える。
+
+**対応案**: `readSpecifiers` を `ts.preProcessFile()`（TypeScript 同梱の軽量スキャナ。
+コメントと文字列を正しく飛ばして import 指定子だけを返す）に置き換える。
+現状の正規表現は「見落とす」方向の穴なので、AST 化まではコードレビューで補う。
+
+**対応予定タスク**: task_022（LINE 非依存ビルドの CI ジョブ）
