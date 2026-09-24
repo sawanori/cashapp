@@ -82,3 +82,40 @@
 - task_006: `tests/gates/fixtures/violations/**` に違反フィクスチャを置くとき、`docs/constraints.json` の `global_exclude_globs` に `tests/gates/fixtures/**` が入っているため通常のゲート実行では拾われない。メタゲート（`test:gate-meta`）からは `scripts/gate-constraints.sh --root <fixture-root> --constraints docs/constraints.json` の形で対象ツリーを差し替えて回すこと（`tests/unit/gate-constraints.test.ts` の「real docs/constraints.json against a fixture tree」が同じ形の実例）。
 - task_009: CI に `gate:constraints` / `gate:wording` ジョブを追加する場合、`.github/workflows/gate.yml` を直接編集せず独立ファイルで追加する規約（並行タスクの衝突回避）。必要な外部ツールは `jq` / `git` / `grep` / `sed` / `awk` / `xargs` / `node` のみ。
 - task_011 / 017 / 018 / 020: 各タスクが対象ファイルを作った時点で `from_task_XXX` のゲートが自動的に有効化される（P2 → Webhook ルート、P9 / X-MONEY → `src/lib/payments/**`、W4 → 台帳と Webhook、W9 / W11 → `src/lib/reconcile.ts`、X-TIME / GC-SERVER-ONLY → `src/lib/db/**` と `supabase/migrations/**`）。`completion_status` を DONE にしたあとで対象が 0 件のままだとゲートが exit 1 になる。
+
+## task_011（DB スキーマ v2・最小権限ロール・追記専用・統合テスト）
+
+### 決まったこと
+
+- **スキーマの正本は `supabase/migrations/*.sql`**。`src/lib/db/schema.ts`（Drizzle）は型とクエリ専用で、`drizzle-kit generate` / `push` は使わない。両者の乖離は統合テストが機械検査する（Drizzle 248 列 ⇔ 実 DB の `format_type` / NOT NULL を完全一致で比較。表記ゆれは `char(3)` ⇔ `character(3)` のみ正規化）。
+- **追記専用は RULE ではなく文レベル（`FOR EACH STATEMENT`）の BEFORE トリガ**で実装した。行レベルだと対象 0 行の `UPDATE` / `DELETE` が黙って成功してしまい、「0 行成功は不合格」（check_013）を満たさない。文レベルなら 0 行でも `RAISE EXCEPTION`（SQLSTATE `0A000`、メッセージ `append_only_violation`）になる。`TRUNCATE` も同様に塞いだ（計 6 トリガ）。実測で確認済み。
+- **RLS deny-all ＋ service role は採用しない**（implementation-plan.md §7-2 の裁定どおり）。代わりに `CREATE ROLE app_rw LOGIN` ＋ 最小権限 GRANT。`ledger_entry` / `audit_log` は `SELECT, INSERT` のみ、`compliance_gate` は `SELECT` のみ、`feature_flag` は `SELECT, INSERT, UPDATE`（DELETE なし）、他 19 テーブルは CRUD。`REVOKE CREATE ON SCHEMA public FROM app_rw` で DDL も落とした（実測: `CREATE TABLE` が `42501`）。
+- Supabase の PostgREST ロール **`anon` / `authenticated` から public スキーマの権限を全部剥がした**。本アプリは PostgREST を使わずサーバー側から直接接続する（I3）。ロールが存在しない素の PostgreSQL でも落ちないよう `DO $$ ... IF EXISTS` でガードしてある。
+- **`app_rw` のパスワードをマイグレーションに書かない**。本番 / staging は秘密ストアから `ALTER ROLE app_rw PASSWORD ...`（task_024 / task_035 の担当）。ローカル / CI は `tests/integration/setup.ts` がローカル専用値（既定 `app_rw_local_dev_only`、`APP_RW_PASSWORD` で上書き可）を設定する。
+- **`.env.example` を 2 節に分け、機械可読マーカー（`>>> runtime ... >>>` / `<<< runtime <<<`）を入れた**。ランタイム欄には `APP_ENV` しか置かず、DB 接続文字列も service role キーも置かない（Workers は `env.HYPERDRIVE.connectionString` から受け取る）。統合テストがこのマーカーを頼りに「ランタイム欄に特権クレデンシャルが無い」ことを検査する。`DATABASE_URL` は **app_rw** の直接接続、`DATABASE_URL_MIGRATOR` は特権接続、という役割分離にした。`scripts/gates-sync.mjs` は `DATABASE_URL_MIGRATOR` → `DATABASE_URL` → ローカル既定の順で解決する。
+- **接続文字列の解決は `resolveDbConnection()` 1 関数**（`src/lib/db/client.ts`）。Hyperdrive バインディングがあれば `hyperdrive`、無ければ `DATABASE_URL` の `direct`。既定でロールが `app_rw` でなければ `DbConfigError`（`allowPrivilegedRole: true` を明示したときだけ特権ロールを許す）。例外メッセージに接続文字列を入れない。`tests/unit/db-client.test.ts` が 8 ケースで検証。
+- **`fetch_types: false` は使わない**。当初 Cloudflare 向けに付けたところ、`text[]` 列（`compliance_gate.required_for`）が Postgres の配列リテラル文字列のまま返り、`gates:sync` が静かに壊れることを実測した。`prepare: false` だけ残す（プーラ経由でのプリペアド再利用不可に備えた保守的設定）。
+- **`supabase/config.toml`** は `studio` / `inbucket` / `storage` / `realtime` / `analytics` / `edge_runtime` を `enabled = false` にした（本アプリが使わないため起動を軽くする）。`api` と `auth` は有効のまま残した — `anon` / `authenticated` ロールを実在させて上記 REVOKE の有効性をテストで確かめるため。DB は PG 17・ポート 54322（`wrangler.toml` の `localConnectionString` と一致）。
+- **CI ジョブは `.github/workflows/gate-integration.yml` として独立追加**した（`gate.yml` は task_009 の所有物なので編集していない。並行タスクの衝突回避規約）。`supabase/setup-cli@v1`（入力は `version` の 1 つだけ。一次資料 `docs/vendor-docs/supabase/ci-local-testing.md`、取得日 2026-09-24）→ `supabase start` → `db:migrate` → `test:integration` → `gates:sync`。**required status check への登録は task_009 の担当**（ジョブ名は `gate-integration / integration`）。
+- **統合テストの隔離**はトランザクション方式。`withRollback()` が必ずロールバックし、失敗が想定される文は `expectFailure()` がセーブポイントで包む（例外で外側のトランザクションを巻き添えにしない）。`supabase db reset` は使っていない。
+- 未知の `settlement_status` を入れると **`23502`（NOT NULL 違反）が `23514`（CHECK 違反）より先に出る**ことを実測した。生成列 `settlement_rank` の `NOT NULL` が先に評価されるため。どちらで落ちても「未知 status は入らない」は成立するので、テストは両方を許容し、別テストで `invoice_settlement_status_check` が 6 値ちょうどであることを確認している。
+- `vitest.config.ts` の `include` に `tests/integration/**/*.test.ts` を追加し、`exclude` から外した（task_003 が同ファイルのコメントで task_011 の担当と明記していたもの）。**task_018 / task_019 が `tests/contract/**` / `tests/conformance/**` を同じ配列に足すときに衝突しうる**ので注意。
+
+### 未解決 / concerns
+
+- **[severity: medium] `.github/workflows/gate-integration.yml` は PR で未実行**。`git push` が禁止コマンドのため、CI 上での緑は本タスクでは確認していない（done_definition「gate.yml に integration ジョブが追加され PR で緑」の後半が未達）。ローカルでは同じコマンド列（`supabase start` 済みの状態で `db:migrate` → `test:integration` → `gates:sync`）が全て exit 0。task_009 が required status check を設定するときに、初回 PR での実走を確認すること。
+- **[severity: medium] `drizzle-kit` による差分検査は実施していない**。`drizzle.config.ts`（task_003 の成果物・本タスクの `files_to_modify` 外）の `schema` が `./src/db/schema.ts` を指しており、実際の `src/lib/db/schema.ts` と不一致。そもそも drizzle-kit をマイグレーション生成に使わない方針（§7-2）なので `generate` を回すと台帳が二重化する。代替として「Drizzle の全 248 列 ⇔ 実 DB の型・NOT NULL 完全一致」をテストで検査した。`drizzle.config.ts` の `schema` パス修正は別タスクで行うこと。
+- **[severity: medium] A21（Hyperdrive 経由の実 Postgres 接続）は依然として未実測**。本タスクで実測したのは `supabase start` のローカル直接接続まで。`pg_try_advisory_xact_lock` の挙動も直接接続でしか確認していない（`tryAdvisoryXactLock()` は実装済みだが実行経路がまだ無い）。task_035 で実 Hyperdrive に対して確認すること。
+- **[severity: low] 依存タスク task_009 が未完了のまま着手した**。`.github/workflows/` は本タスク着手時点で存在せず（`docs/run-log/task_009.json` も無し）、`gate.yml` も未作成。衝突回避規約に従い独立ファイルで追加したので、task_009 の成果物とは競合しない見込み。
+- **[severity: low] `supabase init` の副産物 `supabase/.gitignore` と `supabase/.temp/` が増えた**。`.gitignore` はコミットした（`.branches` / `.temp` / dotenvx 系を無視する。CLI の動作に必要）。`files_to_create` には無いが `supabase/config.toml` を作るには `supabase init` が必要だった。
+- **[severity: low] `tests/unit/db-client.test.ts` は `files_to_create` に無い**。done_definition が「ユニットテストで確認」を要求しており、`client.ts` は `import "server-only"` を持つため統合テストからは読めない（`vi.mock("server-only")` が要る）。他タスクの `files_to_create` にも無いファイルなので新規作成した。
+- **[severity: low] `vitest.config.ts` は `files_to_modify` に無い**が、`tests/integration/**` が `exclude` に入っていたため変更が不可避だった（task_003 が同ファイルのコメントで task_011 の担当と明記している）。
+- **[severity: low] `compliance_gate.scope` は NULL 許容にした**。`docs/gates/compliance-gates.json` に `scope` フィールドが無く、同期元が存在しないため。JSON 側に足すかどうかは PO の判断（`docs/gates/**` の変更は PO 専管）。
+- **[severity: low] `context7` MCP はこのセッションでも接続断**（`CONNECTION_CLOSED`）。Supabase CI の一次資料は WebFetch で取得して `docs/vendor-docs/supabase/ci-local-testing.md` に退避した。postgres.js / drizzle-orm の API 名は `node_modules` の型定義で直接確認した [実測]。
+
+### 次のアクション
+
+- task_009: `.github/workflows/gate.yml` の required status checks に `gate-integration / integration` を加える。
+- task_014（リポジトリ関数）: `createDbClient(env)` / `tryAdvisoryXactLock(tx, key)` / `AUDIT_CHAIN_LOCK_KEY` を前提にしてよい。`invoice.settlement_rank` は生成列なのでアプリから書かない（書くと `428C9`）。
+- task_024 / task_035: 本番・staging の `app_rw` パスワード投入（`ALTER ROLE app_rw PASSWORD ...`）と Hyperdrive の実 ID 差し替え、A21 の実測。
+- `supabase start` は本タスクの作業中に起動したまま（`supabase stop` は禁止コマンドのため停止していない）。他タスクが `54322` のローカル Postgres をそのまま使える。

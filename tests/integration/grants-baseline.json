@@ -1,0 +1,142 @@
+{
+  "$comment": "app_rw の最小権限スナップショット（R-SEC-03 / I3）。tests/integration/schema.test.ts が information_schema.role_table_grants と完全一致を検査する。ここを増やす変更は supabase/migrations の GRANT を変えたということであり、必ずレビューで理由を問うこと。ledger_entry と audit_log は SELECT と INSERT のみ（追記専用）。compliance_gate は SELECT のみ（正本は docs/gates/compliance-gates.json）。anon / authenticated（Supabase の PostgREST ロール）は public スキーマに一切の権限を持たない。",
+  "schema": "public",
+  "roles_with_no_grants": [
+    "anon",
+    "authenticated"
+  ],
+  "grants": {
+    "app_rw": {
+      "abuse_report": [
+        "DELETE",
+        "INSERT",
+        "SELECT",
+        "UPDATE"
+      ],
+      "app_user": [
+        "DELETE",
+        "INSERT",
+        "SELECT",
+        "UPDATE"
+      ],
+      "audit_log": [
+        "INSERT",
+        "SELECT"
+      ],
+      "compliance_gate": [
+        "SELECT"
+      ],
+      "consent_log": [
+        "DELETE",
+        "INSERT",
+        "SELECT",
+        "UPDATE"
+      ],
+      "event": [
+        "DELETE",
+        "INSERT",
+        "SELECT",
+        "UPDATE"
+      ],
+      "feature_flag": [
+        "INSERT",
+        "SELECT",
+        "UPDATE"
+      ],
+      "idempotency_key": [
+        "DELETE",
+        "INSERT",
+        "SELECT",
+        "UPDATE"
+      ],
+      "invoice": [
+        "DELETE",
+        "INSERT",
+        "SELECT",
+        "UPDATE"
+      ],
+      "ledger_entry": [
+        "INSERT",
+        "SELECT"
+      ],
+      "manual_attestation": [
+        "DELETE",
+        "INSERT",
+        "SELECT",
+        "UPDATE"
+      ],
+      "outbox": [
+        "DELETE",
+        "INSERT",
+        "SELECT",
+        "UPDATE"
+      ],
+      "participant": [
+        "DELETE",
+        "INSERT",
+        "SELECT",
+        "UPDATE"
+      ],
+      "participant_claim": [
+        "DELETE",
+        "INSERT",
+        "SELECT",
+        "UPDATE"
+      ],
+      "payment_attempt": [
+        "DELETE",
+        "INSERT",
+        "SELECT",
+        "UPDATE"
+      ],
+      "payment_event": [
+        "DELETE",
+        "INSERT",
+        "SELECT",
+        "UPDATE"
+      ],
+      "payment_self_report": [
+        "DELETE",
+        "INSERT",
+        "SELECT",
+        "UPDATE"
+      ],
+      "payout": [
+        "DELETE",
+        "INSERT",
+        "SELECT",
+        "UPDATE"
+      ],
+      "provider_binding": [
+        "DELETE",
+        "INSERT",
+        "SELECT",
+        "UPDATE"
+      ],
+      "reconciliation_run": [
+        "DELETE",
+        "INSERT",
+        "SELECT",
+        "UPDATE"
+      ],
+      "reminder_log": [
+        "DELETE",
+        "INSERT",
+        "SELECT",
+        "UPDATE"
+      ],
+      "used_id_token": [
+        "DELETE",
+        "INSERT",
+        "SELECT",
+        "UPDATE"
+      ],
+      "webhook_delivery": [
+        "DELETE",
+        "INSERT",
+        "SELECT",
+        "UPDATE"
+      ]
+    }
+  }
+}

@@ -1,0 +1,65 @@
+[
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 1,
+    "stdout_tail": "\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n ❯ tests/integration/schema.test.ts (31 tests | 1 failed) 13012ms\n   ❯ check_070: DB 制約の追加分 (5)\n     × 未知の settlement_status は CHECK 違反 4ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  tests/integration/schema.test.ts > check_070: DB 制約の追加分 > 未知の settlement_status は CHECK 違反\nAssertionError: expected '23502' to be '23514' // Object.is equality\n\nExpected: \"23514\"\nReceived: \"23502\"\n\n ❯ tests/integration/schema.test.ts:447:37\n    445|       expect(error).toBeDefined();\n    446|       // 23514 = check_violation\n    447|       expect(asPgError(error).code).toBe(\"23514\");\n       |                                     ^\n    448|     });\n    449|   });\n ❯ tests/integration/setup.ts:83:27\n ❯ scope node_modules/postgres/src/index.js:260:18\n ❯ Function.begin node_modules/postgres/src/index.js:243:14\n ❯ withRollback tests/integration/setup.ts:82:5\n ❯ tests/integration/schema.test.ts:439:5\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\n\n\n Test Files  1 failed (1)\n      Tests  1 failed | 30 passed (31)\n   Start at  04:02:14\n   Duration  13.32s (tests 98%, import 1%)",
+    "commit": "7ba8eae101d2cc73247e444d7205d455aaf07672",
+    "ran_at": "2026-09-24T04:02:14Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:integration\n> TZ=UTC vitest run tests/integration --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  1 passed (1)\n      Tests  32 passed (32)\n   Start at  04:02:53\n   Duration  13.25s (tests 98%, import 1%)",
+    "commit": "7ba8eae101d2cc73247e444d7205d455aaf07672",
+    "ran_at": "2026-09-24T04:02:52Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "7ba8eae101d2cc73247e444d7205d455aaf07672",
+    "ran_at": "2026-09-24T04:03:30Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gates:sync",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gates:sync\n> node scripts/gates-sync.mjs\n\ngates:sync OK — 10 gate(s) in docs/gates/compliance-gates.json match compliance_gate",
+    "commit": "7ba8eae101d2cc73247e444d7205d455aaf07672",
+    "ran_at": "2026-09-24T04:03:32Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  4 passed (4)\n      Tests  37 passed (37)\n   Start at  04:03:32\n   Duration  4.10s (tests 88%, setup 5%, import 4%, transform 3%)",
+    "commit": "7ba8eae101d2cc73247e444d7205d455aaf07672",
+    "ran_at": "2026-09-24T04:03:32Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 5 file(s))\nok    L2 (forbid, 5 file(s))\nok    L3 (forbid, 5 file(s))\nok    L8 (forbid, 5 file(s))\nok    L12 (forbid, 5 file(s))\nok    P1 (forbid, 5 file(s))\ndefer P2 (0 targets; waiting on task_018)\ndefer P9 (0 targets; waiting on task_017)\nok    W3 (forbid, 7 file(s))\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 5 file(s))\nok    N5 (forbid, 5 file(s))\nok    N7 (forbid, 5 file(s))\nok    N9 (forbid, 5 file(s))\nok    N11 (forbid, 5 file(s))\nok    I1 (require, 1 file(s))\nok    I2 (require, 1 file(s))\nok    I3 (forbid, 2 file(s))\nok    I4 (forbid, 2 file(s))\nok    X-TIME (forbid, 3 file(s))\nok    X-ID (forbid, 3 file(s))\ndefer X-MONEY (0 targets; waiting on task_017)\nok    GC-XSS (forbid, 5 file(s))\nok    GC-ENV-PUBLIC (forbid, 10 file(s))\nok    GC-SERVER-ONLY (require, 1 file(s))\n\ngate:constraints — scanned 21 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "7ba8eae101d2cc73247e444d7205d455aaf07672",
+    "ran_at": "2026-09-24T04:03:38Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run db:migrate",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 db:migrate\n> supabase migration up --local\n\nConnecting to local database...\nLocal database is up to date.\nA new version of Supabase CLI is available: v2.117.0 (currently installed v2.58.5)\nWe recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli",
+    "commit": "7ba8eae101d2cc73247e444d7205d455aaf07672",
+    "ran_at": "2026-09-24T04:03:48Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  }
+]

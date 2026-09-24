@@ -21,13 +21,17 @@ export default defineConfig({
     // stay independently scoped — both dirs must be listed here so that
     // positional filter is discoverable at all. `tests/e2e/**` and
     // `tests/a11y/**` are Playwright's (`*.spec.ts`, different test runner);
-    // `tests/contract/**` / `tests/conformance/**` / `tests/integration/**`
-    // belong to later tasks (task_011/018/019) and are added to `include`
-    // there, not here.
+    // `tests/contract/**` / `tests/conformance/**` belong to later tasks
+    // (task_018/019) and are added to `include` there, not here.
+    // `tests/integration/**` was added by task_011.
     include: [
       "tests/unit/**/*.test.ts",
       "tests/unit/**/*.test.tsx",
       "tests/security/**/*.test.ts",
+      // task_011: `npm run test:integration` が実 Postgres（supabase start）に対して走る。
+      // DB が要るため、ディレクトリを明示しない素の `vitest run` からは外したいが、
+      // vitest は include に無いファイルを位置指定フィルタでも拾えないため、ここに載せる。
+      "tests/integration/**/*.test.ts",
     ],
     exclude: [
       "node_modules/**",
@@ -38,7 +42,6 @@ export default defineConfig({
       "tests/a11y/**",
       "tests/contract/**",
       "tests/conformance/**",
-      "tests/integration/**",
     ],
     // Belt-and-suspenders alongside the `TZ=UTC` prefix on the npm script:
     // date-boundary logic in this app must be independent of the host TZ.

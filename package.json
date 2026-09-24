@@ -14,7 +14,11 @@
     "test:security": "TZ=UTC vitest run tests/security",
     "test:a11y": "playwright test tests/a11y",
     "gate:constraints": "bash scripts/gate-constraints.sh",
-    "gate:wording": "node scripts/wording-lint.mjs"
+    "gate:wording": "node scripts/wording-lint.mjs",
+    "db:migrate": "supabase migration up --local",
+    "db:reset:local": "supabase db reset --local",
+    "test:integration": "TZ=UTC vitest run tests/integration --testTimeout=60000 --hookTimeout=60000",
+    "gates:sync": "node scripts/gates-sync.mjs"
   },
   "private": true,
   "engines": {

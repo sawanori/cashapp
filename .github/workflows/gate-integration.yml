@@ -1,0 +1,62 @@
+# 統合テスト（実 Postgres）ジョブ。
+#
+# ★ 本ファイルは task_011 が単独で所有する。task_009 が作る
+#   `.github/workflows/gate.yml` は編集しない（並行タスクの衝突回避規約）。
+#   required status check への登録は task_009 側で `gate-integration / integration`
+#   を指定する（HANDOFF.md 参照）。
+#
+# 一次資料: docs/vendor-docs/supabase/ci-local-testing.md（取得日 2026-09-24）。
+
+name: gate-integration
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate-integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    name: integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # .npmrc の ignore-scripts=true をそのまま活かす（サプライチェーン統制、R-SEC-13）。
+      - name: Install dependencies
+        run: npm ci
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.58.5
+
+      # `supabase start` は supabase/migrations/*.sql を適用する。
+      - name: Start local Supabase (Postgres)
+        run: supabase start
+
+      # 冪等。未適用のマイグレーションがあればここで適用され、無ければ何もしない。
+      - name: Apply migrations
+        run: npm run db:migrate
+
+      - name: Integration tests (real Postgres)
+        run: npm run test:integration
+
+      # ゲート台帳の正本（docs/gates/compliance-gates.json）と DB 射影の差分 0。
+      - name: Gate ledger sync check
+        run: npm run gates:sync
+
+      # `supabase stop` は書かない。GitHub のランナーはジョブ終了で破棄されるうえ、
+      # このリポジトリでは `supabase stop` を運用上の禁止コマンドとして扱っているため、
+      # ワークフローにも残さない。
