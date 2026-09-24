@@ -34,6 +34,7 @@ const {
   assertEventOwnedByOrganizer,
   createEvent,
   getEventSummary,
+  listOrganizerEvents,
   updateEvent,
 } = await import("@/lib/db/repositories/events");
 type CreateEventInput = Parameters<typeof createEvent>[2];
@@ -263,6 +264,36 @@ describe("幹事あたりのイベント数上限", () => {
       }
       await wide.end();
     }
+  });
+});
+
+// 敵対レビュー GPT F-5（round2。docs/review-log/task_014.json）: 作成上限は
+// `status <> 'canceled'` の件数しか数えず canceled には上限が無い一方、一覧
+// （`listOrganizerEvents`）は canceled も含めて `created_at DESC LIMIT 100` に固定され、
+// 続きを取る手段が無かった。canceled を積み重ねる通常操作だけで、上限内の進行中イベントが
+// 一覧から到達不能になり得た。
+describe("canceled イベントが増えても進行中のイベントは一覧から消えない（敵対レビュー GPT F-5・round2）", () => {
+  it("先に作った進行中イベントは、後から 100 件 canceled を積み重ねても一覧に残る", async () => {
+    await withRollback(appRw, async (tx) => {
+      const organizerId = await insertOrganizer(tx, uniq());
+      const sql = asSql(tx);
+
+      const active = await createEvent(tx, organizerId, baseEventInput({ title: "進行中のイベント" }));
+
+      // MAX_ACTIVE_EVENTS_PER_ORGANIZER（status <> 'canceled' の上限）には掛からない
+      // （即座に canceled へ倒すので都度 0 件へ戻る）。created_at は挿入順に単調増加するため、
+      // 100 件作ればいずれも `active` より新しくなる。
+      for (let i = 0; i < 100; i += 1) {
+        const e = await createEvent(tx, organizerId, baseEventInput({ title: `canceled-${String(i)}` }));
+        await updateEvent(tx, organizerId, e.event.id, { status: "canceled" });
+      }
+
+      const listed = await listOrganizerEvents(sql, organizerId);
+      expect(listed.find((e) => e.id === active.event.id)).toBeDefined();
+      // 修正前は canceled を含めた created_at DESC LIMIT 100 だったため、ここは常に 100 件
+      // ちょうど（canceled 100 件のみ）になり、`active` は 1 件も含まれていなかった。
+      expect(listed.some((e) => e.status === "canceled")).toBe(false);
+    });
   });
 });
 

@@ -352,3 +352,34 @@
   **verify_commands 6 本すべて `scripts/record-run.sh task_014` 経由で exit 0**（`typecheck` /
   `lint` / `test:unit` 38 ファイル 1005/1005 / `test:integration` 6 ファイル 100/100 /
   `gate:constraints` / `gate:wording`）。この修正自体に対する G5 round2 の結果は下の行を参照。
+- task_004（レビュー修正・7 周目）: DONE_WITH_CONCERNS — 4 回目の G5 は gemini が high 1 件（「`npm run test:unit` が落ちている」）で GPT が経路不達（欠票）。この high は封筒が読んだ run-log の時点（`d1a2eeb`）の記録で、落ちていたのは **task_013 が編集中だった未コミットの** `tests/unit/ci/web-only-workflow.test.ts` と `src/lib/liff/client.ts` であり、task_013 のコミット後に同じ HEAD で走らせ直すと `typecheck` / `test:unit` とも exit 0（1005/1005 緑）だった。5 回目の G5 は GPT が high 1 件 / medium 2 件（gemini は欠票）で、3 件とも再現してから直した。(1) **[high] `WHERE status_rank < 2 OR id = 1` のように OR で別条件を足すと、前進ガードが行内に在るまま後退できる**（実測 exit 0）。`GC-RANK-NEGATION` を「否定」だけでなく「弱められた形」全般へ広げ、ランク比較と同一行の ` OR ` / `||` も禁止した（ランク本体の `src/lib/ledger/rank.ts` / `apply.ts` は除外のままで、そこは task_018 の台帳テストが担保する）。(2) **[medium] I3 が動的 `import('postgres')` と副作用 import を見逃していた** → P1 と同じ形のパターンを追加。(3) **[medium] X-TIME が `ADD COLUMN IF NOT EXISTS ... date` を見逃していた** → DDL パターンに `IF NOT EXISTS` を挟めるようにした。`scripts/record-run.sh task_004` 経由で `npm run test:unit`（38 ファイル **1008/1008 緑**）/ `gate:constraints` / `gate:wording` / `typecheck` / `lint` がすべて **exit 0**、task_004 所有の 2 テストファイルは 66/66 緑。
+- task_004（レビュー修正・8 周目、打ち切り）: DONE_WITH_CONCERNS（**未解消の high 1 件あり**） — 6 回目の G5（view commit `99da9bd`）は **gemini PASS / GPT FAIL**（high 1 / medium 4）で `merge-review.sh` は reject（実効 high 1）。**5 件のうち 2 件だけ直し、3 件は未修正として記録した**。直した 2 件: (1) **5 周目に自分で作り込んだ回帰**。require 経路のテンプレート文字列除去を全エントリに掛けていたため、`src/lib/reconcile.ts` に `` sql`SELECT pg_try_advisory_lock(42)` `` と書くと **W11 の必須パターンが消えて `required pattern missing` になる**（task_020 が着地した時点で壊れる）→ 除去を**エントリごとのオプトイン**（`strip_template_strings: true`）にし、実行される「文」を要求する GC-SERVER-ONLY だけ有効にした。(2) `'use client'; // client module` のように行末コメントが付くと GC-LIB-CLIENT-DIRECTIVE の行末アンカー `$` を外れ、I3 の除外と合わせて両方から漏れていた → `$` を外した。**未修正で残した 3 件（C-004-8）**: `WHERE status_rank < 2` と `OR id = 1;` を 2 行に分けると W3 の免除も GC-RANK-NEGATION の検出も行単位なのですり抜ける（**high**）／テンプレート文字列内のエスケープされたバックティックを除去処理が終端と誤認する／動的 import の引数を改行すると P1 をすり抜ける。**打ち切りの理由**: 3 件とも「grep は 1 行ずつしか見ない」という道具の性質そのもので、2〜6 回目の G5 は毎回この形の high を 1 件返した（`<>` → `OR` → 改行した `OR`）。潰すたびに同じ構造の別例が出るため、必要なのはパターンの追加ではなく道具の交換（TypeScript は AST ＝ task_011 の `assert-server-only.mjs`、SQL は task_018 の台帳テスト）であり、PO 判断に委ねる。`scripts/record-run.sh task_004` 経由で `npm run test:unit`（38 ファイル **1010/1010 緑**）/ `gate:constraints` / `gate:wording` / `typecheck` / `lint` はすべて **exit 0**、task_004 所有の 2 テストファイルは 68/68 緑。
+- task_014（G5 round2）: DONE_WITH_CONCERNS — `41e8840`（round1 の指摘反映コミット）に対する
+  G5 round2 は `docs/review-log/task_014.json` の `round: 2` に記録済みで **merge-review: pass**
+  （有効票 2・欠票 0・実効 high 0）。gemini 1 件・GPT-6 Astra 6 件、計 7 件の medium 指摘が出た。
+  round1 と同じ方針で全件評価し、4 件は実装バグとして修正、3 件は task_014 の所有ファイル外か
+  より大きな設計判断を要するため concerns（C-014-6〜8）に記録した（詳細は
+  `docs/concerns/task_014.md`）。
+  - **[GPT F-3] 成功応答の本文受信に失敗すると送信・登録ボタンが無効のまま固まる**:
+    `response.json()` をこの節だけ try/catch で包み、失敗時はボタンを再度押せる状態に戻す。
+    冪等キーはここでは使い切らない（サーバーは既にコミット済みなので、null にすると再試行が
+    別のキーとして扱われ二重作成し得る）。ただしこの経路に入ると replay 応答が `joinToken` /
+    `claimToken` を含まないため招待リンクの表示機会を失う（C-014-6。task_015 で設計判断）。
+  - **[GPT F-4] 絞り込み後に古い「もっと見る」の応答が混入する**: `loadParticipants` の呼び出し
+    ごとに連番を払い出し、自分より新しい呼び出しが始まっていれば結果を画面へ反映しない
+    ガードを追加。
+  - **[GPT F-5] canceled イベントが増えると進行中のイベントが一覧から消える**: 作成上限は
+    `status <> 'canceled'` しか数えないのに一覧は canceled を含めた `created_at DESC LIMIT 100`
+    だったため、canceled を積み重ねる通常操作だけで進行中イベントが一覧の窓から押し出され得た。
+    `listOrganizerEvents` から canceled を除外（非 canceled は上限 20 なので必ず 100 件に収まる）。
+    回帰は `tests/integration/events.test.ts`「canceled イベントが増えても進行中のイベントは
+    一覧から消えない」。
+  - **[GPT F-6] 小数の金額入力がエラーにならず黙って未設定になる**: `submit` に「非空なのに
+    整数として解釈できない入力は送信を止める」チェックを追加。
+  - 残り 3 件（gemini F-1: `removeParticipant` の TOCTOU（`payment_attempt` 作成経路が
+    task_014 に無い）／GPT F-1: `verifyAuditChain` の既定 limit 10000 超は未検証（正式な
+    audit:verify は task_018/020 の担当）／GPT F-2: F-3 と同根の joinToken/claimToken 紛失）は
+    C-014-6〜8 として残し、対応予定タスク（task_015 / task_017 / task_018 / task_020）を付記した。
+  **verify_commands 6 本すべて `scripts/record-run.sh task_014` 経由で exit 0**（`typecheck` /
+  `lint` / `test:unit` 38 ファイル 1010/1010 / `test:integration` 6 ファイル **101/101**
+  （F-5 の回帰テスト 1 本を追加）/ `gate:constraints` / `gate:wording`）。

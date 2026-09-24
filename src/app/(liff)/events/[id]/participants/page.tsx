@@ -67,9 +67,17 @@ export default function ParticipantsPage(): ReactNode {
   const [issuedTokens, setIssuedTokens] = useState<
     readonly { readonly displayLabel: string | null; readonly claimToken: string }[] | null
   >(null);
+  // 敵対レビュー GPT F-4（round2）: loadingMore は「もっと見る」の連打だけを抑止し、取得中の
+  // 絞り込み操作（フィルタ切替・検索）は妨げていなかった。「もっと見る」の応答が保留されている
+  // 間に絞り込みを実行すると、後から届く古い（絞り込み前の条件の）応答がそのまま新しい一覧へ
+  // 追加され、検索条件に一致しない行が混入し得た。呼び出しのたびに払い出す一意な連番を持たせ、
+  // 応答が戻った時点で「最後に開始した呼び出しと同じか」を確認し、違えば（＝この呼び出しの後に
+  // 別の loadParticipants が始まっていれば）画面へ反映しない。
+  const loadSeqRef = useRef(0);
 
   const loadParticipants = useCallback(
     async (targetFilter: Filter, query: string, targetCursor: string | null, append: boolean) => {
+      const seq = (loadSeqRef.current += 1);
       setListError(null);
       const url = new URL(`/api/events/${eventId}/participants`, window.location.origin);
       url.searchParams.set("filter", targetFilter);
@@ -80,16 +88,22 @@ export default function ParticipantsPage(): ReactNode {
       try {
         response = await fetch(url.toString(), { method: "GET" });
       } catch {
-        setListError("名簿を取得できませんでした。通信状況をご確認のうえ、もう一度お試しください。");
+        if (loadSeqRef.current === seq) {
+          setListError("名簿を取得できませんでした。通信状況をご確認のうえ、もう一度お試しください。");
+        }
         return;
       }
       if (!response.ok) {
         const body = (await response.json().catch(() => ({}))) as ErrorBodyLike;
+        if (loadSeqRef.current !== seq) return;
         if (typeof body.requestId === "string") setRequestId(body.requestId);
         setListError(typeof body.message === "string" ? body.message : "名簿を取得できませんでした。");
         return;
       }
       const body = (await response.json()) as { participants: ParticipantItem[]; nextCursor: string | null };
+      // この呼び出しの後に別の loadParticipants が始まっていれば（＝自分が最新でなければ）、
+      // 古い条件の結果なので反映しない。
+      if (loadSeqRef.current !== seq) return;
       setItems((prev) => (append ? [...prev, ...body.participants] : body.participants));
       setNextCursor(body.nextCursor);
     },
@@ -233,9 +247,26 @@ export default function ParticipantsPage(): ReactNode {
       return;
     }
 
-    const body = (await response.json()) as {
+    // 敵対レビュー GPT F-3（round2）。new/page.tsx の submit と同じ理由・同じ方針:
+    // response.json() をこの節だけ try/catch で包み、本文の受信に失敗しても registering が
+    // 解除されないまま固まらないようにする。サーバーは既にコミット済みのため
+    // registerIdempotencyKeyRef はここでは使い切らない（再試行は同じ操作の再送＝replay に
+    // なる）。ただし replay 応答は claimToken を含まない設計（GPT F-2。id / displayLabel だけ
+    // 返る）なので、この経路に入ると個別リンクの表示機会を失う（C-014-6）。
+    let body: {
       participants: readonly { readonly id: string; readonly displayLabel: string | null; readonly claimToken: string }[];
     };
+    try {
+      body = (await response.json()) as {
+        participants: readonly { readonly id: string; readonly displayLabel: string | null; readonly claimToken: string }[];
+      };
+    } catch {
+      setRegistering(false);
+      setRegisterError(
+        "登録は完了している可能性がありますが、応答を受信できませんでした。もう一度お試しください。",
+      );
+      return;
+    }
     setIssuedTokens(body.participants.map((p) => ({ displayLabel: p.displayLabel, claimToken: p.claimToken })));
     // 成功した論理登録は使い切る。次の登録操作は新しいキーで始める。
     registerIdempotencyKeyRef.current = null;

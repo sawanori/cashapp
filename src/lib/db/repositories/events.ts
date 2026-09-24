@@ -385,7 +385,13 @@ export async function listOrganizerEvents(
     FROM event e
     LEFT JOIN participant p ON p.event_id = e.id
     LEFT JOIN invoice i ON i.participant_id = p.id
-    WHERE e.organizer_user_id = ${organizerUserId}
+    -- 敵対レビュー GPT F-5（round2）: 作成上限（MAX_ACTIVE_EVENTS_PER_ORGANIZER）は
+    -- status <> 'canceled' の件数しか数えないため canceled イベントには上限が無く、
+    -- ここで canceled も含めて created_at DESC LIMIT 100 すると、canceled を積み重ねる
+    -- 通常操作だけで進行中のイベントが一覧の 100 件から押し出されて到達不能になっていた
+    -- （続きを取る手段も無い）。canceled を除外すれば非 canceled は
+    -- MAX_ACTIVE_EVENTS_PER_ORGANIZER（20）が上限なので LIMIT 100 に必ず収まる。
+    WHERE e.organizer_user_id = ${organizerUserId} AND e.status <> 'canceled'
     GROUP BY e.id
     ORDER BY e.created_at DESC
     LIMIT 100

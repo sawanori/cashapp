@@ -134,6 +134,15 @@ export default function NewEventPage(): ReactNode {
       setSubmitError("タイトル・集金者としての表示名・未成年の有無は必須です。");
       return;
     }
+    // 敵対レビュー GPT F-6（round2）: `parseDefaultAmountMinor` は非整数（"3000.5" 等）も
+    // `null` を返すが、送信ボタンは `type="button"` でフォームの数値検証を経由しないため、
+    // 未入力（意図的に空欄）と不正な入力（誤って端数付きの金額を書いた）を区別せず、後者も
+    // 黙って「既定金額なし」として送信されていた。ここで両者を区別し、非空なのに解釈できない
+    // 入力は送信そのものを止めてエラーを示す。
+    if (defaultAmount.trim().length > 0 && parseDefaultAmountMinor(defaultAmount) === null) {
+      setSubmitError("既定金額は 1 円単位の整数で入力してください。");
+      return;
+    }
 
     setSubmitting(true);
     setSubmitError(null);
@@ -182,7 +191,26 @@ export default function NewEventPage(): ReactNode {
       return;
     }
 
-    const body = (await response.json()) as CreatedEventBody;
+    // 敵対レビュー GPT F-3（round2）: 従来は response.json() が外側の try/catch に無く、
+    // ステータスは 2xx（＝サーバー側は既にコミット済み）でも本文の受信が失敗すると
+    // catch されずに投げっぱなしになり、setSubmitting(false) へ到達しないまま作成ボタンが
+    // 無効のまま固まっていた（再試行の手段が無い）。この節だけ try/catch で包み、失敗時は
+    // ボタンを再度押せる状態へ戻す。**idempotencyKeyRef はここでは使い切らない**（サーバーは
+    // 既に成功しているため、null にして次を新しいキーにすると再試行が別の Idempotency-Key
+    // として扱われ二重にイベントが作成されうる。キーを残せば再試行は同じ操作の再送＝
+    // replay として扱われる）。ただし replay 応答は `extra`（`joinToken`）を含まない設計
+    // （このファイル冒頭の docstring）なので、この経路に入ると招待リンクの表示機会を失う
+    // （C-014-6 として記録。再表示手段の追加は本タスクの scope 外）。
+    let body: CreatedEventBody;
+    try {
+      body = (await response.json()) as CreatedEventBody;
+    } catch {
+      setSubmitting(false);
+      setSubmitError(
+        "作成は完了している可能性がありますが、応答を受信できませんでした。もう一度お試しください。",
+      );
+      return;
+    }
     // 成功した論理送信は使い切る。次の作成操作は新しいキーで始める。
     idempotencyKeyRef.current = null;
     setSubmitting(false);

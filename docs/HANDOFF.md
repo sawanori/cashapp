@@ -2007,6 +2007,46 @@ medium 指摘が出た。
   `tests/integration/**` の対象外のため専用の自動テストは無い（コードレビューと手動でのロジック
   確認のみ）。E2E 整備は C-014-4 と同じく task_022 送り。
 
+## task_014（G5 round2）
+
+`41e8840`（round1 の指摘反映コミット）に対する G5 round2 は `docs/review-log/task_014.json` に
+記録済みで **merge-review: pass**（有効票 2・欠票 0・実効 high 0）。gemini 1 件・GPT-6 Astra 6 件、
+計 7 件の medium 指摘が出た。
+
+### 決まったこと
+
+- round1 と同じ方針: 実効 high が無くゲートは通過済みでも、全件を評価してから直すか concerns に
+  残すかを決めた。
+- **直したもの（4 件）**:
+  - **GPT F-3（成功応答の本文受信失敗で送信/登録ボタンが無効のまま固まる）**: `response.json()`
+    をこの節だけ try/catch で包む。冪等キーは使い切らない（サーバーは既にコミット済みなので、
+    null にすると再試行が新しいキー扱いになり二重作成し得る）。
+  - **GPT F-4（絞り込み後に古い「もっと見る」の応答が混入する）**: `loadParticipants` の呼び出し
+    ごとに連番（`loadSeqRef`）を払い出し、自分より新しい呼び出しが始まっていれば結果を画面へ
+    反映しない。
+  - **GPT F-5（canceled イベントの蓄積で進行中のイベントが一覧から消える）**:
+    `listOrganizerEvents` から `status = 'canceled'` を除外（作成上限が非 canceled にしか
+    掛からないため、除外しないと通常操作だけで一覧の 100 件窓から進行中イベントが押し出され
+    得た）。回帰テストを追加。
+  - **GPT F-6（小数の金額入力が黙って未設定になる）**: `submit` に検証を追加し、非空だが整数
+    として解釈できない入力は送信を止めてエラーを示す。
+- **直さず concerns に残したもの（3 件。`docs/concerns/task_014.md` C-014-6〜8）**:
+  - **C-014-6（GPT F-2/F-3）**: F-3 の修正後も、応答受信失敗後の再試行は `runIdempotent` の
+    replay 経路に入り `joinToken` / `claimToken`（`extra`）を失う。「秘密は一度しか見せない」
+    設計と両立する再表示手段が要るため、設計判断として task_015 に送った。
+  - **C-014-7（gemini F-1）**: `removeParticipant` の `HAS_OPEN_ATTEMPT` 判定と
+    `payment_attempt` 作成の間に理論上の TOCTOU がある。`payment_attempt` を作る経路が
+    task_014 の所有ファイルに存在しないため、その経路を書く task_015/017 の責務として送った。
+  - **C-014-8（GPT F-1）**: `verifyAuditChain` の既定 `limit`（10000）を超える改変は既定呼び出し
+    では検出できない。正式な `audit:verify` CLI/cron（task_018/020）が作られる時に併せて対応。
+- **verify_commands 6 本すべて `scripts/record-run.sh task_014` 経由で exit 0**（`typecheck` /
+  `lint` / `test:unit` 38 ファイル 1010/1010 / `test:integration` 6 ファイル 101/101 /
+  `gate:constraints` / `gate:wording`）。
+
+### 未解決
+
+- C-014-1〜8（`docs/concerns/task_014.md`）がそのまま残懸念。合計 8 件（medium 3・low 5）。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
