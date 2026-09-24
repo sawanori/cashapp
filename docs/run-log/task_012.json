@@ -543,5 +543,68 @@
     "commit": "17edb6e1523ca0c5d78b28212f4a2a29b094d201",
     "ran_at": "2026-09-24T08:07:53Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "3062179afac28ad2e6073c9069c46269a7e0f698",
+    "ran_at": "2026-09-24T08:10:27Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 1,
+    "stdout_tail": "\n ❯ tests/unit/gate-check.test.ts (16 tests | 1 failed) 2371ms\n   ❯ overlay の解決 (4)\n     × meta.json の inputs はディレクトリごと差し替えられる 138ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  tests/unit/gate-check.test.ts > overlay の解決 > meta.json の inputs はディレクトリごと差し替えられる\nAssertionError: expected [ …(7) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"docs/PROGRESS.md が task_002(DONE) を宣言していますが docs/task-list.json にありません\",\n+   \"docs/PROGRESS.md が task_003(DONE_WITH_CONCERNS) を宣言していますが docs/task-list.json にありません\",\n+   \"docs/PROGRESS.md が task_004(DONE_WITH_CONCERNS) を宣言していますが docs/task-list.json にありません\",\n+   \"docs/PROGRESS.md が task_011(DONE_WITH_CONCERNS) を宣言していますが docs/task-list.json にありません\",\n+   \"docs/PROGRESS.md が task_005(DONE_WITH_CONCERNS) を宣言していますが docs/task-list.json にありません\",\n+   \"docs/PROGRESS.md が task_012(DONE_WITH_CONCERNS) を宣言していますが docs/task-list.json にありません\",\n+   \"docs/PROGRESS.md が task_006(DONE_WITH_CONCERNS) を宣言していますが docs/task-list.json にありません\",\n+ ]\n\n ❯ tests/unit/gate-check.test.ts:181:44\n    179|     ]);\n    180|     const { results } = report([\"--root\", root, \"--base\", repoRoot]);\n    181|     expect(gate(results, \"G4\").violations).toEqual([]);\n       |                                            ^\n    182|     expect(gate(results, \"G4\").targets).toBe(1);\n    183|   });\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\n\n\n Test Files  1 failed | 13 passed (14)\n      Tests  1 failed | 509 passed (510)\n   Start at  08:10:31\n   Duration  23.83s (tests 93%, setup 4%, transform 1%, import 1%)",
+    "commit": "3062179afac28ad2e6073c9069c46269a7e0f698",
+    "ran_at": "2026-09-24T08:10:31Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "3062179afac28ad2e6073c9069c46269a7e0f698",
+    "ran_at": "2026-09-24T08:13:35Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 1,
+    "stdout_tail": "\n ❯ tests/unit/gate-check.test.ts (16 tests | 1 failed) 3103ms\n   ❯ overlay の解決 (4)\n     × meta.json の inputs はディレクトリごと差し替えられる 181ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  tests/unit/gate-check.test.ts > overlay の解決 > meta.json の inputs はディレクトリごと差し替えられる\nAssertionError: expected [ …(7) ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   \"docs/PROGRESS.md が task_002(DONE) を宣言していますが docs/task-list.json にありません\",\n+   \"docs/PROGRESS.md が task_003(DONE_WITH_CONCERNS) を宣言していますが docs/task-list.json にありません\",\n+   \"docs/PROGRESS.md が task_004(DONE_WITH_CONCERNS) を宣言していますが docs/task-list.json にありません\",\n+   \"docs/PROGRESS.md が task_011(DONE_WITH_CONCERNS) を宣言していますが docs/task-list.json にありません\",\n+   \"docs/PROGRESS.md が task_005(DONE_WITH_CONCERNS) を宣言していますが docs/task-list.json にありません\",\n+   \"docs/PROGRESS.md が task_012(DONE_WITH_CONCERNS) を宣言していますが docs/task-list.json にありません\",\n+   \"docs/PROGRESS.md が task_006(DONE_WITH_CONCERNS) を宣言していますが docs/task-list.json にありません\",\n+ ]\n\n ❯ tests/unit/gate-check.test.ts:181:44\n    179|     ]);\n    180|     const { results } = report([\"--root\", root, \"--base\", repoRoot]);\n    181|     expect(gate(results, \"G4\").violations).toEqual([]);\n       |                                            ^\n    182|     expect(gate(results, \"G4\").targets).toBe(1);\n    183|   });\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\n\n\n Test Files  1 failed | 13 passed (14)\n      Tests  1 failed | 509 passed (510)\n   Start at  08:13:41\n   Duration  25.13s (tests 90%, setup 6%, transform 2%, import 2%)",
+    "commit": "3062179afac28ad2e6073c9069c46269a7e0f698",
+    "ran_at": "2026-09-24T08:13:41Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:integration\n> TZ=UTC vitest run tests/integration --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  4 passed (4)\n      Tests  73 passed (73)\n   Start at  08:14:13\n   Duration  13.72s (tests 92%, import 5%, setup 2%, transform 2%)",
+    "commit": "3062179afac28ad2e6073c9069c46269a7e0f698",
+    "ran_at": "2026-09-24T08:14:13Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 19 file(s))\nok    L2 (forbid, 19 file(s))\nok    L3 (forbid, 19 file(s))\nok    L8 (forbid, 19 file(s))\nok    L12 (forbid, 19 file(s))\nok    P1 (forbid, 19 file(s))\ndefer P2 (0 targets; waiting on task_018)\ndefer P9 (0 targets; waiting on task_017)\nok    W3 (forbid, 26 file(s))\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 19 file(s))\nok    N5 (forbid, 19 file(s))\nok    N7 (forbid, 19 file(s))\nok    N9 (forbid, 19 file(s))\nok    N11 (forbid, 19 file(s))\nok    I1 (require, 1 file(s))\nok    I2 (require, 1 file(s))\nok    I3 (forbid, 2 file(s))\nok    I4 (forbid, 2 file(s))\nok    X-TIME (forbid, 8 file(s))\nok    X-ID (forbid, 6 file(s))\ndefer X-MONEY (0 targets; waiting on task_017)\nok    GC-XSS (forbid, 19 file(s))\nok    GC-ENV-PUBLIC (forbid, 24 file(s))\nok    GC-SERVER-ONLY (require, 1 file(s))\n\ngate:constraints — scanned 21 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "3062179afac28ad2e6073c9069c46269a7e0f698",
+    "ran_at": "2026-09-24T08:14:31Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:env",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:env\n> node scripts/gate-env-scope.mjs\n\nok      main: APP_ENV of 'default' is 'development'\nok      main: APP_ENV of 'staging' is 'staging'\nok      main: APP_ENV of 'production' is 'production'\nok      main: staging and production share no non-trivial value\nok      cron: staging and production share no non-trivial value\nok      LINE_ENV_PROFILE is documented in .env.example\nok      PEPPER is documented in .env.example\nok      SESSION_KEYS is documented in .env.example\nok      CRON_SECRETS is documented in .env.example\nok      .env.example runtime section carries no local-only escape hatch\npending docs/ops/env-baseline.json not found — expected-name comparison is deferred to task_035. 実走したのは (1) 禁止名がランタイム var に無い / (2) APP_ENV が environment 名と一致 / (3) staging と production が同じ値を共有していない、の 3 つだけである。本番の値を staging **だけ**に書いた片側混入は (3) では検出できない\npending EXPECTED_SUPABASE_PROJECT_REF.production is still a placeholder — one-sided injection of the production Supabase project ref is NOT checked (task_024)\npending EXPECTED_SUPABASE_PROJECT_REF.staging is still a placeholder — one-sided injection of the staging Supabase project ref is NOT checked (task_035)\npending 片側混入を検出できない本番資源が残っている: production LIFF ID / production Hyperdrive id。ソース固定の宣言が無く、docs/ops/env-baseline.json の production_only_values 待ち（task_035 / task_024）\npending .dev.vars.example に無い必須秘密値: LINE_ENV_PROFILE, PEPPER, SESSION_KEYS, CRON_SECRETS — wrangler dev / next dev の platform proxy は .env / .env.local を読まないため、雛形どおりコピーした開発者はルートが 500 / 503 になる（.dev.vars.example は task_003 所有。task_003 / task_035 で追記）\nnote    **静的検査のみで判定した**: wrangler CLI が未認証（CLOUDFLARE_API_TOKEN 未設定）のため `wrangler secret list` との突き合わせは行っていない。CI 接続は task_024。\n\ngate:env — 0 violation(s), 5 pending, 10 check(s) passed",
+    "commit": "3062179afac28ad2e6073c9069c46269a7e0f698",
+    "ran_at": "2026-09-24T08:14:33Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]

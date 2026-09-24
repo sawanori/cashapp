@@ -722,6 +722,22 @@ task_006 側は「自分のファイルは既にコミット済み」として�
 - **（未対応・他タスク）** `docs/acceptance-checks.json` の check_058 / 072 / 075 が名指しする
   `tests/security/{csrf,xss-csp,id-token-replay}.test.ts` は task_022 の `files_to_create` なので
   作っていない。実際の検査場所の対応表は C-012-7 にある。→ **task_022 へ**。
+- **（要対応・task_006 へ）`npm run test:unit` が現在 exit 1**。落ちているのは 1 件だけで、
+  `tests/unit/gate-check.test.ts > overlay の解決 > meta.json の inputs はディレクトリごと差し替えられる`。
+  原因は **task_006 が作業中の未コミット `scripts/gate-check.mjs`** が G4 に
+  「PROGRESS.md の完了宣言と `docs/task-list.json` の突き合わせ」を追加したことである。
+  この検査は `docs/task-list.json` をオーバーレイで 1 タスク（`task_953`）に差し替える一方、
+  `docs/PROGRESS.md` は `--base`（実リポジトリ）から読むため、実リポジトリが宣言している
+  7 タスク（task_002 / 003 / 004 / 011 / 005 / 012 / 006）が丸ごと違反として出る。
+  **task_012 の変更は無関係である**ことを 2 通りで実測した:
+  (a) `progressDeclarations()` と同じ正規表現で `git show 17edb6e:docs/PROGRESS.md` と
+  `git show HEAD:docs/PROGRESS.md` を解析すると、宣言 id は 7 件で**完全に同一**
+  （task_012 は既に宣言済みで、追記した 2 周目の行は 2 件目なので採られない）。
+  (b) 同じオーバーレイを組み立てて `gate-check.mjs` の 2 版で G4 を比べると、
+  **HEAD の版（task_012 のコミット込み）は violations 0 / targets 1 で通り**、
+  作業ツリーの版だけが violations 7 / targets 8 になる。
+  → **task_006 へ**: このフィクスチャは `docs/PROGRESS.md` も中立化する（オーバーレイで空にするか
+  `meta.json` の `absent` に入れる）必要がある。task_012 側からは触っていない。
 
 ## ターンログ（Stop フック自動追記）
 
@@ -781,3 +797,4 @@ task_006 側は「自分のファイルは既にコミット済み」として�
 - 2026-09-24T07:59:45Z HEAD=17edb6e 決まったこと: task_006: 最終 HEAD での verify_commands 再実行ログ（全 exit 0） / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_006.json docs/run-log/task_012.json src/middleware.ts tests/gates/probe.test.ts 
 - 2026-09-24T07:59:49Z HEAD=17edb6e 決まったこと: task_006: 最終 HEAD での verify_commands 再実行ログ（全 exit 0） / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_006.json docs/run-log/task_012.json src/middleware.ts tests/gates/probe.test.ts 
 - 2026-09-24T08:03:42Z HEAD=17edb6e 決まったこと: task_006: 最終 HEAD での verify_commands 再実行ログ（全 exit 0） / 未解決: 未コミット 7 件: docs/HANDOFF.md docs/run-log/task_006.json docs/run-log/task_012.json scripts/gate-env-scope.mjs src/middleware.ts tests/unit/security-headers.test.ts tests/gates/probe.test.ts 
+- 2026-09-24T08:11:42Z HEAD=3062179 決まったこと: task_012(2周目): nonce CSP をリクエストヘッダにも載せ、gate:env の片側混入を検出する / 未解決: 未コミット 6 件: docs/run-log/task_006.json docs/run-log/task_012.json docs/task-list.json scripts/gate-check.mjs scripts/gate-integrity.mjs tests/gates/probe.test.ts 
