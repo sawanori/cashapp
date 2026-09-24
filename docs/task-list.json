@@ -1808,10 +1808,15 @@
       "adversarial_review": "not_required",
       "evidence_label": "[文書]",
       "optional": false,
-      "completion_status": null,
+      "completion_status": "DONE_WITH_CONCERNS",
       "concerns": [
-        "shareTargetPicker のミニアプリチャネルでの有効化手順は一次資料未特定（Q-LN7）",
-        "Q-LN2（現実世界の役務の集金にアプリ内課金が必要か）未回答のまま (liff) の配布導線を確定しない。未回答で着手する場合は完了時に GATE-LINE-POLICY の状態を run-log に記録し、クローズド β 限定の免除（ADR-011）に該当することを明記する"
+        "[severity: medium] Playwright の既定 baseURL（127.0.0.1）だと next dev の allowedDevOrigins 制約でハイドレーションが永久に終わらない（O-4〜O-6 でも実測。task_022 に直撃する）/ 対応案: next.config.ts に allowedDevOrigins を足すか playwright.config.ts の既定 baseURL を localhost にする（対応予定: task_022）",
+        "[severity: medium] check_030 が e2e に期待する「ready フェーズで ShareSheet を実ブラウザ描画」は liff-mock に window 露出の上書きフックが無く今回組めなかった。isApiAvailable=false 時の描画固定は tests/unit/components/ShareSheet.test.tsx で担保済み / 対応案: src/lib/liff/mock.ts にテスト専用の事前注入フックを足す（対応予定: task_022）",
+        "[severity: low] 参加者ごとの個別リンクは claim トークン単位のURLではなく、共通の招待リンク＋宛名入り催促文（claim トークンは発行応答の1度きりで再取得できないため。C-015-2の帰結。設計判断として実装）",
+        "[severity: low] /events/:id/share へのナビゲーションリンクをO-4/O-6にまだ足していない（該当ページはfiles_to_modify外）。直接URLでは到達可能",
+        "[severity: low] npm run test:unit は task_016と無関係な2件（tests/unit/gate-check.test.ts、task_006所有）で失敗。原因はtask_018が並行追加したtest:contractスクリプトとのフィクスチャ不整合（docs/concerns/task_023.md §9と同一事象）。本タスクの新規テスト24件はすべてpass",
+        "shareTargetPicker のミニアプリチャネルでの有効化手順は一次資料未特定（Q-LN7）。docs/vendor-docs/line/share-target-picker.mdに退避済み",
+        "Q-LN2（現実世界の役務の集金にアプリ内課金が必要か）未回答のまま (liff) の配布導線を実装した。完了時点のGATE-LINE-POLICY/GATE-LINE-SHAREの状態（いずれもunknown）はrun-logに記録済み。クローズド β 限定の免除（ADR-011。task_029で正式作成予定）に該当する前提"
       ]
     },
     {
@@ -2073,7 +2078,7 @@
         "[severity: medium] trust='unverified' は applyToLedger で適用せず apply_result='ignored' にする（再照会のアダプタを持たないため） / task_020 の reconcile が getPaymentStatus で reverified にして流し直す",
         "[severity: low] audit:verify のローカル実行は rowsChecked=0（統合テストが全てロールバックするため） / 連鎖破壊の検出は verifyChain の合成行テストと写し一致テストで担保、実データは task_035 以降",
         "[severity: low] WEBHOOK_IP_ALLOWLIST / WEBHOOK_SIGNING_SECRETS を env 雛形に未記載（未設定なら fail-closed） / task_035 / task_024 の env 台帳整備で登録する",
-        "[severity: low] gate:constraints に他タスクの未コミット成果物（ShareSheet.tsx / share.ts）由来の違反 4 件。本タスク由来の L3 違反は修正済み / 当該ファイルの所有タスクが解消する"
+        "[severity: low] npm run test:integration の 3 件が他タスクの未コミット成果物（tests/integration/admin.test.ts）で赤。当該ファイルを除けば 13 ファイル 204/204 pass / 当該ファイルの所有タスク（task_021）が解消する"
       ]
     },
     {

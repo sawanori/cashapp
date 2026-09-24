@@ -1,0 +1,16 @@
+{
+  "$comment": "契約テスト用の合成 fixture（task_018）。実在の決済事業者のレスポンスではない。",
+  "captured_from": "synthesized",
+  "provenance": {
+    "kind": "synthesized",
+    "authored_by": "model:opus-5.5 (task_018)",
+    "note": "Phase 1 には自動アダプタが 1 つも無いため、事業者の実レスポンスを捕獲できない。この fixture は W1/W2/W3/W8 の契約（重複・逆順・署名・金額突合）を検査するためだけの合成データであり、fixture_provider は REGISTRY に登録しない（G12: synthesized のみの provider に autoDetect を名乗らせない）。"
+  },
+  "event_id": "evt_fixture_succeeded_0001",
+  "type": "payment.succeeded",
+  "kind": "succeeded",
+  "external_ref": "iv_00000000000000000000000000000000_1",
+  "amount_minor": 3000,
+  "currency": "JPY",
+  "occurred_at": "2026-09-24T00:00:00.000Z"
+}

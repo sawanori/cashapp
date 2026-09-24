@@ -21,8 +21,7 @@ export default defineConfig({
     // stay independently scoped — both dirs must be listed here so that
     // positional filter is discoverable at all. `tests/e2e/**` and
     // `tests/a11y/**` are Playwright's (`*.spec.ts`, different test runner);
-    // `tests/contract/**` belongs to task_018 and is added to `include` there,
-    // not here. `tests/integration/**` was added by task_011.
+    // `tests/integration/**` was added by task_011, `tests/contract/**` by task_018.
     include: [
       "tests/unit/**/*.test.ts",
       "tests/unit/**/*.test.tsx",
@@ -37,6 +36,10 @@ export default defineConfig({
       "tests/gates/**/*.test.ts",
       // task_019: `npm run test:conformance`（ProviderConformanceKit）。同じ理由で include に必要。
       "tests/conformance/**/*.test.ts",
+      // task_018: `npm run test:contract`（重複・逆順・署名不一致の契約 3 本）。
+      // 実 Postgres が要るので素の `vitest run` からは外したいが、include に無いファイルは
+      // 位置指定フィルタでも拾えないため、ここに載せる（tests/integration と同じ理由）。
+      "tests/contract/**/*.test.ts",
     ],
     exclude: [
       "node_modules/**",
@@ -45,7 +48,6 @@ export default defineConfig({
       ".wrangler/**",
       "tests/e2e/**",
       "tests/a11y/**",
-      "tests/contract/**",
     ],
     // Belt-and-suspenders alongside the `TZ=UTC` prefix on the npm script:
     // date-boundary logic in this app must be independent of the host TZ.

@@ -2248,6 +2248,34 @@ GPT-6 Astra 7 件のうち重複を除く 7 件を**全件修正**した（詳�
   （`src/lib/outbox.ts` 等・task_019 のファイルではない）により一時的に exit 1 だった
   （§2。対応不要・当該タスク側の課題）。
 
+## task_018（台帳適用・冪等基盤・監査連鎖検証・Webhook ルート・契約テスト 3 本）
+
+### 決まったこと
+
+- 適用の判断は **DB に触れない純関数 `planApply`**（`src/lib/ledger/apply.ts`）に集約し、
+  `applyToLedger` はその計画を 1 トランザクションで実行するだけにした。これで check_094 の
+  「全遷移 × 全種別」を Postgres 無しの `test:unit` で網羅できる（CI の `gate.yml` は
+  `test:unit` を DB 無しで走らせる）。
+- **`mixed` は DB に保存できない**（`invoice.confirmation_method` の CHECK は 2 値）。
+  表示用の 3 値は台帳の `confidence` 集合から毎回導出し、保存値は非自動側へ倒して
+  バッジを消さない。**適用保留も専用値が無い**ので `apply_result IS NULL AND
+  processed_at IS NULL`（未処理）で表す（CHECK に `held` が無い）。
+- 契約テストは `WebhookContext.runTransaction` に**外側のロールバック用トランザクションの
+  savepoint** を渡して実 DB を汚さない。`ledger_entry` / `audit_log` は追記専用で DELETE
+  できないため、コミットさせない以外の後始末が存在しない。
+- 並行実行時の `deadlock detected` は、fixture の `provider_event_id` が固定で
+  `payment_event (provider_key, provider_event_id)` の一意制約上で別トランザクションと
+  待ち合うのが原因。`external_ref` を連結して一意化し、4 回連続で 7/7 pass を確認した。
+
+### 未解決
+
+- Hyperdrive 経路（A21 / premortem P-05・P-09）は task_035 未了のため未実測（high）。
+  `npm run test:unit` は task_006 の `tests/unit/gate-check.test.ts` が「`test:contract` が
+  未定義であること」を前提にしており exit 1（当該ファイルは規約により未編集）。
+- Stop フックへの `test:gate` 登録は task_019 の担当（npm スクリプトの定義までを本タスクで実施）。
+  `trust='unverified'` の再照会は task_020、`apply_result='held'` の要否も task_020 で確定。
+- 残りは `docs/concerns/task_018.md`（C-018-1〜8）。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -2474,3 +2502,10 @@ GPT-6 Astra 7 件のうち重複を除く 7 件を**全件修正**した（詳�
 - 2026-09-24T17:24:45Z HEAD=b782d3d 決まったこと: task_023: 敵対レビュー記録（G5） / 未解決: 未コミット 37 件: docs/HANDOFF.md docs/concerns/task_019.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json docs/run-log/task_019.json 
 - 2026-09-24T17:25:45Z HEAD=b782d3d 決まったこと: task_023: 敵対レビュー記録（G5） / 未解決: 未コミット 38 件: docs/HANDOFF.md docs/concerns/task_019.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json docs/run-log/task_019.json 
 - 2026-09-24T17:27:46Z HEAD=b782d3d 決まったこと: task_023: 敵対レビュー記録（G5） / 未解決: 未コミット 46 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_019.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json 
+- 2026-09-24T17:37:47Z HEAD=9421d14 決まったこと: task_019(G5 round1 の指摘反映): 依存しない部分（provenance/kit/C9・C10・C12）を実装 / 未解決: 未コミット 52 件: docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json docs/run-log/task_023.json package-lock.json package.json 
+- 2026-09-24T17:39:25Z HEAD=9421d14 決まったこと: task_019(G5 round1 の指摘反映): 依存しない部分（provenance/kit/C9・C10・C12）を実装 / 未解決: 未コミット 56 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json docs/run-log/task_019.json docs/run-log/task_023.json 
+- 2026-09-24T17:41:02Z HEAD=9421d14 決まったこと: task_019(G5 round1 の指摘反映): 依存しない部分（provenance/kit/C9・C10・C12）を実装 / 未解決: 未コミット 60 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json docs/run-log/task_019.json docs/run-log/task_023.json 
+- 2026-09-24T17:46:51Z HEAD=9421d14 決まったこと: task_019(G5 round1 の指摘反映): 依存しない部分（provenance/kit/C9・C10・C12）を実装 / 未解決: 未コミット 61 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json docs/run-log/task_019.json docs/run-log/task_023.json 
+- 2026-09-24T17:52:03Z HEAD=9421d14 決まったこと: task_019(G5 round1 の指摘反映): 依存しない部分（provenance/kit/C9・C10・C12）を実装 / 未解決: 未コミット 66 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_023.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json 
+- 2026-09-24T17:54:34Z HEAD=8c2809a 決まったこと: task_023(修正ラウンド): health.ts の degraded 判定・ADR-007・docs/ops を実装 / 未解決: 未コミット 59 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json docs/run-log/task_019.json package-lock.json 
+- 2026-09-24T18:05:06Z HEAD=8c2809a 決まったこと: task_023(修正ラウンド): health.ts の degraded 判定・ADR-007・docs/ops を実装 / 未解決: 未コミット 64 件: docs/HANDOFF.md docs/PROGRESS.md docs/constraints.json docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json 

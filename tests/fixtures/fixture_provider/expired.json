@@ -1,0 +1,16 @@
+{
+  "$comment": "契約テスト用の合成 fixture（task_018）。実在の決済事業者のレスポンスではない。",
+  "captured_from": "synthesized",
+  "provenance": {
+    "kind": "synthesized",
+    "authored_by": "model:opus-5.5 (task_018)",
+    "note": "順序逆転（C2 / check_018）の後発イベント。succeeded のあとに届いても invoice は paid のまま、attempt も expired にならないことを固定する。"
+  },
+  "event_id": "evt_fixture_expired_0001",
+  "type": "payment.expired",
+  "kind": "expired",
+  "external_ref": "iv_00000000000000000000000000000000_1",
+  "amount_minor": null,
+  "currency": "JPY",
+  "occurred_at": "2026-09-24T00:05:00.000Z"
+}

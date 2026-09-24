@@ -1,0 +1,16 @@
+{
+  "$comment": "契約テスト用の合成 fixture（task_018）。実在の決済事業者のレスポンスではない。",
+  "captured_from": "synthesized",
+  "provenance": {
+    "kind": "synthesized",
+    "authored_by": "model:opus-5.5 (task_018)",
+    "note": "紛争（C16 / check_096）。settlement_status が charged_back へ前進し、ledger_entry に kind='chargeback' の debit が積まれることを固定する。"
+  },
+  "event_id": "evt_fixture_disputed_0001",
+  "type": "payment.disputed",
+  "kind": "disputed",
+  "external_ref": "iv_00000000000000000000000000000000_1",
+  "amount_minor": 3000,
+  "currency": "JPY",
+  "occurred_at": "2026-09-24T01:00:00.000Z"
+}

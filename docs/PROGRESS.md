@@ -559,3 +559,30 @@
   （週次メトリクス側）は依然未達。残懸念は `docs/concerns/task_023.md`（high 3・medium 3・
   low 2）。`docs/review-log/task_023.json` は既存のものを維持し、再レビューは実施していない
   （共通ルールどおり）。
+- task_018: DONE_WITH_CONCERNS — 台帳適用・冪等基盤・監査連鎖検証・Webhook ルート・契約テスト
+  3 本を実装した。`src/lib/ledger/{rank,dedupe,balance,apply}.ts`・`src/lib/outbox.ts`・
+  `src/lib/db/repositories/{attempts,events-log}.ts`・`src/lib/webhook/ip-allowlist.ts`・
+  `src/app/api/webhooks/[providerKey]/[bindingRef]/route.ts`・`scripts/audit-verify.mjs`
+  （＋型宣言 `.d.mts`）を新規作成し、`package.json` に `test:contract` / `test:gate` /
+  `audit:verify`、`vitest.config.ts` の `include` に `tests/contract/**` を追加。
+  適用の判断は **DB に触れない純関数 `planApply`** に集約したので、全遷移 × 全種別（check_094）
+  を Postgres 無しの `test:unit` で網羅できる。**金額不一致は突合基準を
+  `payment_attempt.amount_minor` に取り、`adjustment` 1 件・ランク不変・`needs_attention`・
+  `mismatch_alert`**（check_023）。取消済みへの入金は前進させたうえで `void` 維持と
+  `paid_after_void`（check_021）。`confirmation_method` は台帳の `confidence` 集合から導出し、
+  `mixed` は DB の CHECK に無いので**非自動側へ倒して**バッジを消さない。Webhook は
+  非 production 404 / 許可外 IP は本文を読まず 403（DB に 1 行も残さない）/ 書式違反 400 /
+  ゲート未通過は受信・保存し**適用保留**（`apply_result` と `processed_at` が NULL。
+  CHECK に `held` が無いため）。**実測**: `test:contract` **3 ファイル 7/7 pass**（4 回連続）、
+  `tests/integration/webhook-route.test.ts` **10/10 pass**、`tests/unit/ledger` **36/36 pass**、
+  `typecheck` exit 0、`audit:verify` exit 0、`gate:constraints` **0 violation**。
+  `npm run test:unit` は **exit 1**（`tests/unit/gate-check.test.ts` の G2 2 件が
+  「`test:contract` が package.json に無いこと」を前提にしており、本タスクが §13 どおり
+  定義したため落ちる。他タスクのテストは規約により編集していない）。同ファイルを除く
+  `tests/unit` は **49 ファイル 1167/1167 pass**。`npm run test:integration` は **exit 1**
+  （他タスクの未追跡 `tests/integration/admin.test.ts` の 3 件。除けば 13 ファイル 204/204）。
+  並行実行での `deadlock detected`（task_019 が観測）の原因は、fixture の
+  `provider_event_id` が固定で `payment_event` の一意制約上で別トランザクションと待ち合う
+  ことだと特定し、`external_ref` を連結して一意化した。残懸念は `docs/concerns/task_018.md`
+  （C-018-1〜8。high 1・medium 4・low 3）。Hyperdrive 経路（A21 / P-05 / P-09）は
+  task_035 未了のため deferred。

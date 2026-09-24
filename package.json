@@ -37,7 +37,13 @@
     "review:merge": "bash scripts/merge-review.sh",
     "build:web-only": "node scripts/build-web-only.mjs",
     "evidence:record": "node scripts/record-evidence.mjs",
-    "test:conformance": "TZ=UTC vitest run tests/conformance"
+    "test:conformance": "TZ=UTC vitest run tests/conformance",
+    "test:contract": "TZ=UTC vitest run tests/contract --testTimeout=60000 --hookTimeout=60000",
+    "audit:verify": "node scripts/audit-verify.mjs",
+    "test:gate": "npm run test:contract && npm run test:conformance",
+    "gate:terms": "node scripts/gate-terms.mjs",
+    "gate:privacy-policy": "node scripts/gate-privacy-policy.mjs",
+    "gate:compliance-freshness": "node scripts/gate-compliance-freshness.mjs"
   },
   "private": true,
   "engines": {

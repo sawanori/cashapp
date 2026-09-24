@@ -1,0 +1,128 @@
+[
+  {
+    "type": "command",
+    "command": "npm run test:contract",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:contract\n> TZ=UTC vitest run tests/contract --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  3 passed (3)\n      Tests  7 passed (7)\n   Start at  17:27:27\n   Duration  2.86s (import 47%, tests 25%, transform 19%, setup 9%)",
+    "commit": "b782d3d346680fb0603c820d05b14426da5fbb16",
+    "ran_at": "2026-09-24T17:27:26Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:contract",
+    "exit_code": 1,
+    "stdout_tail": "npm error Missing script: \"test:contract\"\nnpm error\nnpm error Did you mean this?\nnpm error   npm run test:conformance # run the \"test:conformance\" package script\nnpm error\nnpm error To see a list of scripts, run:\nnpm error   npm run\nnpm error A complete log of this run can be found in: /Users/noritakasawada/.npm/_logs/2026-09-24T17_32_19_357Z-debug-0.log",
+    "commit": "b782d3d346680fb0603c820d05b14426da5fbb16",
+    "ran_at": "2026-09-24T17:32:18Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:contract",
+    "exit_code": 1,
+    "stdout_tail": "\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\nstdout | tests/contract/reorder.test.ts > C2 Webhook 順序逆転 > expired → succeeded の順（正順）でも最終状態は同じ paid になる\n{\"ts\":\"2026-09-24T17:32:43.901Z\",\"level\":\"info\",\"event\":\"webhook.received\",\"requestId\":\"req-reorder2-a\"}\n\n ❯ tests/contract/reorder.test.ts (2 tests | 1 failed) 1297ms\n   ❯ C2 Webhook 順序逆転 (2)\n     × expired → succeeded の順（正順）でも最終状態は同じ paid になる 1084ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  tests/contract/reorder.test.ts > C2 Webhook 順序逆転 > expired → succeeded の順（正順）でも最終状態は同じ paid になる\nPostgresError: deadlock detected\n ❯ ErrorResponse node_modules/postgres/src/connection.js:815:30\n ❯ handle node_modules/postgres/src/connection.js:489:6\n ❯ Socket.data node_modules/postgres/src/connection.js:324:9\n ❯ cachedError node_modules/postgres/src/query.js:170:23\n ❯ new Query node_modules/postgres/src/query.js:36:24\n ❯ sql node_modules/postgres/src/index.js:112:11\n ❯ insertPaymentEvent src/lib/db/repositories/events-log.ts:94:43\n     92| ): Promise<string | null> {\n     93|   const rawRedacted = JSON.parse(JSON.stringify(input.rawRedacted)) as…\n     94|   const rows = await sql<{ id: string }[]>`\n       |                                           ^\n     95|     INSERT INTO payment_event (\n     96|       provider_key, provider_event_id, event_type, kind, external_ref,…\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\n\n\n Test Files  1 failed | 2 passed (3)\n      Tests  1 failed | 6 passed (7)\n   Start at  17:32:42\n   Duration  2.95s (tests 47%, import 34%, transform 11%, setup 8%)",
+    "commit": "b782d3d346680fb0603c820d05b14426da5fbb16",
+    "ran_at": "2026-09-24T17:32:41Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:contract",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:contract\n> TZ=UTC vitest run tests/contract --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  3 passed (3)\n      Tests  7 passed (7)\n   Start at  17:33:07\n   Duration  2.28s (import 39%, tests 28%, transform 24%, setup 9%)",
+    "commit": "b782d3d346680fb0603c820d05b14426da5fbb16",
+    "ran_at": "2026-09-24T17:33:07Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run audit:verify",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 audit:verify\n> node scripts/audit-verify.mjs\n\n{\"gate\":\"audit:verify\",\"ok\":true,\"rowsChecked\":0,\"brokenAtId\":null,\"reason\":null}",
+    "commit": "9421d14ac3e2833177bb392dadbc0a5ef579eb29",
+    "ran_at": "2026-09-24T17:37:37Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "9421d14ac3e2833177bb392dadbc0a5ef579eb29",
+    "ran_at": "2026-09-24T17:39:33Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 1,
+    "stdout_tail": "\n- Expected\n+ Received\n\n- `test:contract` は未定義\n\n ❯ tests/unit/gate-check.test.ts:213:53\n    211|     const { results } = report([\"--root\", root, \"--base\", repoRoot]);\n    212|     expect(gate(results, \"G2\").violations).toEqual([]);\n    213|     expect(gate(results, \"G2\").warnings.join(\"\\n\")).toContain(\"`test:c…\n       |                                                     ^\n    214|   });\n    215|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n FAIL  tests/unit/gate-check.test.ts > G2 の 3 分岐 > 着手済みタスクの未定義スクリプト参照は違反になる\nAssertionError: expected '' to contain '`test:contract` が package.json.script…'\n\n- Expected\n+ Received\n\n- `test:contract` が package.json.scripts にありません\n\n ❯ tests/unit/gate-check.test.ts:226:55\n    224|     );\n    225|     const { results } = report([\"--root\", root, \"--base\", repoRoot]);\n    226|     expect(gate(results, \"G2\").violations.join(\"\\n\")).toContain(\"`test…\n       |                                                       ^\n    227|   });\n    228|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯\n\n\n Test Files  1 failed | 47 passed (48)\n      Tests  2 failed | 1174 passed (1176)\n   Start at  17:39:46\n   Duration  208.07s (tests 93%, environment 3%, setup 2%, import 1%, transform 1%)",
+    "commit": "9421d14ac3e2833177bb392dadbc0a5ef579eb29",
+    "ran_at": "2026-09-24T17:39:46Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:integration\n> TZ=UTC vitest run tests/integration --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  12 passed (12)\n      Tests  203 passed (203)\n   Start at  17:46:40\n   Duration  34.48s (tests 73%, import 17%, setup 5%, transform 4%)",
+    "commit": "9421d14ac3e2833177bb392dadbc0a5ef579eb29",
+    "ran_at": "2026-09-24T17:46:40Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 110 file(s) read)\nok    L2 (forbid, 110 file(s) read)\nL3 src/lib/outbox.ts:44 | /** 紛争（チャージバック）が発生した。 */\nok    L8 (forbid, 110 file(s) read)\nok    L12 (forbid, 110 file(s) read)\nok    P1 (forbid, 109 file(s) read)\nok    P2 (forbid, 1 file(s) read)\nok    P9 (forbid, 13 file(s) read)\nok    W3 (forbid, 115 file(s) read)\nok    W4 (forbid, 5 file(s) read)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 107 file(s) read)\nok    N5 (forbid, 110 file(s) read)\nok    N7 (forbid, 110 file(s) read)\nN9 src/components/ShareSheet.tsx:14 | *     2. `docs/constraints.json` N9（`sendMessages(` という並びの文字列を禁止）を\nN9 src/lib/liff/share.ts:11 | * ★ ここで呼ぶのは `liff.shareTargetPicker()` であって **`liff.sendMessages()` ではない**\nN9 src/lib/liff/share.ts:12 | *   （制約 N9。2 つは別の API で、引数の形が似ているだけ）。`sendMessages(` という並びの\nok    N11 (forbid, 110 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 31 file(s) read)\nok    I4 (forbid, 3 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 59 file(s) read)\nok    X-MONEY (forbid, 10 file(s) read)\nGC-XSS src/components/ShareSheet.tsx:302 | dangerouslySetInnerHTML={{ __html: qrSvg }}\nok    GC-ENV-PUBLIC (forbid, 115 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\nok    GC-RANK-NEGATION (forbid, 115 file(s) read)\nok    GC-LIB-CLIENT-DIRECTIVE (forbid, 43 file(s) read)\n\ngate:constraints — scanned 27 grep entr(y|ies), 5 violation(s), 0 empty gate(s)",
+    "commit": "9421d14ac3e2833177bb392dadbc0a5ef579eb29",
+    "ran_at": "2026-09-24T17:47:21Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:contract",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:contract\n> TZ=UTC vitest run tests/contract --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  3 passed (3)\n      Tests  7 passed (7)\n   Start at  17:53:26\n   Duration  2.67s (import 45%, tests 28%, transform 16%, setup 11%)",
+    "commit": "8c2809afc2fb631264733bef9e34c908d57ca2aa",
+    "ran_at": "2026-09-24T17:53:25Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 1,
+    "stdout_tail": " ❯ handle node_modules/postgres/src/connection.js:489:6\n ❯ Socket.data node_modules/postgres/src/connection.js:324:9\n ❯ cachedError node_modules/postgres/src/query.js:170:23\n ❯ new Query node_modules/postgres/src/query.js:36:24\n ❯ sql node_modules/postgres/src/index.js:112:11\n ❯ tests/integration/admin.test.ts:294:19\n    292|   afterEach(async () => {\n    293|     for (const key of Object.keys(cloudflareEnv)) delete cloudflareEnv…\n    294|     await migrator`DELETE FROM audit_log WHERE target_type = 'feature_…\n       |                   ^\n    295|     await migrator`DELETE FROM feature_flag WHERE key = 'PROVIDER_TASK…\n    296|     await migrator`DELETE FROM idempotency_key WHERE endpoint LIKE 'PO…\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯\n\n FAIL  tests/integration/admin.test.ts > GET /api/admin/lookup（実ルート）— display_label を一切返さない > invoiceId で照会しても display_label / organizer_label はどこにも出てこない\nAssertionError: expected 500 to be 200 // Object.is equality\n\n- Expected\n+ Received\n\n- 200\n+ 500\n\n ❯ tests/integration/admin.test.ts:459:29\n    457|       globalThis.fetch = originalFetch;\n    458|     }\n    459|     expect(response.status).toBe(200);\n       |                             ^\n    460|     const bodyText = await response.text();\n    461|     expect(bodyText).not.toContain(DISPLAY_LABEL);\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯\n\n\n Test Files  1 failed | 13 passed (14)\n      Tests  3 failed | 216 passed (219)\n   Start at  17:53:33\n   Duration  26.65s (tests 72%, import 17%, setup 6%, transform 4%)",
+    "commit": "8c2809afc2fb631264733bef9e34c908d57ca2aa",
+    "ran_at": "2026-09-24T17:53:33Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx vitest run tests/integration --exclude tests/integration/admin.test.ts --testTimeout=60000 --hookTimeout=60000",
+    "exit_code": 0,
+    "stdout_tail": "(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  13 passed (13)\n      Tests  204 passed (204)\n   Start at  02:54:50\n   Duration  18.57s (tests 75%, import 15%, setup 5%, transform 5%)",
+    "commit": "8c2809afc2fb631264733bef9e34c908d57ca2aa",
+    "ran_at": "2026-09-24T17:54:49Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx vitest run tests/unit --exclude tests/unit/gate-check.test.ts",
+    "exit_code": 0,
+    "stdout_tail": "(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  49 passed (49)\n      Tests  1167 passed (1167)\n   Start at  02:59:46\n   Duration  213.16s (tests 91%, environment 3%, setup 3%, import 2%, transform 1%)",
+    "commit": "8c2809afc2fb631264733bef9e34c908d57ca2aa",
+    "ran_at": "2026-09-24T17:59:45Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 110 file(s) read)\nok    L2 (forbid, 110 file(s) read)\nok    L3 (forbid, 110 file(s) read)\nok    L8 (forbid, 110 file(s) read)\nok    L12 (forbid, 110 file(s) read)\nok    P1 (forbid, 109 file(s) read)\nok    P2 (forbid, 1 file(s) read)\nok    P9 (forbid, 13 file(s) read)\nok    W3 (forbid, 115 file(s) read)\nok    W4 (forbid, 5 file(s) read)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 107 file(s) read)\nok    N5 (forbid, 110 file(s) read)\nok    N7 (forbid, 110 file(s) read)\nok    N9 (forbid, 110 file(s) read)\nok    N11 (forbid, 110 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 31 file(s) read)\nok    I4 (forbid, 3 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 59 file(s) read)\nok    X-MONEY (forbid, 10 file(s) read)\nok    GC-XSS (forbid, 110 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 115 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\nok    GC-RANK-NEGATION (forbid, 115 file(s) read)\nok    GC-LIB-CLIENT-DIRECTIVE (forbid, 43 file(s) read)\n\ngate:constraints — scanned 27 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "8c2809afc2fb631264733bef9e34c908d57ca2aa",
+    "ran_at": "2026-09-24T18:03:28Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  }
+]

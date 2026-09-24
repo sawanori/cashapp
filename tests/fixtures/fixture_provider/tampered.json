@@ -1,0 +1,16 @@
+{
+  "$comment": "契約テスト用の合成 fixture（task_018）。実在の決済事業者のレスポンスではない。",
+  "captured_from": "synthesized",
+  "provenance": {
+    "kind": "synthesized",
+    "authored_by": "model:opus-5.5 (task_018)",
+    "note": "署名不一致（C3 / check_019）。テストは正しい署名を計算したあと本文を 1 バイト改竄して送る。この fixture 自体は改竄前の本文である。"
+  },
+  "event_id": "evt_fixture_tampered_0001",
+  "type": "payment.succeeded",
+  "kind": "succeeded",
+  "external_ref": "iv_00000000000000000000000000000000_1",
+  "amount_minor": 3000,
+  "currency": "JPY",
+  "occurred_at": "2026-09-24T00:00:00.000Z"
+}

@@ -1,0 +1,16 @@
+{
+  "$comment": "契約テスト用の合成 fixture（task_018）。実在の決済事業者のレスポンスではない。",
+  "captured_from": "synthesized",
+  "provenance": {
+    "kind": "synthesized",
+    "authored_by": "model:opus-5.5 (task_018)",
+    "note": "金額不一致（C5 書き換え版 / check_023）。突合基準は payment_attempt.amount_minor。ランクを前進させず adjustment 1 件と needs_attention を立てることを固定する。"
+  },
+  "event_id": "evt_fixture_amount_mismatch_0001",
+  "type": "payment.succeeded",
+  "kind": "succeeded",
+  "external_ref": "iv_00000000000000000000000000000000_1",
+  "amount_minor": 2500,
+  "currency": "JPY",
+  "occurred_at": "2026-09-24T00:00:00.000Z"
+}
