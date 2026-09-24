@@ -34,7 +34,8 @@
     "review:gemini": "node scripts/review-gemini.mjs",
     "review:gpt": "node scripts/review-gpt.mjs",
     "review:validate": "node scripts/validate-findings.mjs",
-    "review:merge": "bash scripts/merge-review.sh"
+    "review:merge": "bash scripts/merge-review.sh",
+    "build:web-only": "node scripts/build-web-only.mjs"
   },
   "private": true,
   "engines": {

@@ -60,6 +60,33 @@
   `docs/task-list.json` は `files_to_modify` 外だが、G4 の「PROGRESS.md の完了宣言と台帳の
   一致」を満たすため task_007 の `completion_status` と `concerns[]` のみ同期した。
 
+- task_009（レビュー修正・2 周目）: DONE_WITH_CONCERNS — レビュー指摘 high 2 / medium 4 の
+  うち、この環境で直せる 2 件を直した。(1) **`secrets` ジョブは実際に走らせると落ちていた**。
+  `scripts/ci/secrets-grep.sh` がシークレットの「名前」で `.open-next` 全体を走査するため、
+  `src/lib/config/env.ts` が正当に参照する `PEPPER` / `SESSION_KEYS` / `CRON_SECRETS` /
+  `DATABASE_URL` にサーバーバンドルで自分から当たっていた（1 周目の「違反 0 件」は
+  task_012 のルートが入る前の古いビルド成果物に対する測定だった）。走査を 2 群に分け、
+  名前はクライアント配布物（`.next/static` / `.open-next/assets`）だけ、サーバーバンドルは
+  値のパターンだけを見る形にした。`npm run build && npm run build:cf` のあと修正前 exit 1・
+  違反 4 件 → 修正後 exit 0（クライアント 21 / サーバー 1189 ファイル、違反 0 件）を実測。
+  負の対照を `tests/unit/ci/secrets-grep.test.ts` 23 件に固定した（クライアントに名前が
+  載れば 12 名すべてで落ちる / サーバーに名前があるだけでは通る / 値パターンは両群で落ちる /
+  走査対象 0 件は落ちる）。(2) **`test-tamper-guard` を `.github/workflows/gate-tamper.yml` に
+  分離し `types: [opened, synchronize, reopened, edited]` で起動する**ようにした。
+  `on: pull_request` の既定 types では PR 本文の編集で再実行されず、チェックリストを埋めて
+  緑にしてから本文を空に戻せた（唯一の目的が記録の強制であるゲートとして成立しない）。
+  status check 名は `test-tamper-guard` のまま。ワークフロー 6 本の静的検証（YAML 妥当 /
+  `npm run <name>` の実在 / `scripts/**` の実在 / ジョブ ID の一意性 / tamper の types に
+  `edited`）で問題 0 件。(3) 直せなかったもの: `docs/gates/release-mode.json` は再度 Write を
+  試みて同じガードに遮断された（**deferred: PO が作成**）、branch protection と CI 実走は
+  `git remote -v` が空のため **deferred: GitHub リモート作成後**。(4) medium 2 件
+  （date-boundary がアプリの日付ロジックを覆わない ＝ `vitest.config.ts` の TZ 固定が原因、
+  `--write-baseline` の Bash 実行で G13 の基準値を書き換えられる）は、いずれも他タスク所有の
+  ファイルの改修が要るため `docs/concerns/task_009.md` の 4 / 12b に記録して据え置いた。
+  `npm run gate:acceptance` / `gate:check` / `gate:integrity` は `scripts/record-run.sh task_009`
+  経由で再実行した（`gate:check` は G5 が非 0。**原因は task_004 / 005 / 006 / 011 / 012 に
+  `docs/review-log/<task_id>.json` が無いことで、task_009 自身の review-log は本周で作成した**）。
+
 ### 週 0 の 5 営業日判定（task_009 scope の最終項目）
 
 - **判定日時**: UTC 2026-09-24T08:59:49Z（JST 2026-09-24 17:59）。判定者: task_009 実装エージェント。
@@ -89,3 +116,30 @@
 - **結論**: 必須セットはタイムボックス内に形として完成した。ただし **CI の実効性（branch
   protection・PR での実走）は GitHub リモート未作成のため未達**であり、これを task_010 の
   必須回収項目として引き継ぐ。5 営業日超過による打ち切りは発生していない。
+
+## Phase 1（決済非依存コア）
+
+- task_013: DONE_WITH_CONCERNS — LIFF 外殻を実装した。(1) 起動順序を `src/lib/liff/client.ts` の
+  `bootLiff()` 1 本に集約（`init` の 3 秒タイムアウト付き動的 import → **`isInClient()` が false なら
+  `login()` を呼ばず `outside_line`** → `isLoggedIn()` → `sessionStorage` の試行回数で最大 2 回まで
+  `login()`、3 回目は `auth_unavailable` → `getIDToken()`）。`@line/liff` は npm 依存を動的 import し、
+  モック（`src/lib/liff/mock.ts`）へは `NEXT_PUBLIC_LIFF_MOCK === "1"` のガード内からしか到達しない。
+  (2) `src/lib/telemetry.ts` ＋ `POST /api/telemetry/client-error`（セッション不要・IP レート制限
+  fail-closed・受け取るのは allowlist の `code` 1 キーのみ。`liffIdFingerprint` / `uaClass` /
+  `requestId` はサーバーが生成）。(3) `src/app/(liff)/layout.tsx`（`force-dynamic`。LIFF ID を
+  `<meta name="x-liff-id">` で実行時に渡す）と `src/app/(web)/layout.tsx`（LIFF を 1 つも import しない）、
+  `src/app/layout.tsx` の最上流に下限未満案内（CSS の `@supports` のみ・JS 不要）と `<noscript>`
+  フォールバック。(4) `StateView`（8 状態・色＋テキスト＋アイコンの三重表現・`outside_line` は
+  ①LINE で開く→②URL→③QR は別端末用の順）/ `ConsentGate`（3 種を個別に取り `X-CSRF-Token`
+  ヘッダで `/api/consent` へ）/ `StaticFallback`。(5) `src/styles/tokens.css`（web-typography 準拠。
+  **Web フォント 0 件**・OS 標準サンセリフ 1 ファミリー・rem・44px・ダークモード）。
+  (6) `npm run build:web-only`（`scripts/build-web-only.mjs`: `(web)` の import グラフ走査 ＋
+  `next build` ＋ `.next/static` のモック / dev LIFF ID grep）と
+  `.github/workflows/gate-web-only.yml`（`gate.yml` は編集していない）。
+  (7) `docs/decisions/ADR-013-web-route-group.md` に「`(web)` は退避先ではない」を記録。
+  verify_commands 6 本はすべて `scripts/record-run.sh task_013` 経由で exit 0（`docs/run-log/task_013.json`）。
+  残懸念: **`build:web-only` は SDK を物理的に外したビルドではない**、**現時点のモック grep は
+  `.next/static` に LIFF 由来の文字列が 0 件のため空振りに近い**（定数畳み込みは未実測）、
+  CI 実走は GitHub リモート未作成で deferred、`(liff)` / `(web)` にページが無くレイアウトの
+  実行経路が未検証、下限未満判定の取りこぼし、テレメトリの集計・アラート未実装
+  （`docs/concerns/task_013.md`）。

@@ -948,6 +948,108 @@ task_006 側は「自分のファイルは既にコミット済み」として�
   G4 が「PROGRESS.md の完了宣言と台帳 `completion_status` の一致」を違反として見るため、
   task_007 の `completion_status` だけを同期した（task_006 と同じ扱い）。
 
+## task_009（レビュー修正・2 周目）
+
+### 直したこと
+
+- **`secrets` ジョブは書いた時点では落ちる実装だった**。`scripts/ci/secrets-grep.sh` が
+  シークレットの**名前**（`PEPPER` / `SESSION_KEYS` / `CRON_SECRETS` / `DATABASE_URL` …）で
+  `.open-next` 全体を走査していたため、`src/lib/config/env.ts` が正当に読む名前が
+  サーバーバンドルに残り、自分の実装に自分で当たっていた。走査を 2 群に分けた:
+  **(A) クライアント配布物**（`.next/static` / `.open-next/assets`）＝ 名前 ＋ 値パターン、
+  **(B) サーバーバンドル**（`.open-next` の assets 以外）＝ 値パターンのみ。
+  実測: `npm run build && npm run build:cf` 後、修正前 exit 1・違反 4 件 → 修正後 exit 0
+  （クライアント 21 / サーバー 1189 ファイル）。`tests/unit/ci/secrets-grep.test.ts` 23 件で
+  両方向（クライアントに名前 → 落ちる / サーバーに名前 → 通る）を固定した。
+  **教訓: ビルド成果物を見るゲートは、古い成果物に対して測ると緑に見える。**
+  1 周目の「1189 ファイル走査・違反 0 件」は task_012 のルートが入る前のビルドだった。
+- **`test-tamper-guard` を `.github/workflows/gate-tamper.yml` に分離した**。
+  `on: pull_request` の既定 types（opened / synchronize / reopened）では**PR 本文の編集で
+  再実行されない**ので、チェックリストを埋めて緑にしたあと本文を空に戻してマージできた。
+  記録の強制だけが目的のゲートとしては成立しないため、`types: [opened, synchronize,
+  reopened, edited]` で起動する独立ワークフローにした。status check 名は
+  `test-tamper-guard` のまま（branch protection の表は変更不要）。
+  `gate.yml` は既定 types のまま（全ジョブを本文編集のたびに回さない）。
+
+### 未解決 / concerns
+
+- **[severity: high] `docs/gates/release-mode.json` は依然として無い**。本周でもう一度
+  Write を試み、同じ文面で遮断された（`docs/gates/** は PO 専管…`）。`release.yml` は
+  fail-closed（ファイルが無ければ `release-gate` が先頭で exit 1）なので、いまリリースを
+  起動すると必ず落ちる。**deferred: PO が既定値
+  `{schema_version:1, payments_enabled:false, provider_keys:["manual_confirm"], basis:null,
+  approved_by:null}` で作成し、`node scripts/gate-integrity.mjs --write-baseline` を実行する。**
+  → PO
+- **[severity: high] branch protection と CI 実走は未実施**（`git remote -v` が空）。
+  required に入れる status check の確定表は `docs/concerns/task_009.md` の 2。
+  **`secrets` ジョブの偽陽性を直した今なら required に入れられる**（偽陽性のまま required に
+  すると最初の PR からマージ不能になり、R-TH-04 の「回避として branch protection ごと解除」に
+  直行する）。→ task_010 / PO
+- **[severity: medium] `date-boundary` はアプリの日付ロジックを 1 行も見ていない**。
+  `vitest.config.ts` の `test.env.TZ = "UTC"` がホストの `TZ` に勝つため、ユニットスイートを
+  2 TZ で振れない。代替の 2 TZ 比較は `gate-check.mjs` / `gate-constraints.sh` という
+  ハーネス側の判定器が対象で、`src/lib` の X-TIME / 5 営業日判定 / JST 境界には触れない。
+  恒久対処は `vitest.config.ts` の `env.TZ` を `process.env.TZ ?? "UTC"` にすること
+  （本タスクの `files_to_modify` 外）。`gate.yml` には固定が外れたら自動で 2 TZ 実行に
+  切り替わるステップが入っている。→ task_022 または task_038
+- **[severity: medium] G13 の基準値は `node scripts/gate-integrity.mjs --write-baseline` の
+  Bash 実行で AI から書き換えられる**。`docs/gates/**` は Edit / Write 禁止だが、
+  `deny-dangerous-bash.sh` はリダイレクト・tee・cp/mv・`sed -i`・インタプリタのワンライナー
+  しか見ないので、保護対象へ書き込む「正規スクリプトの実行」は素通りする。
+  「ガード or テスト or ワークフローを改変 → 基準値を焼き直す」の 2 手で G13 は迂回できる。
+  → task_038（`--write-baseline` を PO 専用にする / ガードに列挙する）
+- **[severity: medium] `npm run gate:check` は G5 で非 0 のまま**。
+  `docs/review-log/<task_id>.json` が無い完了済みタスクが残っているため。
+  本周で task_009 のぶんは作った。残りは各タスクの担当周が作る。→ task_004 / 005 / 006 / 011 / 012
+
+## task_013（LIFF 外殻・起動順序・ループ防止・テレメトリ・静的フォールバック・ルートグループ）
+
+### 決まったこと
+
+- **LIFF の起動順序は `src/lib/liff/client.ts` の `bootLiff()` 1 本に集約した。**
+  `init`（3 秒タイムアウト付きの動的 import）→ **`isInClient()` が false なら `login()` を呼ばず
+  `outside_line`** → `isLoggedIn()` → 試行回数を見て `login()` か `auth_unavailable` → `getIDToken()`。
+  画面側はこの関数の戻り値 `state` だけで分岐する。**別の場所で `liff.login()` を直接呼ばないこと。**
+- **ログイン試行回数の読み方を確定した。** 計画 §7-3 の「sessionStorage の試行回数 2 回で打ち切り」を
+  「`login()` を呼ぶのは最大 2 回、3 回目は `auth_unavailable`」と解釈した（`MAX_LOGIN_ATTEMPTS = 2`）。
+  プレモータム R-LINE-02 の「2 回目以降の login を打ち切り」（＝ login は 1 回）とは 1 回ぶん違う。
+  計画本文を優先した。`tests/unit/liff/client.test.ts` がこの数え方を固定している。
+- **LIFF ID はビルドに焼き込まず、実行時に `<meta name="x-liff-id">` で渡す。**
+  `(liff)/layout.tsx`（`force-dynamic`）がサーバー側で `loadAppConfig()` から読んで埋め、
+  クライアントは `readLiffIdFromDocument()` でだけ読む。`NEXT_PUBLIC_LIFF_ID` のような
+  公開ビルド変数は**作らない**（R-LINE-04）。
+- **テレメトリでクライアントから受け取るのは `code` 1 キーだけ**にした。
+  `liffIdFingerprint` / `uaClass` / `requestId` はサーバーが自分で作る。コードは allowlist
+  （`CLIENT_ERROR_CODES` の 4 値）で、それ以外は 400。自由入力欄を 1 つも作らない。
+- **`(web)` は退避先ではない**ことを `docs/decisions/ADR-013-web-route-group.md` に記録した
+  （proposed）。Phase 1 の `(web)` は静的法務ページと管理者画面だけで、集金導線の LINE 非依存版は
+  作らない。**`build:web-only` の緑を「LINE を外しても大丈夫」と言い換えないこと。**
+- **CI ジョブは `.github/workflows/gate-web-only.yml` として独立ファイルで足した。**
+  `gate.yml`（task_009 所有）は編集していない。required status checks への
+  `gate-web-only / web-only` の登録は task_009 側で行う。
+- **Web フォントを 1 つも読み込まない**方針を `src/styles/tokens.css` に固定した（web-typography 準拠）。
+  ファミリーは OS 標準の UI サンセリフ 1 系統のみ。金額は同じファミリーのまま `tabular-nums` で揃える。
+  Google Fonts を足す変更はこの方針の改訂を伴う。
+
+### 未解決（詳細は docs/concerns/task_013.md）
+
+- **[severity: high] `build:web-only` は SDK を物理的に外したビルドではない。**
+  import グラフの静的走査＋バンドル grep での代替。物理的に外すには `next.config.ts` か
+  `tsconfig.json` の改変が要り、どちらも本タスクの files_to_modify の外。→ task_022
+- **[severity: high] いまのモック混入 grep は空振りに近い。**
+  どのページも `bootLiff()` を呼んでいないので `.next/static` に LIFF 由来の文字列が 1 件も無い
+  （実測）。`process.env.NEXT_PUBLIC_LIFF_MOCK` の定数畳み込みが Turbopack の本番ビルドで
+  効くかは**未実測**。最初の `(liff)` ページが入った直後に再実測すること。→ task_014 / task_022
+- **[severity: medium] `gate-web-only` ワークフローは 1 度も実走していない**（GitHub リモート未作成）。
+  静的検証のみ（`tests/unit/ci/web-only-workflow.test.ts`）。→ deferred: リモート作成後
+- **[severity: medium] `(liff)` / `(web)` にページが無いので、両レイアウトが実行される経路は未検証。**
+  `resolveLiffId()` の実 Workers 環境での動作、設定不正時のフォールバック分岐はいずれも未実測。
+  → task_014 / task_015 / task_022
+- **[severity: medium] サポート下限未満の `@supports` 判定は取りこぼす。** 下限値自体も暫定。
+  `.browserslistrc` / `tokens.css` / `docs/supported-browsers.md` は 3 点セットで更新すること。→ T-P1-23
+- **[severity: medium] テレメトリは記録するだけで集計もアラートも無い。** レート制限バインディングが
+  未束縛なので、staging / production では現状 fail-closed の 503 になる。→ task_023 / 035 / 024
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -1019,3 +1121,6 @@ task_006 側は「自分のファイルは既にコミット済み」として�
 - 2026-09-24T09:12:04Z HEAD=b2addd3 決まったこと: task_009: 最終 HEAD a261bd9 での verify_commands 3 本の再実行ログ（全 exit 0） / 未解決: 未コミット 13 件: docs/HANDOFF.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json docs/run-log/task_012.json docs/task-list.json scripts/merge-review.sh docs/concerns/task_007.md 
 - 2026-09-24T09:19:38Z HEAD=b2addd3 決まったこと: task_009: 最終 HEAD a261bd9 での verify_commands 3 本の再実行ログ（全 exit 0） / 未解決: 未コミット 22 件: docs/HANDOFF.md docs/PROGRESS.md docs/review-log/README.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json docs/run-log/task_012.json docs/task-list.json 
 - 2026-09-24T09:20:05Z HEAD=b2addd3 決まったこと: task_009: 最終 HEAD a261bd9 での verify_commands 3 本の再実行ログ（全 exit 0） / 未解決: 未コミット 23 件: docs/HANDOFF.md docs/PROGRESS.md docs/review-log/README.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json docs/run-log/task_012.json docs/task-list.json 
+- 2026-09-24T09:24:06Z HEAD=061bf8e 決まったこと: task_007: 最終確認時の gate:check 2 ゲート不合格の出どころを記録（G5 は意図した強制力 / G13 は task_009 の未コミット差分） / 未解決: 未コミット 19 件: docs/run-log/task_006.json docs/run-log/task_009.json docs/run-log/task_012.json package.json scripts/ci/secrets-grep.sh src/app/layout.tsx docs/vendor-docs/line/liff-sdk.md scripts/build-web-only.mjs 
+- 2026-09-24T09:28:04Z HEAD=061bf8e 決まったこと: task_007: 最終確認時の gate:check 2 ゲート不合格の出どころを記録（G5 は意図した強制力 / G13 は task_009 の未コミット差分） / 未解決: 未コミット 30 件: .env.example .github/workflows/gate.yml docs/HANDOFF.md docs/concerns/task_009.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json docs/run-log/task_012.json 
+- 2026-09-24T09:32:06Z HEAD=061bf8e 決まったこと: task_007: 最終確認時の gate:check 2 ゲート不合格の出どころを記録（G5 は意図した強制力 / G13 は task_009 の未コミット差分） / 未解決: 未コミット 33 件: .env.example .github/workflows/gate.yml docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_009.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json 

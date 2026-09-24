@@ -1,0 +1,436 @@
+/*
+ * デザイントークン（§8-3 / R-UX-04）。
+ *
+ * ★ タイポグラフィの方針（web-typography スキル準拠）
+ *   - **Web フォントを 1 つも読み込まない。** ファミリーは「OS 標準の UI サンセリフ」1 系統だけ。
+ *     理由は 3 つある。
+ *       1. 主戦場が LINE アプリ内ブラウザ（Android の System WebView / iOS の WKWebView）であり、
+ *          回線と端末性能の幅が広い。フォント読み込みは白画面（R-LINE-03）の追加要因になる。
+ *       2. CSP は `font-src 'self'`（src/lib/security-headers.ts）で、外部フォント配信を許していない。
+ *       3. 「高級だから明朝」「ポップだから丸ゴシック」のような意味と書体の 1 対 1 対応を作らない。
+ *          表情はサイズ・ウェイト・字間・余白・色で作る。
+ *   - 金額と件数だけは同じファミリーのまま `font-variant-numeric: tabular-nums` で桁を揃える。
+ *     **フォントを増やさずに**表を読めるようにするための措置である。
+ *   - 文字サイズはすべて `rem`。利用者が OS のフォントサイズを 200% にしても壊れないこと（§8-3）。
+ *
+ * ★ 色だけで意味を運ばない（R-UX-04）
+ *   支払状態は「色 ＋ テキスト ＋ アイコン」の三重表現にする。ここが持つのはその **基盤**、
+ *   すなわち「意味 → 色」の対応と、アイコン用の字送りだけである。
+ *   文言とアイコンは `src/components/StateView.tsx` 以下のコンポーネントが持つ。
+ *
+ * ★ ダークモード
+ *   `prefers-color-scheme: dark` でトークンの値だけを差し替える。**セレクタや構造を変えない。**
+ *   スクリーンショット差分を撮るときに「ダークだけ別物」になるのを避けるため。
+ *
+ * ★ 最小タップ領域 44px（§8-3）
+ *   `--tap-min` を 2.75rem（= 44px @ 16px ルート）として置く。`px` 直書きを禁止するため、
+ *   ボタン・リンクのヒット領域はこのトークンだけを参照する。
+ */
+
+:root {
+  /* --- タイポグラフィ ------------------------------------------------- */
+  /*
+   * 1 ファミリーのみ。`system-ui` を先頭に置き、日本語の実体は OS が選ぶ
+   * （iOS/macOS: Hiragino Sans、Android: Noto Sans JP 相当、Windows: Yu Gothic UI）。
+   * 末尾の `sans-serif` は最後の砦。ここに新しいフォント名を足さないこと。
+   */
+  --font-sans:
+    system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", "Meiryo",
+    sans-serif;
+
+  --font-size-xs: 0.75rem; /* 12px 相当。注記・出典 */
+  --font-size-sm: 0.875rem; /* 14px 相当。補助文 */
+  --font-size-base: 1rem; /* 16px 相当。本文。これより小さい本文を作らない */
+  --font-size-lg: 1.125rem; /* 18px 相当。小見出し */
+  --font-size-xl: 1.375rem; /* 22px 相当。画面見出し */
+  --font-size-2xl: 1.75rem; /* 28px 相当。金額の強調 */
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-bold: 700;
+
+  --line-height-tight: 1.3;
+  --line-height-base: 1.7; /* 日本語の本文は欧文より広めに取る */
+
+  --letter-spacing-tight: -0.01em;
+  --letter-spacing-base: 0.01em;
+  --letter-spacing-wide: 0.08em; /* ラベル・小さな見出しの字送り */
+
+  /* --- 余白・寸法 ------------------------------------------------------ */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+
+  /** 最小タップ領域。44px 相当（§8-3）。 */
+  --tap-min: 2.75rem;
+
+  /** 最小幅 320px で横スクロールを出さないための本文最大幅。 */
+  --content-max: 40rem;
+
+  --border-width: 1px;
+  --focus-ring-width: 3px;
+
+  /* --- 色（ライト） ---------------------------------------------------- */
+  --color-bg: #ffffff;
+  --color-surface: #f6f7f9;
+  --color-surface-raised: #ffffff;
+  --color-text: #16191d;
+  --color-text-muted: #4d5560;
+  --color-border: #d3d8de;
+  --color-border-strong: #9aa3ae;
+
+  --color-accent: #0b5d3b; /* 主要操作。緑だが LINE のブランド色ではない */
+  --color-accent-text: #ffffff;
+  --color-accent-weak: #e6f2ec;
+
+  --color-focus: #0b57d0;
+
+  /*
+   * 状態色。**この色だけで状態を伝えない。**
+   * StateView / バッジは必ず「アイコン ＋ 日本語ラベル ＋ この色」を同時に出す。
+   */
+  --color-info: #0b57d0;
+  --color-info-bg: #e8f0fe;
+  --color-success: #1a6b3c;
+  --color-success-bg: #e6f2ea;
+  --color-warning: #8a5a00;
+  --color-warning-bg: #fdf3e0;
+  --color-danger: #a3221f;
+  --color-danger-bg: #fdecec;
+  --color-neutral: #4d5560;
+  --color-neutral-bg: #eef0f3;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #14171a;
+    --color-surface: #1c2024;
+    --color-surface-raised: #23282d;
+    --color-text: #eef1f4;
+    --color-text-muted: #b3bcc6;
+    --color-border: #39404a;
+    --color-border-strong: #5b6673;
+
+    --color-accent: #6fd0a0;
+    --color-accent-text: #0b1f16;
+    --color-accent-weak: #1d3129;
+
+    --color-focus: #8ab4f8;
+
+    --color-info: #9dc0fb;
+    --color-info-bg: #1b2738;
+    --color-success: #7fd3a3;
+    --color-success-bg: #16291f;
+    --color-warning: #f0c274;
+    --color-warning-bg: #302512;
+    --color-danger: #f3a19f;
+    --color-danger-bg: #331b1b;
+    --color-neutral: #b3bcc6;
+    --color-neutral-bg: #242a30;
+  }
+}
+
+/* --- 素の要素の初期化（最小限） -------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  /*
+   * ルートに固定の px を置かない。利用者のブラウザ設定（既定 16px、拡大時はそれ以上）を
+   * そのまま尊重する。rem 指定が意味を持つのはこの 1 行を書かないことによる。
+   */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+  letter-spacing: var(--letter-spacing-base);
+  /* 最小幅 320px で横スクロールを出さない（§8-3）。 */
+  min-width: 20rem;
+  overflow-wrap: anywhere;
+}
+
+/** 金額・件数。ファミリーは変えずに桁だけ揃える。 */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/** キーボード・スイッチコントロールで操作する利用者のためにフォーカスを必ず見せる。 */
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/** タップ領域。ボタン・リンクはこのクラス経由で 44px を確保する。 */
+.tap-target {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap-min);
+  min-width: var(--tap-min);
+  padding: var(--space-2) var(--space-4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/*
+ * --- 状態表示の基盤（色 ＋ テキスト ＋ アイコンの三重表現。R-UX-04） ---
+ *
+ * `src/components/StateView.tsx` が `data-tone` を置き、ここが色だけを与える。
+ * **色は補助**であり、意味はアイコンの形と日本語ラベルが運ぶ。
+ * トーンを増やすときは、対応するアイコンの形も必ず変えること。
+ */
+.state-view {
+  display: block;
+  margin: 0;
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--tone-border, var(--color-border));
+  border-radius: var(--radius-md);
+  background-color: var(--tone-bg, var(--color-surface));
+  color: var(--color-text);
+  max-width: var(--content-max);
+}
+
+.state-view[data-tone="neutral"] {
+  --tone-fg: var(--color-neutral);
+  --tone-bg: var(--color-neutral-bg);
+  --tone-border: var(--color-border);
+}
+
+.state-view[data-tone="info"] {
+  --tone-fg: var(--color-info);
+  --tone-bg: var(--color-info-bg);
+  --tone-border: var(--color-info);
+}
+
+.state-view[data-tone="warning"] {
+  --tone-fg: var(--color-warning);
+  --tone-bg: var(--color-warning-bg);
+  --tone-border: var(--color-warning);
+}
+
+.state-view[data-tone="danger"] {
+  --tone-fg: var(--color-danger);
+  --tone-bg: var(--color-danger-bg);
+  --tone-border: var(--color-danger);
+}
+
+.state-view__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+  color: var(--tone-fg, var(--color-text));
+}
+
+.state-view__icon {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.state-view__title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-tight);
+  color: var(--color-text);
+}
+
+.state-view__body,
+.state-view__url,
+.state-view__note,
+.state-view__request-id {
+  margin: 0 0 var(--space-3);
+}
+
+.state-view__note,
+.state-view__request-id {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.state-view__url code,
+.state-view__request-id code {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  word-break: break-all;
+  background-color: var(--color-surface-raised);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-1);
+}
+
+.state-view__action {
+  border-radius: var(--radius-md);
+  background-color: var(--color-accent);
+  color: var(--color-accent-text);
+  font-weight: var(--font-weight-medium);
+  text-decoration: none;
+}
+
+/*
+ * --- 静的フォールバック（R-LINE-03） ----------------------------------
+ * JS が 1 行も動かない状況でも読める見た目にする。凝った装飾を入れない。
+ */
+.static-fallback {
+  display: block;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-4);
+  max-width: var(--content-max);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+}
+
+.static-fallback__title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+.static-fallback__body {
+  margin: 0 0 var(--space-4);
+}
+
+.static-fallback__actions {
+  list-style: none;
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.static-fallback__contact {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+/*
+ * --- 同意ゲート（O-1） ------------------------------------------------
+ */
+.consent-gate {
+  display: block;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--space-4);
+}
+
+.consent-gate__item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-height: var(--tap-min);
+  padding: var(--space-2) 0;
+}
+
+.consent-gate__item input[type="checkbox"] {
+  /* チェックボックス自体も 44px のヒット領域を確保する（§8-3）。 */
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0.5rem 0 0;
+}
+
+.consent-gate__submit {
+  min-height: var(--tap-min);
+  min-width: var(--tap-min);
+  padding: var(--space-2) var(--space-5);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-md);
+  background-color: var(--color-accent);
+  color: var(--color-accent-text);
+  font-family: inherit;
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+}
+
+.consent-gate__submit:disabled {
+  background-color: var(--color-neutral-bg);
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+}
+
+/*
+ * --- ルートグループの外殻 ---------------------------------------------
+ */
+.app-shell {
+  display: block;
+  padding: var(--space-4);
+  max-width: var(--content-max);
+  margin: 0 auto;
+}
+
+.app-shell__footer {
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: var(--border-width) solid var(--color-border);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+/** キーボード利用者のためのスキップリンク。フォーカスされるまで視覚的に隠す。 */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+}
+
+.skip-link:focus {
+  position: static;
+  left: auto;
+  display: inline-block;
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-accent);
+  color: var(--color-accent-text);
+}
+
+/*
+ * --- サポート下限未満の静的案内（R-LINE-03） --------------------------
+ *
+ * JavaScript を 1 行も使わずに「この端末では動かない」を出すための仕掛け。
+ * 既定では案内を **表示** しておき、`@supports` を満たすブラウザでだけ隠す。
+ * `@supports` 自体を解さない古い WebView では隠す規則が適用されないので、案内が残る。
+ * これが「白画面にしない」の最後の砦である（JS が 1 行も動かなくても文字が出る）。
+ *
+ * 判定に使う機能は `.browserslistrc` の暫定下限（Android 10 / iOS 14）と揃えてある。
+ * 下限の確定は T-P1-23。変えるときは docs/supported-browsers.md も同時に直すこと。
+ */
+.legacy-browser-notice {
+  display: block;
+}
+
+@supports (display: grid) and (gap: 1rem) and (color: var(--color-text)) {
+  .legacy-browser-notice {
+    display: none;
+  }
+}

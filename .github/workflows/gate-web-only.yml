@@ -1,0 +1,54 @@
+# LINE 非依存ビルド（web-only）ジョブ。
+#
+# ★ 本ファイルは task_013 が単独で所有する。task_009 が作る
+#   `.github/workflows/gate.yml` は編集しない（並行タスクの衝突回避規約）。
+#   required status check への登録は task_009 側で `gate-web-only / web-only` を指定する
+#   （docs/implementation-plan.md §16-6 の表で `web-only` は ✔（task_013 以降））。
+#
+# ★ このジョブが確かめること（scripts/build-web-only.mjs のコメントと同じ 3 点）
+#   1. `src/app/(web)/**` と共有ルートレイアウトから `@line/liff` / `@line/liff-mock` /
+#      `src/lib/liff/**` へ到達しない（import グラフの静的走査）
+#   2. `next build` が成功する
+#   3. `.next/static/**` に `@line/liff-mock` 由来の識別子と dev / review の LIFF ID が無い
+#      （R-LINE-04 の「production バンドルへの dev LIFF ID 混入 grep」/ check_079）
+#
+# ★ 確かめて **いない** こと: 「LINE を外しても集金導線が動く」。Phase 1 の `(web)` は
+#   静的法務ページと管理者画面だけである（docs/decisions/ADR-013-web-route-group.md）。
+#
+# 実 PR での緑は GitHub リモートが未作成（PO 判断待ち）のため未実施。
+# 静的検証は tests/unit/ci/web-only-workflow.test.ts が行う（docs/concerns/task_013.md）。
+
+name: gate-web-only
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate-web-only-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web-only:
+    name: web-only
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # .npmrc の ignore-scripts=true をそのまま活かす（サプライチェーン統制、R-SEC-13）。
+      - name: Install dependencies
+        run: npm ci
+
+      # NEXT_PUBLIC_LIFF_MOCK はスクリプト側でも削除するが、CI 環境にも置かない。
+      - name: LINE 非依存ビルドとバンドル検査
+        run: npm run build:web-only
