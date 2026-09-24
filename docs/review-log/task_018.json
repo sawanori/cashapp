@@ -1,0 +1,197 @@
+[
+  {
+    "schema_version": 1,
+    "task_id": "task_018",
+    "reviewer": "adversarial-reviewer-gemini",
+    "vendor": "gemini",
+    "reviewer_route": "verified",
+    "model_id_requested": "gemini-2.5-pro",
+    "model_id_actual": "gemini-2.5-pro",
+    "model_id_source": "cli_stats",
+    "cli_version": "0.38.1",
+    "backend": "gemini-cli",
+    "ran_at": "2026-09-24T18:16:31Z",
+    "commit": "2826a38b233931f7ac6c210ab0e57e36ce321a6d",
+    "verdict": "PASS",
+    "findings": [],
+    "raw_warnings": [],
+    "packet_bytes": 373998,
+    "validated_at": "2026-09-24T18:22:20Z",
+    "classification": "vote",
+    "source_file": "/var/folders/h6/2q0crwpx3zx94d5zxclh_f5c0000gn/T/cashapp-review/task_018/gemini.json",
+    "merged_at": "2026-09-24T18:22:20Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gemini-2.5-pro を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 0,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_018",
+    "reviewer": "adversarial-reviewer-gpt",
+    "vendor": "gpt",
+    "reviewer_route": "cli-fallback",
+    "model_id_requested": "gpt-6-astra",
+    "model_id_actual": "gpt-6-astra",
+    "model_id_source": "self_report",
+    "cli_version": "codex-cli 0.154.0",
+    "backend": "codex",
+    "ran_at": "2026-09-24T18:22:17Z",
+    "commit": "2826a38b233931f7ac6c210ab0e57e36ce321a6d",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "high",
+        "title": "Webhook の宛先 binding と異なる binding の請求を更新できる",
+        "detail": "ルートで解決した binding は parseWebhook に渡されますが、applyToLedger には渡されません。試行は providerKey と externalRef だけで検索され、取得した providerBindingId と入口の binding の一致確認がありません。同梱の fixture_provider も binding を検査しないため、別 binding の請求が更新される反例が成立します。",
+        "file": "src/lib/ledger/apply.ts",
+        "line": 342,
+        "repro": "同梱の契約テストと同じトランザクション内で insertFixtureScenario(tx, 'binding-a') と insertFixtureScenario(tx, 'binding-b') を呼び、A・Bを作る。ctx = await makeContractContext(tx) とし、raw = loadFixtureBody('succeeded', { externalRef: B.externalRef }) を作る。buildSignedRequest(raw, { bindingRef: A.bindingId }) と params={providerKey: FIXTURE_PROVIDER_KEY, bindingRef: A.bindingId} を handleWebhookRequest に渡す。コード上、宛先は A なのに B の請求が paid となり、B に3000円の台帳行が追加される。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-2",
+        "severity": "medium",
+        "title": "通常の fixture 経路ではイベント ID だけの変更で二重計上される",
+        "detail": "fixture_provider の既定 ledgerDedupeKey は event_id を含みます。同じ external_ref・kind・金額でもイベント ID が異なれば別の台帳行になります。業務キーは保存されるだけで重複排除に使われません。既存の W2 テストは共有 ledgerDedupeKey を入力側から指定しており、この通常経路の反例を検査していません。",
+        "file": "tests/contract/helpers/fixture-provider.ts",
+        "line": 226,
+        "repro": "3000円のシナリオ S と makeContractContext(tx) を用意する。loadFixtureBody('succeeded', { externalRef: S.externalRef, eventId: 'evt_a' }) と、eventId だけを 'evt_b' にした本文を、それぞれ buildSignedRequest で署名して順に handleWebhookRequest に渡す。ledgerDedupeKey は指定しない。コード上、payment_event と ledger_entry が各2件になり、台帳残高が6000円となって overpay_alert が積まれる。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-3",
+        "severity": "high",
+        "title": "部分返金をすべて金額不一致として扱い、返金額を残高に反映しない",
+        "detail": "refunded にも元の payment_attempt.amount_minor との完全一致を要求しています。一方、同梱の dedupe.ts は複数回の部分返金を正当なイベントとして扱っています。部分返金は adjustment となり、balance.ts が adjustment を残高計算から除外するため、全額を分割して返金しても入金残高が残ります。",
+        "file": "src/lib/ledger/apply.ts",
+        "line": 235,
+        "repro": "請求額・試行額が3000円の同一試行に、trust='verified'、通貨JPYの正規化イベントを順に適用する。入力列は succeeded/3000円、refunded/1000円、refunded/2000円。各イベントには異なる providerEventId と ledgerDedupeKey を与える。コード上、後ろの2件はいずれも mismatch となり、debit の adjustment が追加される。ledgerBalanceMinor は3000円のまま、請求状態も paid のままとなる。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-4",
+        "severity": "high",
+        "title": "監査ログの10001件目以降にある連鎖破損を成功として返す",
+        "detail": "CLI は既定で先頭10000件だけを取得し、続きの取得も未検証行の有無の確認もしません。その範囲が正常なら ok=true と終了コード0を返すため、件数が増えると後続行の破損を検出できません。",
+        "file": "scripts/audit-verify.mjs",
+        "line": 173,
+        "repro": "audit_log の検証用データとして、id昇順の先頭10000行を正常なハッシュ連鎖にする。10001行目は prev_hash を10000行目の row_hash に合わせ、内容から再計算した値とは異なる32バイトを row_hash に格納する。そのDBを AUDIT_VERIFY_DATABASE_URL で指定して npm run audit:verify を実行する。コード上、10001行目は取得されず、ok=true、rowsChecked=10000、終了コード0となる。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-5",
+        "severity": "medium",
+        "title": "試行の終端状態が固定され、成功・返金の後続事実を反映できない",
+        "detail": "advanceOpenAttempt は is_open の行しか更新しません。expired の後の succeeded や、succeeded の後の refunded でも更新が拒否されます。請求と台帳は更新される一方で試行状態が古いまま残り、配信順によって試行の最終状態が変わります。",
+        "file": "src/lib/db/repositories/attempts.ts",
+        "line": 106,
+        "repro": "同梱の reorder.test.ts と同じシナリオで、同一試行に expired、succeeded/3000円を順に送る。コード上、invoice は paid になるが payment_attempt.status は expired のまま。逆順では succeeded のままとなる。また succeeded/3000円、refunded/3000円の順では、invoice が refunded になっても試行は succeeded のままとなる。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-6",
+        "severity": "medium",
+        "title": "CIDR のプレフィックス欠落を全 IPv4 許可として解釈する",
+        "detail": "スラッシュ後の空文字を Number で変換すると0になるため、不正な許可リストが /0 として受理されます。「書式不正なら全拒否」という同ファイルの入口防御と逆の動作になります。",
+        "file": "src/lib/webhook/ip-allowlist.ts",
+        "line": 54,
+        "repro": "rules = parseIpAllowlist('203.0.113.0/') を評価し、isIpAllowed('198.51.100.9', rules) を呼ぶ。maskBits が0となり true が返る。同梱の makeContractContext に ipAllowlistSpec='203.0.113.0/' を渡すと、CONTRACT_BLOCKED_IP からのリクエストもIP検査を通過する。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-7",
+        "severity": "medium",
+        "title": "監査 detail の __proto__ キーがハッシュ計算から脱落する",
+        "detail": "sortKeysDeep は通常のオブジェクトへキーを代入します。JSON由来の own property である __proto__ を代入するとプロトタイプ設定として処理され、JSON.stringify の対象から消えます。同梱の監査書き込み側も同じ処理を使うため、このキー配下の内容変更をハッシュ照合で検出できません。",
+        "file": "scripts/audit-verify.mjs",
+        "line": 52,
+        "repro": "d1 = JSON.parse('{\"__proto__\":{\"amount\":3000}}')、d2 = JSON.parse('{\"__proto__\":{\"amount\":1}}') を作る。JSON.stringify(sortKeysDeep(d1)) と JSON.stringify(sortKeysDeep(d2)) はともに '{}' になる。他の全フィールドを同じにして computeRowHash に渡すと同じハッシュになる。正常な先頭監査行の detail=d1 でハッシュを計算し、その後 detail だけを d2 に置き換えて verifyChain に渡しても ok=true となる。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      }
+    ],
+    "diagnostics": {
+      "exit_code": 0,
+      "event_types": [
+        "thread.started",
+        "turn.started",
+        "item.completed",
+        "item.completed",
+        "turn.completed"
+      ],
+      "cli_errors": [
+        "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+      ],
+      "last_message_bytes": 4866,
+      "stderr_tail": ": \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T18:16:50.812983Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T18:16:50.949123Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T18:16:51.376751Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer error=\\\"invalid_request\\\", error_description=\\\"No access token was provided in this request\\\", resource_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n"
+    },
+    "packet_bytes": 373998,
+    "validated_at": "2026-09-24T18:22:20Z",
+    "classification": "vote",
+    "source_file": "/var/folders/h6/2q0crwpx3zx94d5zxclh_f5c0000gn/T/cashapp-review/task_018/gpt.json",
+    "merged_at": "2026-09-24T18:22:20Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gpt-6-astra を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 3,
+        "medium": 4,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 7,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "type": "summary",
+    "task_id": "task_018",
+    "round": 1,
+    "merged_at": "2026-09-24T18:22:20Z",
+    "decision": "reject",
+    "envelopes": 2,
+    "votes": 2,
+    "vendors": [
+      "gemini",
+      "gpt"
+    ],
+    "author_vendor": "claude",
+    "missing_votes": 0,
+    "invalid_envelopes": 0,
+    "invalid_reviews": 0,
+    "self_reviews": 0,
+    "task_mismatches": 0,
+    "effective_high": 3,
+    "exit_code": 1
+  }
+]
