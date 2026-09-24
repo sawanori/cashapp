@@ -811,8 +811,18 @@
       "adversarial_review": "not_required",
       "evidence_label": "[設計]",
       "optional": true,
-      "completion_status": null,
-      "concerns": []
+      "completion_status": "DONE_WITH_CONCERNS",
+      "concerns": [
+        "[severity: medium] 本セッションに Workflow ツールが無く（ToolSearch の select:Workflow が No matching deferred tools found）、done_definition 第 1 項の「3 本が起動する（run ID を record-run で記録）」と manual_verification が未実施。runId も journal も取得していない / Workflow ツールを持つセッションで 3 本を dryRun: true で回し、runId を scripts/record-run.sh --manual task_008 で記録する（C-008-1）",
+        "[severity: medium] opts.agentType（.claude/agents の 7 本のうち 6 本を参照）と opts.model（\"opus\" / \"sonnet\"）をランタイムが解決できるかは未実走。存在しない agentType を渡したときの挙動も未確認 / dry-run 実走で journal を確認し、解決できなければ agentType を外してエージェント定義本文をプロンプトへ展開する（C-008-2）",
+        "[severity: medium] release-audit.ts は「legal-clearance.cleared=false なら無条件 no-go」（implementation-plan §15-3）を採り、.claude/agents/release-auditor.md の条件 4（payments_enabled=true のときだけ cleared を要求）より強い。決済無効のリリースでも cleared=false の間は go が出ない / どちらが正かを ADR で一本化する。緩めるのは ADR と PO の仕事（C-008-3）",
+        "[severity: medium] .claude/workflows/ の 3 ファイル追加で gate:integrity が exit 1 になったため node scripts/gate-integrity.mjs --write-baseline で基準値を再生成した。task_006 の既知の洗浄リスクをそのまま踏んでいる / --write-baseline を PO 専用にする案は task_038（C-008-4）",
+        "[severity: low] premortem.ts の platform レンズは premortem-facilitator.md の 3 本目（ops-support / ux-adoption）とプラットフォーム制約を 1 本に畳んだもので、ux-adoption の観点が薄くなり得る / 実運用 2 回で ux 由来の新規検出 0 件ならレンズを割り直す（C-008-5）",
+        "[severity: low] UNKNOWN 比率が閾値を超えたレーンの引き直しは 1 周 1 回まで。2 回目も高いままなら有効票として数える / 実運用の分布を見てから invalid_envelope へ落とすか決める（C-008-6）",
+        "[severity: low] 1 周ごとのコストは budget.spent()（ターン共有プール）の差分なので、同じターンの他作業が混ざる / 1 ターン 1 Workflow で回すか、セッションの使用量ログ側で測る（C-008-7）",
+        "[severity: low] task_007 から送られた「封筒の自己申告パス集合の正本化 → task_008 / task_010」は task_008 の scope にも files_to_create にも無く、本タスクでは触っていない / 封筒スキーマは task_010 の担当として送り返す（C-008-8）",
+        "[severity: low] docs/premortem/<date>.json の形式（7 項目）を機械検査するゲートが無い / スキーマ検査を足す。ただし対象 0 件のまま合格するゲートを作らない（R-TH-01）（C-008-9）"
+      ]
     },
     {
       "task_id": "task_009",

@@ -1479,6 +1479,61 @@ task_006 側は「自分のファイルは既にコミット済み」として�
   `build-review-packet.sh` 内の固定リストである。台帳を別の場所に書けばこの扱いから外れる。
   パス集合の正本化は封筒スキーマ側で決めること。→ task_008 / task_010
 
+## task_008（Workflow スクリプト 3 本: task-loop / premortem / release-audit）
+
+### 決まったこと
+
+- **3 本は `.claude/workflows/*.ts` に置いたが、中身は素の JavaScript である**。Workflow スクリプトは
+  TypeScript ではなく、型注釈・interface・generics はパースに失敗する（`workflow-authoring` スキル）。
+  拡張子が `.ts` なのはタスク台帳の `files_to_create` がそう定めているためで、型は書けない。
+  `tsc` は `.claude/**` を拾わない（`include: ["**/*.ts"]` はドットディレクトリを辿らない。
+  `npx tsc --noEmit --listFiles | grep -c 'cashapp/.claude'` = 0 で実測）。**ESLint は拾う**
+  （flat config の既定 ignore は `node_modules` と `.git` だけ。`eslint .` の JSON 出力に
+  `/.claude/` のファイルが 1 件出ることで実測）ので、`npm run lint` は通る形で書いてある。
+- **`Date.now()` / `new Date()` / `Math.random()` は使えない**（resume が壊れるため呼ぶと throw する）。
+  `premortem.ts` の出力ファイル名に使う日付は `args.date`、無ければ `date -u +%Y-%m-%d` を
+  1 回だけ叩くエージェントから取る。テスト（`workflow-scripts.test.ts`）がこの 3 つの不在を機械検査する。
+- **スクリプトからファイルシステムを触れない**。だから台帳の読み書き・run-log への記録・
+  `docs/premortem/<date>.json` の書き出しは、すべて Bash を持つエージェント側の仕事として
+  プロンプトに書いてある。スクリプト本体がやるのは制御フローと判定だけである。
+- **`task-loop.ts` のステータス決定点は 1 か所だけにした**。`highRemaining > 0` を最初に評価し、
+  実効 high が残っている限り `terminal` が何であれ `BLOCKED` を返す。§15-3 step 5 の
+  「3 周後も high が残れば BLOCKED（`DONE_WITH_CONCERNS` で通すことを禁止）」は、
+  task_007 で実際に `DONE_WITH_CONCERNS` で閉じられ後から訂正された経緯があるため、
+  規則をプロンプトではなくスクリプトの分岐順序に埋めてある。
+- **欠票は「票の無効」ではなく「投票が届かなかった事実」として周ごとに残す**。
+  `reviewer_route !== "ok"` のレーンは `abstentions[]` に `attempted_command` と
+  `unreachable_reason` つきで積み、有効票ベンダーからは外す。作者ベンダー（`claude`）は
+  有効票に数えないが、そこが出した high は差し戻しに数える（task_007 の merge-review と同じ規律）。
+- **`release-audit.ts` は判定を票数ではなく成立条件 6 項目で出す**。5 項目は
+  `release-auditor.md` のもの、6 項目めは計画書 §15-3 の「`cleared=false` なら無条件 no-go」である
+  （`release-auditor.md` の条件 4 と食い違う。C-008-3 で PO 裁定へ）。
+  材料が読めない・UNKNOWN 票があるときは go でも no-go でもなく `UNKNOWN` を返す。
+- **検証は Workflow ランタイムではなくテストで行った**。ランタイムと同じラップ
+  （本体を `AsyncFunction` にして `agent` / `parallel` / `pipeline` / `phase` / `log` / `args` /
+  `budget` / `workflow` を注入）でスクリプト本体を実際に走らせる 41 件
+  （`tests/unit/workflows/workflow-scripts.test.ts`）。判定ロジックには手を入れず、
+  エージェントの応答だけを差し替えている。非空振りの対照も取った（PROGRESS.md 参照）。
+
+### 未解決
+
+- **[severity: medium] 3 本とも Workflow ツールで 1 度も起動していない**。本セッションのツール一覧に
+  `Workflow` が無く、`ToolSearch` の `select:Workflow` も `No matching deferred tools found` を返した。
+  runId も journal も無い。**再開時はまず `dryRun: true` で 3 本を回し、runId を
+  `scripts/record-run.sh --manual task_008` で記録すること**（`dryRun` を付けないと
+  task-loop は実際にファイルを書き換えるエージェントを起動する）。→ C-008-1
+- **[severity: medium] `agentType` / `model` の解決が未検証**。`.claude/agents/` の 6 本を
+  `agentType` で参照し、`model` には `"opus"` / `"sonnet"`（同ディレクトリの frontmatter と同じ値）を
+  渡している。ランタイムがこれをどう解決するかは実走していない。→ C-008-2
+- **[severity: medium] `.claude/workflows/**` は G13 の対象領域**。3 本を足した時点で
+  `npm run gate:integrity` が exit 1（G13 追加 3 件）になったので `--write-baseline` で
+  再生成した（43 ファイル / 不一致 0）。**この先 `.claude/workflows/` を 1 行でも直したら
+  同じ再生成が要る。** 洗浄リスクそのものは task_038。→ C-008-4
+- **[severity: low] `docs/premortem/*.json` に形式ゲートが無い**。7 項目の欠けた item が混ざっても
+  落ちない。作るなら「対象 0 件のまま合格するゲート」にしないこと（R-TH-01）。→ C-008-9
+- task_007 から送られた「封筒の自己申告パス集合の正本化 → task_008 / task_010」は
+  task_008 の scope にも `files_to_create` にも無いため触っていない。→ task_010（C-008-8）
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -1572,3 +1627,7 @@ task_006 側は「自分のファイルは既にコミット済み」として�
 - 2026-09-24T11:13:55Z HEAD=8abccdd 決まったこと: task_013(3周目): 最終 HEAD 455e594 での verify_commands 再実行ログと実測 2 件の記録 / 未解決: 未コミット 24 件: .github/workflows/gate.yml .github/workflows/release.yml docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_007.md docs/concerns/task_009.md docs/review-log/README.md docs/run-log/task_006.json 
 - 2026-09-24T11:14:46Z HEAD=8abccdd 決まったこと: task_013(3周目): 最終 HEAD 455e594 での verify_commands 再実行ログと実測 2 件の記録 / 未解決: 未コミット 24 件: .github/workflows/gate.yml .github/workflows/release.yml docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_007.md docs/concerns/task_009.md docs/review-log/README.md docs/run-log/task_006.json 
 - 2026-09-24T11:16:33Z HEAD=a52ff2b 決まったこと: task_009(4周目): G13 基準値の再生成（gate.yml / release.yml / gate-web-only.yml） / 未解決: 未コミット 15 件: docs/concerns/task_007.md docs/review-log/README.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_012.json docs/run-log/task_013.json scripts/build-review-packet.sh scripts/merge-review.sh 
+- 2026-09-24T12:06:41Z HEAD=8ecf3be 決まったこと: task_005: 残穴 §2（敵対レビュー F-BASH-01 high）の 5 周目修正案を docs/proposals に起票 / 未解決: 未コミット 1 件: tests/gates/probe.test.ts 
+- 2026-09-24T12:19:23Z HEAD=dfc6f72 決まったこと: concerns: 陳腐化した high 2 件を実測つきで解消（task_011 の CI 実走・task_007 の G5 記録欠落） / 未解決: 未コミット 11 件: docs/HANDOFF.md .claude/workflows/ docs/premortem/ docs/run-log/task_008.json src/app/api/events/ src/lib/audit.ts src/lib/db/repositories/ src/lib/idempotency.ts 
+- 2026-09-24T12:20:08Z HEAD=dfc6f72 決まったこと: concerns: 陳腐化した high 2 件を実測つきで解消（task_011 の CI 実走・task_007 の G5 記録欠落） / 未解決: 未コミット 12 件: docs/HANDOFF.md .claude/workflows/ docs/concerns/task_008.md docs/premortem/ docs/run-log/task_008.json src/app/api/events/ src/lib/audit.ts src/lib/db/repositories/ 
+- 2026-09-24T12:21:08Z HEAD=dfc6f72 決まったこと: concerns: 陳腐化した high 2 件を実測つきで解消（task_011 の CI 実走・task_007 の G5 記録欠落） / 未解決: 未コミット 15 件: docs/HANDOFF.md docs/PROGRESS.md docs/task-list.json .claude/workflows/ docs/concerns/task_008.md docs/premortem/ docs/run-log/task_008.json src/app/api/events/ 
