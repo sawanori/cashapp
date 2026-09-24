@@ -57,6 +57,13 @@ jobs:
       - name: Gate ledger sync check
         run: npm run gates:sync
 
+      # check_071 の drizzle 側。src/lib/db/schema.ts と実 DB のあいだに
+      # テーブル / 列の層の乖離があれば exit 1（判定器は scripts/db-diff-drizzle.mjs）。
+      # 制約・索引の差分は §7-2 の裁定どおり schema.ts に書かないので対象外。
+      # 「差分 0」そのものへの是正は task_038 の PO 裁定待ち。
+      - name: Drizzle schema drift check
+        run: npm run db:diff:drizzle
+
       # `supabase stop` は書かない。GitHub のランナーはジョブ終了で破棄されるうえ、
       # このリポジトリでは `supabase stop` を運用上の禁止コマンドとして扱っているため、
       # ワークフローにも残さない。

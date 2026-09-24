@@ -358,6 +358,33 @@ describe("check_015: ledger_entry の (invoice_id, dedupe_key) 一意", () => {
       }
     });
   });
+
+  // ledger_event_idx でイベント単位に集計する以上、「台帳行が名乗る event_id」は
+  // 参照先 invoice の実 event_id と一致していなければ残高が静かに狂う。
+  // 0004_ledger_event_scope_fk.sql の複合 FK がその一致を担保する（R-PAY-03）。
+  it("別イベントの event_id を名乗る ledger_entry は作れない", async () => {
+    await withRollback(migrator, async (tx) => {
+      const f = await insertBaseFixture(tx, uniq());
+      const otherEventId = await insertSecondEvent(tx, f);
+
+      const error = await expectFailure(tx, (sp) => sp`
+        INSERT INTO ledger_entry
+          (invoice_id, event_id, direction, kind, amount_minor, confidence, dedupe_key, recorded_by)
+        VALUES (${f.invoiceId}, ${otherEventId}, 'credit', 'payment', 3000,
+                'provider_verified', ${`cross:${uniq()}`}, 'system')
+      `);
+      expect(error).toBeDefined();
+      // 23503 = foreign_key_violation（ledger_entry_event_invoice_fk）
+      expect(asPgError(error).code).toBe("23503");
+
+      const rows = await tx<{ n: number }[]>`
+        SELECT count(*)::int AS n
+        FROM ledger_entry l JOIN invoice i ON i.id = l.invoice_id
+        WHERE l.event_id <> i.event_id
+      `;
+      expect(rows[0]?.n).toBe(0);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -666,6 +693,7 @@ describe("check_071: マイグレーションの正本", () => {
       "0001_init",
       "0002_seed_gates",
       "0003_event_scope_fk",
+      "0004_ledger_event_scope_fk",
     ]);
   });
 

@@ -1048,8 +1048,15 @@
       "adversarial_review": "required",
       "evidence_label": "[設計]",
       "optional": false,
-      "completion_status": null,
-      "concerns": []
+      "completion_status": "DONE_WITH_CONCERNS",
+      "concerns": [
+        "[severity: high] done_definition 第 5 項「gate.yml に integration ジョブが追加され PR で緑」は未達。依存タスク task_009（.github/workflows/gate.yml の作成者）が未着手で、.github/workflows/ は gate-integration.yml 1 本のみ、docs/run-log/task_009.json も存在しない。integration ジョブは並行タスク衝突回避の規約どおり独立ファイル .github/workflows/gate-integration.yml として用意してあるが、required status check への登録（task_009 側で `gate-integration / integration` を指定）と実 PR での緑は未証明。git push が禁止コマンドのため CI は一度も実走していない。task_009 完了後に登録と実 PR 緑を確認するまで task_011 を DONE にしない。",
+        "[severity: medium] acceptance_check_ids の check_071 のうち drizzle-kit 側「差分 0」は未達。src/lib/db/schema.ts は implementation-plan.md §7-2 の裁定に従い列だけを宣言し 9 unique・92 check・34 index・31 FK を書かないため、drizzle-kit はそれらを DROP として出す（実測 168 文。内訳 DROP CONSTRAINT 127・DROP INDEX 34・生成列の drop+add 2 組・PK 名 1、CREATE TABLE / DROP TABLE は 0）。暫定措置として npm run db:diff:drizzle に自動判定器 scripts/db-diff-drizzle.mjs を入れ、CREATE TABLE / DROP TABLE / ALTER COLUMN と相方のいない ADD COLUMN / DROP COLUMN があれば exit 1 にした（schema.ts に列を足して exit 1、列を消して exit 1、戻して exit 0 を実測）。gate-integration.yml のステップにも追加済み。ただし check_071 の rule 文言は「差分 0」のままで、書き直しは PO 裁定（task_038）待ち。docs/acceptance-checks.json は PO 専管と判断し編集していない。",
+        "[severity: medium] wrangler.toml の [[hyperdrive]] localConnectionString がロール postgres（postgres://postgres:postgres@127.0.0.1:54322/postgres）のままで、本タスクが追加した src/lib/db/client.ts の resolveDbConnection() が app_rw 以外を DbConfigError で拒否するため、ローカルの wrangler dev / npm run cf:dev は Hyperdrive 経路で失敗する見込み（静的な突合せのみ。wrangler dev の実走確認は未実施）。不整合を作ったのは本タスクの client.ts だが wrangler.toml は task_003 の files_to_create かつ task_035 の files_to_modify であり task_011 の files_to_modify 外のため編集していない。修正内容（postgres://app_rw:app_rw_local_dev_only@127.0.0.1:54322/postgres への変更と wrangler dev 実走）は task_035 の scope に明記済み。それまで cf:dev が Hyperdrive 経路で壊れている事実は docs/HANDOFF.md 冒頭の「既知の壊れている経路」に記載した。",
+        "[severity: medium / 本セッションで修正済み] ledger_entry の event スコープの穴は supabase/migrations/0004_ledger_event_scope_fk.sql で塞いだ（invoice に UNIQUE (event_id, id)、ledger_entry から FOREIGN KEY (event_id, invoice_id) REFERENCES invoice(event_id, id)）。修正前は E1 の invoice に event_id=E2 の台帳行を INSERT できることを psql の BEGIN/ROLLBACK で実測し（ledger_cross_event_rows=1）、修正後は同じ INSERT が 23503 foreign_key_violation で落ちることを実測した。統合テストに「別イベントの event_id を名乗る ledger_entry は作れない」を 1 ケース追加（35 → 36 ケース、全 pass）。",
+        "[severity: low] files_to_create / files_to_modify 外のファイルを触った。drizzle.config.ts（レビュー指示）、docs/task-list.json（レビュー指示。task_038 の起票・task_035 の scope 追記・本 concerns の記録）、supabase/migrations/0003・0004（0001 を直接書き換えると適用済みローカル DB と shadow DB がずれ、整合に禁止コマンド（supabase のローカル DB 初期化）が要るため追加マイグレーションにした）、scripts/db-diff-drizzle.mjs（check_071 の自動判定器。どのタスクの files_to_create にも含まれない新規ファイル）。",
+        "[severity: low] context7 MCP はこのセッションでも接続断（CONNECTION_CLOSED）。drizzle-kit の out ディレクトリ構造（pull が idx 0 の丸写し、generate が idx 1 の差分を meta/_journal.json に書く）は実出力で確認した。"
+      ]
     },
     {
       "task_id": "task_035",
@@ -1135,7 +1142,8 @@
         "原因: src/lib/db/schema.ts は implementation-plan.md §7-2 の裁定に従って**列だけ**を宣言している（制約・索引・FK を書かない）。drizzle-kit はそれらを「消すべきもの」として差分に出す",
         "(a) を選ぶ場合: schema.ts に 9 unique・92 check・34 index・31 FK を宣言し、生成列の式テキストを Postgres の正規化形と一致させる。§7-2 が避けようとした DDL の二重化そのものになる点と、check 制約の式テキスト一致が壊れやすい点を了解したうえで行う",
         "(b) を選ぶ場合: check_071 の rule を「supabase db diff の差分 0 ＋ drizzle-kit 差分に表・列レベルの文（CREATE TABLE / DROP TABLE / drop column / ALTER COLUMN）が無いこと」に書き直し、その判定を自動化する",
-        "どちらの場合も、列単位の完全一致は既に tests/integration/schema.test.ts の『Drizzle スキーマの全列が実 DB と一致する』が自動で守っている（248 列・format_type・NOT NULL）"
+        "どちらの場合も、列単位の完全一致は既に tests/integration/schema.test.ts の『Drizzle スキーマの全列が実 DB と一致する』が自動で守っている（248 列・format_type・NOT NULL）",
+        "暫定措置として (b) の判定は既に自動化されている（task_011、scripts/db-diff-drizzle.mjs ＋ npm run db:diff:drizzle ＋ .github/workflows/gate-integration.yml のステップ）。裁定が (b) なら docs/acceptance-checks.json の check_071 の rule をこの判定器の条件に合わせて書き直すだけで済む。(a) なら判定器を撤去して素の「差分 0」に戻す"
       ],
       "non_scope": [
         "supabase/migrations/*.sql の変更（正本は動かさない）",

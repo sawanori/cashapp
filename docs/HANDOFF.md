@@ -1,5 +1,22 @@
 # HANDOFF
 
+## ⚠ 既知の壊れている経路（着手前に必ず読む）
+
+- **`npm run cf:dev` / `wrangler dev` は Hyperdrive 経路で失敗する（task_035 で直す）**。
+  `wrangler.toml` の `[[hyperdrive]] localConnectionString` がロール `postgres`
+  （`postgres://postgres:postgres@127.0.0.1:54322/postgres`）のままなのに対し、
+  task_011 が入れた `src/lib/db/client.ts` の `resolveDbConnection()` は
+  ランタイムロールが `app_rw` でなければ `DbConfigError` を投げる
+  （`tests/unit/db-client.test.ts` がその拒否を検査している）。
+  直し方は `localConnectionString` を
+  `postgres://app_rw:app_rw_local_dev_only@127.0.0.1:54322/postgres` に変え、
+  `wrangler dev` を 1 度実走して Hyperdrive 経路が通ることを確認する。
+  `wrangler.toml` は task_003 の `files_to_create` / task_035 の `files_to_modify` であり
+  task_011 の担当範囲外のため、task_011 では直していない（`docs/task-list.json` の
+  task_035 scope と task_011 concerns に記録済み）。
+  ローカル DB に直接つなぐ経路（`npm run db:migrate` / `npm run test:integration` /
+  `npm run gates:sync` / `npm run db:diff:drizzle`）はこの影響を受けない。
+
 ## task_002（外部照会文の起案・ADR-010）
 
 ### 決まったこと
@@ -179,6 +196,30 @@
 - task_006: `gate-check.mjs` を Stop に、`gate:plan` を PostToolUse に追加する。`scripts/test-hook-enforcement.sh` で 6 イベント × 遮断挙動の実測マトリクスを作るとき、上記 concerns の「Edit からガード自身を書き換えられる」「evidence を書ける経路が無い」の 2 点を違反フィクスチャに入れること。
 - task_019: Stop に `test:gate` を追加する。
 
+## task_011（レビュー修正・3 周目）
+
+### 決まったこと
+
+- **`ledger_entry` の event スコープの穴を `supabase/migrations/0004_ledger_event_scope_fk.sql` で塞いだ**。`invoice` に `UNIQUE (event_id, id)` を張り、`ledger_entry` から `FOREIGN KEY (event_id, invoice_id) REFERENCES invoice(event_id, id)` の複合 FK を参照させる（0003 と同型）。0001 では `ledger_entry` の `invoice_id` / `event_id` がどちらも `ON DELETE` 句を持たない（= NO ACTION）ので、複合側も `ON DELETE` 句を書かず挙動を揃えてある。修正前は psql の BEGIN/ROLLBACK で E1 の invoice に `event_id=E2` の台帳行を INSERT でき（`ledger_cross_event_rows=1`）、修正後は同じ INSERT が `23503 foreign_key_violation` で落ちることを実測した。統合テストに「別イベントの event_id を名乗る ledger_entry は作れない」を 1 ケース追加し、35 → 36 ケース全 pass。
+- **`npm run db:diff:drizzle` を自動判定するゲートにした**。判定器は `scripts/db-diff-drizzle.mjs`。`CREATE TABLE` / `DROP TABLE` / `ALTER COLUMN` が 1 文でもあれば exit 1、`ADD COLUMN` / `DROP COLUMN` は**同じ (table, column) に drop と add の対が無いもの**だけを乖離として exit 1 にする。`.github/workflows/gate-integration.yml` にもステップとして追加した。
+- 判定器が読むのは `meta/_journal.json` の `idx >= 1` のエントリだけである。`drizzle-kit pull` が `idx 0` に**実 DB の丸写し**（全テーブルの CREATE TABLE）を書き、`generate` が `idx 1` に差分を書くため、out ディレクトリの `.sql` を無差別に読むと丸写しを乖離と誤認して恒久的に赤になる（実測で踏んだ）。
+- 生成列の drop+add 対を打ち消すのは、drizzle-kit 0.31.11 が `GENERATED ALWAYS AS ... STORED` 列を差分なしと判定できず、`invoice.settlement_rank` と `payment_attempt.is_open` に対して常に同一定義の `drop column` ＋ `ADD COLUMN` を吐くためである。片側しか出ないケース（列が本当に増えた / 消えた）は打ち消されないので、ゲートは緩まない。**実証**: `src/lib/db/schema.ts` の `abuse_report` に列を 1 本足すと `ADD COLUMN without a matching counterpart` で exit 1、列を 1 本消すと `DROP COLUMN without a matching counterpart` で exit 1、元に戻すと exit 0。
+- **`docs/task-list.json` の task_011 に `completion_status: "DONE_WITH_CONCERNS"` と concerns 6 件を書き込んだ**。severity の接頭辞は `scripts/gate-status.mjs` の正規表現 `/severity\s*[:：]\s*high/i` に合わせて `[severity: high]` 形式にしてある（`node scripts/gate-status.mjs` が `high concerns 残高: 1 件 — task_011×1` を返すことを実測）。
+
+### 未解決 / concerns
+
+- **[severity: high] done_definition 第 5 項（`gate.yml` に integration ジョブ・PR で緑）は 3 周目でも未達**。`.github/workflows/` は `gate-integration.yml` 1 本のみで `gate.yml` は不在、`docs/run-log/task_009.json` も無い（task_009 未着手）。`gate.yml` は task_009 の `files_to_create` なので本タスクでは作らない。required status check への登録は task_009 側で `gate-integration / integration` を指定すること。`git push` が禁止コマンドのため CI は一度も実走していない。**task_009 完了 → 実 PR 緑の確認まで task_011 を DONE にしない。**
+- **[severity: medium] check_071 の drizzle-kit 側「差分 0」は依然として未達**。上記ゲートは「テーブル / 列の層の乖離 0」を自動判定するもので、`check_071` の rule 文言（差分 0）そのものではない。`docs/acceptance-checks.json` は PO 専管と判断して編集しておらず、rule の書き直しは task_038 の裁定待ち。裁定が (b) ならこの判定器の条件を rule に写すだけで済み、(a) なら判定器を撤去して素の「差分 0」に戻す（task_038 の scope に追記済み）。
+- **[severity: medium] `wrangler.toml` の `localConnectionString` のロール不一致は未修正**。冒頭の「既知の壊れている経路」を参照。`wrangler dev` の実走確認も未実施（静的な突合せのみ）。
+- **[severity: low] `scripts/db-diff-drizzle.mjs` はどのタスクの `files_to_create` にも含まれない新規ファイル**。`db:diff:drizzle` を「人が目視する道具」から「自動で落ちるゲート」に変えるというレビュー指示を、`package.json` のシェル 1 行に押し込まずに実装するため作った。
+- **[severity: low] 0001 / 0003 を書き換えず 0004 を追加した**。適用済みのローカル DB と shadow DB がずれて `supabase db diff` が差分ありになり、整合に禁止コマンド（supabase のローカル DB 初期化）が要るため。素の状態から順に適用しても同じスキーマに着地する。
+
+### 次のアクション
+
+- task_009: `.github/workflows/gate.yml` を作り、`gate-integration / integration` を required status check に登録する。そのうえで実 PR を 1 本立てて緑にし、`docs/run-log/task_011.json` に結果を記録して task_011 の高 severity concern を消す。
+- task_035: `wrangler.toml` の `localConnectionString` を `app_rw` に直し、`wrangler dev` で Hyperdrive 経路が通ることを実走確認する。
+- task_038（PO）: check_071 の (a) / (b) を裁定する。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -186,3 +227,8 @@
 - 2026-09-24T04:23:14Z HEAD=96503f1 決まったこと: task_011: 検証ログ（全 verify_commands exit 0 と未検証項目の手動記録） / 未解決: 未コミット 16 件: docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_011.json drizzle.config.ts package.json tests/integration/schema.test.ts .claude/ docs/gates/legal-clearance.json 
 - 2026-09-24T04:26:48Z HEAD=96503f1 決まったこと: task_011: 検証ログ（全 verify_commands exit 0 と未検証項目の手動記録） / 未解決: 未コミット 20 件: docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_011.json docs/task-list.json drizzle.config.ts package.json 
 - 2026-09-24T04:28:44Z HEAD=c25fab9 決まったこと: task_011: 修正後の verify_commands 4 本を HEAD 3c69f0a で再実行（全 exit 0） / 未解決: 未コミット 13 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json .claude/ docs/gates/legal-clearance.json docs/run-log/task_005.json scripts/append-handoff.sh scripts/assert-diff-exists.sh 
+- 2026-09-24T04:30:43Z HEAD=9f5f55d 決まったこと: task_005: 検証ログ（settings.json の参照先照合）を追記 / 未解決: 未コミット 3 件: docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_011.json 
+- 2026-09-24T04:32:42Z HEAD=9f5f55d 決まったこと: task_005: 検証ログ（settings.json の参照先照合）を追記 / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json 
+- 2026-09-24T04:36:43Z HEAD=9f5f55d 決まったこと: task_005: 検証ログ（settings.json の参照先照合）を追記 / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json 
+- 2026-09-24T04:38:42Z HEAD=9f5f55d 決まったこと: task_005: 検証ログ（settings.json の参照先照合）を追記 / 未解決: 未コミット 6 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json supabase/migrations/0004_ledger_event_scope_fk.sql 
+- 2026-09-24T04:44:45Z HEAD=9f5f55d 決まったこと: task_005: 検証ログ（settings.json の参照先照合）を追記 / 未解決: 未コミット 17 件: .github/workflows/gate-integration.yml docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json docs/task-list.json 
