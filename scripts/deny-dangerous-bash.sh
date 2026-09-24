@@ -18,8 +18,13 @@
 #      human-only: docs/run-log/**, docs/gates/**, docs/acceptance-checks.json,
 #      tests/**, scripts/deny-*, scripts/record-run.sh, .claude/**,
 #      .github/workflows/**. Blocked mechanisms: `>` / `>>` redirects, `tee`,
-#      `sed -i`, any operand of `cp` / `mv` / `rsync` / `install`, and
-#      `python -c ... open(..,'w')`.
+#      `sed -i` / `sed --in-place`, any operand of `cp` / `mv` / `rsync` /
+#      `install`, `dd of=`, an interpreter one-liner (`python -c`, `node -e`,
+#      `perl -i -pe`, …) naming a protected path, and — just as important —
+#      DELETION and RESTORE: `rm`, `unlink`, `shred`, `truncate`, `chmod`,
+#      `chown`, `ln`, `git rm`, `git restore`, `git checkout -- <path>`,
+#      `git clean`. Overwrite-only rules were not enough: a single `rm` of this
+#      script or of .claude/settings.json disables every guard at once.
 #      There is deliberately NO exception clause for scripts/record-run.sh:
 #      a record-run.sh invocation carries none of those mechanisms, so it is
 #      allowed by construction rather than by a carve-out an attacker could
@@ -29,6 +34,11 @@
 # package.json.scripts and the resolved body is scanned with the same rules,
 # recursively. If a name cannot be resolved and looks like
 # deploy|secret|publish|reset|push|prod, it is blocked fail-closed.
+#
+# The BLOCKED message quotes the offending clause, so every quoted string is
+# passed through mask() first. Some rules (the live-secret prefix, `wrangler
+# secret put`) match only commands that carry a credential, and echoing the
+# clause back verbatim put that credential into the hook output.
 #
 # Exit codes: 0 allow, 2 block (or the guard itself could not run safely).
 #
@@ -45,10 +55,21 @@ SELF="deny-dangerous-bash.sh"
 MAX_DEPTH=5
 RISKY_SCRIPT_NAME_RE='deploy|secret|publish|reset|push|prod'
 
+mask() {
+  # Redact credential-shaped text before it reaches stderr. The literal
+  # prefixes are split across string concatenations so that this file does not
+  # trip scripts/deny-test-weakening.sh's own production-key rule.
+  printf '%s' "$1" \
+    | sed -E 's/(sk|pk|rk)_'"live"'_[A-Za-z0-9]+/\1_'"live"'_***/g' \
+    | sed -E 's/([Bb]earer )[A-Za-z0-9._~+/-]+/\1***/g' \
+    | sed -E 's/(secret +put).*/\1 ***/' \
+    | sed -E 's/([A-Za-z_]*(TOKEN|KEY|SECRET|PASSWORD|PASSWD|CREDENTIAL)[A-Za-z_]*=)[^ ]+/\1***/g'
+}
+
 block() {
   # $1 = what matched, $2 = why it is blocked
   echo "$SELF: BLOCKED" >&2
-  echo "  該当: $1" >&2
+  echo "  該当: $(mask "$1")" >&2
   echo "  理由: $2" >&2
   exit 2
 }
@@ -83,6 +104,12 @@ SEP=$(printf '\001')
 # Paths whose contents must not be written from a Bash command.
 PROTECTED_RE='(docs/run-log/|docs/gates/|docs/acceptance-checks\.json|tests/|scripts/deny-|scripts/record-run\.sh|\.claude/|\.github/workflows/)'
 
+# The same areas named as a directory rather than as a file inside one.
+# PROTECTED_RE only matches a path with something after the slash, so
+# `rm -r docs/gates` and `git clean -fd .claude` — which destroy the whole tree,
+# guards included — did not match it at all.
+PROTECTED_TREE_RE='(^|/)(docs/run-log|docs/gates|tests|scripts|\.claude|\.github)(/|$)'
+
 # ---------------------------------------------------------------- normalize --
 # Collapse quoting and whitespace, then turn &&, ||, |, ; and newlines into a
 # single subcommand separator so each clause can be matched on its own.
@@ -99,20 +126,26 @@ normalize() {
 # --------------------------------------------------------------- rule set A --
 is_rm_rf() {
   # `rm` carrying both a recursive and a force flag, in any order or spelling.
-  local s="$1" flags
+  # The clustered-flag scan below only sees a single leading dash followed by
+  # letters, so the GNU long spellings (`--recursive` / `--force`, accepted by
+  # the coreutils rm that CI runs on Linux) never reached it and
+  # `rm --recursive --force` walked straight through. They are checked
+  # separately, and either spelling satisfies either half.
+  local s="$1" flags rec=1 force=1
   case " $s " in
     *" rm "*) ;;
     *) return 1 ;;
   esac
   flags="$(printf '%s' "$s" | grep -oE '(^| )-[a-zA-Z]+' | tr -d ' -' | tr -d '\n')"
   case "$flags" in
-    *r*|*R*) ;;
-    *) return 1 ;;
+    *r*|*R*) rec=0 ;;
   esac
   case "$flags" in
-    *f*|*F*) return 0 ;;
-    *) return 1 ;;
+    *f*|*F*) force=0 ;;
   esac
+  printf '%s' "$s" | grep -Eq '(^| )--recursive( |$)' && rec=0
+  printf '%s' "$s" | grep -Eq '(^| )--force( |$)' && force=0
+  [ "$rec" -eq 0 ] && [ "$force" -eq 0 ]
 }
 
 raw_rules_hit() {
@@ -167,6 +200,10 @@ protected() {
   printf '%s' "$1" | grep -Eq "$PROTECTED_RE"
 }
 
+protected_tree() {
+  printf '%s' "$1" | grep -Eq "$PROTECTED_TREE_RE"
+}
+
 write_rules_hit() {
   # $1 = one normalized subcommand. Echoes a description when it matches.
   local sub="$1" target tok seen_tee
@@ -192,9 +229,11 @@ write_rules_hit() {
     done
   fi
 
-  # `sed -i` rewrites in place: any protected path in the clause blocks.
+  # `sed -i` / `sed --in-place` rewrite in place: any protected path in the
+  # clause blocks. GNU sed (what CI runs) accepts the long spelling, and the
+  # short-only test let `sed --in-place … tests/x.test.ts` through.
   if printf '%s' "$sub" | grep -Eq '(^| )sed( |$)' &&
-     printf '%s' "$sub" | grep -Eq '(^| )-i'; then
+     printf '%s' "$sub" | grep -Eq '(^| )(-i|--in-place)'; then
     for tok in $sub; do
       if protected "$tok"; then
         echo "sed -i の対象 $tok"; return 0
@@ -219,16 +258,69 @@ write_rules_hit() {
     done
   fi
 
+  # Deletion and restore. Blocking only overwrites left the harness wide open:
+  # `rm scripts/deny-dangerous-bash.sh` or `rm .claude/settings.json` removes
+  # every guard in one command, `rm -r docs/gates` takes the whole tree, and
+  # `git checkout HEAD -- tests/x.test.ts` silently reverts a test. The
+  # directory form is checked as well as the file form, and the scan covers the
+  # whole clause fail-closed, like cp/mv.
+  if printf '%s' "$sub" | grep -Eq '(^| )(rm|unlink|shred|truncate)( |$)' ||
+     printf '%s' "$sub" | grep -Eq '(^| )git +(rm|restore|checkout|clean)( |$)'; then
+    for tok in $sub; do
+      if protected "$tok" || protected_tree "$tok"; then
+        echo "削除・復元の対象 $tok"; return 0
+      fi
+    done
+  fi
+
+  # Permission / symlink changes: `chmod -x` on a guard neutralises it just as
+  # thoroughly as deleting it, and `ln -sf /dev/null .claude/settings.json`
+  # empties the hook registration. Only the file form is checked here — a
+  # `chmod +x scripts/ci/foo.sh` on an unprotected script must stay possible.
+  if printf '%s' "$sub" | grep -Eq '(^| )(chmod|chown|ln)( |$)'; then
+    for tok in $sub; do
+      if protected "$tok"; then
+        echo "権限・リンク変更の対象 $tok"; return 0
+      fi
+    done
+  fi
+
+  # `dd if=… of=<保護対象>` truncates the destination exactly like a redirect.
+  if printf '%s' "$sub" | grep -Eq '(^| )dd( |$)'; then
+    for tok in $sub; do
+      case "$tok" in
+        of=*)
+          if protected "${tok#of=}"; then
+            echo "dd の出力先 $tok"; return 0
+          fi
+          ;;
+      esac
+    done
+  fi
+
   return 1
 }
 
-python_write_hit() {
-  # $1 = the whole normalized command with separators flattened back to spaces.
+interpreter_write_hit() {
+  # $1 = the whole normalized command with separators flattened back to spaces
+  # (a one-liner often contains `;`, which would otherwise split the path away
+  # from the interpreter and hide it from the per-clause rules).
+  #
+  # Any interpreter one-liner that names a protected path is blocked. Matching
+  # only `python -c … open(.., 'w')` was too narrow twice over: this repo runs
+  # on node, so `node -e "require('fs').writeFileSync('docs/run-log/x.json',…)"`
+  # walked straight past it, and `perl -i -pe` did the same for tests/**.
+  # The one-liner is not parsed, so a read-only one-liner over a protected path
+  # is blocked too (use cat / jq for that): write intent cannot be told from the
+  # string with any confidence, and fail-closed is the cheaper error.
+  # The eval flag has to belong to the interpreter — it is matched as part of
+  # that command's own option run, not anywhere in the string. Accepting a
+  # loose `-e` elsewhere made prose that merely lists interpreter names (a
+  # commit message, a --help text) collide with an unrelated `--force`.
   local whole="$1"
-  printf '%s' "$whole" | grep -Eq '(^| )python[0-9.]* +-(c|m)( |$)' || return 1
-  printf '%s' "$whole" | grep -Eq "open *\([^)]*$PROTECTED_RE" || return 1
-  printf '%s' "$whole" | grep -Eq 'open *\([^)]*, *[wax]' || return 1
-  echo "python の open(..., 書き込みモード)"
+  printf '%s' "$whole" | grep -Eq '(^| )(python[0-9.]*|node|nodejs|deno|bun|perl|ruby|php)( +-[^ ]*)* +(-{1,2}[A-Za-z]*(c|e|m)|--eval|--exec|--print|eval)([ =]|$)' || return 1
+  printf '%s' "$whole" | grep -Eq "$PROTECTED_RE" || return 1
+  echo "インタプリタのワンライナー（-c / -e / -m 等）が保護対象パスを参照しています"
   return 0
 }
 
@@ -272,7 +364,7 @@ scan_text() {
   norm="$(normalize "$text")"
   whole="$(printf '%s' "$norm" | tr "$SEP" ' ' | tr -s ' ')"
 
-  hit="$(python_write_hit "$whole")" && block "$hit" "保護対象ファイルへの Bash 経由の書き込みは禁止です（R-TH-02）"
+  hit="$(interpreter_write_hit "$whole")" && block "${hit}（${whole}）" "保護対象ファイルへの Bash 経由の書き込みは禁止です（R-TH-02）"
 
   subs_file="$(mktemp)"
   # The trailing newline matters: `read` returns non-zero on a final line that
@@ -284,7 +376,7 @@ scan_text() {
     [ -n "$sub" ] || continue
 
     hit="$(raw_rules_hit "$sub")" && { rm -f "$subs_file"; block "${hit}（${sub}）" "破壊的操作・本番デプロイ・本番決済はローカルから実行できません（L11 / R-TH-02。デプロイは CI のみ）"; }
-    hit="$(write_rules_hit "$sub")" && { rm -f "$subs_file"; block "${hit}（${sub}）" "docs/run-log/** ・docs/gates/** ・docs/acceptance-checks.json ・tests/** ・scripts/deny-* ・scripts/record-run.sh ・.claude/** ・.github/workflows/** への Bash 経由の書き込みは禁止です（R-TH-02 / R-SEC-07）"; }
+    hit="$(write_rules_hit "$sub")" && { rm -f "$subs_file"; block "${hit}（${sub}）" "docs/run-log/** ・docs/gates/** ・docs/acceptance-checks.json ・tests/** ・scripts/deny-* ・scripts/record-run.sh ・.claude/** ・.github/workflows/** への Bash 経由の書き込み・削除は禁止です（R-TH-02 / R-SEC-07）"; }
 
     for name in $(script_names "$sub"); do
       [ -n "$name" ] || continue

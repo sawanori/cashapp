@@ -58,6 +58,11 @@ const blockedDestructive: string[] = [
   "git reset --hard HEAD~1",
   "rm -rf /tmp/some-directory",
   "rm -fr build",
+  // GNU coreutils の長い綴り。CI は Linux なのでこの書き方が実際に通る。
+  // クラスタ化フラグの走査は `-` の直後が英字のトークンしか見ないため、
+  // --recursive / --force は別途判定する。
+  "rm --recursive --force /tmp/probe-dir",
+  "rm --force --recursive /tmp/probe-dir",
   "pnpm install",
   "pnpm run build",
   "npm publish",
@@ -85,6 +90,40 @@ const blockedWrites: string[] = [
   "cp /tmp/a.json docs/gates/legal-clearance.json --verbose",
   "mv /tmp/gate.yml .github/workflows/gate.yml --force",
   "rsync -a /tmp/logs/ docs/run-log/ --delete",
+  // 上書きだけを塞いでも、1 コマンドの削除でガードが全部消える。
+  // ガード本体・フック登録・ゲート定義・テスト・run-log の削除と復元。
+  "rm scripts/deny-dangerous-bash.sh",
+  "rm -f scripts/deny-test-weakening.sh",
+  "rm scripts/record-run.sh",
+  "rm .claude/settings.json",
+  "rm docs/run-log/task_005.json",
+  "rm docs/gates/legal-clearance.json",
+  "rm tests/contract/duplicate.test.ts",
+  // ディレクトリごと。PROTECTED_RE は末尾スラッシュ付きなので
+  // ディレクトリ名そのもの（docs/gates / .claude）は別の正規表現で見る。
+  "rm -r docs/gates",
+  "rm -r tests",
+  "git clean -fd .claude",
+  "git rm docs/gates/legal-clearance.json",
+  "git checkout HEAD -- scripts/deny-dangerous-bash.sh",
+  "git restore tests/contract/duplicate.test.ts",
+  "unlink docs/run-log/task_005.json",
+  "truncate -s 0 docs/gates/legal-clearance.json",
+  // 実行権を落とす・/dev/null へ張り替えるのも無力化と同じ。
+  "chmod -x scripts/deny-dangerous-bash.sh",
+  "ln -sf /dev/null .claude/settings.json",
+  // GNU sed の長い綴り。
+  "sed --in-place s/expect/xpect/ tests/contract/duplicate.test.ts",
+  // python の open だけを見ていたので、このリポジトリの実行系である node の
+  // 同等経路が空いていた。perl -i / ruby / bun / deno も同じクラス。
+  `node -e "require('fs').writeFileSync('docs/run-log/x.json','[]')"`,
+  `node --eval "require('fs').writeFileSync('docs/gates/x.json','{}')"`,
+  `bun -e "Bun.write('docs/run-log/x.json','[]')"`,
+  `deno eval "Deno.writeTextFileSync('docs/run-log/x.json','[]')"`,
+  "perl -i -pe s/expect/xpect/ tests/contract/duplicate.test.ts",
+  `ruby -e "File.write('docs/run-log/x.json','[]')"`,
+  // dd の of= はリダイレクトと同じく宛先を切り詰める。
+  "dd if=/dev/null of=docs/run-log/task_005.json",
 ];
 
 const blockedAliases: string[] = [
@@ -132,6 +171,21 @@ const allowed: string[] = [
   "echo hello > /tmp/scratch.txt",
   "node scripts/session-brief.mjs",
   "docker info",
+  // 削除・権限・復元の判定が保護対象の外まで巻き込まないこと
+  "rm -f /tmp/scratch.txt",
+  "rm /tmp/scratch.txt",
+  "chmod +x /tmp/scratch.sh",
+  "chmod +x scripts/ci/record-worker-size.mjs",
+  "git checkout main",
+  "git add scripts/deny-dangerous-bash.sh",
+  // インタプリタ判定が「-e 等のフラグ + 保護対象パス」の両方を要求すること
+  "node --version",
+  "python3 /tmp/helper.py",
+  "node -e \"console.log(1)\"",
+  // インタプリタ名が散文として出てくるだけのコマンド。-e / -c が
+  // インタプリタ自身のオプションでないと遮断しない（実際に自分の
+  // コミットメッセージがこれで弾かれた）。
+  "git commit -m 'node / deno / bun / perl の迂回を塞ぐ。tests と docs/run-log は --force でも触らない'",
 ];
 
 describe("deny-dangerous-bash.sh — 破壊的・本番系コマンド", () => {
@@ -157,6 +211,29 @@ describe("deny-dangerous-bash.sh — 破壊的・本番系コマンド", () => {
     const result = run("wrangler deploy");
     expect(result.status).toBe(2);
     expect(result.stderr).toContain("BLOCKED");
+  });
+
+  // 遮断メッセージは該当サブコマンドを引用する。sk_live_ ルールと
+  // wrangler secret put ルールは定義上「秘密値を含むコマンド」にしか当たらない
+  // ので、素で引用すると遮断のたびに必ず秘密値がフック出力に載る（禁止事項）。
+  it("秘密値は遮断メッセージに出さない（sk_live_ トークン）", () => {
+    const result = run(`curl -H "Authorization: Bearer ${LIVE_SECRET}" https://api.example.com`);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain("BLOCKED");
+    expect(result.stderr).not.toContain(LIVE_SECRET);
+  });
+
+  it("秘密値は遮断メッセージに出さない（wrangler secret put 以降）", () => {
+    const result = run("wrangler secret put PAYPAY_API_KEY --env production");
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain("BLOCKED");
+    expect(result.stderr).not.toContain("PAYPAY_API_KEY");
+  });
+
+  it("秘密値は遮断メッセージに出さない（環境変数への代入）", () => {
+    const result = run("STRIPE_SECRET_KEY=rk_test_abc node scripts/charge.mjs --live");
+    expect(result.status).toBe(2);
+    expect(result.stderr).not.toContain("rk_test_abc");
   });
 });
 

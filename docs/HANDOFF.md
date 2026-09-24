@@ -246,6 +246,35 @@
 - task_006: `gate-check.mjs` を Stop に、`gate:plan` を PostToolUse に追加する（`.claude/settings.json` への**追加**は通る。既存のガード登録を消さないこと）。違反フィクスチャに「Edit でガード自身を書き換える」「`.claude/settings.json` からガード登録を外す」を入れる。
 - task_019: Stop に `test:gate` を追加する（同上）。
 
+## task_005（レビュー修正・3 周目）
+
+### 直したこと
+
+- **削除・復元経路を塞いだ（high）**。`write_rules_hit` は上書き（リダイレクト・`tee`・`sed -i`・`cp`/`mv`）しか見ておらず、`rm scripts/deny-dangerous-bash.sh` / `rm .claude/settings.json` / `git rm` / `git checkout HEAD -- <path>` / `chmod -x` は全部 exit 0 で通っていた。ガード本体か settings.json を 1 コマンド消せば、以後すべての遮断が同時に無力化される穴。削除・復元（`rm` / `unlink` / `shred` / `truncate` / `git rm` / `git restore` / `git checkout` / `git clean`）と権限・リンク（`chmod` / `chown` / `ln`）の 2 節を足し、節の全トークンを fail-closed で検査する。
+- **ディレクトリ形の保護パスを追加**。`PROTECTED_RE` は `docs/gates/` のように末尾スラッシュ付きなので、`rm -r docs/gates` や `git clean -fd .claude` はどれにも一致しなかった。`PROTECTED_TREE_RE`（`docs/run-log` / `docs/gates` / `tests` / `scripts` / `.claude` / `.github` をディレクトリ名として一致）を足し、削除・復元系の判定だけで併用する。`chmod` 側では使わない（`chmod +x scripts/ci/foo.sh` のような正当な操作を殺すため）。
+- **長オプションの綴りを拾うようにした（medium）**。`is_rm_rf` のフラグ抽出 `grep -oE '(^| )-[a-zA-Z]+'` は `--recursive` に一致しない（`-` の直後が英字でないため）ので `rm --recursive --force` が素通りしていた。`--recursive` / `--force` を個別に見る。`sed` 側も `-i` だけでなく `--in-place` を見る。CI は Linux（GNU coreutils / GNU sed）なのでこの綴りが実際に通る。
+- **インタプリタのワンライナー判定を一般化した（medium）**。`python -c` の `open(..., 'w')` だけを見ていたため、このリポジトリの実行系である `node -e "require('fs').writeFileSync('docs/run-log/x.json', …)"` が通っていた。`python` / `node` / `deno` / `bun` / `perl` / `ruby` / `php` に対し、`-c` / `-e` / `-m` / `--eval` / `deno eval` 等のワンライナー実行フラグと保護パスの同居で遮断する。`dd` の `of=<保護パス>` も 1 分岐で足した。副作用として**保護パスの読み出しワンライナーも遮断される**（`jq` か `cat` を使うこと。本タスク中に実際に踏んで確認済み）。
+- **遮断メッセージから秘密値を落とした（medium）**。`block()` の第 1 引数を `mask()` に通す。`sk_live_` / `pk_live_` / `rk_live_` トークン、`Bearer <token>`、`secret put` 以降、`*TOKEN=` / `*KEY=` / `*SECRET=` / `*PASSWORD=` の値を伏せる。`sk_live_` ルールと `wrangler secret put` ルールは定義上「秘密値を含むコマンド」にしか当たらないので、素の引用は遮断のたびに必ず秘密値をログに出していた。
+- **フックのユニットテストは 108 → 148 件**（`npm run test:unit` 全体は 145 → 185 件）。増分 40 件の内訳は削除・復元・権限 17、長オプション 3（`rm --recursive --force` 2 形式・`sed --in-place`）、インタプリタ 6、`dd` 1、過剰遮断しないことの対照 10、秘密値マスク 3。
+- **インタプリタ判定は「フラグがそのインタプリタ自身のオプションである」ことを要求する**。最初の実装は `-e` / `--force` 等がコマンド中のどこかにあれば当たったため、インタプリタ名を散文として並べた**コミットメッセージ自体が遮断された**（本タスクで実際に踏んだ）。`<interpreter> (オプション)* (-c|-e|-m|--eval|eval)` の形に絞り、対照ケースをテストに入れた。
+
+### 実測で埋めた manual チェック
+
+- **check_053 達成**。`claude` CLI 2.1.257 のヘッドレス新規セッション（`session_id=e3bbac37-70a6-42fd-9622-2a99cdc1a392` / 2026-09-24T05:08:24Z / `entrypoint=sdk-cli`）を実際に起動し、transcript jsonl の `attachment`（`hookName=SessionStart:startup` と `hook_additional_context`）から注入テキスト 63 行 9085 bytes を読んだ。4 要素すべてを確認: 未通過ゲート 10/10（一覧つき）/ `cleared=false` / 未回答照会 6 件・期限超過 0 件 / `docs/HANDOFF.md` 末尾 40 行。同セッションで `UserPromptSubmit` の `gate-status.mjs` も発火した。1・2 周目の「フック入力をパイプした確認」とは別物で、これは実セッションでの発火。
+- **check_063 達成**。`session_id=4a06740d-1e78-40a1-b134-97844d7eaef5` を 2 ターン（2 ターン目は `--resume`）動かし、「ターンログ」節が 16 → 17 → 18 行と 1 ターン 1 行ずつ、合計 2 行増えることを実測した。
+
+### 未解決 / concerns（3 周目時点）
+
+- **[severity: medium] `git apply` / `patch` は依然として素通りする**。ガード本体は自分自身への Edit/Write も Bash 書き込みも拒むため、本タスクの修正は `git apply` で当てた（1 周目の HANDOFF が「git 経由で当てる」と書いた経路そのもの）。これはガードを直すための唯一の残り経路であり、同時に迂回路でもある。塞ぐなら人間のレビュー前提の別経路を先に用意すること。最終的な検出手段は task_006 の `scripts/gate-integrity.mjs` のハッシュ照合。
+- **[severity: medium] 読み出しの巻き込みが増えた**。`cp` / `mv` に加えてインタプリタのワンライナーでも、保護パスを**読むだけ**のコマンドが遮断される。`docs/run-log/*.json` を読むときは `jq` か `cat` を使うこと。
+- **[severity: low] 判定はすべてコマンド文字列に対するもの**。`python3 some-script.py` のようにファイルに落としたスクリプト経由の書き込みは検出できない。これは文字列フィルタの原理的な限界で、`gate-integrity.mjs` のハッシュ照合が後段の担保。
+- 1・2 周目からの持ち越し（acceptance-checks.json の evidence を書く経路が無い / `npm run lint:changed` の `origin/main...HEAD` がリモート不在で空振り）は未解決のまま。
+
+### 次のアクション（3 周目時点）
+
+- task_006: 違反フィクスチャに「`rm` でガード本体を消す」「`chmod -x` で実行権を落とす」「`git checkout -- ` でテストを戻す」を追加する。
+- task_006 / task_018 / task_019: `.claude/settings.json` への**追加**は通る（ガード参照を減らす編集だけが遮断される）。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -259,3 +288,13 @@
 - 2026-09-24T04:38:42Z HEAD=9f5f55d 決まったこと: task_005: 検証ログ（settings.json の参照先照合）を追記 / 未解決: 未コミット 6 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json supabase/migrations/0004_ledger_event_scope_fk.sql 
 - 2026-09-24T04:44:45Z HEAD=9f5f55d 決まったこと: task_005: 検証ログ（settings.json の参照先照合）を追記 / 未解決: 未コミット 17 件: .github/workflows/gate-integration.yml docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json docs/task-list.json 
 - 2026-09-24T04:46:44Z HEAD=4ab9ed8 決まったこと: task_011: 修正後の verify_commands 4 本を HEAD 913a45b で再実行（全 exit 0） / 未解決: 未コミット 10 件: docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json scripts/assert-diff-exists.sh scripts/deny-dangerous-bash.sh scripts/deny-test-weakening.sh 
+- 2026-09-24T04:48:43Z HEAD=0e805dc 決まったこと: task_005: 修正後の verify_commands 再実行ログと HANDOFF の陳腐化記述の訂正 / 未解決: 未コミット 3 件: docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_011.json 
+- 2026-09-24T04:50:44Z HEAD=0e805dc 決まったこと: task_005: 修正後の verify_commands 再実行ログと HANDOFF の陳腐化記述の訂正 / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json 
+- 2026-09-24T04:56:43Z HEAD=0e805dc 決まったこと: task_005: 修正後の verify_commands 再実行ログと HANDOFF の陳腐化記述の訂正 / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json 
+- 2026-09-24T04:58:45Z HEAD=0e805dc 決まったこと: task_005: 修正後の verify_commands 再実行ログと HANDOFF の陳腐化記述の訂正 / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json 
+- 2026-09-24T05:00:51Z HEAD=0e805dc 決まったこと: task_005: 修正後の verify_commands 再実行ログと HANDOFF の陳腐化記述の訂正 / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json 
+- 2026-09-24T05:00:55Z HEAD=0e805dc 決まったこと: task_005: 修正後の verify_commands 再実行ログと HANDOFF の陳腐化記述の訂正 / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json 
+- 2026-09-24T05:08:25Z HEAD=0e805dc 決まったこと: task_005: 修正後の verify_commands 再実行ログと HANDOFF の陳腐化記述の訂正 / 未解決: 未コミット 7 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json scripts/deny-dangerous-bash.sh tests/unit/hooks/deny-dangerous-bash.test.ts 
+- 2026-09-24T05:09:35Z HEAD=0e805dc 決まったこと: task_005: 修正後の verify_commands 再実行ログと HANDOFF の陳腐化記述の訂正 / 未解決: 未コミット 7 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json scripts/deny-dangerous-bash.sh tests/unit/hooks/deny-dangerous-bash.test.ts 
+- 2026-09-24T05:09:39Z HEAD=0e805dc 決まったこと: task_005: 修正後の verify_commands 再実行ログと HANDOFF の陳腐化記述の訂正 / 未解決: 未コミット 7 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json scripts/deny-dangerous-bash.sh tests/unit/hooks/deny-dangerous-bash.test.ts 
+- 2026-09-24T05:14:54Z HEAD=0e805dc 決まったこと: task_005: 修正後の verify_commands 再実行ログと HANDOFF の陳腐化記述の訂正 / 未解決: 未コミット 8 件: docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json scripts/deny-dangerous-bash.sh tests/unit/hooks/deny-dangerous-bash.test.ts 
