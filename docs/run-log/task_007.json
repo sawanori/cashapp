@@ -301,5 +301,39 @@
     "commit": "62e31be78af6976727d91aa22c5ca6854cc2b400",
     "ran_at": "2026-09-24T10:04:18Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 1,
+    "stdout_tail": "            \u001b[0mもう一度読み込む\u001b[0m\n          \u001b[36m</a>\u001b[39m\n        \u001b[36m</li>\u001b[39m\n        \u001b[36m<li>\u001b[39m\n          \u001b[36m<a\u001b[39m\n            \u001b[33mclass\u001b[39m=\u001b[32m\"tap-target\"\u001b[39m\n            \u001b[33mhref\u001b[39m=\u001b[32m\"https://liff.line.me/2000000000-abcd1234\"\u001b[39m\n          \u001b[36m>\u001b[39m\n            \u001b[0mLINE アプリで開く\u001b[0m\n          \u001b[36m</a>\u001b[39m\n        \u001b[36m</li>\u001b[39m\n      \u001b[36m</ul>\u001b[39m\n      \u001b[36m<p\u001b[39m\n        \u001b[33mclass\u001b[39m=\u001b[32m\"static-fallback__contact\"\u001b[39m\n      \u001b[36m>\u001b[39m\n        \u001b[0m解決しないときは、LINE のトークで幹事へご連絡ください。\u001b[0m\n      \u001b[36m</p>\u001b[39m\n    \u001b[36m</section>\u001b[39m\n  \u001b[36m</div>\u001b[39m\n\u001b[36m</body>\u001b[39m\n ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19\n ❯ node_modules/@testing-library/dom/dist/query-helpers.js:76:38\n ❯ node_modules/@testing-library/dom/dist/query-helpers.js:52:17\n ❯ node_modules/@testing-library/dom/dist/query-helpers.js:95:19\n ❯ tests/unit/components/StaticFallback.test.tsx:53:19\n     51|     );\n     52|\n     53|     expect(screen.getByRole(\"link\", { name: \"もう一度読み込む\" })).toBeInTheDo…\n       |                   ^\n     54|     const open = screen.getByRole(\"link\", { name: \"LINE アプリで開く\" });\n     55|     expect(open).toHaveAttribute(\"href\", PERMANENT_LINK);\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯\n\n\n Test Files  2 failed | 24 passed (26)\n      Tests  6 failed | 708 passed (714)\n   Start at  10:04:53\n   Duration  63.86s (tests 91%, setup 3%, environment 3%, import 2%, transform 1%)",
+    "commit": "0a060bf0771cdd5914580f7f0072259400868220",
+    "ran_at": "2026-09-24T10:04:53Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 28 file(s))\nok    L2 (forbid, 28 file(s))\nok    L3 (forbid, 28 file(s))\nok    L8 (forbid, 28 file(s))\nok    L12 (forbid, 28 file(s))\nok    P1 (forbid, 28 file(s))\ndefer P2 (0 targets; waiting on task_018)\nok    P9 (forbid, 3 file(s))\nok    W3 (forbid, 35 file(s))\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 26 file(s))\nok    N5 (forbid, 28 file(s))\nok    N7 (forbid, 28 file(s))\nok    N9 (forbid, 28 file(s))\nok    N11 (forbid, 28 file(s))\nok    I1 (require, 1 file(s))\nok    I2 (require, 1 file(s))\nok    I3 (forbid, 7 file(s))\nok    I4 (forbid, 2 file(s))\nok    X-TIME (forbid, 8 file(s))\nok    X-ID (forbid, 9 file(s))\ndefer X-MONEY (0 targets; waiting on task_017)\nok    GC-XSS (forbid, 28 file(s))\nok    GC-ENV-PUBLIC (forbid, 33 file(s))\nok    GC-SERVER-ONLY (require, 1 file(s))\n\ngate:constraints — scanned 22 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "0a060bf0771cdd5914580f7f0072259400868220",
+    "ran_at": "2026-09-24T10:05:57Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "最終 HEAD 0a060bf での npm run test:unit は exit 1。内訳は tests/unit/gate-constraints.test.ts 2 件（passes on a clean tree 6125ms / fails an I1 / I2 tree ... 5242ms。どちらも既定 5 秒タイムアウト超過。task_004 所有）と tests/unit/components/StaticFallback.test.tsx 4 件（並行実行中の task_013 が src/components/StaticFallback.tsx を未コミットで編集中。git status に ' M src/components/StaticFallback.tsx'）。task_007 の所有ファイル（scripts/build-review-packet.sh / merge-review.sh / tests/unit/{build-review-packet,merge-review,validate-findings}.test.ts）に起因する失敗は 0 件で、この 3 ファイル 42 件は単体実行で exit 0（上の run-log エントリ）。この作業ツリーでは test:unit が 1 タスクの責任で緑になる状態にないため、全ハーネスタスク完了後にクリーンなチェックアウトで再測定すること。詳細は docs/concerns/task_007.md の 11。",
+    "commit": "0a060bf0771cdd5914580f7f0072259400868220",
+    "ran_at": "2026-09-24T10:07:51Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx vitest run tests/unit/build-review-packet.test.ts tests/unit/merge-review.test.ts tests/unit/validate-findings.test.ts",
+    "exit_code": 0,
+    "stdout_tail": "(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  3 passed (3)\n      Tests  42 passed (42)\n   Start at  19:07:55\n   Duration  2.68s (tests 93%, setup 4%, transform 2%)",
+    "commit": "0a060bf0771cdd5914580f7f0072259400868220",
+    "ran_at": "2026-09-24T10:07:55Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]

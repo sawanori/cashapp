@@ -227,8 +227,19 @@
   変更であり、テストを弱めない。**task_004 の所有ファイルなので task_007 からは触っていない。**
   グローバルな `testTimeout` の引き上げ（`vitest.config.ts`）は他の遅いテストまで一律に
   緩めるので採らないこと。
+- **追記（commit `0a060bf` 時点の再測定）**: 同じ `npm run test:unit` が **exit 1** のままで、
+  落ちている内訳は時刻によって動く。`0a060bf` では
+  `tests/unit/gate-constraints.test.ts` が **2 件**（`passes on a clean tree` 6125ms /
+  `fails an I1 / I2 tree whose required Cloudflare settings are missing` 5242ms。
+  どちらも 5 秒タイムアウト）に増え、さらに
+  `tests/unit/components/StaticFallback.test.tsx` が **4 件**落ちている。後者は
+  **並行実行中の task_013 が `src/components/StaticFallback.tsx` を編集中（未コミット、
+  `git status` に ` M`）だからで、task_004 / task_007 のどちらの所有物でもない**。
+  つまり**この作業ツリーでは `npm run test:unit` が「誰か 1 タスクの責任で緑になる」状態に
+  ない**。全ハーネスタスクが完了しクリーンなチェックアウトになった時点で、
+  もう一度 `npm run test:unit` を走らせて残る赤を確定させること。
 - **対応予定タスク**: task_004（所有者）。PO が一括で直すなら vitest.config.ts ではなく
-  当該 `it()` 側に付けること。
+  当該 `it()` 側に付けること。並行編集ぶんは各タスクの完了時に消える見込み。
 
 ## 12. review-log には出所の担保が無く、レビューを受ける側が「敵対レビュー済み」を自作できる
 
