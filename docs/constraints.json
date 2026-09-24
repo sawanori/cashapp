@@ -818,7 +818,9 @@
       "match_mode": "forbid",
       "grep_patterns": [
         "from[[:space:]]*[\"'](@/lib/db|drizzle-orm|postgres)",
-        "require\\([[:space:]]*[\"'](@/lib/db|drizzle-orm|postgres)"
+        "require[[:space:]]*\\([[:space:]]*[\"'](@/lib/db|drizzle-orm|postgres)",
+        "import[[:space:]]*\\([[:space:]]*[\"'](@/lib/db|drizzle-orm|postgres)",
+        "import[[:space:]]+[\"'](@/lib/db|drizzle-orm|postgres)"
       ],
       "globs": [
         "src/**/*.tsx",
@@ -890,8 +892,8 @@
         "(^|[(,])[[:space:]]*[\"']?[A-Za-z_][A-Za-z0-9_]*[\"']?[[:space:]]+[dD][aA][tT][eE]([[:space:]]|,|\\)|;|$)",
         "[tT][iI][mM][eE][sS][tT][aA][mM][pP][[:space:]]+[wW][iI][tT][hH][oO][uU][tT][[:space:]]+[tT][iI][mM][eE][[:space:]]+[zZ][oO][nN][eE]",
         "(^|[(,])[[:space:]]*[\"']?[A-Za-z_][A-Za-z0-9_]*[\"']?[[:space:]]+[tT][iI][mM][eE][sS][tT][aA][mM][pP]([[:space:]]*(,|\\)|;|$)|[[:space:]]+[^wW[:space:]])",
-        "([aA][dD][dD]([[:space:]]+[cC][oO][lL][uU][mM][nN])?|[tT][yY][pP][eE])[[:space:]]+([\"']?[A-Za-z_][A-Za-z0-9_]*[\"']?[[:space:]]+)?[dD][aA][tT][eE]([[:space:]]|,|\\)|;|$)",
-        "([aA][dD][dD]([[:space:]]+[cC][oO][lL][uU][mM][nN])?|[tT][yY][pP][eE])[[:space:]]+([\"']?[A-Za-z_][A-Za-z0-9_]*[\"']?[[:space:]]+)?[tT][iI][mM][eE][sS][tT][aA][mM][pP]([[:space:]]*(,|\\)|;|$)|[[:space:]]+[^wW[:space:]])",
+        "([aA][dD][dD]([[:space:]]+[cC][oO][lL][uU][mM][nN])?([[:space:]]+[iI][fF][[:space:]]+[nN][oO][tT][[:space:]]+[eE][xX][iI][sS][tT][sS])?|[tT][yY][pP][eE])[[:space:]]+([\"']?[A-Za-z_][A-Za-z0-9_]*[\"']?[[:space:]]+)?[dD][aA][tT][eE]([[:space:]]|,|\\)|;|$)",
+        "([aA][dD][dD]([[:space:]]+[cC][oO][lL][uU][mM][nN])?([[:space:]]+[iI][fF][[:space:]]+[nN][oO][tT][[:space:]]+[eE][xX][iI][sS][tT][sS])?|[tT][yY][pP][eE])[[:space:]]+([\"']?[A-Za-z_][A-Za-z0-9_]*[\"']?[[:space:]]+)?[tT][iI][mM][eE][sS][tT][aA][mM][pP]([[:space:]]*(,|\\)|;|$)|[[:space:]]+[^wW[:space:]])",
         "[[:space:]][tT][iI][mM][eE][sS][tT][aA][mM][pP][[:space:]]*\\([[:space:]]*[0-9]+[[:space:]]*\\)([[:space:]]*(,|\\)|;|$)|[[:space:]]+[^wW[:space:]])",
         "(^|[^A-Za-z_])date\\([\"']",
         "(^|[^A-Za-z_])timestamp\\([\"'][^\"']*[\"'][[:space:]]*\\)"
@@ -1012,7 +1014,54 @@
       "exclude_globs": [],
       "allow_if_line_matches": [],
       "expect_targets": "from_task_011",
-      "notes": "必須パターンは行頭から始まる実行される import だけを認める（// や /* の中に書かれた import 文字列で必須検査を満たせていた。GPT レビュー F-6）。対象は DB クライアントに加えてシークレット取得モジュール（src/lib/config/env.ts）も含める（F-7）。伝播側（'use client' からの import）の検査は scripts/assert-server-only.mjs が受け持つ。"
+      "notes": "必須パターンは行頭から始まる実行される import だけを認める（// や /* の中に書かれた import 文字列で必須検査を満たせていた。GPT レビュー F-6）。対象は DB クライアントに加えてシークレット取得モジュール（src/lib/config/env.ts）も含める（F-7）。コメント・テンプレート文字列の除去は scripts/gate-constraints.sh の require 経路が行う（GPT 4 周目 F-2 / 5 周目 F-2）。伝播側（'use client' からの import）の検査は scripts/assert-server-only.mjs が受け持つ。"
+    },
+    {
+      "id": "GC-RANK-NEGATION",
+      "text": "状態ランクの前進ガードを弱めて書かない。否定（NOT (status_rank < $new) / !(statusRank < next)）と、OR・|| による別条件の追加（status_rank < $new OR id = $1）は、どちらも前進ガードの見た目のまま後退を許すため、W3 の免除条件を満たしてしまう。",
+      "confidence": "高",
+      "source": "docs/research/consolidated.md §6-3（W3）、GPT-6 Astra 5 周目レビュー F-1 / 6 周目レビュー F-1",
+      "enforcement": "grep",
+      "match_mode": "forbid",
+      "grep_patterns": [
+        "([Nn][Oo][Tt][[:space:]]*\\(|![[:space:]]*\\()[^)]*(status_rank|statusRank)",
+        "[Nn][Oo][Tt][[:space:]]+(status_rank|statusRank)",
+        "(status_rank|statusRank).*[[:space:]][Oo][Rr][[:space:]]",
+        "[[:space:]][Oo][Rr][[:space:]].*(status_rank|statusRank)",
+        "(status_rank|statusRank).*\\|\\|",
+        "\\|\\|.*(status_rank|statusRank)"
+      ],
+      "globs": [
+        "src/**/*.ts",
+        "src/**/*.tsx",
+        "supabase/migrations/**/*.sql"
+      ],
+      "exclude_globs": [
+        "src/lib/ledger/rank.ts",
+        "src/lib/ledger/apply.ts"
+      ],
+      "allow_if_line_matches": [],
+      "expect_targets": "now",
+      "notes": "W3 の allow_if_line_matches は「前進方向のランク比較が同一行にあること」しか見られず、その比較が NOT で否定されているか・OR で別条件に迂回されているかは 1 行の正規表現では判定できない（ERE に後読みが無い）。そこで弱められた形そのものを別ゲートで禁止する。ランクを扱う本体（src/lib/ledger/rank.ts / apply.ts）だけが除外され、そこは task_018 の台帳テストが担保する。"
+    },
+    {
+      "id": "GC-LIB-CLIENT-DIRECTIVE",
+      "text": "src/lib/ はサーバー専用の層である。'use client' を宣言したモジュールを src/lib/ に置かない（置くなら src/components/ か src/hooks/）。",
+      "confidence": "高",
+      "source": "docs/research/consolidated.md §6-5（I3）、GPT-6 Astra 5 周目レビュー F-3",
+      "enforcement": "grep",
+      "match_mode": "forbid",
+      "grep_patterns": [
+        "^[[:space:]]*[\"']use client[\"'][[:space:]]*;?[[:space:]]*$"
+      ],
+      "globs": [
+        "src/lib/**/*.ts",
+        "src/lib/**/*.tsx"
+      ],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "now",
+      "notes": "I3 は src/lib/**/*.ts を除外する（そこは Route Handler から呼ばれるサーバーコードで、postgres / drizzle-orm を正当に import する）。その除外が安全なのは「src/lib にクライアントモジュールが無い」という前提があってこそなので、前提そのものをゲートにする。"
     }
   ]
 }

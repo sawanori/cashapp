@@ -921,5 +921,150 @@
     "task_mismatches": 0,
     "effective_high": 1,
     "exit_code": 1
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_004",
+    "reviewer": "adversarial-reviewer-gemini",
+    "vendor": "gemini",
+    "reviewer_route": "unavailable",
+    "model_id_requested": null,
+    "ran_at": "2026-09-24T14:47:26Z",
+    "commit": "27a2f3a4d56605516d3d0dedf0a434a584d065b8",
+    "verdict": "UNKNOWN",
+    "findings": [],
+    "unavailable_reason": "応答から findings を含む JSON を取り出せませんでした（先頭 300 字: ```json\n{\n  \"schema_version\": 1,\n  \"task_id\": \"task_004\",\n  \"reviewer\": \"adversarial-reviewer-gemini\",\n  \"vendor\": \"gemini\",\n  \"reviewer_route\": \"verified\",\n  \"model_id_actual\": \"gemini-2.5-pro\",\n  \"cli_version\": \"0.38.1\",\n  \"backend\": \"gemini-cli\",\n  \"ran_at\": \"2026-09-24T14:47:00Z\",\n  \"verdict\": \"）",
+    "attempted_command": "/Users/noritakasawada/AI_P/cashapp/scripts/gemini-safe.sh -o json -m gemini-2.5-pro -p <instruction>  # packet on stdin",
+    "raw_warnings": [],
+    "validated_at": "2026-09-24T14:50:17Z",
+    "classification": "missing_vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/review-004-r5/gemini.json",
+    "merged_at": "2026-09-24T14:50:17Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": false,
+      "errors": [],
+      "warnings": [],
+      "downgrades": [],
+      "counts": {
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 0,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_004",
+    "reviewer": "adversarial-reviewer-gpt",
+    "vendor": "gpt",
+    "reviewer_route": "cli-fallback",
+    "model_id_requested": "gpt-6-astra",
+    "model_id_actual": "gpt-6-astra",
+    "model_id_source": "self_report",
+    "cli_version": "codex-cli 0.154.0",
+    "backend": "codex",
+    "ran_at": "2026-09-24T14:49:42Z",
+    "commit": "27a2f3a4d56605516d3d0dedf0a434a584d065b8",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "high",
+        "title": "OR 条件でランク制限を外した更新も W3 が免除する",
+        "detail": "許可パターンは前進方向の比較が行内に存在するだけで成立する。OR の別条件によって返金済みの行まで更新対象になっても、gate-constraints.sh はその行を免除する。以下は同梱コードの静的追跡による反例であり、実行は未検証。",
+        "file": "docs/constraints.json",
+        "line": 429,
+        "repro": "同梱テストの makeTempRepo() と seedCleanTree(root) で fixture を作る。supabase/migrations/006.sql に「UPDATE payments SET status = 'paid', status_rank = 2 WHERE status_rank < 2 OR id = 1;」を保存して runRealGate(root) を呼ぶ。許可パターンが一致するため、この行の W3 違反は出力されない。この SQL に id=1、status='refunded'、status_rank=3 の行を入力すると、OR 条件が成立して paid、ランク2へ後退する。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-2",
+        "severity": "medium",
+        "title": "クライアントからの DB ライブラリの動的 import を I3 が見逃す",
+        "detail": "I3 の禁止パターンは from と require のみを検査する。対象範囲内のクライアントファイルでも import('postgres') は一致せず、禁止された DB ライブラリの読み込みを検出できない。静的追跡による指摘であり、実行は未検証。",
+        "file": "docs/constraints.json",
+        "line": 820,
+        "repro": "seedCleanTree(root) の後、src/hooks/use-db.ts に「'use client';\\nexport const connect = () => import('postgres');\\n」を改行区切りで保存し、runRealGate(root) を呼ぶ。このファイルは I3 の対象だが、両方の禁止パターンに一致せず I3 違反が出力されない。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-3",
+        "severity": "medium",
+        "title": "ADD COLUMN IF NOT EXISTS による date 型の追加を見逃す",
+        "detail": "追加された ALTER TABLE 用パターンは ADD COLUMN と列名の間に IF NOT EXISTS が入る構文に一致しない。列定義用の別パターンも列名の直前を行頭・開き括弧・カンマに限定しているため、この禁止型の宣言を検出できない。静的追跡による指摘であり、実行は未検証。",
+        "file": "docs/constraints.json",
+        "line": 893,
+        "repro": "seedCleanTree(root) の後、supabase/migrations/007.sql に「CREATE TABLE example (id integer);」と「ALTER TABLE example ADD COLUMN IF NOT EXISTS due_on date;」を2行で保存して runRealGate(root) を呼ぶ。2行目は date 型の列を追加するが、同梱差分に示された X-TIME の全禁止パターンに一致せず、X-TIME 違反が出力されない。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      }
+    ],
+    "diagnostics": {
+      "exit_code": 0,
+      "event_types": [
+        "thread.started",
+        "turn.started",
+        "item.completed",
+        "item.completed",
+        "turn.completed"
+      ],
+      "cli_errors": [
+        "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+      ],
+      "last_message_bytes": 1692,
+      "stderr_tail": ": \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T14:47:27.803923Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T14:47:27.940263Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer error=\\\"invalid_request\\\", error_description=\\\"No access token was provided in this request\\\", resource_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n2026-09-24T14:47:27.950425Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n"
+    },
+    "packet_bytes": 260086,
+    "validated_at": "2026-09-24T14:50:17Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/review-004-r5/gpt.json",
+    "merged_at": "2026-09-24T14:50:17Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gpt-6-astra を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 1,
+        "medium": 2,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 3,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "type": "summary",
+    "task_id": "task_004",
+    "round": 1,
+    "merged_at": "2026-09-24T14:50:17Z",
+    "decision": "reject",
+    "envelopes": 2,
+    "votes": 1,
+    "vendors": [
+      "gpt"
+    ],
+    "author_vendor": "claude",
+    "missing_votes": 1,
+    "invalid_envelopes": 0,
+    "invalid_reviews": 0,
+    "self_reviews": 0,
+    "task_mismatches": 0,
+    "effective_high": 1,
+    "exit_code": 1
   }
 ]

@@ -311,6 +311,45 @@ I3 は `src/lib/**/*.ts` を除外している（そこは Route Handler から�
 
 ---
 
+## 6・7 周目（4 回目 / 5 回目の G5）
+
+### 4 回目の G5 — gemini high 1（実測で解消）/ GPT 欠票
+
+gemini F-1 [high] は「`npm run test:unit` が落ちている」。封筒が読んだ run-log の時点
+（`d1a2eeb`）の記録であり、落ちていたのは **task_013 が編集中だった未コミットの**
+`tests/unit/ci/web-only-workflow.test.ts` と `src/lib/liff/client.ts`。task_013 が
+`d1a2eeb` でコミットしたあと同じ HEAD で走らせ直すと `typecheck` / `test:unit` とも **exit 0**
+（38 ファイル / 1005 件全緑）。GPT はこの回だけ経路不達（欠票）。
+
+### 5 回目の G5 — GPT high 1 / medium 2（全件修正）/ gemini 欠票
+
+### GPT F-1 [high・解消済み] OR 条件でランク制限を外した更新も W3 が免除する
+
+**再現**: `UPDATE payments SET status = 'paid', status_rank = 2 WHERE status_rank < 2 OR id = 1;`
+で W3 は報告されず **exit 0**（前進ガードは行内に在るが、OR の別条件で返金済みの行まで
+更新対象になる）。**修正**: `GC-RANK-NEGATION` を「否定」だけでなく「弱められた形」全般に広げ、
+ランク比較と同一行の ` OR ` / `||` を禁止した。**実測（修正後）**: exit 1。
+ランクを扱う本体（`src/lib/ledger/rank.ts` / `apply.ts`）は除外されたままで、そこは task_018 の
+台帳テストが担保する。
+
+### GPT F-2 [medium・解消済み] クライアントからの DB ライブラリの動的 import を I3 が見逃す
+
+**再現**: `src/hooks/use-db.ts` に `export const connect = () => import('postgres');` で
+**exit 0**（I3 は `from` と `require` しか見ていなかった）。**修正**: P1 と同じ形で
+`import(` と副作用 import のパターンを足した。**実測（修正後）**: `I3 src/hooks/use-db.ts:2` / exit 1。
+
+### GPT F-3 [medium・解消済み] `ADD COLUMN IF NOT EXISTS ... date` を見逃す
+
+**再現**: `ALTER TABLE example ADD COLUMN IF NOT EXISTS due_on date;` で **exit 0**。
+**修正**: DDL 用パターンの `ADD [COLUMN]` と列名の間に `IF NOT EXISTS` を挟めるようにした。
+**実測（修正後）**: `X-TIME supabase/migrations/007.sql:2` / exit 1。
+
+**7 周目の実測**: `npm run test:unit`（38 ファイル / **1008 件全緑**）/ `gate:constraints` /
+`gate:wording` / `typecheck` / `lint` はすべて **exit 0**。task_004 所有の 2 ファイルは
+**66/66 緑**。
+
+---
+
 ## 残懸念
 
 ### C-004-1 [medium] I3 は「クライアントかどうか」をディレクトリで近似している
