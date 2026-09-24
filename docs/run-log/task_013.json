@@ -1,0 +1,77 @@
+[
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "aa7a8dcf625138c0bc93234ea7365afdd63758fd",
+    "ran_at": "2026-09-24T09:34:23Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run lint",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 lint\n> eslint .",
+    "commit": "aa7a8dcf625138c0bc93234ea7365afdd63758fd",
+    "ran_at": "2026-09-24T09:34:27Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  24 passed (24)\n      Tests  684 passed (684)\n   Start at  09:34:34\n   Duration  42.69s (tests 91%, setup 4%, environment 2%, import 1%, transform 1%)",
+    "commit": "aa7a8dcf625138c0bc93234ea7365afdd63758fd",
+    "ran_at": "2026-09-24T09:34:33Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run build",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 build\n> next build\n\n▲ Next.js 16.3.6 (Turbopack)\n✓ Running next.config.ts took 585ms\n\n⚠ The \"middleware\" file convention is deprecated. Please use \"proxy\" instead.\n\n  To migrate automatically, run:\n  npx @next/codemod@canary middleware-to-proxy .\n\n  Learn more: https://nextjs.org/docs/messages/middleware-to-proxy\n  Creating an optimized production build ...\n✓ Compiled successfully in 646ms\n  Running TypeScript ...\n  Finished TypeScript in 11.6s ...\n  Collecting page data using 9 workers ...\n  Generating static pages using 9 workers (0/8) ...\n  Generating static pages using 9 workers (2/8) \r\n  Generating static pages using 9 workers (4/8) \r\n  Generating static pages using 9 workers (6/8) \r\n✓ Generating static pages using 9 workers (8/8) in 586ms\n  Finalizing page optimization ...\n\nRoute (app)\n┌ ○ /\n├ ○ /_not-found\n├ ƒ /api/auth/line\n├ ƒ /api/consent\n├ ƒ /api/health\n├ ƒ /api/me\n└ ƒ /api/telemetry/client-error\n\n\nƒ Proxy (Middleware)\n\n○  (Static)   prerendered as static content\nƒ  (Dynamic)  server-rendered on demand",
+    "commit": "3fec1c538baf88d17945d5e1755dd259c9eb212b",
+    "ran_at": "2026-09-24T09:35:34Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run build:web-only",
+    "exit_code": 0,
+    "stdout_tail": "build:web-only: import グラフを 4 ファイル走査しました（起点: src/app/(web)/** と src/app/layout.tsx）\n▲ Next.js 16.3.6 (Turbopack)\n✓ Running next.config.ts took 415ms\n\n⚠ The \"middleware\" file convention is deprecated. Please use \"proxy\" instead.\n\n  To migrate automatically, run:\n  npx @next/codemod@canary middleware-to-proxy .\n\n  Learn more: https://nextjs.org/docs/messages/middleware-to-proxy\n  Creating an optimized production build ...\n✓ Compiled successfully in 622ms\n  Running TypeScript ...\n  Finished TypeScript in 2.7s ...\n  Collecting page data using 9 workers ...\n  Generating static pages using 9 workers (0/8) ...\n  Generating static pages using 9 workers (2/8) \r\n  Generating static pages using 9 workers (4/8) \r\n  Generating static pages using 9 workers (6/8) \r\n✓ Generating static pages using 9 workers (8/8) in 588ms\n  Finalizing page optimization ...\n\nRoute (app)\n┌ ○ /\n├ ○ /_not-found\n├ ƒ /api/auth/line\n├ ƒ /api/consent\n├ ƒ /api/health\n├ ƒ /api/me\n└ ƒ /api/telemetry/client-error\n\n\nƒ Proxy (Middleware)\n\n○  (Static)   prerendered as static content\nƒ  (Dynamic)  server-rendered on demand\n\nbuild:web-only: 注意 — .next/static に LIFF 由来の文字列が 1 つも無い。まだ (liff) のページが bootLiff() を呼んでいないため、モック混入の grep は現時点では空振りに近い。(liff) 画面が入る task_014 / task_015 で再確認すること。\nbuild:web-only: .next/static を検査しました（禁止マーカー 4 件）\nbuild:web-only: OK（(web) は LINE SDK に依存せず、バンドルにモックも dev LIFF ID も無い）",
+    "commit": "3fec1c538baf88d17945d5e1755dd259c9eb212b",
+    "ran_at": "2026-09-24T09:35:54Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 28 file(s))\nok    L2 (forbid, 28 file(s))\nok    L3 (forbid, 28 file(s))\nok    L8 (forbid, 28 file(s))\nok    L12 (forbid, 28 file(s))\nok    P1 (forbid, 28 file(s))\ndefer P2 (0 targets; waiting on task_018)\nok    P9 (forbid, 3 file(s))\nok    W3 (forbid, 35 file(s))\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 26 file(s))\nok    N5 (forbid, 28 file(s))\nok    N7 (forbid, 28 file(s))\nok    N9 (forbid, 28 file(s))\nok    N11 (forbid, 28 file(s))\nok    I1 (require, 1 file(s))\nok    I2 (require, 1 file(s))\nok    I3 (forbid, 7 file(s))\nok    I4 (forbid, 2 file(s))\nok    X-TIME (forbid, 8 file(s))\nok    X-ID (forbid, 9 file(s))\ndefer X-MONEY (0 targets; waiting on task_017)\nok    GC-XSS (forbid, 28 file(s))\nok    GC-ENV-PUBLIC (forbid, 33 file(s))\nok    GC-SERVER-ONLY (require, 1 file(s))\n\ngate:constraints — scanned 22 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "3fec1c538baf88d17945d5e1755dd259c9eb212b",
+    "ran_at": "2026-09-24T09:36:04Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "HEAD aa7a8dc・npm run build 直後の .next/static（ファイル 10 件）に対する生 grep の実測: '@line/liff-mock' 0 件 / 'LiffMockPlugin' 0 件 / dev の LIFF ID '2000000000-abcd1234' 0 件 / 'liff' を含むファイル自体も 0 件。done_definition 第 3 項は満たすが、4 つ目の実測が示すとおり LIFF SDK 自体がまだクライアントバンドルに載っていない（どのページも bootLiff() を呼んでいない）ため、この grep の証明力は現時点では低い。process.env.NEXT_PUBLIC_LIFF_MOCK の定数畳み込みが Turbopack 本番ビルドで実際に効くかは未実測。docs/concerns/task_013.md C-013-2 に記録し、最初の (liff) ページが入る task_014 で再実測する。",
+    "commit": "3fec1c538baf88d17945d5e1755dd259c9eb212b",
+    "ran_at": "2026-09-24T09:36:30Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "done_definition 第 5 項『gate.yml に web-only ジョブが追加され緑』のうち、実 PR での緑は deferred: GitHub リモート作成後に実施（git remote -v が空・git push は禁止コマンド）。実施したのは静的検証のみで、内訳は (1) .github/workflows/gate-web-only.yml が gate-<job>.yml の規約どおり実在、(2) YAML として妥当で jobs.web-only ちょうど 1 つ、(3) ステップが呼ぶ npm run build:web-only が package.json に実在、(4) gate.yml（task_009 所有・本タスクは未編集）に web-only ジョブの二重定義が無い。この 4 点は tests/unit/ci/web-only-workflow.test.ts が npm run test:unit のたびに実行する（上の test:unit exit 0 に含まれる）。",
+    "commit": "3fec1c538baf88d17945d5e1755dd259c9eb212b",
+    "ran_at": "2026-09-24T09:36:44Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "(liff) / (web) の両ルートグループにはページが 1 つも無く、npm run build のルート表にも現れない（実測: Route (app) は / と /_not-found と /api/* のみ）。そのため (liff)/layout.tsx の resolveLiffId() が実 Workers env から LINE_ENV_PROFILE を読んで meta[name=x-liff-id] を出す経路、設定不正時に StaticFallback へ落ちる分岐、readLiffIdFromDocument() の実ブラウザ DOM での動作はいずれも未実測である。ユニットテストは querySelector を注入した擬似 document でのみ検証している。docs/concerns/task_013.md C-013-4。",
+    "commit": "3fec1c538baf88d17945d5e1755dd259c9eb212b",
+    "ran_at": "2026-09-24T09:36:44Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  }
+]
