@@ -170,5 +170,118 @@
     "commit": "a261bd9896b31bdf3eebb950efe53f85c1fe691c",
     "ran_at": "2026-09-24T09:06:11Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:acceptance",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:acceptance\n> node scripts/assert-acceptance.mjs\n\n        G3 check 133 件 / 参照 133 件\n        G4 完了タスク 9 件を検査\n        G4 docs/PROGRESS.md の完了宣言 8 件 / 台帳との食い違い 0 件\n        G9 evidence 記入済みの check がまだ 0 件です（HEAD=b2addd370cf0…）\n   warn G4 task_002: manual_verification[0]「python3 で JSON を検査し record-run」は、どの項目の記録か名乗っていない manual エントリで充当しました。観察結果の先頭に `manual_verification[<索引>]` を書いてください\n\ngate:acceptance — 対象 150 件（evidence 付き 0 件）、違反 0 件 / warn 1 件",
+    "commit": "b2addd370cf04e00f4f458dd7ae5539ecc7d1740",
+    "ran_at": "2026-09-24T09:08:28Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:check",
+    "exit_code": 1,
+    "stdout_tail": "        対象 7 件。task_007 が DONE のため G5 はブロッキング\n   FAIL G5 task_004: docs/review-log/task_004.json がありません\n   FAIL G5 task_005: docs/review-log/task_005.json がありません\n   FAIL G5 task_006: docs/review-log/task_006.json がありません\n   FAIL G5 task_007: docs/review-log/task_007.json がありません\n   FAIL G5 task_009: docs/review-log/task_009.json がありません\n   FAIL G5 task_011: docs/review-log/task_011.json がありません\n   FAIL G5 task_012: docs/review-log/task_012.json がありません\nok    G6 DONE_WITH_CONCERNS の concerns に severity と対応案 — 対象 8 件\n        DONE_WITH_CONCERNS 8 件を検査\n        task_004: 台帳の concerns[] は空。docs/HANDOFF.md の 5 件で判定\n        task_005: 台帳の concerns[] は空。docs/concerns/task_005.md / docs/HANDOFF.md の 24 件で判定\n        task_012: 台帳の concerns[] は空。docs/concerns/task_012.md の 13 件で判定\ndefer G7 tests/contract のファイル数が減っていない — 対象 0 件\n        tests/contract/ はまだ存在しません（task_018 で作成。基準値 0 と一致）\nok    G8 差分に実シークレットが含まれない — 対象 502 件\n        追加行 502 行を走査\ndefer G9 evidence.commit === HEAD — 対象 0 件\n        evidence 記入済みの check がまだ 0 件です（HEAD=b2addd370cf0…）\nok    G10 [設計] / [不明] 依存の ADR が accepted になっていない — 対象 4 件\n        ADR 4 件を検査\nok    G11 severity=high の未解決 concerns 3 件以上で in_progress を禁止 — 対象 38 件\n        未解決 high concerns 25 件（task_005, task_006, task_007, task_009, task_011, task_012） / しきい値 3 件 / in_progress 0 件\n        集計元: docs/concerns/task_005.md=1 / docs/HANDOFF.md=7 / docs/task-list.json=8 / docs/concerns/task_006.md=1 / docs/concerns/task_007.md=2 / docs/concerns/task_009.md=4 / docs/concerns/task_012.md=2\ndefer G12 fixture の provenance（captured_from）と autoDetect の宣言 — 対象 0 件\n        tests/fixtures/<provider>/ がまだありません（task_018 / task_019 で作成）\nok    G13 ゲート定義ファイルのハッシュが基準値と一致 — 対象 38 件\n        ハッシュ対象 38 ファイル（sha256）\ndefer G14 直近 7 日の監査連鎖が audit:verify で検証済み — 対象 0 件\n        package.json に audit:verify がありません（task_018 で作成）\n\ngate:check — 15 ゲートを判定、1 ゲートが不合格（違反 7 件 / warn 20 件）\ngate:check — 15 ゲートを判定、1 ゲートが不合格（違反 7 件 / warn 20 件）\n   FAIL G5 task_004: docs/review-log/task_004.json がありません\n   FAIL G5 task_005: docs/review-log/task_005.json がありません\n   FAIL G5 task_006: docs/review-log/task_006.json がありません\n   FAIL G5 task_007: docs/review-log/task_007.json がありません\n   FAIL G5 task_009: docs/review-log/task_009.json がありません\n   FAIL G5 task_011: docs/review-log/task_011.json がありません\n   FAIL G5 task_012: docs/review-log/task_012.json がありません",
+    "commit": "b2addd370cf04e00f4f458dd7ae5539ecc7d1740",
+    "ran_at": "2026-09-24T09:08:30Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:integrity",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:integrity\n> node scripts/gate-integrity.mjs\n\n      ハッシュ対象 38 ファイル（sha256）\n\ngate:integrity — 38 ファイルを照合、0 件の不一致",
+    "commit": "b2addd370cf04e00f4f458dd7ae5539ecc7d1740",
+    "ran_at": "2026-09-24T09:08:33Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:integrity",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:integrity\n> node scripts/gate-integrity.mjs\n\n      ハッシュ対象 40 ファイル（sha256）\n\ngate:integrity — 40 ファイルを照合、0 件の不一致",
+    "commit": "3fec1c538baf88d17945d5e1755dd259c9eb212b",
+    "ran_at": "2026-09-24T09:36:29Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:check",
+    "exit_code": 1,
+    "stdout_tail": "   warn G4 task_002: manual_verification[0]「python3 で JSON を検査し record-run」は、どの項目の記録か名乗っていない manual エントリで充当しました。観察結果の先頭に `manual_verification[<索引>]` を書いてください\n   FAIL G4 task_013: docs/PROGRESS.md は DONE_WITH_CONCERNS を宣言していますが docs/task-list.json の completion_status が null です（台帳が追随していないぶん G4 / G5 / G6 の対象から落ちます）\nFAIL  G5 high × adversarial_review=required の完了に敵対レビュー記録 — 対象 7 件\n        対象 7 件。task_007 が DONE のため G5 はブロッキング\n   FAIL G5 task_004: docs/review-log/task_004.json がありません\n   FAIL G5 task_005: docs/review-log/task_005.json がありません\n   FAIL G5 task_006: docs/review-log/task_006.json がありません\n   FAIL G5 task_011: docs/review-log/task_011.json がありません\n   FAIL G5 task_012: docs/review-log/task_012.json がありません\nok    G6 DONE_WITH_CONCERNS の concerns に severity と対応案 — 対象 8 件\n        DONE_WITH_CONCERNS 8 件を検査\n        task_004: 台帳の concerns[] は空。docs/HANDOFF.md の 5 件で判定\n        task_005: 台帳の concerns[] は空。docs/concerns/task_005.md / docs/HANDOFF.md の 24 件で判定\n        task_012: 台帳の concerns[] は空。docs/concerns/task_012.md の 13 件で判定\ndefer G7 tests/contract のファイル数が減っていない — 対象 0 件\n        tests/contract/ はまだ存在しません（task_018 で作成。基準値 0 と一致）\nok    G8 差分に実シークレットが含まれない — 対象 347 件\n        追加行 347 行を走査\ndefer G9 evidence.commit === HEAD — 対象 0 件\n        evidence 記入済みの check がまだ 0 件です（HEAD=3fec1c538baf…）\nok    G10 [設計] / [不明] 依存の ADR が accepted になっていない — 対象 5 件\n        ADR 5 件を検査\nok    G11 severity=high の未解決 concerns 3 件以上で in_progress を禁止 — 対象 38 件\n        未解決 high concerns 31 件（task_005, task_006, task_007, task_009, task_011, task_012, task_013） / しきい値 3 件 / in_progress 0 件\n        集計元: docs/concerns/task_005.md=1 / docs/HANDOFF.md=11 / docs/task-list.json=8 / docs/concerns/task_006.md=1 / docs/concerns/task_007.md=2 / docs/concerns/task_009.md=4 / docs/concerns/task_012.md=2 / docs/concerns/task_013.md=2\ndefer G12 fixture の provenance（captured_from）と autoDetect の宣言 — 対象 0 件\n        tests/fixtures/<provider>/ がまだありません（task_018 / task_019 で作成）\nok    G13 ゲート定義ファイルのハッシュが基準値と一致 — 対象 40 件\n        ハッシュ対象 40 ファイル（sha256）\ndefer G14 直近 7 日の監査連鎖が audit:verify で検証済み — 対象 0 件\n        package.json に audit:verify がありません（task_018 で作成）\n\ngate:check — 15 ゲートを判定、2 ゲートが不合格（違反 6 件 / warn 19 件）\ngate:check — 15 ゲートを判定、2 ゲートが不合格（違反 6 件 / warn 19 件）\n   FAIL G4 task_013: docs/PROGRESS.md は DONE_WITH_CONCERNS を宣言していますが docs/task-list.json の completion_status が null です（台帳が追随していないぶん G4 / G5 / G6 の対象から落ちます）\n   FAIL G5 task_004: docs/review-log/task_004.json がありません\n   FAIL G5 task_005: docs/review-log/task_005.json がありません\n   FAIL G5 task_006: docs/review-log/task_006.json がありません\n   FAIL G5 task_011: docs/review-log/task_011.json がありません\n   FAIL G5 task_012: docs/review-log/task_012.json がありません",
+    "commit": "3fec1c538baf88d17945d5e1755dd259c9eb212b",
+    "ran_at": "2026-09-24T09:36:48Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "manual_verification[0] 代替: GitHub Actions のログは取れない（git remote -v が空）。代わりに (1) 実ビルド成果物での secrets-grep を実測: npm run build && npm run build:cf のあと、修正前の scripts/ci/secrets-grep.sh は exit 1・違反 4 件（PEPPER / SESSION_KEYS / CRON_SECRETS / DATABASE_URL がすべて .open-next/server-functions と handler.mjs で検出＝env.ts の正当な参照に自分で当たっていた）、走査を 2 群に分けた修正後は exit 0（クライアント .next/static + .open-next/assets = 21 ファイル / サーバー .open-next の assets 以外 = 1189 ファイル、違反 0 件）。(2) 負の対照 tests/unit/ci/secrets-grep.test.ts 23 件が pass（クライアントに 12 種のシークレット名が載れば全件で exit 1 / サーバーに名前があるだけなら exit 0 / 本番鍵の値・資格情報つき postgres URL・JWT は両群で exit 1 / ビルド未実施・片方のビルド欠落・ファイル 0 件はいずれも exit 1）。(3) ワークフロー 6 本（gate.yml / gate-tamper.yml / gate-integration.yml / gate-web-only.yml / e2e.yml / release.yml）の静的検証で問題 0 件: YAML パース可・run: が呼ぶ npm run <name> が package.json.scripts に実在・node/bash が呼ぶ scripts/** が実在・ジョブ ID が全ワークフローで一意（status check 名の衝突なし）・test-tamper-guard の types が [opened, synchronize, reopened, edited]。(4) node scripts/ci/assert-release-gate.mjs は exit 0（check_051）。",
+    "commit": "1da804b89d4369108db2e16b25f4fc0282be2c9d",
+    "ran_at": "2026-09-24T09:37:21Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "manual_verification[0] 続き: docs/gates/release-mode.json は本周でも作成できなかった（deferred: PO）。Write ツールで作成を試み、scripts/deny-test-weakening.sh が exit 2 で遮断した。遮断メッセージは『対象: /Users/noritakasawada/AI_P/cashapp/docs/gates/release-mode.json / 理由: docs/gates/** は PO 専管のゲート定義の正本です（R-SEC-07 / F13）』。迂回（.claude/settings.json やガード本体の編集）は行っていない。branch protection（check_039）と PR / workflow_dispatch の実走（check_130 / check_131）も git remote -v が空のままのため未実施（deferred: GitHub リモート作成後）。",
+    "commit": "1da804b89d4369108db2e16b25f4fc0282be2c9d",
+    "ran_at": "2026-09-24T09:37:31Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 1,
+    "stdout_tail": "    376|\n    377|   it(\"passes on a clean tree\", () => {\n       |   ^\n    378|     const root = makeTempRepo();\n    379|     seedCleanTree(root);\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯\n\n FAIL  tests/unit/gate-constraints.test.ts > scripts/gate-constraints.sh (real docs/constraints.json against a fixture tree) > catches the real forbidden patterns\nError: Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n ❯ tests/unit/gate-constraints.test.ts:387:3\n    385|   });\n    386|\n    387|   it(\"catches the real forbidden patterns\", () => {\n       |   ^\n    388|     const root = makeTempRepo();\n    389|     seedCleanTree(root);\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯\n\n FAIL  tests/unit/gate-constraints.test.ts > scripts/gate-constraints.sh (real docs/constraints.json against a fixture tree) > fails an I1 / I2 tree whose required Cloudflare settings are missing\nError: Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n ❯ tests/unit/gate-constraints.test.ts:422:3\n    420|   });\n    421|\n    422|   it(\"fails an I1 / I2 tree whose required Cloudflare settings are mis…\n       |   ^\n    423|     const root = makeTempRepo();\n    424|     seedCleanTree(root);\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯\n\n\n Test Files  1 failed | 23 passed (24)\n      Tests  3 failed | 681 passed (684)\n   Start at  09:38:08\n   Duration  60.03s (tests 81%, setup 8%, environment 5%, import 2%, transform 2%, worker 1%)",
+    "commit": "1da804b89d4369108db2e16b25f4fc0282be2c9d",
+    "ran_at": "2026-09-24T09:38:08Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 1,
+    "stdout_tail": "    376|\n    377|   it(\"passes on a clean tree\", () => {\n       |   ^\n    378|     const root = makeTempRepo();\n    379|     seedCleanTree(root);\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯\n\n FAIL  tests/unit/gate-constraints.test.ts > scripts/gate-constraints.sh (real docs/constraints.json against a fixture tree) > catches the real forbidden patterns\nError: Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n ❯ tests/unit/gate-constraints.test.ts:387:3\n    385|   });\n    386|\n    387|   it(\"catches the real forbidden patterns\", () => {\n       |   ^\n    388|     const root = makeTempRepo();\n    389|     seedCleanTree(root);\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯\n\n FAIL  tests/unit/gate-constraints.test.ts > scripts/gate-constraints.sh (real docs/constraints.json against a fixture tree) > fails an I1 / I2 tree whose required Cloudflare settings are missing\nError: Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n ❯ tests/unit/gate-constraints.test.ts:422:3\n    420|   });\n    421|\n    422|   it(\"fails an I1 / I2 tree whose required Cloudflare settings are mis…\n       |   ^\n    423|     const root = makeTempRepo();\n    424|     seedCleanTree(root);\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯\n\n\n Test Files  2 failed | 23 passed (25)\n      Tests  5 failed | 685 passed (690)\n   Start at  09:39:39\n   Duration  77.39s (tests 84%, setup 7%, environment 5%, import 3%, transform 1%)",
+    "commit": "1da804b89d4369108db2e16b25f4fc0282be2c9d",
+    "ran_at": "2026-09-24T09:39:38Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n ❯ tests/unit/gate-constraints.test.ts (17 tests | 1 failed) 14784ms\n   ❯ scripts/gate-constraints.sh (real docs/constraints.json against a fixture tree) (3)\n     × passes on a clean tree 5420ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  tests/unit/gate-constraints.test.ts > scripts/gate-constraints.sh (real docs/constraints.json against a fixture tree) > passes on a clean tree\nError: Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n ❯ tests/unit/gate-constraints.test.ts:377:3\n    375|   }\n    376|\n    377|   it(\"passes on a clean tree\", () => {\n       |   ^\n    378|     const root = makeTempRepo();\n    379|     seedCleanTree(root);\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\n\n\n Test Files  1 failed | 24 passed (25)\n      Tests  1 failed | 690 passed (691)\n   Start at  09:42:16\n   Duration  54.37s (tests 92%, setup 4%, environment 2%, import 1%, transform 1%)",
+    "commit": "f004da28550554f82b541085fbdfe90b211d0784",
+    "ran_at": "2026-09-24T09:42:16Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:acceptance",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:acceptance\n> node scripts/assert-acceptance.mjs\n\n        G3 check 133 件 / 参照 133 件\n        G4 完了タスク 9 件を検査\n        G4 docs/PROGRESS.md の完了宣言 10 件 / 台帳との食い違い 1 件\n        G9 evidence 記入済みの check がまだ 0 件です（HEAD=f004da285505…）\n   warn G4 task_002: manual_verification[0]「python3 で JSON を検査し record-run」は、どの項目の記録か名乗っていない manual エントリで充当しました。観察結果の先頭に `manual_verification[<索引>]` を書いてください\n   FAIL G4 task_013: docs/PROGRESS.md は DONE_WITH_CONCERNS を宣言していますが docs/task-list.json の completion_status が null です（台帳が追随していないぶん G4 / G5 / G6 の対象から落ちます）\n\ngate:acceptance — 対象 152 件（evidence 付き 0 件）、違反 1 件 / warn 1 件",
+    "commit": "f004da28550554f82b541085fbdfe90b211d0784",
+    "ran_at": "2026-09-24T09:43:27Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "bash scripts/ci/secrets-grep.sh",
+    "exit_code": 0,
+    "stdout_tail": "secrets-grep: (A) クライアント配布物 .next/static .open-next/assets（21 ファイル）\nsecrets-grep: (B) サーバーバンドル .open-next/.build .open-next/cache .open-next/cloudflare .open-next/cloudflare-templates .open-next/dynamodb-provider .open-next/middleware .open-next/server-functions .open-next/worker.js（1189 ファイル）\nsecrets-grep — クライアント 21 ファイル / サーバー 1189 ファイルを走査、違反 0 件",
+    "commit": "f004da28550554f82b541085fbdfe90b211d0784",
+    "ran_at": "2026-09-24T09:43:43Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx vitest run tests/unit/ci",
+    "exit_code": 0,
+    "stdout_tail": "(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  4 passed (4)\n      Tests  71 passed (71)\n   Start at  18:43:49\n   Duration  6.12s (tests 91%, setup 6%, transform 2%, import 1%)",
+    "commit": "f004da28550554f82b541085fbdfe90b211d0784",
+    "ran_at": "2026-09-24T09:43:49Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]

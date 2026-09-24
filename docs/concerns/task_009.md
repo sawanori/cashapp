@@ -142,6 +142,11 @@ GitHub Actions CI・PR テンプレート・test-tamper-guard・release.yml の 
   §16-6 の意図に対して覆っている範囲が狭いことは、修正されずに残っている。
   2 TZ 比較そのものは空振りではない（両 TZ で実出力が一致することを実測）が、
   「日付境界が検査されている」と読んではいけない。
+  なお本周の時点で `src/lib` に日付・営業日のロジックは**まだ 1 行も無い**
+  （`grep -rln '営業日|businessDay|Asia/Tokyo|toZonedTime|JST' src/lib src/app` が 0 件）。
+  つまり現時点で覆うべき対象自体が存在しない。**X-TIME の実装が入るタスク（締切計算・
+  5 営業日判定・JST 境界）が、`vitest.config.ts` の `env.TZ` を
+  `process.env.TZ ?? "UTC"` に変えるところまでを自分の scope に含めること。**
 - **対応案**: 現状の `date-boundary` ジョブは、TZ を実際に継承する Node スクリプト
   （`scripts/gate-check.mjs --json` と `scripts/gate-constraints.sh`）の**出力と終了コードを
   2 つの TZ で突き合わせる**構成にした。これは空振りではない（ローカルで 2 TZ 実行し
