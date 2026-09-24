@@ -1,0 +1,135 @@
+[
+  {
+    "schema_version": 1,
+    "task_id": "task_012",
+    "reviewer": "adversarial-reviewer-gemini",
+    "vendor": "gemini",
+    "reviewer_route": "verified",
+    "model_id_requested": "gemini-2.5-pro",
+    "model_id_actual": "gemini-2.5-pro",
+    "model_id_source": "cli_stats",
+    "cli_version": "0.38.1",
+    "backend": "gemini-cli",
+    "ran_at": "2026-09-24T11:02:56Z",
+    "commit": "906ba0a3f3dc699f3bf385ae90c61c0737e55b07",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "medium",
+        "title": "`gate:env` のソースコードパーサが脆く、フォーマット変更で静かに無効化される",
+        "detail": "`scripts/gate-env-scope.mjs` の `readPinnedProjectRefs` 関数は、正規表現と文字列検索を使って `src/lib/config/env.ts` から `EXPECTED_SUPABASE_PROJECT_REF` の値を抽出しています。この方法は、ソースコードのフォーマット（改行、スペース、コメントなど）の僅かな変更に非常に弱く、パースに失敗する可能性があります。パースに失敗した場合、この関数は `null` を返し、ゲートは違反を報告せずに `pending` 状態になります。これは、セキュリティチェックが警告なしに無効化される経路であり、意図しない本番値の混入を見逃すリスクがあります。",
+        "file": "scripts/gate-env-scope.mjs",
+        "repro": "1. `src/lib/config/env.ts` の `EXPECTED_SUPABASE_PROJECT_REF` の定義を `export const EXPECTED_SUPABASE_PROJECT_REF: Readonly<Record<AppEnvName, string | null>> = { /* comment */ staging: \"...\", ... };` のようにコメントを挟むなどしてフォーマットを変更する。\n2. `npm run gate:env` を実行する。\n3. ゲートが `violation` ではなく `pending` を報告し、片側混入チェックが実行されないことを確認する。",
+        "citation": "task `goal`=\"環境プロファイルの整合アサートを実装する\" および関連リスク `R-SEC-05`=\"staging/production 環境の分離\"。このゲートの静かな無効化は、この目的を損なう。",
+        "suggested_fix": "TypeScriptのコンパイラAPIや、より堅牢なASTパーサを使って値を抽出するか、あるいはパースに失敗した場合は `violation` として報告し、ゲートを失敗させるべきである。",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-2",
+        "severity": "low",
+        "title": "`security-headers.test.ts` が Next.js の非公開 API に依存しており、Next.js のパッチバージョンアップで破壊される可能性がある",
+        "detail": "`tests/unit/security-headers.test.ts` は、CSP nonce の伝搬を検証するために `next/dist/server/app-render/get-script-nonce-from-header` という Next.js の内部関数を直接インポートしています。これは公式にサポートされた API ではないため、Next.js のマイナーバージョンアップやパッチバージョンアップで予告なく変更・削除され、テストが失敗する可能性があります。この依存はテストの安定性を損ないます。",
+        "file": "tests/unit/security-headers.test.ts",
+        "repro": "Next.js を `getScriptNonceFromHeader` 関数のシグネチャまたは場所が変更されるバージョンにアップグレードすると、`npm run test:unit` が失敗する。",
+        "citation": "Next.js の公式ドキュメントでは `next/dist` 以下のモジュールを public API として保証していない。",
+        "suggested_fix": "このテストはE2Eテスト（Playwrightなど）で、実際にレンダリングされたHTMLの`<script>`タグに`nonce`属性が付与されているかを確認する方が、より堅牢で将来の変更に強い。ユニットテストで完結させたい場合でも、この依存が脆いことを認識し、代替手段を検討すべきである。",
+        "effective_severity": "low"
+      }
+    ],
+    "raw_warnings": [],
+    "packet_bytes": 579764,
+    "validated_at": "2026-09-24T11:05:26Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/review-012/gemini.json",
+    "merged_at": "2026-09-24T11:05:26Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gemini-2.5-pro を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 0,
+        "medium": 1,
+        "low": 1,
+        "info": 0,
+        "unknown": 0,
+        "total": 2,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_012",
+    "reviewer": "adversarial-reviewer-gpt",
+    "vendor": "gpt",
+    "reviewer_route": "unavailable",
+    "model_id_requested": "gpt-6-astra",
+    "ran_at": "2026-09-24T11:03:02Z",
+    "commit": "906ba0a3f3dc699f3bf385ae90c61c0737e55b07",
+    "verdict": "UNKNOWN",
+    "findings": [],
+    "unavailable_reason": "codex exec はエージェントの応答を返しませんでした（exit 0、イベント: thread.started, turn.started, item.completed, turn.completed）。~/.codex/hooks/block-non-claude-model.sh が UserPromptSubmit で非 Claude モデルのプロンプトを遮断している状態と一致します（R-TH-03）。解除は PO 承認事項（task_010）。",
+    "attempted_command": "codex exec --json --skip-git-repo-check -s read-only -m gpt-6-astra --output-last-message <tmp> -  # instruction + packet on stdin",
+    "diagnostics": {
+      "exit_code": 0,
+      "event_types": [
+        "thread.started",
+        "turn.started",
+        "item.completed",
+        "turn.completed"
+      ],
+      "cli_errors": [
+        "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+      ],
+      "last_message_bytes": 0,
+      "stderr_tail": "nsport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T11:02:57.863023Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer error=\\\"invalid_request\\\", error_description=\\\"No access token was provided in this request\\\", resource_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n2026-09-24T11:02:57.887071Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\nWarning: no last agent message; wrote empty content to /var/folders/h6/2q0crwpx3zx94d5zxclh_f5c0000gn/T/review-gpt-Jv47Fw/last-message.txt\n"
+    },
+    "validated_at": "2026-09-24T11:05:26Z",
+    "classification": "missing_vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/review-012/gpt.json",
+    "merged_at": "2026-09-24T11:05:26Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": false,
+      "errors": [],
+      "warnings": [],
+      "downgrades": [],
+      "counts": {
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 0,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "type": "summary",
+    "task_id": "task_012",
+    "round": 1,
+    "merged_at": "2026-09-24T11:05:26Z",
+    "decision": "pass",
+    "envelopes": 2,
+    "votes": 1,
+    "vendors": [
+      "gemini"
+    ],
+    "author_vendor": "claude",
+    "missing_votes": 1,
+    "invalid_envelopes": 0,
+    "invalid_reviews": 0,
+    "self_reviews": 0,
+    "task_mismatches": 0,
+    "effective_high": 0,
+    "exit_code": 0
+  }
+]
