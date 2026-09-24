@@ -1,0 +1,130 @@
+[
+  {
+    "schema_version": 1,
+    "task_id": "task_023",
+    "reviewer": "adversarial-reviewer-gemini",
+    "vendor": "gemini",
+    "reviewer_route": "verified",
+    "model_id_requested": "gemini-2.5-pro",
+    "model_id_actual": "gemini-2.5-pro",
+    "model_id_source": "cli_stats",
+    "cli_version": "0.38.1",
+    "backend": "gemini-cli",
+    "ran_at": "2026-09-24T17:23:09Z",
+    "commit": "54325a658eb4a39513c935a0ff77f9bb9351ed99",
+    "verdict": "BLOCKED",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "high",
+        "title": "タスクが複数の未解決の依存関係と設計上の決定事項の欠如によりブロックされている",
+        "detail": "開発者は docs/task-list.json にて、このタスクが複数の重大なブロッカーにより進行不可能であることを正しく特定し、記録しています。主なブロッカーは以下の通りです。\n1. 依存先である task_020（outbox 配達 cron）が未実装であること。\n2. 関連タスク task_018 との間で outbox の transport 設計に関する競合・矛盾が存在すること。\n3. Messaging API での通知送信に必須となる、幹事の生 LINE userId を保持するための同意設計（ADR-007）が未決定であること。PII の取り扱い方針が不明なまま実装を進めることはできません。",
+        "file": "docs/task-list.json",
+        "repro": "docs/task-list.json の task_023 の `concerns` 配列に、進行を妨げている依存関係と設計上の問題が明記されています。これらのブロッカーを無視して実装を試みた場合、PII の不適切な取り扱い（制約 L6 違反の可能性）や、存在しないコンポーネントへの依存による機能不全が発生します。",
+        "citation": "review-packet 内の `task.goal` は「要対応（mismatch / ...）が幹事に LINE 公式アカウント経由で届き」とあり、LINE Messaging API の利用を前提としています。これには LINE のユーザー識別子（PII）の保持と利用が伴います。同じく packet 内の `task.scope` には「幹事の生 userId を Messaging API 用に保持するための同意を ADR-007 で先に設計」と明記されており、この設計がタスクの前提条件であることが示されています。diff 内の `docs/task-list.json` の `concerns` で「ADR-007（幹事の生 LINE userId 保持の同意設計）が未作成」と報告されており、前提条件が満たされていないことが確認できます。",
+        "effective_severity": "high"
+      }
+    ],
+    "raw_warnings": [],
+    "packet_bytes": 50486,
+    "validated_at": "2026-09-24T17:23:46Z",
+    "classification": "vote",
+    "source_file": "/var/folders/h6/2q0crwpx3zx94d5zxclh_f5c0000gn/T//cashapp-review/task_023/gemini.json",
+    "merged_at": "2026-09-24T17:23:46Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gemini-2.5-pro を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 1,
+        "medium": 0,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 1,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_023",
+    "reviewer": "adversarial-reviewer-gpt",
+    "vendor": "gpt",
+    "reviewer_route": "cli-fallback",
+    "model_id_requested": "gpt-6-astra",
+    "model_id_actual": "gpt-6-astra",
+    "model_id_source": "self_report",
+    "cli_version": "codex-cli 0.154.0",
+    "backend": "codex",
+    "ran_at": "2026-09-24T17:23:33Z",
+    "commit": "54325a658eb4a39513c935a0ff77f9bb9351ed99",
+    "verdict": "PASS",
+    "findings": [],
+    "diagnostics": {
+      "exit_code": 0,
+      "event_types": [
+        "thread.started",
+        "turn.started",
+        "item.completed",
+        "item.completed",
+        "turn.completed"
+      ],
+      "cli_errors": [
+        "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+      ],
+      "last_message_bytes": 64,
+      "stderr_tail": "source_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n2026-09-24T17:23:31.903746Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T17:23:32.036373Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T17:23:32.460687Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer error=\\\"invalid_request\\\", error_description=\\\"No access token was provided in this request\\\", resource_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n"
+    },
+    "packet_bytes": 50486,
+    "validated_at": "2026-09-24T17:23:46Z",
+    "classification": "vote",
+    "source_file": "/var/folders/h6/2q0crwpx3zx94d5zxclh_f5c0000gn/T//cashapp-review/task_023/gpt.json",
+    "merged_at": "2026-09-24T17:23:46Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gpt-6-astra を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 0,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "type": "summary",
+    "task_id": "task_023",
+    "round": 1,
+    "merged_at": "2026-09-24T17:23:46Z",
+    "decision": "reject",
+    "envelopes": 2,
+    "votes": 2,
+    "vendors": [
+      "gemini",
+      "gpt"
+    ],
+    "author_vendor": "claude",
+    "missing_votes": 0,
+    "invalid_envelopes": 0,
+    "invalid_reviews": 0,
+    "self_reviews": 0,
+    "task_mismatches": 0,
+    "effective_high": 1,
+    "exit_code": 1
+  }
+]
