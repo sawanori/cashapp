@@ -187,6 +187,8 @@ const evidence = await agent(
     "2. " + APPROVAL_PATH + " の有無と、そこに記録された「不達ベンダーの明示承認」を読む。",
     "   承認された不達ベンダー名を approved_unavailable_vendors に入れる。",
     "   ファイルが無ければ approval_file_exists を false にする（作ってはならない）。",
+    "   その場合 approved_unavailable_vendors は空にする。記録の無い承認は存在しない",
+    "   （判定側でも無視する）。",
     "3. docs/gates/release-mode.json の payments_enabled を読む。",
     "   payments_enabled が false なら、ビルド設定の PAYMENTS_ENABLED が false であることの根拠行を",
     "   payments_flag_false_evidence に入れ、npm ls に決済 SDK が無いことを payment_sdk_absent に入れる。",
@@ -348,9 +350,19 @@ for (let i = 0; i < evidenceUnavailable.length; i++) {
     unavailableVendors.push(evidenceUnavailable[i]);
   }
 }
-const approvedUnavailable = Array.isArray(evidence.approved_unavailable_vendors)
+// 承認そのものの存在は approval_file_exists（材料集めが実際に見たファイルの有無）で決める。
+// approved_unavailable_vendors は「そのファイルに何が書かれていたか」の申告であって、
+// ファイルが無いのに名前が載っている封筒は自己矛盾している。承認記録が無い間は申告を
+// 空として扱い、不達があれば必ず未承認へ落とす。§15-3 /【scope】
+// 「不達は PO の明示承認を docs/gates/release-<version>.json に」は
+// 「その記録がファイルにあること」を要求している（C-008-13）。
+// 7 周目に塞いだ「自己申告を会計に使わない」と同じクラスの fail-open。
+const approvalFileExists = evidence.approval_file_exists === true;
+const declaredApprovedUnavailable = Array.isArray(evidence.approved_unavailable_vendors)
   ? evidence.approved_unavailable_vendors
   : [];
+const approvedUnavailable = approvalFileExists ? declaredApprovedUnavailable : [];
+const disregardedApprovals = approvalFileExists ? [] : declaredApprovedUnavailable;
 const unapprovedUnavailable = unavailableVendors.filter(function (v) {
   return approvedUnavailable.indexOf(v) === -1;
 });
@@ -410,7 +422,10 @@ const conditions = [
       " / 未承認: " +
       (unapprovedUnavailable.length > 0 ? unapprovedUnavailable.join(",") : "なし") +
       " / 承認記録: " +
-      (evidence.approval_file_exists === true ? "あり" : "なし"),
+      (approvalFileExists ? "あり" : "なし") +
+      (disregardedApprovals.length > 0
+        ? " / 承認記録が無いため無視した申告: " + disregardedApprovals.join(",")
+        : ""),
   },
   {
     id: 4,
@@ -493,5 +508,7 @@ return {
   unavailable_vendors: unavailableVendors,
   unapproved_unavailable_vendors: unapprovedUnavailable,
   approval_path: APPROVAL_PATH,
+  approval_file_exists: approvalFileExists,
+  disregarded_approved_unavailable_vendors: disregardedApprovals,
   evidence: evidence,
 };

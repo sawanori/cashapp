@@ -53,8 +53,10 @@ Workflow({ name: "release-audit",  args: { version: "v0.0.0", dryRun: true } })
 を回し、返ってきた runId を `scripts/record-run.sh --manual task_008 "<runId と観察>"` で記録する。
 `dryRun: true` を必ず付ける（付けないと task-loop は実際にファイルを書き換えるエージェントを起動する）。
 
-**状態**: **deferred**。6 周目（本修正周）のセッションでも `ToolSearch select:Workflow` は
-`No matching deferred tools found` を返し、`Workflow` ツールは無い。レビューセッションでも同じ結果だった。
+**状態**: **deferred**。6 周目・7 周目・8 周目（本修正周）のいずれのセッションでも
+`ToolSearch select:Workflow` は `No matching deferred tools found` を返し、`Workflow` ツールは無い。
+レビューセッションでも同じ結果だった（8 周目のレビューの medium も同じ理由で「現状維持でよい」としている）。
+8 周目の確認は `scripts/record-run.sh --manual task_008` で run-log に記録済み。
 この環境では満たせない項目であり、満たすまで task_008 を DONE へ昇格させない
 （`completion_status` は DONE_WITH_CONCERNS のまま）。
 
@@ -138,6 +140,15 @@ frontmatter が使っている値をそのまま使った。
 コミット時に基準値を再生成すれば解消する。** task_007 が 4 周目に「G13 は task_009 の未コミット差分」と
 記録したのと同じ扱いである。
 
+**8 周目の追記**: `release-audit.ts` を 1 本直したため今周も同じ手順で基準値を再生成した
+（`git ls-files` + `tar` で退避した木を `--root` に、リポジトリを `--base` に渡す）。今周は退避時点で
+G13 対象領域に他タスクの未コミット差分が 1 件も無く（`git status --porcelain -- docs/gates .claude
+.github/workflows scripts/ci` と `-- scripts` がいずれも空・実測）、diff は
+`.claude/workflows/release-audit.ts` の 1 エントリと `generated_at` / `generated_at_commit` だけである。
+7 周目に残っていた不一致 2 件（`scripts/gate-constraints.sh` / `scripts/wording-lint.mjs`）は
+所有タスク（task_004）のコミットで解消しており、**今周の最終状態では
+`npm run gate:integrity` が「43 ファイル照合・不一致 0 件」で exit 0**（実測）。
+
 ---
 
 ## C-008-11 [low・解消済み] 独立性の会計に封筒の自己申告 `vendor` を使っており、作者ベンダーのレーンが独立票に化けられた
@@ -181,6 +192,36 @@ frontmatter が使っている値をそのまま使った。
 `status=DONE` / `audited=true` になることを対照実験で実測している。
 
 **対応予定タスク**: 完了（task_008 7 周目）
+
+---
+
+## C-008-13 [low・解消済み] 成立条件 3 が PO の承認ファイルの有無を見ずに「承認済み」の自己申告だけで pass していた
+
+**指摘（8 周目のレビュー high）**: `release-audit.ts` の成立条件 3 の `pass` は
+`unapprovedUnavailable.length === 0` だけで決まり、`evidence.approval_file_exists` は
+`EVIDENCE_SCHEMA` の `required` に入れて集めておきながら detail 文字列に「承認記録: あり/なし」と
+印字するだけで、どの判定にも使われていなかった。その結果、承認ファイルが無い
+（`approval_file_exists: false`）のに `approved_unavailable_vendors` に不達ベンダーが載った
+自己矛盾した封筒で、条件 3 が「未承認: なし / 承認記録: なし」と書きながら `pass: true` になり
+`verdict: "go"` が出た。task_008 の scope 行「不達は PO の明示承認を
+`docs/gates/release-<version>.json` に」と `docs/implementation-plan.md` §15-3 の同文は
+**その記録がファイルにあること**を要求している。7 周目に塞いだ「自己申告を会計に使わない」
+（C-008-11）と同じクラスの fail-open で、判定材料はスクリプトの手元にあった。
+
+**再現（修正前 HEAD の本体を `git show` で取り出し、テストと同じ `AsyncFunction` ラップで実走）**:
+evidence = `{approval_file_exists: false, approved_unavailable_vendors: ["claude"], 他は clean}`、
+release-auditor レーン = unavailable、gemini / gpt = go の応答表で
+`{verdict: "go", unapproved_unavailable_vendors: [], cond3.pass: true}`。
+
+**対応**: 承認の存在は `approval_file_exists`（材料集めが実際に見たファイルの有無）だけで決める。
+`approved_unavailable_vendors` は「そのファイルに何が書かれていたか」の申告なので、記録が無い間は
+空として扱い、不達があれば必ず未承認へ落とす。無視した申告は
+`disregarded_approved_unavailable_vendors` と条件 3 の detail に出して黙って捨てない。
+材料集めのプロンプトにも「記録の無い承認は存在しない」を明記した。
+修正後は同じ応答表で `verdict: "no-go"` / `unapproved_unavailable_vendors: ["claude"]` /
+`cond3.pass: false`（実測）。テストは 49 → 50 件（`expect` の削減・`skip` / `only` の追加なし）。
+
+**対応予定タスク**: 完了（task_008 8 周目）
 
 ---
 

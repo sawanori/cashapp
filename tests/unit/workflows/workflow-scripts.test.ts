@@ -868,6 +868,8 @@ interface AuditResult {
   unavailable_vendors?: string[];
   unapproved_unavailable_vendors?: string[];
   approval_path?: string;
+  approval_file_exists?: boolean;
+  disregarded_approved_unavailable_vendors?: string[];
   abstentions?: Array<{
     lane: string;
     vendor: string;
@@ -1030,6 +1032,45 @@ describe("release-audit.ts", () => {
     expect((audit.conditions ?? []).find((c) => c.id === 3)?.pass).toBe(true);
     expect(audit.independent_go_vendors).toEqual(["gemini", "gpt"]);
     expect(audit.unavailable_vendors).toEqual(["claude"]);
+  });
+
+  it("承認ファイルが無ければ approved_unavailable_vendors の申告を承認として数えない", async () => {
+    // 材料集めが「ファイルは無い（approval_file_exists: false）」と報告しながら
+    // approved_unavailable_vendors に不達ベンダーを載せた自己矛盾した封筒。
+    // 申告をそのまま信じると条件 3 が「未承認: なし / 承認記録: なし」で pass になり go が出る。
+    const { result } = await run(
+      SCRIPTS.releaseAudit,
+      { version: "v0.1.0" },
+      auditResponder(
+        {
+          ...EVIDENCE_CLEAN,
+          voted_vendors: ["gemini", "gpt"],
+          approval_file_exists: false,
+          approved_unavailable_vendors: ["claude"],
+        },
+        {
+          "release-auditor": {
+            vendor: "claude",
+            reviewer_route: "unavailable",
+            verdict: "UNKNOWN",
+            reasons: [],
+            unreachable_reason: "サブエージェントが封筒を返さなかった",
+          },
+          gemini: { vendor: "gemini", reviewer_route: "ok", verdict: "go", reasons: [] },
+          gpt: { vendor: "gpt", reviewer_route: "ok", verdict: "go", reasons: [] },
+        },
+      ),
+    );
+    const audit = result as AuditResult;
+    // 独立 2 ベンダーの go は揃っている（条件 1 は YES）。落ちるのは承認記録の条件だけ。
+    expect((audit.conditions ?? []).find((c) => c.id === 1)?.pass).toBe(true);
+    expect(audit.verdict).not.toBe("go");
+    expect(audit.approval_file_exists).toBe(false);
+    expect(audit.unapproved_unavailable_vendors).toEqual(["claude"]);
+    expect(audit.disregarded_approved_unavailable_vendors).toEqual(["claude"]);
+    const third = (audit.conditions ?? []).find((c) => c.id === 3);
+    expect(third?.pass).toBe(false);
+    expect(third?.detail).toContain("承認記録: なし");
   });
 
   it("release-auditor が封筒で別ベンダーを名乗っても独立 go に数えない", async () => {

@@ -1837,6 +1837,39 @@ GPT-6 Astra の敵対レビュー（high 1 / medium 3）。**4 件すべて HEAD
 - **[severity: medium] PEPPER 切替の窓ではログインが落ちうる**（fail-closed の代償）。手順書は
   task_024。→ C-012-20
 
+## task_008（レビュー修正・8 周目）
+
+### 決まったこと
+
+- **「PO の明示承認がある」は、承認ファイルが実在することで判定する**。`release-audit.ts` の成立条件 3 は
+  `evidence.approval_file_exists` が真のときだけ `approved_unavailable_vendors` の申告を承認として数える。
+  ファイルが無いのに「承認済み」と名乗る封筒は自己矛盾なので、申告を空として扱い不達を必ず未承認へ落とす。
+  7 周目の「独立性の会計を自己申告から外す」と同じ規律の拡張である（判定材料は**スクリプトの手元にある事実**だけで作る）。
+- **黙って捨てない**。無視した申告は返り値の `disregarded_approved_unavailable_vendors` と条件 3 の
+  detail（「承認記録が無いため無視した申告: …」）に出す。材料集めのプロンプトにも
+  「記録の無い承認は存在しない（判定側でも無視する）」を明記した。
+- **修正前 HEAD での再現を先に取る**という 6・7 周目の手順を継続した。`git show HEAD:<path>` で
+  修正前の本体を取り出し、テストと同じ `AsyncFunction` ラップで同じ応答表を流して
+  `verdict: "go"` → `"no-go"` の転換を実測してから直している。
+- **G13 基準値の再生成は退避した木から**。`git ls-files` + `tar` で追跡ファイルを退避先へ複製し、
+  `--root <退避先> --base <repo> --write-baseline` で書く。今周は退避時点で G13 対象領域
+  （`docs/gates` / `.claude` / `.github/workflows` / `scripts/ci` / `scripts/` の各接頭辞）に
+  他タスクの未コミット差分が 0 件だったことを `git status --porcelain` で確認済み。
+
+### 未解決
+
+- **[severity: medium] `done_definition` 第 1 項（3 本が Workflow ランタイムで起動する）は 3 周連続で deferred**。
+  6・7・8 周目のいずれのセッションにも `Workflow` ツールが無い（`ToolSearch select:Workflow` が
+  `No matching deferred tools found`）。**Workflow ツールを持つセッション（メイン / PO）で
+  3 本を `dryRun: true` で 1 回ずつ回し、runId と journal を `scripts/record-run.sh --manual task_008` で
+  記録するまで task_008 を DONE へ昇格させない。** → C-008-1 / C-008-2
+- **[severity: medium] 「独立」の定義と法務クリアランスの強さは ADR 待ち**（成立条件 1 を独立 2 ベンダーで
+  固定していること、`cleared=false` を無条件 no-go にしていること）。緩めるのは ADR と PO の仕事。
+  → C-008-3 / C-008-10
+- **[severity: low] 承認ファイルの「中身」は依然として材料集めエージェントの申告のまま**。今周固めたのは
+  ファイルの有無までで、`approved_by` が誰かや承認の日付・対象バージョンの照合はしていない。
+  `docs/gates/release-<version>.json` のスキーマ検査を足すなら封筒スキーマ側（task_010）で。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -1981,3 +2014,6 @@ GPT-6 Astra の敵対レビュー（high 1 / medium 3）。**4 件すべて HEAD
 - 2026-09-24T13:52:25Z HEAD=3f2ea9b 決まったこと: task_012(3周目): G13 基準値を取り直す（並行タスクの再生成に自分のハッシュを巻き戻されていた） / 未解決: 未コミット 11 件: .claude/workflows/release-audit.ts docs/HANDOFF.md docs/concerns/task_013.md docs/review-log/task_013.json docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_013.json src/lib/liff/client.ts 
 - 2026-09-24T13:54:30Z HEAD=3f2ea9b 決まったこと: task_012(3周目): G13 基準値を取り直す（並行タスクの再生成に自分のハッシュを巻き戻されていた） / 未解決: 未コミット 15 件: .claude/workflows/release-audit.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_008.md docs/concerns/task_013.md docs/gates/integrity-baseline.json docs/review-log/task_013.json docs/run-log/task_008.json 
 - 2026-09-24T13:55:25Z HEAD=3f2ea9b 決まったこと: task_012(3周目): G13 基準値を取り直す（並行タスクの再生成に自分のハッシュを巻き戻されていた） / 未解決: 未コミット 17 件: .claude/workflows/release-audit.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_008.md docs/concerns/task_013.md docs/gates/integrity-baseline.json docs/review-log/task_013.json docs/run-log/task_008.json 
+- 2026-09-24T13:56:26Z HEAD=2b44ea3 決まったこと: task_013(4周目・4巡目): 退避先のキーを置き場オブジェクトからページのスコープへ / 未解決: 未コミット 13 件: .claude/workflows/release-audit.ts docs/PROGRESS.md docs/concerns/task_008.md docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/review-log/task_012.json docs/run-log/task_008.json docs/run-log/task_012.json 
+- 2026-09-24T13:58:29Z HEAD=2b44ea3 決まったこと: task_013(4周目・4巡目): 退避先のキーを置き場オブジェクトからページのスコープへ / 未解決: 未コミット 18 件: .claude/workflows/release-audit.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_008.md docs/constraints.json docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/review-log/task_012.json 
+- 2026-09-24T13:58:59Z HEAD=2b44ea3 決まったこと: task_013(4周目・4巡目): 退避先のキーを置き場オブジェクトからページのスコープへ / 未解決: 未コミット 19 件: .claude/workflows/release-audit.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_008.md docs/constraints.json docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/review-log/task_012.json 
