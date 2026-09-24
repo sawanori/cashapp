@@ -1,0 +1,26 @@
+{
+  "feature": "violation fixture: G4（manual_verification の各項目に対応する記録）",
+  "version": 1,
+  "generated_at": "2026-09-24",
+  "notes": "本物の task-list ではない。tests/gates/fixtures/violations/README.md を参照。",
+  "tasks": [
+    {
+      "task_id": "task_930",
+      "title": "manual_verification を 3 項目宣言し、manual 記録は 1 件しか持たない docs タスク",
+      "completion_status": "DONE",
+      "risk_level": "low",
+      "adversarial_review": "not_required",
+      "files_to_create": ["docs/ops/runbook-example.md"],
+      "files_to_modify": [],
+      "done_definition": ["手順書が 3 つの観点で確認されている"],
+      "verify_commands": [],
+      "manual_verification": [
+        "PO が手順書どおりに復旧手順を通しで実施できた",
+        "PO が連絡先一覧の電話番号に実際に発信して疎通を確認した",
+        "PO が代替手段（手動送金）の書式を実際に記入してみた"
+      ],
+      "acceptance_check_ids": [],
+      "concerns": []
+    }
+  ]
+}

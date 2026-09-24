@@ -2,9 +2,9 @@
   "$comment": "G13 の基準値。docs/gates/** は PO 専管のため、このファイルの唯一の書き込み経路は `node scripts/gate-integrity.mjs --write-baseline` である（scripts/deny-test-weakening.sh / deny-dangerous-bash.sh が Edit / Write / Bash 経由の直接書き込みを遮断する）。ゲート対象領域を意図して変更したときだけ再生成し、差分を PR で人間に見せること。",
   "schema_version": 1,
   "algorithm": "sha256",
-  "generated_at": "2026-09-24T07:36:44Z",
+  "generated_at": "2026-09-24T08:20:07Z",
   "generated_by": "scripts/gate-integrity.mjs --write-baseline",
-  "generated_at_commit": "c053281d817421c0ac153b5532621f099f5e0429",
+  "generated_at_commit": "2269c910d566d6502046bcf9d2f0a5fbadae251d",
   "patterns": [
     {
       "kind": "dir",
@@ -49,6 +49,18 @@
     {
       "kind": "file",
       "value": "scripts/session-brief.mjs"
+    },
+    {
+      "kind": "file",
+      "value": "scripts/wording-lint.mjs"
+    },
+    {
+      "kind": "file",
+      "value": "scripts/gates-sync.mjs"
+    },
+    {
+      "kind": "file",
+      "value": "scripts/test-hook-enforcement.sh"
     }
   ],
   "counters": {
@@ -68,13 +80,16 @@
     "scripts/ci/record-worker-size.mjs": "96fc2bb0e8227a96502a4a5a450c0c2a2f8b8a2bab3084f68340924ce0568998",
     "scripts/deny-dangerous-bash.sh": "3a188ca2465b0e20fe8c993b9439319fe8482d8a3d40c5783bd2462a8c984f3f",
     "scripts/deny-test-weakening.sh": "b344cda4b41bb173ade1aa308bfee801158e6380a225bec173efbee749b80146",
-    "scripts/gate-check.mjs": "1331c2edc5b3d148f0069292fc3bc1e549581f9375cd224321e936a57fc91733",
+    "scripts/gate-check.mjs": "38afbc84e85af92e121e2df73820dac4fe39d94a0077e5f959ef4ef4c61ddb49",
     "scripts/gate-constraints.sh": "3591e68ccf38e1681258ef4f117424e4c7deb8e28418612cc38bba56751311a6",
-    "scripts/gate-env-scope.mjs": "54b5be504ee683739b1359b62cdb696391e887d3140a3ac7cb4d09f45ae5a321",
-    "scripts/gate-integrity.mjs": "783e2c84a6a5311edd07bc3f0ab66ed3f4a947b6c73939d6bdf9a4ad40d47e34",
+    "scripts/gate-env-scope.mjs": "208c5057e83b09cedf2bb509a742fa20b615b1c7cc0a73aab230e7dc09d31f9d",
+    "scripts/gate-integrity.mjs": "881c9bd24f7bbbba222564dba3bebb7c4d3df9e9509763957ec73b5c334b2630",
     "scripts/gate-status.mjs": "72c9cc0f3f2140cec25213f473688ca6a2d1dcbef93394f8759b61aceb6f173f",
+    "scripts/gates-sync.mjs": "1b9e2da70a1aaa8f535222fe39e8eb3c06c9cc841d0ce6a3f9cf7010eedcc11c",
     "scripts/record-run.sh": "c9a5fdc155c9e949cba12ec71fded1eb02fc846179006b6f413cc50bea2c3260",
     "scripts/session-brief.mjs": "c5dce84b2978cf8fcb46474e7a32846322fe1be3128b6bf17c2907f0625bd839",
-    "scripts/validate-plan-json.mjs": "93f7771bd507a7f2e40527f0d95a67157b95aa758c2c47efa9b36e286928637b"
+    "scripts/test-hook-enforcement.sh": "437e0abece7946ec8624332a917b41b26f754f008ab71bdf0e70ab1b6920b35d",
+    "scripts/validate-plan-json.mjs": "93f7771bd507a7f2e40527f0d95a67157b95aa758c2c47efa9b36e286928637b",
+    "scripts/wording-lint.mjs": "9c0d41d886af6cf0e8c4b1b94ab97e157c98a414615a1d409c22bb6eca0108d7"
   }
 }

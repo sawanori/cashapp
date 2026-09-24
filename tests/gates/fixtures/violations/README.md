@@ -47,6 +47,29 @@ tests/gates/fixtures/violations/<fixture_id>/
 `--only <gate>` は exit code を決めるゲートを絞るだけで、全ゲートは常に実行される
 （G0 が他ゲートの対象件数を見るため）。
 
+**2 つのファイルを突き合わせるゲートは、両方が同じ層から来ているときだけ判定する。**
+G4 後半（`docs/PROGRESS.md` の完了宣言と `docs/task-list.json` の `completion_status` の対比）は、
+overlay が片方だけを差し替えている場合は判定を飛ばし、その理由を notes に出す。フィクスチャの
+task-list と本物の PROGRESS.md を突き合わせても意味が無いためで、実リポジトリ（`--root` 省略時は
+`root === base`）では常に判定される。この対比そのものを問う反例が
+`g4-progress-ledger-drift`（両方を overlay で置く）である。
+
+## `gate-inputs/**` は overlay 専用
+
+`gate-inputs/git-diff.json`・`gate-inputs/head.txt` は G8（実シークレット検出）と
+G9（`evidence.commit === HEAD`）の入力をフィクスチャ側で固定するためのもので、
+**overlay からしか読まれない**。リポジトリ直下に同名のファイルを置いても無視され、
+さらに G8 と G0 がその存在自体を違反として報告する（`g8-gate-inputs-planted-in-base`）。
+ベース側に置けば実 `git diff` / 実 HEAD を一度も見ない状態を作れてしまい、CI も
+同じ `gate-check.mjs` を同じチェックアウトに対して走らせるので最終防衛線にならないためである。
+
+## runner が `bash` のフィクスチャ
+
+ほとんどの反例は overlay（`--root`）だけで表現できるが、「ベース側の細工」を模す反例は
+`--base` を作り替える必要がある。その 1 本（`g8-gate-inputs-planted-in-base`）は
+`runner.cmd` を `bash` にして、同ディレクトリの `run.sh` がリポジトリのトップレベルを
+symlink で束ねた使い捨てのベースを `mktemp -d` の下に組み立てる。**リポジトリ自体は変更しない。**
+
 ## `src/**` に見える .ts ファイルについて
 
 `src/` 配下に見えるファイルはフィクスチャのディレクトリ内にあり、実アプリのビルドには入らない。

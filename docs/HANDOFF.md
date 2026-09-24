@@ -739,6 +739,56 @@ task_006 側は「自分のファイルは既にコミット済み」として�
   → **task_006 へ**: このフィクスチャは `docs/PROGRESS.md` も中立化する（オーバーレイで空にするか
   `meta.json` の `absent` に入れる）必要がある。task_012 側からは触っていない。
 
+## task_006（レビュー修正・2 周目）
+
+### 決まったこと
+
+- **`manual_verification` は項目 1 件につき記録 1 件（単射）で照合する**。`gate-check.mjs` の
+  `matchManualVerification` が、観察文中の `manual_verification[<索引>]` か項目文字列の
+  引き写しで名指しされた記録を先に確定し、残った項目に残った記録を 1 件ずつ充てる。
+  名指しの無い充当は毎回 **warn** に出す。修正前は「要件を満たす manual 記録が 1 件でもあれば
+  N 項目すべて満たされたことになる」判定で、docs/** のみのタスク（task_001 / 002 / 034 / 036 / 037）の
+  完了根拠が実質無検査だった。反例 `g4-manual-items-uncovered`。
+- **`gate-inputs/**` は overlay 専用**。`--root` がベースと異なるときだけ読む
+  （`ctx.readOverlayText`）。リポジトリ直下に置いても無視され、さらに G8 と G0 が
+  その存在を違反として報告する。修正前はリポジトリ直下に `gate-inputs/git-diff.json` を
+  置くだけで実 `git diff` / 実 HEAD の走査を丸ごと飛ばせた。反例
+  `g8-gate-inputs-planted-in-base`（runner が bash で、リポジトリを symlink で束ねた
+  使い捨てのベースを組み立てる）。
+- **完了申告は `docs/PROGRESS.md` と `docs/task-list.json` の両方に要る**。G4 が
+  「PROGRESS.md が完了を宣言しているのに台帳の `completion_status` が null」「両者が食い違う」を
+  違反として検出する。**次のタスクからは完了時に自分の行の `completion_status` を書くこと**
+  （書かないと gate:check が赤くなる）。今回 task_002 / 003 / 004 / 005 / 012 / 006 の 6 件を
+  PROGRESS.md の記載どおりに台帳へ写した。両方が同じ層から来ていない overlay では
+  この対比は飛ばす（フィクスチャの task-list と本物の PROGRESS.md を突き合わせないため）。
+- **残懸念は 3 箇所から集める**: 台帳の `concerns[]`・`docs/concerns/<task_id>.md`・
+  `docs/HANDOFF.md` のタスク節（`- **[severity: …]` で始まる箇条書き）。G11 のしきい値
+  （high 3 件で `in_progress` を止める）と G6 の判定が実際の記録場所を見るようになった。
+  現在の未解決 high は 7 件（task_005 / task_006 / task_011）。`in_progress` が 0 件なので
+  まだ止まっていないが、**次に誰かが `in_progress` を立てた時点で G11 が発火する**。
+- **G13 のハッシュ対象に 3 本を追加した**: `scripts/wording-lint.mjs`・`scripts/gates-sync.mjs`・
+  `scripts/test-hook-enforcement.sh`。名前が `gate-` / `deny-` / `assert-` / `validate-` の
+  どの接頭辞にも当たらず対象から漏れていた。基準値は 21 → 24 ファイル。
+- **Stop フックで落ちたときは stderr にも出す**。`gate-check.mjs` は非ゼロ終了時に限り
+  集計行と違反行を stderr にも書く（Claude Code は非ブロッキングの非ゼロ終了で stderr だけを
+  セッションに見せるため）。exit 1 のまま据え置く判断は変更していない。
+
+### 未解決
+
+- **（high・変化なし）G13 の自己封じ**。基準値を作れるのがエージェント自身である構図は
+  変わっていない。今回の再生成では task_012 が 2 周目で書き換えた `scripts/gate-env-scope.mjs`
+  （コミット `3062179`）も一緒に正になった。歯止めは基準値の差分が PR に出ることだけで、
+  それを人間の関門に繋ぐのは task_009 の CODEOWNERS と `test-tamper-guard`。
+- **（low）manual 記録の名指しはまだ必須ではない**。項目数ぶん記録があれば名指し無しでも
+  充当する（充当のたびに warn）。`record-run.sh --manual` の観察文に索引を書く運用が
+  定着したら必須へ切り替える。いま warn が出ているのは task_002 の 1 件。
+- **（記録）`docs/task-list.json` は task_006 の `files_to_modify` に無い**が、追加した
+  G4 の判定を満たすために `completion_status` の同期と task_003 の `concerns[]` への
+  severity 接頭辞付与を行った。付与した severity の出どころは本文中に明記してある。
+  詳細は `docs/concerns/task_006.md` の 13。
+- **（medium・deferred・変化なし）CI 実走が未証明**。GitHub リモート未作成のため
+  `gate-meta` / `acceptance` / `gate-integrity` ジョブは一度も走っていない。task_009 の担当。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -798,3 +848,5 @@ task_006 側は「自分のファイルは既にコミット済み」として�
 - 2026-09-24T07:59:49Z HEAD=17edb6e 決まったこと: task_006: 最終 HEAD での verify_commands 再実行ログ（全 exit 0） / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_006.json docs/run-log/task_012.json src/middleware.ts tests/gates/probe.test.ts 
 - 2026-09-24T08:03:42Z HEAD=17edb6e 決まったこと: task_006: 最終 HEAD での verify_commands 再実行ログ（全 exit 0） / 未解決: 未コミット 7 件: docs/HANDOFF.md docs/run-log/task_006.json docs/run-log/task_012.json scripts/gate-env-scope.mjs src/middleware.ts tests/unit/security-headers.test.ts tests/gates/probe.test.ts 
 - 2026-09-24T08:11:42Z HEAD=3062179 決まったこと: task_012(2周目): nonce CSP をリクエストヘッダにも載せ、gate:env の片側混入を検出する / 未解決: 未コミット 6 件: docs/run-log/task_006.json docs/run-log/task_012.json docs/task-list.json scripts/gate-check.mjs scripts/gate-integrity.mjs tests/gates/probe.test.ts 
+- 2026-09-24T08:15:42Z HEAD=2269c91 決まったこと: task_012(2周目): 最終 HEAD での verify_commands 再実行ログと、test:unit が赤い原因の切り分け / 未解決: 未コミット 10 件: docs/run-log/task_006.json docs/task-list.json scripts/gate-check.mjs scripts/gate-integrity.mjs tests/gates/fixtures/violations/g11-high-concerns-only-in-concerns-files/ tests/gates/fixtures/violations/g4-done-without-runlog/docs/PROGRESS.md tests/gates/fixtures/violations/g4-manual-items-uncovered/ tests/gates/fixtures/violations/g4-progress-ledger-drift/ 
+- 2026-09-24T08:19:42Z HEAD=2269c91 決まったこと: task_012(2周目): 最終 HEAD での verify_commands 再実行ログと、test:unit が赤い原因の切り分け / 未解決: 未コミット 14 件: docs/HANDOFF.md docs/run-log/task_006.json docs/run-log/task_012.json docs/task-list.json scripts/gate-check.mjs scripts/gate-integrity.mjs tests/gates/fixtures/violations/README.md tests/unit/gate-check.test.ts 

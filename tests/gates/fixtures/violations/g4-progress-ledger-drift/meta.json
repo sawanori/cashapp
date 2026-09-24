@@ -1,0 +1,16 @@
+{
+  "fixture_id": "g4-progress-ledger-drift",
+  "gate": "G4",
+  "description": "docs/PROGRESS.md が完了を宣言しているのに docs/task-list.json の completion_status が null のまま（task_931）、あるいは両者のステータスが食い違っている（task_932）状態。完了申告が実際に書かれるのは PROGRESS.md なので、台帳が追随しないと G4 / G5 / G6 の対象集合がそのぶん小さくなり、『完了の過大申告』を検知するはずのゲートが完了タスクを一度も見ないという逆転が起きる。G0 は targets===0 のときしか鳴らないのでこの過小カウントは検知されない。",
+  "runner": {
+    "cmd": "node",
+    "args": ["scripts/gate-check.mjs", "--root", "{FIXTURE}", "--only", "G4"]
+  },
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "task_931: docs/PROGRESS.md は DONE を宣言していますが",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "overlay が docs/PROGRESS.md と docs/task-list.json の両方を差し替えるので、ベースリポジトリの実際の進捗とは無関係に判定できる。"
+  }
+}

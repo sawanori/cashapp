@@ -1,0 +1,16 @@
+{
+  "fixture_id": "g11-high-concerns-only-in-concerns-files",
+  "gate": "G11",
+  "description": "未解決の severity=high 残懸念が 3 件あるのに、それが docs/concerns/<task_id>.md にしか書かれておらず docs/task-list.json の concerns[] は空、という状態で新規機能タスクが in_progress になっている。本プロジェクトが実際に残懸念を書いている場所は docs/concerns/<task_id>.md なので、台帳の concerns[] だけを数える実装では G11 のしきい値（3 件）に一生届かず、設計上のキルスイッチが発火しない。",
+  "runner": {
+    "cmd": "node",
+    "args": ["scripts/gate-check.mjs", "--root", "{FIXTURE}", "--only", "G11"]
+  },
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "task_942 を進められません",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "『本セッションで修正済み』の high を 1 件混ぜてある（task_941 の 2 番）。対応済み表記を残高に数える実装だと 4 件になり、しきい値の意味が変わる。未解決はちょうど 3 件。"
+  }
+}

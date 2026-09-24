@@ -198,7 +198,7 @@
       "adversarial_review": "required",
       "evidence_label": "[設計]",
       "optional": false,
-      "completion_status": null,
+      "completion_status": "DONE",
       "concerns": []
     },
     {
@@ -377,10 +377,10 @@
       "adversarial_review": "not_required",
       "evidence_label": "[設計]",
       "optional": false,
-      "completion_status": null,
+      "completion_status": "DONE_WITH_CONCERNS",
       "concerns": [
-        "OpenNext for Cloudflare の互換性（A20）と Hyperdrive 経由の Postgres（A21）は未実測。①②不成立なら BLOCKED ＋ ADR-014、③④のみ不成立なら task_012 で代替。Worker サイズ上限（A25）は未取得",
-        "ホームディレクトリ直下に git リポジトリが存在する [実測]。cashapp を独立させる git init はホーム側の設定を変更しない範囲で行い、ホーム側での無視設定は PO 判断"
+        "[severity: medium] OpenNext for Cloudflare の互換性（A20）と Hyperdrive 経由の Postgres（A21）は未実測。①②不成立なら BLOCKED ＋ ADR-014、③④のみ不成立なら task_012 で代替。Worker サイズ上限（A25）は未取得（severity は task_003 自身が docs/HANDOFF.md に記録した `[severity: medium] A21 未解決` から転記。台帳同期は task_006 が実施）",
+        "[severity: low] ホームディレクトリ直下に git リポジトリが存在する [実測]。cashapp を独立させる git init はホーム側の設定を変更しない範囲で行い、ホーム側での無視設定は PO 判断（severity は台帳同期時に task_006 が付与。task_003 の HANDOFF に対応する severity 記録が無いため）"
       ]
     },
     {
@@ -465,7 +465,7 @@
       "adversarial_review": "required",
       "evidence_label": "[設計]",
       "optional": false,
-      "completion_status": null,
+      "completion_status": "DONE_WITH_CONCERNS",
       "concerns": []
     },
     {
@@ -556,7 +556,7 @@
       "adversarial_review": "required",
       "evidence_label": "[文書]",
       "optional": false,
-      "completion_status": null,
+      "completion_status": "DONE_WITH_CONCERNS",
       "concerns": []
     },
     {
@@ -641,8 +641,14 @@
       "adversarial_review": "required",
       "evidence_label": "[設計]",
       "optional": false,
-      "completion_status": null,
-      "concerns": []
+      "completion_status": "DONE_WITH_CONCERNS",
+      "concerns": [
+        "[severity: high] docs/gates/integrity-baseline.json を書けるのがエージェント自身である（G13 の自己参照）。node scripts/gate-integrity.mjs --write-baseline は deny ガードの遮断対象外なので、ガードを書き換えたエージェントが基準値を作り直せば G13 は緑に戻る。対応案: task_009 の CODEOWNERS（docs/gates/**）と test-tamper-guard ジョブで、基準値の差分を人間の関門に繋ぐ。CI では検証モードのみを走らせる。詳細は docs/concerns/task_006.md の 2。",
+        "[severity: medium] 違反フィクスチャ 24 本すべてをモデルが書いており、人間が手書きした 1 本が無い（scope の「最初の 1 本は人間が手書きし CODEOWNERS 対象」が未達）。対応案: PO が 1 本を手書きし provenance.authored_by を human: にする。達成まで G0 が毎回 warn を出し続ける。詳細は docs/concerns/task_006.md の 1。",
+        "[severity: medium] CI 実走が未証明（GitHub リモート未作成のため §16-6 の gate-meta / acceptance / gate-integrity ジョブが一度も走っていない）。対応案: deferred。GitHub リモート作成後に task_009 が required status checks へ登録し PR で緑になることを確認する。詳細は docs/concerns/task_006.md の 3。",
+        "[severity: medium] G8 の秘密値名リストが手書きの固定リストで、新しい秘密値が増えたときに追随しないと素通りする。対応案: task_012 の gate-env-scope.mjs が env スコープの正本を持つので、そこから機械的に取り込む。詳細は docs/concerns/task_006.md の 5。",
+        "[severity: low] G4 の manual 記録は、名指し（manual_verification[索引]）が無い記録でも項目数ぶんあれば単射で充当する（充当時は warn を出す）。対応案: record-run.sh --manual の観察文に索引を書く運用を定着させ、全記録が名指しになった時点で名指しを必須にする。詳細は docs/concerns/task_006.md の 9。"
+      ]
     },
     {
       "task_id": "task_007",
@@ -1311,7 +1317,7 @@
       "adversarial_review": "required",
       "evidence_label": "[文書]",
       "optional": false,
-      "completion_status": null,
+      "completion_status": "DONE_WITH_CONCERNS",
       "concerns": []
     },
     {

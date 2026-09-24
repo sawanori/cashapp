@@ -329,4 +329,247 @@ describe("G11 のしきい値", () => {
     expect(gate(results, "G11").violations).toEqual([]);
     expect(gate(results, "G11").notes.join(" ")).toContain("未解決 high concerns 2 件");
   });
+
+  it("残懸念が docs/concerns/<task_id>.md にしか無くても残高に数える", () => {
+    const root = makeRoot();
+    write(
+      root,
+      "docs/task-list.json",
+      taskListWith([
+        task({ task_id: "task_966", completion_status: "DONE_WITH_CONCERNS", concerns: [] }),
+        task({ task_id: "task_967", completion_status: "in_progress" }),
+      ]),
+    );
+    write(
+      root,
+      "docs/concerns/task_966.md",
+      [
+        "# task_966 の残懸念",
+        "",
+        "## 1. 署名検証が未実装",
+        "",
+        "- **深刻度**: high",
+        "- **対応案**: 契約テストを先に書く。",
+        "",
+        "## 2. 冪等キーの越境",
+        "",
+        "- **深刻度**: high",
+        "- **対応案**: 複合一意で塞ぐ。",
+        "",
+        "## 3. 追記専用トリガ漏れ",
+        "",
+        "- **深刻度**: high",
+        "- **対応案**: マイグレーションを追加する。",
+        "",
+      ].join("\n"),
+    );
+    const { results } = report(["--root", root, "--base", repoRoot]);
+    expect(gate(results, "G11").notes.join(" ")).toContain("未解決 high concerns 3 件");
+    expect(gate(results, "G11").violations.join("\n")).toContain("task_967 を進められません");
+  });
+});
+
+describe("G4 の manual_verification 対応づけ", () => {
+  /** PROGRESS.md をベースから拾わせないための空の宣言 */
+  const emptyProgress = "# PROGRESS（unit fixture）\n\n宣言なし。\n";
+
+  function manualEntry(observation: string): Record<string, unknown> {
+    return {
+      type: "manual",
+      observation,
+      by: "po@example",
+      ran_at: "2026-09-24T00:00:00Z",
+      commit: "0123456789abcdef0123456789abcdef01234567",
+    };
+  }
+
+  it("項目 3 件に対し manual 記録 1 件なら、残り 2 件が違反になる", () => {
+    const root = makeRoot();
+    write(root, "docs/PROGRESS.md", emptyProgress);
+    write(
+      root,
+      "docs/task-list.json",
+      taskListWith([
+        task({
+          task_id: "task_970",
+          completion_status: "DONE",
+          files_to_create: ["docs/ops/example.md"],
+          verify_commands: [],
+          manual_verification: ["項目 A を確認", "項目 B を確認", "項目 C を確認"],
+        }),
+      ]),
+    );
+    write(root, "docs/run-log/task_970.json", [manualEntry("項目 A を確認 した。想定どおり。")]);
+    const { results } = report(["--root", root, "--base", repoRoot]);
+    const g4 = gate(results, "G4");
+    expect(g4.violations.join("\n")).toContain("manual_verification[1]");
+    expect(g4.violations.join("\n")).toContain("manual_verification[2]");
+    expect(g4.violations.filter((v) => v.includes("manual_verification[0]"))).toEqual([]);
+  });
+
+  it("項目を名乗る manual 記録が項目数ぶんあれば通る", () => {
+    const root = makeRoot();
+    write(root, "docs/PROGRESS.md", emptyProgress);
+    write(
+      root,
+      "docs/task-list.json",
+      taskListWith([
+        task({
+          task_id: "task_971",
+          completion_status: "DONE",
+          files_to_create: ["docs/ops/example.md"],
+          verify_commands: [],
+          manual_verification: ["項目 A を確認", "項目 B を確認"],
+        }),
+      ]),
+    );
+    write(root, "docs/run-log/task_971.json", [
+      manualEntry("manual_verification[0] 項目 A を確認 した。"),
+      manualEntry("manual_verification[1] 項目 B を確認 した。"),
+    ]);
+    const { results } = report(["--root", root, "--base", repoRoot]);
+    expect(gate(results, "G4").violations).toEqual([]);
+    expect(gate(results, "G4").warnings).toEqual([]);
+  });
+
+  it("同じ項目を名乗る記録が 2 件あっても、名乗られていない項目は充当されない", () => {
+    const root = makeRoot();
+    write(root, "docs/PROGRESS.md", emptyProgress);
+    write(
+      root,
+      "docs/task-list.json",
+      taskListWith([
+        task({
+          task_id: "task_972",
+          completion_status: "DONE",
+          files_to_create: ["docs/ops/example.md"],
+          verify_commands: [],
+          manual_verification: ["項目 A を確認", "項目 B を確認", "項目 C を確認"],
+        }),
+      ]),
+    );
+    write(root, "docs/run-log/task_972.json", [
+      manualEntry("manual_verification[0] 一度目の確認。"),
+      manualEntry("manual_verification[0] 二度目の確認。"),
+    ]);
+    const { results } = report(["--root", root, "--base", repoRoot]);
+    const g4 = gate(results, "G4");
+    // 2 件目は名乗りが [0] なので 1st pass では使われず、2nd pass で残り項目に回る。
+    // 3 項目に対し記録は 2 件しか無いので、最後の 1 項目は必ず落ちる。
+    expect(g4.violations.join("\n")).toContain("manual_verification[2]");
+  });
+
+  it("実施者・UTC 日時・HEAD のいずれかを欠く manual 記録は充当に使わない", () => {
+    const root = makeRoot();
+    write(root, "docs/PROGRESS.md", emptyProgress);
+    write(
+      root,
+      "docs/task-list.json",
+      taskListWith([
+        task({
+          task_id: "task_973",
+          completion_status: "DONE",
+          files_to_create: ["docs/ops/example.md"],
+          verify_commands: [],
+          manual_verification: ["項目 A を確認"],
+        }),
+      ]),
+    );
+    write(root, "docs/run-log/task_973.json", [
+      { type: "manual", observation: "項目 A を確認 した。", ran_at: "2026-09-24T00:00:00Z" },
+    ]);
+    const { results } = report(["--root", root, "--base", repoRoot]);
+    expect(gate(results, "G4").violations.join("\n")).toContain("manual_verification[0]");
+  });
+});
+
+describe("G4 の PROGRESS.md と台帳の同期", () => {
+  it("PROGRESS.md が完了を宣言しているのに台帳が null なら違反になる", () => {
+    const root = makeRoot();
+    write(root, "docs/task-list.json", taskListWith([task({ task_id: "task_974" })]));
+    write(root, "docs/PROGRESS.md", "# PROGRESS\n\n- task_974: DONE — 完了と宣言している。\n");
+    const { results } = report(["--root", root, "--base", repoRoot]);
+    expect(gate(results, "G4").violations.join("\n")).toContain("task_974: docs/PROGRESS.md は DONE");
+  });
+
+  it("両者が一致していれば違反にならない", () => {
+    const root = makeRoot();
+    write(
+      root,
+      "docs/task-list.json",
+      taskListWith([task({ task_id: "task_975", completion_status: "DONE" })]),
+    );
+    write(root, "docs/PROGRESS.md", "# PROGRESS\n\n- task_975: DONE — 完了と宣言している。\n");
+    write(root, "docs/run-log/task_975.json", [
+      {
+        type: "command",
+        command: "npm run test:unit",
+        exit_code: 0,
+        commit: "0123456789abcdef0123456789abcdef01234567",
+        ran_at: "2026-09-24T00:00:00Z",
+        by: "po@example",
+      },
+    ]);
+    const { results } = report(["--root", root, "--base", repoRoot]);
+    expect(gate(results, "G4").violations).toEqual([]);
+  });
+});
+
+describe("gate-inputs は overlay からしか読まない", () => {
+  it("--root の gate-inputs/head.txt は G9 の HEAD を固定する", () => {
+    const root = makeRoot();
+    const pinned = "1111111111111111111111111111111111111111";
+    write(root, "gate-inputs/head.txt", `${pinned}\n`);
+    write(root, "docs/acceptance-checks.json", {
+      feature: "unit fixture",
+      version: 1,
+      checks: [
+        {
+          id: "check_901",
+          target: "例",
+          rule: "例",
+          expected_result: "例",
+          verification_method: "automated",
+          evidence: { commit: "2222222222222222222222222222222222222222" },
+        },
+      ],
+    });
+    const { results } = report(["--root", root, "--base", repoRoot]);
+    expect(gate(results, "G9").violations.join("\n")).toContain(pinned.slice(0, 12));
+  });
+
+  it("ベース側に gate-inputs/ があると G8 / G0 が違反として報告する", () => {
+    // リポジトリのトップレベルを symlink で束ねた使い捨てのベースを組み立てる
+    // （リポジトリ自体は変更しない）。
+    const fakeBase = makeRoot();
+    for (const name of fs.readdirSync(repoRoot)) {
+      fs.symlinkSync(path.join(repoRoot, name), path.join(fakeBase, name));
+    }
+    write(fakeBase, "gate-inputs/git-diff.json", { lines: ["+++ b/src/harmless.ts", "+export const x = 1;"] });
+    const { results, status } = report(["--base", fakeBase, "--only", "G8"]);
+    expect(status).toBe(1);
+    expect(gate(results, "G8").violations.join("\n")).toContain("リポジトリ直下に gate-inputs/ があります");
+    expect(gate(results, "G0").violations.join("\n")).toContain("リポジトリ直下に gate-inputs/ があります");
+    // 植え付けた偽 diff は採用されない: 実作業ツリーの追加行が走査される
+    expect(gate(results, "G8").targets).toBeGreaterThan(2);
+  });
+});
+
+describe("Stop フック向けの出力先", () => {
+  it("非ゼロ終了のときは違反行と集計行を stderr にも書く", () => {
+    const root = makeRoot();
+    write(root, "docs/task-list.json", taskListWith([task({ task_id: "task_976", done_definition: [] })]));
+    const res = runGateCheck(["--root", root, "--base", repoRoot, "--only", "G1"]);
+    expect(res.status).toBe(1);
+    // Claude Code の Stop フックは非ブロッキングの非ゼロ終了で stderr だけを見せる
+    expect(res.stderr).toContain("gate:check —");
+    expect(res.stderr).toContain("FAIL G1");
+    expect(res.stderr).toContain("done_definition が空");
+  });
+
+  it("exit 0 のときは stderr に何も書かない", () => {
+    const res = runGateCheck(["--only", "G3", "--quiet"]);
+    expect(res.status).toBe(0);
+    expect(res.stderr).toBe("");
+  });
 });

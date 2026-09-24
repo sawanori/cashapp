@@ -211,6 +211,49 @@ export function createContext(opts) {
     }
   };
 
+  const isOverlay = root !== base;
+
+  /**
+   * Overlay-ONLY read: never falls back to the repository.
+   *
+   * `gate-inputs/**` は「フィクスチャが差分や HEAD を固定するための入力」であって、
+   * 本番のリポジトリが持っていてよいファイルではない。resolve() は overlay に
+   * 無ければ base を読むので、そのまま使うとリポジトリ直下に
+   * `gate-inputs/git-diff.json` を置くだけで G8 / G9 の入力を差し替えられる
+   * （実 `git diff` / `git rev-parse HEAD` が一度も走らなくなる）。
+   * その迂回路を塞ぐため、gate-inputs は overlay からしか読まない。
+   * base 側に gate-inputs/ があること自体は baseGateInputs() が違反として報告する。
+   */
+  const readOverlayText = (/** @type {string} */ rel) => {
+    if (!isOverlay) return null;
+    if (absent.has(rel)) return null;
+    const exact = inputs[rel];
+    const candidates = [];
+    if (typeof exact === "string") candidates.push(path.join(root, exact));
+    for (const [logical, physical] of Object.entries(inputs)) {
+      if (!rel.startsWith(`${logical}/`)) continue;
+      candidates.push(path.join(root, physical, rel.slice(logical.length + 1)));
+    }
+    candidates.push(path.join(root, rel));
+    for (const candidate of candidates) {
+      try {
+        return fs.readFileSync(candidate, "utf8");
+      } catch {
+        /* try the next candidate */
+      }
+    }
+    return null;
+  };
+  const readOverlayJson = (/** @type {string} */ rel) => {
+    const text = readOverlayText(rel);
+    if (text === null) return null;
+    try {
+      return JSON.parse(text);
+    } catch {
+      return null;
+    }
+  };
+
   return {
     root,
     base,
@@ -220,14 +263,41 @@ export function createContext(opts) {
     exists,
     readText,
     readJson,
+    readOverlayText,
+    readOverlayJson,
     listDir,
-    isOverlay: root !== base,
+    isOverlay,
   };
+}
+
+/**
+ * `gate-inputs/` はフィクスチャ専用の入力置き場である。実リポジトリ側に現れたら、
+ * それは G8 / G9 の入力を差し替えようとした痕跡か、少なくとも誤配置である。
+ * G13 のハッシュ対象領域にも入らない（＝新設が検知されない）ので、ここで名指しする。
+ *
+ * @param {ReturnType<typeof createContext>} ctx
+ * @returns {string[]} base 側 gate-inputs/ の中身（repo 相対）
+ */
+function baseGateInputs(ctx) {
+  const dir = path.join(ctx.base, "gate-inputs");
+  /** @type {string[]} */
+  const out = [];
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return out;
+  }
+  for (const e of entries.sort((a, b) => (a.name < b.name ? -1 : 1))) {
+    out.push(`gate-inputs/${e.name}${e.isDirectory() ? "/" : ""}`);
+  }
+  return out;
 }
 
 /** @param {ReturnType<typeof createContext>} ctx */
 function headCommit(ctx) {
-  const pinned = ctx.readText("gate-inputs/head.txt");
+  // overlay からしか読まない（base 直下の gate-inputs/head.txt では差し替えられない）
+  const pinned = ctx.readOverlayText("gate-inputs/head.txt");
   if (pinned !== null) return pinned.trim();
   try {
     return execFileSync("git", ["-C", ctx.base, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
@@ -271,13 +341,128 @@ function isDocsOnly(task) {
   return files.every((f) => String(f).startsWith("docs/"));
 }
 
-function isHighConcern(text) {
-  return typeof text === "string" && /severity\s*[:：]\s*high/i.test(text);
-}
-
 /** A concern already fixed in-session is not an outstanding one for G11. */
 function isResolvedConcern(text) {
-  return typeof text === "string" && /(修正済み|解消済み|対応済み|resolved)/.test(text);
+  return typeof text === "string" && /(修正済み|解消済み|対応済み|達成済み|resolved)/.test(text);
+}
+
+/**
+ * 残懸念の severity 表記。本プロジェクトでは 3 つの書き方が混在している:
+ *   - docs/task-list.json の concerns[]      → `[severity: high] …`
+ *   - docs/concerns/<task_id>.md             → `- **深刻度**: high（…）`
+ *   - docs/HANDOFF.md の各タスク節           → `- **[severity: high] …**`
+ * task-list.json の concerns[] だけを数えると、実際に残懸念が書かれている場所を
+ * 見ていないことになる（G11 のしきい値が一生発火しない）。
+ */
+const SEVERITY_PATTERNS = [
+  /\*\*深刻度\*\*\s*[:：]\s*(high|medium|low)/i,
+  /深刻度\s*[:：]\s*(high|medium|low)/i,
+  /severity\s*[:：]\s*(high|medium|low)/i,
+  /【\s*(high|medium|low)\s*】/i,
+  // docs/concerns/task_012.md の見出し形式: `## C-012-1 [high] …`
+  /\[\s*(high|medium|low)\s*\]/i,
+];
+
+/** @returns {"high"|"medium"|"low"|null} */
+function severityOf(text) {
+  if (typeof text !== "string") return null;
+  for (const re of SEVERITY_PATTERNS) {
+    const m = re.exec(text);
+    if (m) return /** @type {any} */ (m[1].toLowerCase());
+  }
+  return null;
+}
+
+/** @param {ReturnType<typeof createContext>} ctx @param {string} taskId */
+function concernsFromFile(ctx, taskId) {
+  const text = ctx.readText(`docs/concerns/${taskId}.md`);
+  /** @type {{source: string, severity: string, body: string, resolved: boolean}[]} */
+  const out = [];
+  if (text === null) return out;
+  const sections = text.split(/^##\s+/m).slice(1);
+  for (const section of sections) {
+    const severity = severityOf(section);
+    if (severity === null) continue;
+    out.push({
+      source: `docs/concerns/${taskId}.md`,
+      severity,
+      body: section.trim(),
+      resolved: isResolvedConcern(section.split("\n")[0]) || /対応済み|修正済み|解消済み/.test(section),
+    });
+  }
+  return out;
+}
+
+/** @param {ReturnType<typeof createContext>} ctx @param {string} taskId */
+function concernsFromHandoff(ctx, taskId) {
+  const text = ctx.readText("docs/HANDOFF.md");
+  /** @type {{source: string, severity: string, body: string, resolved: boolean}[]} */
+  const out = [];
+  if (text === null) return out;
+  const lines = text.split("\n");
+  let inTask = false;
+  /** @type {string[]} */
+  let buffer = [];
+  const flush = () => {
+    if (buffer.length === 0) return;
+    const body = buffer.join("\n").trim();
+    buffer = [];
+    const severity = severityOf(body);
+    if (severity === null) return;
+    out.push({
+      source: "docs/HANDOFF.md",
+      severity,
+      body,
+      resolved: isResolvedConcern(body),
+    });
+  };
+  for (const line of lines) {
+    if (/^##\s/.test(line)) {
+      flush();
+      // `## task_006（…）` のように節見出しがタスクを名乗る
+      inTask = new RegExp(`^##\\s+${taskId}(?:[（(\\s]|$)`).test(line);
+      continue;
+    }
+    if (!inTask) continue;
+    if (/^-\s/.test(line)) {
+      flush();
+      if (/^-\s*\*\*\[?\s*severity\s*[:：]/i.test(line)) buffer = [line];
+      continue;
+    }
+    if (buffer.length > 0) buffer.push(line);
+  }
+  flush();
+  // 同じ懸念が周回ごとに書き写されることがあるので先頭 60 文字で重複を落とす
+  const seen = new Set();
+  return out.filter((c) => {
+    const key = c.body.slice(0, 60);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/**
+ * タスク 1 件の残懸念を 3 つの記録場所から集める。
+ * @param {ReturnType<typeof createContext>} ctx
+ * @param {any} task
+ * @returns {{source: string, severity: string|null, body: string, resolved: boolean}[]}
+ */
+function collectConcerns(ctx, task) {
+  const taskId = String(task.task_id);
+  /** @type {{source: string, severity: string|null, body: string, resolved: boolean}[]} */
+  const out = asArray(task.concerns).map((c) => {
+    const body = typeof c === "string" ? c : JSON.stringify(c);
+    return {
+      source: "docs/task-list.json",
+      severity: severityOf(body),
+      body,
+      resolved: isResolvedConcern(body),
+    };
+  });
+  out.push(...concernsFromFile(ctx, taskId));
+  out.push(...concernsFromHandoff(ctx, taskId));
+  return out;
 }
 
 // --------------------------------------------------------------------- gates
@@ -394,8 +579,168 @@ function runLogEntries(ctx, taskId) {
   return Array.isArray(data) ? data : null;
 }
 
+/**
+ * docs/PROGRESS.md が完了を宣言している task_id → ステータス。
+ *
+ * 完了申告が実際に書かれるのは PROGRESS.md であって台帳ではない（共通ルールが
+ * 「完了時に PROGRESS.md に 1 行」としか指示していない）。台帳の
+ * completion_status が null のままだと、G4 / G5 / G6 の対象集合がそのぶん小さく
+ * なり、「完了の過大申告」を検知するはずのゲートが完了タスクを見ないという
+ * 逆転が起きる。台帳との食い違いをここで名指しする。
+ *
+ * 行の形: `- task_006: DONE_WITH_CONCERNS — …` / `- task_011（レビュー修正・2 周目）: DONE — …`
+ *
+ * @param {ReturnType<typeof createContext>} ctx
+ * @returns {Map<string, string>}
+ */
+export function progressDeclarations(ctx) {
+  /** @type {Map<string, string>} */
+  const out = new Map();
+  const text = ctx.readText("docs/PROGRESS.md");
+  if (text === null) return out;
+  const re = /^-\s*(task_[0-9A-Za-z_]+)(?:\s*[（(][^）)]*[）)])?\s*[:：]\s*(DONE_WITH_CONCERNS|DONE|BLOCKED|NEEDS_CONTEXT|in_progress)\b/gm;
+  for (const m of text.matchAll(re)) {
+    // 同じ task が複数周ぶん並ぶ。最初の宣言（＝初回完了）を採る。
+    if (!out.has(m[1])) out.set(m[1], m[2]);
+  }
+  return out;
+}
+
+/** manual エントリが「実施者・UTC 日時・観察結果・HEAD」を全部持っているか。 */
+function isCompleteManualEntry(e) {
+  return Boolean(
+    e &&
+      e.type === "manual" &&
+      typeof e.observation === "string" &&
+      e.observation.trim().length > 0 &&
+      typeof e.by === "string" &&
+      e.by.length > 0 &&
+      typeof e.ran_at === "string" &&
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z?/.test(e.ran_at) &&
+      typeof e.commit === "string" &&
+      e.commit.length > 0,
+  );
+}
+
+/**
+ * manual エントリが manual_verification の項目 i を名指ししているか。
+ * 名指しの形は 2 つ: `manual_verification[i]` という索引つきの参照か、
+ * 項目文字列そのものの引き写し。
+ */
+function manualEntryNamesItem(entry, item, index) {
+  const obs = String(entry.observation);
+  if (obs.includes(`manual_verification[${index}]`)) return true;
+  const needle = String(item).trim();
+  return needle.length > 0 && obs.includes(needle);
+}
+
+/**
+ * §15-2 G4 後半「`manual_verification` の**各項目について**実施者・UTC 日時・
+ * 観察結果・HEAD が記録されている」の実装。
+ *
+ * 1 項目 1 記録の**単射**で割り当てる。無関係な manual エントリが 1 件あるだけで
+ * N 項目すべてが満たされたことにしてはならない（それが以前の実装の穴）。
+ * 名指し（`manual_verification[i]` か項目文字列の引き写し）があるエントリを先に
+ * 固定し、残った項目には残ったエントリを 1 件ずつ充てる。名指しの無い充当は
+ * warn として表に出す（黙って通さない）。
+ *
+ * @returns {{violations: string[], warnings: string[], matched: number}}
+ */
+function matchManualVerification(taskId, items, entries) {
+  const complete = entries.filter(isCompleteManualEntry);
+  const incomplete = entries.filter((e) => e && e.type === "manual" && !isCompleteManualEntry(e));
+  /** @type {string[]} */
+  const violations = [];
+  /** @type {string[]} */
+  const warnings = [];
+  const used = new Set();
+  /** @type {Map<number, number>} */
+  const assigned = new Map();
+
+  // 1st pass: 名指しされている項目を先に確定する
+  items.forEach((item, i) => {
+    for (let j = 0; j < complete.length; j += 1) {
+      if (used.has(j)) continue;
+      if (!manualEntryNamesItem(complete[j], item, i)) continue;
+      used.add(j);
+      assigned.set(i, j);
+      return;
+    }
+  });
+  // 2nd pass: 残った項目に、名指しの無い残りのエントリを 1 件ずつ充てる
+  items.forEach((item, i) => {
+    if (assigned.has(i)) return;
+    for (let j = 0; j < complete.length; j += 1) {
+      if (used.has(j)) continue;
+      used.add(j);
+      assigned.set(i, j);
+      warnings.push(
+        `${taskId}: manual_verification[${i}]「${String(item).slice(0, 30)}」は、` +
+          "どの項目の記録か名乗っていない manual エントリで充当しました。" +
+          "観察結果の先頭に `manual_verification[<索引>]` を書いてください",
+      );
+      return;
+    }
+  });
+
+  items.forEach((item, i) => {
+    if (assigned.has(i)) return;
+    violations.push(
+      `${taskId}: manual_verification[${i}]「${String(item).slice(0, 40)}」に対応する manual 記録` +
+        `（実施者・UTC 日時・観察結果・HEAD）がありません` +
+        `（項目 ${items.length} 件に対し要件を満たす manual 記録 ${complete.length} 件）`,
+    );
+  });
+  if (incomplete.length > 0) {
+    warnings.push(
+      `${taskId}: 実施者・UTC 日時・観察結果・HEAD のいずれかを欠く manual エントリが ${incomplete.length} 件あります（充当対象外）`,
+    );
+  }
+  return { violations, warnings, matched: assigned.size };
+}
+
 function gateG4(ctx, s) {
   const violations = [];
+  const warnings = [];
+
+  // --- 台帳と完了申告の食い違い -------------------------------------------
+  // PROGRESS.md が完了を宣言しているのに台帳の completion_status が null なら、
+  // G4 / G5 / G6 はそのタスクを一度も見ない。過小カウントそのものを違反にする。
+  //
+  // 片方だけを差し替えた overlay では、この対比は意味を持たない（フィクスチャの
+  // task-list と本物の PROGRESS.md を突き合わせることになる）。両方が同じ層から
+  // 来ているときだけ判定し、そうでなければ理由を notes に出して飛ばす。
+  // 実リポジトリでは root === base なので常に判定される。
+  const ledgerFromOverlay = ctx.readOverlayText("docs/task-list.json") !== null;
+  const progressFromOverlay = ctx.readOverlayText("docs/PROGRESS.md") !== null;
+  const driftComparable = !ctx.isOverlay || ledgerFromOverlay === progressFromOverlay;
+
+  const declared = driftComparable ? progressDeclarations(ctx) : new Map();
+  const byId = new Map(s.tasks.map((t) => [String(t.task_id), t]));
+  let drift = 0;
+  for (const [taskId, status] of declared) {
+    const t = byId.get(taskId);
+    if (!t) {
+      violations.push(`docs/PROGRESS.md が ${taskId}(${status}) を宣言していますが docs/task-list.json にありません`);
+      drift += 1;
+      continue;
+    }
+    if (t.completion_status === null || t.completion_status === undefined) {
+      violations.push(
+        `${taskId}: docs/PROGRESS.md は ${status} を宣言していますが docs/task-list.json の completion_status が null です` +
+          "（台帳が追随していないぶん G4 / G5 / G6 の対象から落ちます）",
+      );
+      drift += 1;
+      continue;
+    }
+    if (t.completion_status !== status) {
+      violations.push(
+        `${taskId}: docs/PROGRESS.md は ${status}、docs/task-list.json は ${t.completion_status} と食い違っています`,
+      );
+      drift += 1;
+    }
+  }
+
   const done = s.tasks.filter((t) => DONE_STATES.has(t.completion_status));
   for (const t of done) {
     const id = t.task_id ?? "<no task_id>";
@@ -419,35 +764,26 @@ function gateG4(ctx, s) {
       violations.push(`${id}: verify_commands も manual_verification も無いまま完了しています`);
       continue;
     }
-    const manualEntries = entries.filter((e) => e && e.type === "manual");
-    for (const item of manual) {
-      const complete = manualEntries.some(
-        (e) =>
-          typeof e.observation === "string" &&
-          e.observation.length > 0 &&
-          typeof e.by === "string" &&
-          e.by.length > 0 &&
-          typeof e.ran_at === "string" &&
-          /^\d{4}-\d{2}-\d{2}T/.test(e.ran_at) &&
-          typeof e.commit === "string" &&
-          e.commit.length > 0,
-      );
-      if (!complete) {
-        violations.push(
-          `${id}: manual_verification「${String(item).slice(0, 40)}」に対応する manual 記録（実施者・UTC 日時・観察結果・HEAD）がありません`,
-        );
-      }
-    }
+    const matched = matchManualVerification(id, manual, entries);
+    violations.push(...matched.violations);
+    warnings.push(...matched.warnings);
   }
-  if (done.length === 0) {
+  const notes = [
+    `完了タスク ${done.length} 件を検査`,
+    driftComparable
+      ? `docs/PROGRESS.md の完了宣言 ${declared.size} 件 / 台帳との食い違い ${drift} 件`
+      : "docs/PROGRESS.md と docs/task-list.json の一方だけが overlay 由来のため、完了宣言の対比は飛ばしました",
+  ];
+  if (done.length === 0 && declared.size === 0) {
     return {
       status: "defer",
       targets: 0,
       violations,
-      notes: ["完了ステータスのタスクがまだ 1 件もありません"],
+      warnings,
+      notes: ["完了ステータスのタスクがまだ 1 件もなく、docs/PROGRESS.md にも完了宣言がありません"],
     };
   }
-  return { targets: done.length, violations, notes: [`完了タスク ${done.length} 件を検査`] };
+  return { targets: done.length + declared.size, violations, warnings, notes };
 }
 
 function gateG5(ctx, s) {
@@ -511,11 +847,26 @@ function gateG5(ctx, s) {
 
 function gateG6(ctx, s) {
   const violations = [];
+  const notes = [];
   const subject = s.tasks.filter((t) => t.completion_status === "DONE_WITH_CONCERNS");
   for (const t of subject) {
     const concerns = asArray(t.concerns);
     if (concerns.length === 0) {
-      violations.push(`${t.task_id}: DONE_WITH_CONCERNS ですが concerns が空`);
+      // 台帳の concerns[] が空でも、本プロジェクトが実際に残懸念を書いている場所
+      // （docs/concerns/<task_id>.md・docs/HANDOFF.md のタスク節）に severity つきの
+      // 記録があればそれで足りる。どこにも無ければ「懸念つき完了」が中身を持たない。
+      const collected = collectConcerns(ctx, t).filter(
+        (c) => c.severity !== null && c.body.trim().length >= 40,
+      );
+      if (collected.length === 0) {
+        violations.push(
+          `${t.task_id}: DONE_WITH_CONCERNS ですが severity つきの残懸念が ` +
+            "docs/task-list.json の concerns[] にも docs/concerns/<task_id>.md にも docs/HANDOFF.md にもありません",
+        );
+        continue;
+      }
+      const sources = [...new Set(collected.map((c) => c.source))].join(" / ");
+      notes.push(`${t.task_id}: 台帳の concerns[] は空。${sources} の ${collected.length} 件で判定`);
       continue;
     }
     concerns.forEach((c, i) => {
@@ -538,7 +889,11 @@ function gateG6(ctx, s) {
       notes: ["DONE_WITH_CONCERNS のタスクがまだありません"],
     };
   }
-  return { targets: subject.length, violations, notes: [`DONE_WITH_CONCERNS ${subject.length} 件を検査`] };
+  return {
+    targets: subject.length,
+    violations,
+    notes: [`DONE_WITH_CONCERNS ${subject.length} 件を検査`, ...notes],
+  };
 }
 
 function countContractFiles(ctx) {
@@ -581,7 +936,9 @@ function gateG7(ctx, s) {
 
 /** @returns {string|null} */
 function loadDiff(ctx) {
-  const structured = ctx.readJson("gate-inputs/git-diff.json");
+  // overlay からしか読まない。base 直下に gate-inputs/git-diff.json を置いて
+  // 実 diff の走査を丸ごと飛ばす迂回路を塞ぐため（baseGateInputs() が別途違反にする）。
+  const structured = ctx.readOverlayJson("gate-inputs/git-diff.json");
   if (structured && Array.isArray(structured.lines)) {
     // Each line is either a string or an array of fragments joined here, so a
     // fixture can carry a secret-shaped value without any file in the
@@ -591,7 +948,7 @@ function loadDiff(ctx) {
       .map((l) => (Array.isArray(l) ? l.join("") : String(l)))
       .join("\n");
   }
-  const plain = ctx.readText("gate-inputs/git-diff.txt");
+  const plain = ctx.readOverlayText("gate-inputs/git-diff.txt");
   if (plain !== null) return plain;
   try {
     const worktree = execFileSync("git", ["-C", ctx.base, "diff", "HEAD"], {
@@ -645,6 +1002,7 @@ function isCatalogFile(file) {
 }
 
 function gateG8(ctx) {
+  const strayInputs = baseGateInputs(ctx);
   const diff = loadDiff(ctx);
   if (diff === null) {
     return {
@@ -683,6 +1041,12 @@ function gateG8(ctx) {
     }
   }
   const notes = [`追加行 ${scanned} 行を走査`];
+  if (strayInputs.length > 0) {
+    violations.push(
+      `リポジトリ直下に gate-inputs/ があります（${strayInputs.join(", ")}）。` +
+        "これはフィクスチャ専用の入力置き場で、実リポジトリに置くと G8 / G9 の入力差し替えに使われます（無視して走査しました）",
+    );
+  }
   if (skipped.size > 0) {
     const list = [...skipped].sort();
     const shown = list.slice(0, 5).join(", ");
@@ -774,9 +1138,13 @@ function gateG10(ctx) {
 function gateG11(ctx, s) {
   /** @type {string[]} */
   const open = [];
+  /** @type {Map<string, number>} */
+  const bySource = new Map();
   for (const t of s.tasks) {
-    for (const c of asArray(t.concerns)) {
-      if (isHighConcern(c) && !isResolvedConcern(c)) open.push(`${t.task_id}`);
+    for (const c of collectConcerns(ctx, t)) {
+      if (c.severity !== "high" || c.resolved) continue;
+      open.push(`${t.task_id}`);
+      bySource.set(c.source, (bySource.get(c.source) ?? 0) + 1);
     }
   }
   const inProgress = s.tasks.filter((t) => t.completion_status === "in_progress");
@@ -787,11 +1155,13 @@ function gateG11(ctx, s) {
         `in_progress のタスク ${inProgress.map((t) => t.task_id).join(", ")} を進められません`,
     );
   }
+  const sources = [...bySource].map(([k, v]) => `${k}=${v}`).join(" / ") || "なし";
   return {
     targets: s.tasks.length,
     violations,
     notes: [
-      `未解決 high concerns ${open.length} 件 / しきい値 ${HIGH_CONCERN_BLOCK_THRESHOLD} 件 / in_progress ${inProgress.length} 件`,
+      `未解決 high concerns ${open.length} 件（${[...new Set(open)].join(", ") || "なし"}） / しきい値 ${HIGH_CONCERN_BLOCK_THRESHOLD} 件 / in_progress ${inProgress.length} 件`,
+      `集計元: ${sources}`,
     ],
   };
 }
@@ -989,6 +1359,15 @@ function gateG0(ctx, others) {
     if (r.status === "defer" && r.notes.length === 0) {
       violations.push(`${r.id} が defer ですが理由がありません`);
     }
+  }
+
+  // 1b. ゲートの入力そのものが差し替えられていないか
+  const strayInputs = baseGateInputs(ctx);
+  if (strayInputs.length > 0) {
+    violations.push(
+      `リポジトリ直下に gate-inputs/ があります（${strayInputs.join(", ")}）。` +
+        "フィクスチャ専用の入力置き場であり、実リポジトリに置かれていると G8 / G9 が実 diff / 実 HEAD を見ない状態を作れます",
+    );
   }
 
   // 2. the fixture set itself
@@ -1201,15 +1580,28 @@ if (invokedDirectly) {
   const violationCount = failing.reduce((n, r) => n + r.violations.length, 0);
   const warnCount = results.reduce((n, r) => n + r.warnings.length, 0);
 
+  const summary = `gate:check — ${scoped.length} ゲートを判定、${failing.length} ゲートが不合格（違反 ${violationCount} 件 / warn ${warnCount} 件）`;
+
   if (args.json) {
     process.stdout.write(
       `${JSON.stringify({ root, base, only: args.only ? [...args.only] : null, results }, null, 2)}\n`,
     );
   } else if (!args.quiet) {
     process.stdout.write(`${formatReport(results, args.only)}\n`);
-    process.stdout.write(
-      `\ngate:check — ${scoped.length} ゲートを判定、${failing.length} ゲートが不合格（違反 ${violationCount} 件 / warn ${warnCount} 件）\n`,
-    );
+    process.stdout.write(`\n${summary}\n`);
+  }
+
+  // Stop フックは `npm run --silent gate:check` を exit 1 で返す（exit 2 にすると
+  // 停止をブロックし、ゲートが直るまでセッションが終われない罠になる）。
+  // Claude Code が非ブロッキングの非ゼロ終了でセッションに見せるのは **stderr** なので、
+  // stdout だけに書いていると「どのゲートが何件落ちたか」がその場に出ない。
+  // 落ちたときは違反行と集計行を stderr にも出す。
+  if (failing.length > 0) {
+    const lines = [summary];
+    for (const r of failing) {
+      for (const v of r.violations) lines.push(`   FAIL ${r.id} ${v}`);
+    }
+    process.stderr.write(`${lines.join("\n")}\n`);
   }
   process.exit(failing.length > 0 ? 1 : 0);
 }

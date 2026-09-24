@@ -1,0 +1,16 @@
+{
+  "fixture_id": "g8-gate-inputs-planted-in-base",
+  "gate": ["G8", "G0"],
+  "description": "リポジトリ直下に gate-inputs/git-diff.json と gate-inputs/head.txt を置くだけで、G8（実シークレット検出）と G9（evidence.commit === HEAD）の入力を差し替えられる状態。gate-inputs/** は deny ガードの保護パスにも G13 のハッシュ対象領域にも入らないので、新設しても誰も気づかない。CI は同じ gate-check.mjs を同じチェックアウトに対して走らせるため、この迂回では CI も最終防衛線にならない。",
+  "runner": {
+    "cmd": "bash",
+    "args": ["tests/gates/fixtures/violations/g8-gate-inputs-planted-in-base/run.sh", "{FIXTURE}"]
+  },
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "リポジトリ直下に gate-inputs/ があります",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "この 1 本だけは overlay（--root）ではなくベース（--base）に細工を置くため、runner が bash スクリプトになっている。run.sh はリポジトリのトップレベルを symlink で束ねた使い捨てのベースを mktemp -d の下に組み立てるので、リポジトリ自体は一切変更されない。植え付けた偽 diff が採用されると G8 は『対象 1 件』で ok になる（修正前の実測）。"
+  }
+}

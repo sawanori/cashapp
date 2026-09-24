@@ -1,0 +1,50 @@
+{
+  "feature": "violation fixture: G11（残懸念が docs/concerns/<task_id>.md にしか書かれていない場合）",
+  "version": 1,
+  "generated_at": "2026-09-24",
+  "notes": "本物の task-list ではない。tests/gates/fixtures/violations/README.md を参照。",
+  "tasks": [
+    {
+      "task_id": "task_940",
+      "title": "high 懸念を 2 件抱えた完了タスク（台帳の concerns[] は空）",
+      "completion_status": "DONE_WITH_CONCERNS",
+      "risk_level": "high",
+      "adversarial_review": "not_required",
+      "files_to_create": ["src/lib/example.ts"],
+      "files_to_modify": [],
+      "done_definition": ["test:unit が緑"],
+      "verify_commands": ["npm run test:unit"],
+      "manual_verification": null,
+      "acceptance_check_ids": [],
+      "concerns": []
+    },
+    {
+      "task_id": "task_941",
+      "title": "high 懸念を 1 件抱えた完了タスク（台帳の concerns[] は空）",
+      "completion_status": "DONE_WITH_CONCERNS",
+      "risk_level": "high",
+      "adversarial_review": "not_required",
+      "files_to_create": ["src/lib/example2.ts"],
+      "files_to_modify": [],
+      "done_definition": ["test:unit が緑"],
+      "verify_commands": ["npm run test:unit"],
+      "manual_verification": null,
+      "acceptance_check_ids": [],
+      "concerns": []
+    },
+    {
+      "task_id": "task_942",
+      "title": "high 懸念を抱えたまま進行中の新規機能タスク",
+      "completion_status": "in_progress",
+      "risk_level": "medium",
+      "adversarial_review": "not_required",
+      "files_to_create": ["src/app/example/page.tsx"],
+      "files_to_modify": [],
+      "done_definition": ["画面が出る"],
+      "verify_commands": ["npm run test:unit"],
+      "manual_verification": null,
+      "acceptance_check_ids": [],
+      "concerns": []
+    }
+  ]
+}

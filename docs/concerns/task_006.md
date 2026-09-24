@@ -164,3 +164,139 @@
   対象が現れた時点で実際に落ちることを `npm run test:gate-meta` が今すでに証明している。
 - **対応案**: 対象を作るタスク（task_007 / 018 / 019）の完了時に defer が自動的に外れる。
 - **対応予定タスク**: task_007 / task_018 / task_019
+
+---
+
+# レビュー指摘（2 周目）の処理結果
+
+| # | 深刻度 | 指摘 | 結果 |
+|---|---|---|---|
+| 1 | high | G4 の manual 判定が項目を参照しておらず、無関係な manual 記録 1 件で N 項目すべてが満たされたことになる | 修正済み（下記 11） |
+| 2 | medium | `gate-inputs/**` をリポジトリ直下に置くだけで G8 / G9 の入力を差し替えられる | 修正済み（下記 12） |
+| 3 | medium | PROGRESS.md の完了申告が台帳に反映されておらず G4 / G6 が完了 7 件中 1 件しか見ていない | 修正済み（下記 13） |
+| 4 | medium | G11 / G6 が `docs/concerns/<task_id>.md` を数えていない | 修正済み（下記 14） |
+| 5 | medium | G13 のハッシュ対象から `wording-lint.mjs` / `gates-sync.mjs` / `test-hook-enforcement.sh` が漏れている | 修正済み（下記 15） |
+| 6 | medium | Stop フックで落ちてもレポートが stdout にしか出ず、その場に現れない | 修正済み（下記 16） |
+| 7 | medium・deferred | CI 実走が未証明 | 変化なし（上記 3。GitHub リモート未作成） |
+
+---
+
+## 11. G4 の manual 記録は「名指し」ではなく単射で充当している（残余）
+
+- **指摘**: レビュー指摘 1（high）の修正として、`manual_verification` の各項目に
+  **別々の** manual 記録を割り当てる単射マッチングを実装した。名指し
+  （観察文中の `manual_verification[<索引>]`、または項目文字列の引き写し）があるものを
+  先に確定し、残った項目には残った記録を 1 件ずつ充てる。したがって
+  「項目 3 件・記録 1 件」は必ず 2 件の違反になる（反例 `g4-manual-items-uncovered`）。
+  ただし名指しの無い記録でも項目数ぶんあれば充当されるため、「3 項目に対し内容の重複した
+  3 記録」は通ってしまう。
+- **深刻度**: low。充当時に必ず warn を出す（黙って通さない）ので、名指しの無い記録は
+  毎回レポートに現れる。既存の唯一の該当例は task_002 の 1 項目 1 記録で、いま warn が出ている。
+- **対応案**: `scripts/record-run.sh --manual` の観察文に `manual_verification[<索引>]` を
+  書く運用を定着させ、全記録が名指しになった時点で名指しを必須に切り替える
+  （`manualEntryNamesItem` を 2nd pass から外すだけで済む）。`record-run.sh` は task_003 の
+  成果物なので、引数への索引フィールド追加は別タスクの担当。
+- **対応予定タスク**: 未起票（運用で先行）
+
+---
+
+## 12. `gate-inputs/**` は overlay 専用にした（ベース側は違反として報告）
+
+- **指摘**: 修正前は `ctx.resolve` のフォールバックにより、リポジトリ直下に
+  `gate-inputs/git-diff.json` / `gate-inputs/head.txt` を置くだけで G8 / G9 の入力を
+  差し替えられた（実 `git diff` / 実 `git rev-parse HEAD` が一度も走らない）。
+  `gate-inputs/**` は deny ガードの保護パスにも G13 のハッシュ対象領域にも入らないため、
+  新設が検知されなかった。
+- **深刻度**: medium（修正済み）。`readOverlayText` を追加し、`gate-inputs/**` は
+  `--root` がベースと異なるときに overlay からのみ読む。加えてベース側に `gate-inputs/` が
+  あれば G8 と G0 が違反として名指しする。反例 `g8-gate-inputs-planted-in-base` が
+  ベースを symlink で組み立てて実測する。
+- **残余**: `gate-inputs/**` 自体は今も G13 のハッシュ対象領域に入らない（対象領域は
+  §15-2 の列挙で決まっており、存在しないディレクトリを足しても意味がない）。歯止めは
+  G8 / G0 の報告と、追加ファイルが PR の diff に出ることである。
+- **対応予定タスク**: なし（記録のみ）
+
+---
+
+## 13. PROGRESS.md の完了申告を台帳へ反映した（他タスクの行にも触れた）
+
+- **指摘**: 完了申告が書かれるのは `docs/PROGRESS.md` だけで、共通ルールは
+  `docs/task-list.json` の `completion_status` を書けと指示していない。その結果、
+  PROGRESS.md が 7 件の完了を宣言しているのに台帳では 1 件（task_011）しか入っておらず、
+  G4 / G5 / G6 は完了タスクをほとんど見ていなかった。G0 は `targets === 0` のときしか
+  鳴らないので、この過小カウントは検知されなかった。
+- **深刻度**: medium（修正済み）。G4 に「PROGRESS.md が完了を宣言している task_id の
+  `completion_status` が台帳で null」「両者のステータスが食い違う」を違反として追加し
+  （反例 `g4-progress-ledger-drift`）、台帳側を PROGRESS.md に合わせた。
+  G4 の対象は 1 件 → 7 件、G5 は 1 件 → 5 件、G6 は 1 件 → 6 件になった。
+- **担当範囲の逸脱（記録）**: `docs/task-list.json` は task_006 の `files_to_modify` に無い。
+  それでも触ったのは、追加した判定を満たすには台帳の同期が要るためである。書いたのは
+  **PROGRESS.md の記載をそのまま写した `completion_status`** と、task_006 自身の `concerns[]` である。
+  task_003 の既存 `concerns[]` 2 件は severity 表記が無く G6 に落ちたため、severity 接頭辞だけを
+  付けた（1 件目は task_003 自身が `docs/HANDOFF.md` に書いた `[severity: medium] A21 未解決` からの転記、
+  2 件目は該当する severity 記録が無いため task_006 が `low` を付与した旨を本文中に明記してある）。
+  他タスクの concerns 本文は書き換えていない。
+- **対応予定タスク**: 各タスクの完了時に自分の行を書く運用へ（共通ルールの改訂は PO 判断）
+
+---
+
+## 14. 残懸念の集計元を 3 箇所に広げた
+
+- **指摘**: G11（high 3 件で `in_progress` を止めるキルスイッチ）と G6 は
+  `docs/task-list.json` の `concerns[]` だけを数えていたが、本プロジェクトが実際に残懸念を
+  書いている場所は `docs/concerns/<task_id>.md` と `docs/HANDOFF.md` のタスク節である。
+  数える場所が違えば、しきい値 3 件には一生届かない。
+- **深刻度**: medium（修正済み）。`collectConcerns` が 3 箇所を読む。severity 表記は
+  `**深刻度**: high` / `severity: high` / `【high】` / 見出しの `[high]` の 4 形式に対応し、
+  `修正済み` などの表記があるものは残高から外す。HANDOFF はタスク節の中の
+  `- **[severity: …]` で始まる箇条書きだけを拾い、周回ごとの書き写しは先頭 60 文字で重複排除する。
+  反例 `g11-high-concerns-only-in-concerns-files` が「concerns ファイルにしか無い high 3 件」で
+  発火することを実測する。現在の残高は 7 件（task_005 / task_006 / task_011）。
+- **残余**: severity 表記が 4 形式あること自体が脆い。表記を 1 つに寄せるか、
+  `docs/concerns/*.md` と台帳 `concerns[]` の同期を `gate:plan` で強制するのが本筋。
+- **対応予定タスク**: 未起票（表記の統一は PO 判断）
+
+---
+
+## 15. G13 のハッシュ対象に 3 本を追加した
+
+- **指摘**: `scripts/wording-lint.mjs`（required ジョブ `labels` の本体）・
+  `scripts/gates-sync.mjs`（required ジョブ `gates-sync` の本体）・
+  `scripts/test-hook-enforcement.sh`（フック実在マトリクスの再測定手段）は、
+  ファイル名が `gate-` / `deny-` / `assert-` / `validate-` のどの接頭辞にも当たらないため
+  ハッシュ対象から漏れていた（`gates-sync.mjs` は 5 文字目が `s`）。書き換えても G13 が沈黙した。
+- **深刻度**: medium（修正済み）。`INTEGRITY_PATTERNS` に file エントリとして 3 本を追加し、
+  基準値を作り直した（21 → 24 ファイル）。
+- **残余**: `scripts/with-lock.sh`（並行実行の排他）と `scripts/db-diff-drizzle.mjs` は
+  対象に入れていない。どちらも合否を判定するゲートではなく、§15-2 の列挙にも無いため、
+  範囲を広げるのは計画の改訂とセットにすべきと判断した。
+- **対応予定タスク**: task_009（§15-2 の列挙改訂と CODEOWNERS）
+
+---
+
+## 16. Stop フックで落ちたときのレポートを stderr にも出す
+
+- **指摘**: Stop フックの `npm run --silent gate:check` は exit 1 で返すが、
+  `gate-check.mjs` はレポートも違反行も stdout に書いていた。Claude Code の Stop フックで
+  非ブロッキング（exit 2 以外の非ゼロ）のときセッションに提示されるのは stderr なので、
+  ゲートが落ちても「どのゲートが何件落ちたか」がその場に現れなかった。
+- **深刻度**: medium（修正済み）。非ゼロ終了する場合に限り、集計行と違反行を stderr にも書く。
+  exit 1 のまま据え置く判断（exit 2 はセッションを終われなくする罠になる）は変更していない。
+- **対応予定タスク**: なし（記録のみ）
+
+---
+
+## 17. 基準値の再生成が並行タスクの変更もまとめて正にする
+
+- **指摘**: G13 の基準値は作業ツリーのファイルをハッシュする。今回の再生成では
+  `scripts/gate-env-scope.mjs`（task_012 の成果物。本タスクの作業中に task_012 の
+  2 周目がコミット `3062179` で書き換えた）の新しい内容も一緒に基準値へ入った。
+  基準値の再生成は「いま作業ツリーにあるものを正とする」操作なので、
+  他タスクの変更も区別なく正になる。
+- **深刻度**: medium。悪用すれば「ガードを書き換えてから基準値を作り直す」という
+  上記 2 の自己封じと同じ経路になる。
+- **対応案**: 基準値の差分（`docs/gates/integrity-baseline.json`）を PR で人間に見せることが
+  唯一の歯止めであり、それを強制するのは task_009 の CODEOWNERS と `test-tamper-guard`。
+  運用としては、基準値の再生成は「ゲート対象領域に未コミット変更が無い状態」で行うべきだが、
+  並行実行中はそれを保証できない。再生成した時刻と HEAD は基準値ファイルに記録されている。
+- **対応予定タスク**: task_009

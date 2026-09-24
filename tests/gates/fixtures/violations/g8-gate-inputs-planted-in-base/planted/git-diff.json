@@ -1,0 +1,7 @@
+{
+  "notes": "無害に見える 1 行だけの偽 diff。これがベース直下の gate-inputs/ から読まれると、実作業ツリーの追加行は一行も走査されない。",
+  "lines": [
+    "+++ b/src/harmless.ts",
+    "+export const x = 1;"
+  ]
+}

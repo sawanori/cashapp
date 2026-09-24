@@ -56,6 +56,14 @@ export const INTEGRITY_PATTERNS = [
   { kind: "file", value: "scripts/record-run.sh" },
   { kind: "file", value: "scripts/append-handoff.sh" },
   { kind: "file", value: "scripts/session-brief.mjs" },
+  // §16-6 の required ジョブが本体として呼ぶゲートスクリプトのうち、名前が
+  // gate- / deny- / assert- / validate- のどの接頭辞にも当たらないもの。
+  // `gates-sync.mjs` は 5 文字目が `s` なので `scripts/gate-` の前方一致に
+  // 掛からない。名前の綴りだけで対象から外れるのは G13 の穴なので、
+  // ファイル名で直接ピン留めする（§15-2 の列挙もこの 3 本を含む）。
+  { kind: "file", value: "scripts/wording-lint.mjs" }, // required job: labels (gate:wording)
+  { kind: "file", value: "scripts/gates-sync.mjs" }, // required job: gates-sync
+  { kind: "file", value: "scripts/test-hook-enforcement.sh" }, // フック実在マトリクスの再測定手段
 ];
 
 /** Never hashed: the baseline cannot contain its own hash. */

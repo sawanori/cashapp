@@ -1,0 +1,19 @@
+{
+  "fixture_id": "g4-manual-items-uncovered",
+  "gate": "G4",
+  "description": "manual_verification を 3 項目宣言した docs タスクが、実施者・UTC 日時・観察結果・HEAD を備えた manual 記録を 1 件しか持たないまま DONE を名乗る状態。『無関係な manual エントリが 1 件あるだけで N 項目すべてが満たされたことになる』という判定の穴（§15-2 G4 の「各項目について」の取りこぼし）を押さえる。docs/** のみのタスクでは manual 記録が唯一の完了根拠なので、ここが空振りすると F2『完了の過大申告』の検知がそのタスク群で無効になる。",
+  "runner": {
+    "cmd": "node",
+    "args": ["scripts/gate-check.mjs", "--root", "{FIXTURE}", "--only", "G4"]
+  },
+  "inputs": {
+    "docs/run-log": "runlog"
+  },
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "manual_verification[1]",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "run-log を docs/run-log/ ではなく runlog/ に置いているのは deny-test-weakening.sh が docs/run-log/** への書き込みをフィクスチャであっても拒否するため（meta.json の inputs でディレクトリごと読み替える）。1 件だけある manual 記録は項番 0 の内容に対応しており、項番 1 / 2 は誰も確認していない。"
+  }
+}
