@@ -5,6 +5,21 @@ GitHub Actions CI・PR テンプレート・test-tamper-guard・release.yml の 
 
 ---
 
+## 0. 2 周目（2026-09-24）で直したこと・直せなかったこと
+
+敵対レビューの指摘を受けた修正周。**直したもの**は以下で、この文書の該当節から
+「未解決の懸念」としては外してある。
+
+| 指摘 | 対応 | 実測 |
+|---|---|---|
+| `secrets` ジョブが現 HEAD で必ず落ちる（シークレット「名」で `.open-next` 全体を走査し、`src/lib/config/env.ts` が正当に参照する PEPPER / SESSION_KEYS / CRON_SECRETS / DATABASE_URL に自分で当たる） | 走査を 2 群に分けた。名前の走査は**クライアント配布物**（`.next/static` / `.open-next/assets`）だけ、サーバーバンドル（`.open-next` の assets 以外）は**値のパターン**だけ | `npm run build && npm run build:cf` のあと `bash scripts/ci/secrets-grep.sh` が exit 0（クライアント 21 / サーバー 1189 ファイル、違反 0 件）。修正前は同じビルドで exit 1・違反 4 件。`tests/unit/ci/secrets-grep.test.ts` 23 件で両方向を固定（クライアントに名前 → 落ちる / サーバーに名前 → 通る / 値は両群で落ちる / 走査 0 件で落ちる） |
+| `test-tamper-guard` が PR 本文の編集で再実行されず、緑にしてから本文を空に戻せる | ジョブを `.github/workflows/gate-tamper.yml` に分離し、`types: [opened, synchronize, reopened, edited]` で起動する。`gate.yml` は既定の types のまま（全ジョブを本文編集のたびに回さない） | ワークフロー 6 本の静的検証で `test-tamper-guard` の types に `edited` が入っていること・ジョブ ID が全ワークフローで一意（status check 名の衝突なし）を機械確認 |
+
+**直せなかったもの**は下の 1 / 2 / 3（`docs/gates/**` への書き込み禁止と、GitHub リモートの
+不在）で、いずれも deferred のまま残っている。
+
+---
+
 ## 1. `docs/gates/release-mode.json` を作れなかった（ハーネス同士の衝突）
 
 - **指摘**: 本タスクの `files_to_create` に `docs/gates/release-mode.json` があるが、
@@ -41,6 +56,9 @@ GitHub Actions CI・PR テンプレート・test-tamper-guard・release.yml の 
   なお `docs/gates/README.md` の表は既に `release-mode.json` を「task_009 が作る」と
   書いているが、上記の理由で AI からは作れない。README の訂正も PO の手に委ねる
   （`docs/gates/**` なので同じ理由で AI からは直せない）。
+- **2 周目（2026-09-24）の再確認**: 修正周でもう一度 Write を試み、同じ文面で遮断された
+  （`deny-test-weakening.sh: BLOCKED / 理由: docs/gates/** は PO 専管のゲート定義の正本です
+  （R-SEC-07 / F13）`）。迂回はしていない。**deferred: PO が作成する**。
 - **対応予定タスク**: PO（作成）／task_038（ハーネス規約の整理でこの衝突を台帳に反映）
 
 ---
@@ -60,13 +78,18 @@ GitHub Actions CI・PR テンプレート・test-tamper-guard・release.yml の 
 
   | 設定 | 値 |
   |---|---|
-  | required status checks | `static` / `gate-meta` / `gate-integrity` / `secrets` / `deps` / `acceptance` / `test-tamper-guard` / `date-boundary` / `labels` / `security` / `integration`（`gate-integration.yml` 由来） |
+  | required status checks | `static` / `gate-meta` / `gate-integrity` / `secrets` / `deps` / `acceptance` / `date-boundary` / `labels` / `security`（以上 `gate.yml`）＋ `test-tamper-guard`（`gate-tamper.yml` 由来）＋ `integration`（`gate-integration.yml` 由来） |
   | required に入れない | `adversarial`（R-TH-03。task_010 の実測まで）、`e2e`（別 workflow・nightly） |
   | required approving reviews | **0**（単一アカウント。A19 / R-TH-04） |
   | 直 push | 禁止（`enforce_admins` を含む） |
 
-  ジョブ名は `.github/workflows/gate.yml` のジョブ ID と一致させてある（`name:` を別に
-  与えていないため、status check のコンテキスト名はジョブ ID になる）。
+  ジョブ名はワークフローのジョブ ID と一致させてある（`name:` を別に与えていないため、
+  status check のコンテキスト名はジョブ ID になる）。ジョブ ID は 6 本のワークフロー全体で
+  一意であることを静的検証で確認済み（同名ジョブが複数ワークフローにあると、
+  required に入れたときどちらを待つのかが曖昧になる）。
+
+  **`test-tamper-guard` は 2 周目で `gate-tamper.yml` に移した**（上の 0 節）。status check の
+  名前は変わっていないので、この表のままで設定できる。
 - **対応予定タスク**: task_010（リモート作成後のハーネス実測）／PO（リポジトリ作成）
 
 ---
@@ -93,6 +116,12 @@ GitHub Actions CI・PR テンプレート・test-tamper-guard・release.yml の 
   - `secrets-grep.sh` は仕込んだ `PEPPER` を検出し、走査対象 0 件では exit 1 になることを実測。
   つまり「判定器が正しいこと」はローカルで実測済みで、「GitHub 上でその判定器が起動すること」が
   未検証である。
+- **2 周目の追加（レビュー指摘への対応）**: `secrets` ジョブは**実際に走らせると落ちていた**
+  （名前の走査が自分のサーバーバンドルに当たっていた）。1 周目の「違反 0 件」は
+  `/api/me` などのルートが入る前の古いビルド成果物に対する測定で、実物を測っていなかった。
+  2 周目では `npm run build && npm run build:cf` を実行してから測り直し、修正前 exit 1・
+  修正後 exit 0 を両方実測した。**required に入れる前に、各ジョブを一度は実物のビルド
+  成果物に対して走らせること**（リモート作成後の最初の PR で確認する）。
 - **対応予定タスク**: task_010
 
 ---
@@ -107,6 +136,12 @@ GitHub Actions CI・PR テンプレート・test-tamper-guard・release.yml の 
   「`TZ=Asia/Tokyo npx vitest run tests/unit`」は**空振りする**。
 - **深刻度**: medium。ジョブは緑になるが、アプリ側の日付境界ロジックは検査されない
   （R-TH-01 の壊れ方に近い）。
+- **2 周目のレビュー指摘（そのまま残る）**: 代替として置いた 2 TZ 比較の対象は
+  `scripts/gate-check.mjs` / `scripts/gate-constraints.sh` という**ハーネスのゲート判定器**で
+  あって、`src/lib` の日付処理（X-TIME、5 営業日判定、JST 境界）には一切触れない。
+  §16-6 の意図に対して覆っている範囲が狭いことは、修正されずに残っている。
+  2 TZ 比較そのものは空振りではない（両 TZ で実出力が一致することを実測）が、
+  「日付境界が検査されている」と読んではいけない。
 - **対応案**: 現状の `date-boundary` ジョブは、TZ を実際に継承する Node スクリプト
   （`scripts/gate-check.mjs --json` と `scripts/gate-constraints.sh`）の**出力と終了コードを
   2 つの TZ で突き合わせる**構成にした。これは空振りではない（ローカルで 2 TZ 実行し
@@ -188,7 +223,15 @@ GitHub Actions CI・PR テンプレート・test-tamper-guard・release.yml の 
   そこから導出する。`.env.example` は task_035 の所有なので、そのタスクで印を入れる。
   それまでは、秘密値を増やすタスクが `SECRET_NAMES` にも足す（PR テンプレートの
   ゲート緩和チェックリストが `scripts/**` の差分として記入を要求する）。
-- **対応予定タスク**: task_035
+- **2 周目で狭めた範囲（意図的）**: シークレット「名前」の走査対象を
+  `.next/static` と `.open-next/assets` に限った（上の 0 節）。したがって
+  **サーバーバンドルに秘密値の「名前」が出ていても検出しない**。これは
+  `src/lib/config/env.ts` が `process.env.PEPPER` を正当に読む以上どうしても必要な限定で、
+  サーバー側は値のパターン（`sk_live_…` / 資格情報つき `postgres://` / `eyJhbGciOi…`）で
+  見ている。「サーバーバンドルに実値が焼き込まれたが、値の形がこの 5 パターンに
+  当たらない」ケースは素通りする。これは値パターンの網羅性の問題であり、
+  `.env.example` からの導出（上の対応案）では解決しない。
+- **対応予定タスク**: task_035（名前の導出）／task_017 以降の決済タスク（値パターンの追加）
 
 ---
 
@@ -246,6 +289,30 @@ GitHub Actions CI・PR テンプレート・test-tamper-guard・release.yml の 
 - **深刻度**: low（Phase 1 の本番デプロイは task_025 の担当で、本タスクの非スコープ）。
 - **対応案**: task_025 が初回デプロイで確認し、必要なら `wranglerVersion` を明示する。
 - **対応予定タスク**: task_025
+
+---
+
+## 12b. G13 の基準値は `--write-baseline` の実行で AI から書き換えられる
+
+- **指摘**（2 周目のレビュー）: `docs/gates/integrity-baseline.json` は
+  `docs/gates/**` にあり Edit / Write は全面禁止（`deny-test-weakening.sh` 176 行）だが、
+  `node scripts/gate-integrity.mjs --write-baseline` という**正規のスクリプトの Bash 実行**では
+  書き換えられる。`deny-dangerous-bash.sh` の書き込み検出はリダイレクト・tee・cp/mv・
+  `sed -i`・インタプリタのワンライナー（`-c` / `-e` / `-m`）が対象で、保護対象パスへ書き込む
+  スクリプトの実行そのものは対象外である（`PROTECTED_RE` に入っている `scripts/` は
+  `scripts/deny-` と `scripts/record-run.sh` だけ）。したがって
+  「ガード or テスト or ワークフローを改変 → 基準値を焼き直す」の 2 手で G13 の検出は
+  すり抜けられる。**本タスク自身もこの経路で基準値を更新している**（`a261bd9` と本周）。
+- **深刻度**: medium。G13 の前提（基準値は AI から動かせない）は現状成立していない。
+  high にしないのは、CI が最終防衛線である設計（§16-4）で、リモートの `gate-integrity`
+  ジョブは PR の差分として基準値の変更を可視化するため（ただし branch protection が
+  効くまでは、その最終防衛線も立っていない — 上の 2）。
+- **対応案**: (a) `--write-baseline` を PO 専用にする（実行時に PO の署名や環境変数を要求する）、
+  または (b) `deny-dangerous-bash.sh` に「保護対象パスへ書き込む既知スクリプトの実行」を
+  明示的に列挙して遮断する。いずれも `scripts/gate-integrity.mjs`（task_006 の成果物）または
+  `scripts/deny-*`（task_005 の成果物・本タスクからは編集禁止）の変更なので、本タスクでは
+  行っていない。
+- **対応予定タスク**: task_038（ハーネス規約の整理）／task_010（ハーネス実測の締め）
 
 ---
 

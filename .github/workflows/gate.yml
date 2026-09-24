@@ -268,29 +268,14 @@ jobs:
           [ "$FAILED" -eq 0 ] || exit 1
 
   # ----------------------------------------------------- test-tamper-guard --
-  # ハーネスを緩められる場所に差分がある PR で、緩和事実がチェックリストとして
-  # PR 本文に残っていることを機械的に強制する（R-TH-04。人間の関門ではない）。
-  test-tamper-guard:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: 変更ファイル一覧
-        run: |
-          set -euo pipefail
-          git diff --name-only "${{ github.event.pull_request.base.sha }}"...HEAD > changed-files.txt
-          echo "変更 $(wc -l < changed-files.txt | tr -d ' ') ファイル"
-      # PR 本文は環境変数で渡す。run の中に ${{ }} で展開するとスクリプト注入になる。
-      - name: チェックリスト検査
-        env:
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: node scripts/ci/check-pr-checklist.mjs --changed-file changed-files.txt
+  # ★ このジョブは .github/workflows/gate-tamper.yml に分離した。
+  #   判定器は実行時に `github.event.pull_request.body` を読むが、`on: pull_request` の
+  #   既定 types（opened / synchronize / reopened）では**本文の編集で再実行されない**。
+  #   ここに置いたままだと「チェックリストを埋めて緑にし、本文を空に戻してマージする」で
+  #   記録だけを消せた（R-TH-04 のゲートが唯一の目的である記録強制を失う）。
+  #   gate-tamper.yml は `edited` を含む types で起動する。全ジョブを本文編集のたびに
+  #   回すのは重いので、gate.yml は既定の types のままにしてある。
+  #   status check のコンテキスト名は分離後も `test-tamper-guard` のまま。
 
   # ---------------------------------------------------------- date-boundary --
   # TZ=UTC と TZ=Asia/Tokyo で判定が一致すること（§16-6）。

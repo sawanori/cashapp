@@ -1,0 +1,57 @@
+# .github/workflows/gate-tamper.yml — test-tamper-guard（R-TH-04 / F3）。
+#
+# ハーネスを緩められる場所（tests/** ・ scripts/** ・ .claude/** ・ .github/** ・
+# docs/gates/** ・ supabase/migrations/** ・ package*.json）に差分がある PR で、
+# 「何を緩めたか / 理由 / 復旧予定日 / 代替の検知手段」が PR 本文に残っていることを
+# 機械的に強制する。**人間の関門ではない**。記入内容は検証しないので、これは承認の
+# 代替ではなく、緩和した事実を後から追える形で残させるための記録強制である
+# （docs/concerns/task_009.md の 8）。
+#
+# ★ なぜ gate.yml から分けたか [レビュー指摘 2026-09-24]
+#   判定器は実行時に `github.event.pull_request.body` を読む。`on: pull_request` の
+#   既定の types は opened / synchronize / reopened で、**body の編集では再実行されない**。
+#   つまり gate.yml に同居していた頃は「チェックリストを埋めて緑にし、そのあと本文を
+#   空に戻してマージする」と、ゲートは緑のまま記録だけが消せた。唯一の目的が記録の
+#   強制である以上、これは目的そのものを損なう。
+#   そこで `edited` を含む types でこのジョブだけを起動する。全ジョブを本文編集のたびに
+#   回すのは重いので、gate.yml 側は既定の types のままにして、このジョブを独立ファイルに
+#   出した（「他タスクは gate-<job>.yml で追加する」規約とも整合する）。
+#
+# ★ status check のコンテキスト名はジョブ ID（`test-tamper-guard`）。gate.yml から
+#   同名ジョブを取り除いてあるので衝突しない。branch protection の required には
+#   この名前で入れる（docs/concerns/task_009.md の 2 の表）。
+
+name: gate-tamper
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate-tamper-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-tamper-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 変更ファイル一覧
+        run: |
+          set -euo pipefail
+          git diff --name-only "${{ github.event.pull_request.base.sha }}"...HEAD > changed-files.txt
+          echo "変更 $(wc -l < changed-files.txt | tr -d ' ') ファイル"
+      # PR 本文は環境変数で渡す。run の中に ${{ }} で展開するとスクリプト注入になる。
+      - name: チェックリスト検査
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: node scripts/ci/check-pr-checklist.mjs --changed-file changed-files.txt
