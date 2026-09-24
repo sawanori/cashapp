@@ -117,12 +117,16 @@ GitHub Actions CI・PR テンプレート・test-tamper-guard・release.yml の 
   含む。`gh api repos/sawanori/cashapp/branches/main/protection` は現在 404
   `Branch not protected`）。**それでも本周では設定していない**。理由は 2 つで、どちらも
   環境の制約ではなく判断である:
-  1. **いま required status checks を入れると並行実行が止まる**。`gate` ワークフローは
-     現在 `acceptance` が赤で、原因は他タスク（task_004 / 005 / 006 / 011 / 012 / 013）の
-     `docs/review-log/*.json` 不在（G5）である。required に入れた瞬間、その 6 タスクが
-     レビュー記録を出すまで `main` へ何も入らなくなる。`enforce_admins` も同じ。
-     これは R-TH-04（回避のために保護ごと解除される）を自分から作りに行く手順なので、
-     **G5 の残債が 0 になってから**設定する。
+  1. **いま required status checks ＋ 直 push 禁止を入れると、まだ push されていない
+     10 コミットが `main` に入れられなくなる**。`origin/main` は `b1bc328` で止まっており、
+     ローカルの `main`（`1937645`）との差は 10 コミット（`git rev-list --count
+     origin/main..HEAD` = 10、実測 2026-09-24）。しかも `b1bc328` 時点の `gate` は
+     `acceptance` が赤（G5: `docs/review-log/*.json` 不在）で、**その赤を消す修正が
+     まさにその未 push の 10 コミットの中にある**（ローカルでは `npm run gate:check` が
+     exit 0 になっている）。この状態で保護を入れると、修正を運び込む経路ごと塞がる。
+     R-TH-04（回避のために保護ごと解除される）を自分から作りに行く手順である。
+     **`origin/main` が現在のローカル `main` まで進み、その commit で `gate` が緑に
+     なったことを確認してから**設定すること。
   2. **PR を作るにはブランチの publish が要る**。本ハーネスの禁止コマンドに `git push` が
      明記されており、`gh api` でブランチを作るのはその趣旨（リモートへの publish）に
      当たると判断して行っていない。

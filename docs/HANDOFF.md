@@ -1054,11 +1054,15 @@ task_006 側は「自分のファイルは既にコミット済み」として�
   裏を返せば**PO がこれを作るまで本番デプロイは 1 度も成功しない**。→ PO
 - **[severity: high] branch protection は未設定。理由が変わった。**
   リモートが出来て `gh api` は叩ける（現在 404 `Branch not protected`）が、
-  **いま required status checks を入れると `main` への直 push が全面的に止まる**。
-  `gate` は他タスクの G5 残債（`docs/review-log/*.json` 不在 6 件）で `acceptance` が赤なので、
-  並行実行中の全タスクが詰まり、R-TH-04（回避のために保護ごと解除）を自分から作る手順になる。
-  **G5 の残債が 0 になってから設定すること。** 確定表は `docs/concerns/task_009.md` の 2。
-  → task_010 / PO
+  **いま required status checks ＋ 直 push 禁止を入れると、まだ push されていない
+  10 コミットが `main` に入れられなくなる**。`origin/main` は `b1bc328` で止まっており、
+  ローカル `main`（`1937645`）との差は 10 コミット。しかも `b1bc328` 時点の `gate` は
+  `acceptance` が赤（G5: `docs/review-log/*.json` 不在）で、**その赤を消す修正が
+  まさにその未 push の 10 コミットの中にある**（ローカルでは `npm run gate:check` が exit 0）。
+  保護を先に入れると、修正を運び込む経路ごと塞がり、R-TH-04（回避のために保護ごと解除）を
+  自分から作る手順になる。**`origin/main` がローカル `main` まで進み、その commit で
+  `gate` が緑になったことを確認してから**設定すること。
+  確定表は `docs/concerns/task_009.md` の 2。→ task_010 / PO
 - **[severity: high] PR 経路だけが未実測**。`test-tamper-guard` は `gate-tamper.yml` の
   `on: pull_request` のみで起動するので、PR が 1 本も無い現在 1 度も走っていない
   （`gh run list --workflow gate-tamper.yml` は 0 件）。check_131 はここが埋まるまで未達。
@@ -1327,3 +1331,6 @@ task_006 側は「自分のファイルは既にコミット済み」として�
 - 2026-09-24T09:58:33Z HEAD=62e31be 決まったこと: task_007(2周目): 封筒の制約絞り込みを完全一致にし、レビュー封筒テストをリポジトリ状態から切り離す / 未解決: 未コミット 7 件: docs/HANDOFF.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json docs/run-log/task_012.json docs/run-log/task_013.json tests/gates/probe.test.ts 
 - 2026-09-24T10:01:19Z HEAD=62e31be 決まったこと: task_007(2周目): 封筒の制約絞り込みを完全一致にし、レビュー封筒テストをリポジトリ状態から切り離す / 未解決: 未コミット 13 件: docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json docs/run-log/task_012.json docs/run-log/task_013.json docs/task-list.json 
 - 2026-09-24T10:24:52Z HEAD=48f3061 決まったこと: task_009(3周目): HANDOFF に 3 周目の直したこと・実測・残件を記録 / 未解決: 未コミット 25 件: .env.example .github/workflows/gate-web-only.yml docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_013.md docs/decisions/ADR-013-web-route-group.md docs/run-log/task_006.json docs/run-log/task_007.json 
+- 2026-09-24T10:25:24Z HEAD=48f3061 決まったこと: task_009(3周目): HANDOFF に 3 周目の直したこと・実測・残件を記録 / 未解決: 未コミット 25 件: .env.example .github/workflows/gate-web-only.yml docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_013.md docs/decisions/ADR-013-web-route-group.md docs/run-log/task_006.json docs/run-log/task_007.json 
+- 2026-09-24T10:32:05Z HEAD=c1cd588 決まったこと: task_013(2周目): 最終 HEAD f77ac63 での build:web-only / typecheck / gate:constraints の再実行ログ（全 exit 0） / 未解決: 未コミット 13 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_007.md docs/review-log/README.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_012.json docs/task-list.json 
+- 2026-09-24T10:35:25Z HEAD=e03a539 決まったこと: G5: task_004 / task_013 の敵対レビュー記録を実経路で作成 / 未解決: 未コミット 13 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_007.md docs/concerns/task_009.md docs/review-log/README.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_012.json 
