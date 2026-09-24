@@ -586,3 +586,31 @@
   ことだと特定し、`external_ref` を連結して一意化した。残懸念は `docs/concerns/task_018.md`
   （C-018-1〜8。high 1・medium 4・low 3）。Hyperdrive 経路（A21 / P-05 / P-09）は
   task_035 未了のため deferred。
+- task_016: DONE_WITH_CONCERNS — 配布（O-7）を実装。`src/lib/share-templates.ts`（催促文＋URL・
+  個別再共有の宛名入り催促文・リンクを疑われた際の説明テンプレ・Flex テンプレ固定 5 要素
+  `幹事ラベル／イベント名／金額／締切／『支払先は幹事の決済アカウントで、アプリはお金を
+  預かりません』`・QR は `qrcode` で SVG 文字列を生成し `<img src="data:image/svg+xml,...">`
+  として描画。`dangerouslySetInnerHTML` は使わず GC-XSS を満たす）、`src/lib/liff/share.ts`
+  （`isApiAvailable('shareTargetPicker')` の実行時判定と呼び出し。fail-closed。picker の
+  キャンセルと不可を区別して返す）、`src/components/ShareSheet.tsx`（isApiAvailable が
+  false のときは催促文コピー・個別リンク一覧・説明テンプレ・QR だけを表示し picker ボタンを
+  出さない。未払いのみ/全員の切替つき）、`src/app/(liff)/events/[id]/share/page.tsx`
+  （招待トークンは発行応答の 1 度きりしか手に入らない設計＝ C-015-2 の帰結のため、
+  `POST /api/events/:id/rotate-join-token` で作り直した直後の値だけをその場で配る。
+  個別リンクは claim トークン単位の URL ではなく共通の招待リンク＋宛名入り催促文）。
+  `docs/vendor-docs/line/share-target-picker.md`（有効化手順の一次資料未特定を明記。
+  ミニアプリチャネル向けの記述は見つからず、LINE ログインチャネル向けの手順しか無いという
+  未解決点を再掲。`GATE-LINE-SHARE` 待ち）を作成。`docs/constraints.json` の N8 を
+  `expect_targets: "from_task_022"` → `"now"` に更新（task_016 が実装・検証を前倒しした
+  ため）。実測で発見した既存の穴: Next.js 16 の dev サーバーは `allowedDevOrigins` 未設定だと
+  `127.0.0.1`（Playwright の既定 `baseURL`）からの `/_next/*` 取得をブロックし、
+  ハイドレーションが永久に終わらない（O-4〜O-6 でも再現。`tests/e2e/share.spec.ts` は
+  自ファイル内だけ `localhost` に切り替えて回避。恒久修正は task_022。docs/concerns/task_016.md
+  C-016-1）。**verify_commands 5 本すべて `scripts/record-run.sh task_016` 経由で実行**
+  （`typecheck` exit 0 / `gate:constraints` 0 violation / `gate:wording` 0 violation /
+  `test:e2e` 2/2 pass。`test:unit` は exit 1 だが **task_016 の新規 24 件はすべて pass**で、
+  失敗 2 件は `tests/unit/gate-check.test.ts`（task_006 所有）が task_018 の並行コミット
+  `test:contract` 追加と衝突した既知の事象＝ `docs/concerns/task_023.md` §9 と同一。
+  他タスクのファイルは変更しない規約に従い未対応）。残懸念 5 件は `docs/concerns/task_016.md`
+  （C-016-1〜5。medium 2・low 3）。GATE-LINE-POLICY / GATE-LINE-SHARE はいずれも `unknown` の
+  まま run-log に記録済み。

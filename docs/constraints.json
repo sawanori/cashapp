@@ -697,8 +697,8 @@
       "globs": [],
       "exclude_globs": [],
       "allow_if_line_matches": [],
-      "expect_targets": "from_task_022",
-      "verified_by": "npm run test:e2e"
+      "expect_targets": "now",
+      "verified_by": "npm run test:unit（tests/unit/components/ShareSheet.test.tsx）と npm run test:e2e（tests/e2e/share.spec.ts）。task_016 が O-7 の配布導線と併せて実装・検証した（前倒し。当初の想定は task_022）。"
     },
     {
       "id": "N9",

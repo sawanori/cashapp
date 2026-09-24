@@ -1,0 +1,81 @@
+[
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "9421d14ac3e2833177bb392dadbc0a5ef579eb29",
+    "ran_at": "2026-09-24T17:52:06Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 1,
+    "stdout_tail": "\n- Expected\n+ Received\n\n- `test:contract` は未定義\n\n ❯ tests/unit/gate-check.test.ts:213:53\n    211|     const { results } = report([\"--root\", root, \"--base\", repoRoot]);\n    212|     expect(gate(results, \"G2\").violations).toEqual([]);\n    213|     expect(gate(results, \"G2\").warnings.join(\"\\n\")).toContain(\"`test:c…\n       |                                                     ^\n    214|   });\n    215|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n FAIL  tests/unit/gate-check.test.ts > G2 の 3 分岐 > 着手済みタスクの未定義スクリプト参照は違反になる\nAssertionError: expected '' to contain '`test:contract` が package.json.script…'\n\n- Expected\n+ Received\n\n- `test:contract` が package.json.scripts にありません\n\n ❯ tests/unit/gate-check.test.ts:226:55\n    224|     );\n    225|     const { results } = report([\"--root\", root, \"--base\", repoRoot]);\n    226|     expect(gate(results, \"G2\").violations.join(\"\\n\")).toContain(\"`test…\n       |                                                       ^\n    227|   });\n    228|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯\n\n\n Test Files  1 failed | 49 passed (50)\n      Tests  2 failed | 1192 passed (1194)\n   Start at  17:52:25\n   Duration  211.28s (tests 94%, setup 2%, environment 2%, import 1%, transform 1%)",
+    "commit": "9421d14ac3e2833177bb392dadbc0a5ef579eb29",
+    "ran_at": "2026-09-24T17:52:25Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 110 file(s) read)\nok    L2 (forbid, 110 file(s) read)\nok    L3 (forbid, 110 file(s) read)\nok    L8 (forbid, 110 file(s) read)\nok    L12 (forbid, 110 file(s) read)\nok    P1 (forbid, 109 file(s) read)\nok    P2 (forbid, 1 file(s) read)\nok    P9 (forbid, 13 file(s) read)\nok    W3 (forbid, 115 file(s) read)\nok    W4 (forbid, 5 file(s) read)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 107 file(s) read)\nok    N5 (forbid, 110 file(s) read)\nok    N7 (forbid, 110 file(s) read)\nN9 src/components/ShareSheet.tsx:14 | *     2. `docs/constraints.json` N9（`sendMessages(` という並びの文字列を禁止）を\nN9 src/lib/liff/share.ts:11 | * ★ ここで呼ぶのは `liff.shareTargetPicker()` であって **`liff.sendMessages()` ではない**\nN9 src/lib/liff/share.ts:12 | *   （制約 N9。2 つは別の API で、引数の形が似ているだけ）。`sendMessages(` という並びの\nok    N11 (forbid, 110 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 31 file(s) read)\nok    I4 (forbid, 3 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 59 file(s) read)\nok    X-MONEY (forbid, 10 file(s) read)\nGC-XSS src/components/ShareSheet.tsx:302 | dangerouslySetInnerHTML={{ __html: qrSvg }}\nok    GC-ENV-PUBLIC (forbid, 115 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\nok    GC-RANK-NEGATION (forbid, 115 file(s) read)\nok    GC-LIB-CLIENT-DIRECTIVE (forbid, 43 file(s) read)\n\ngate:constraints — scanned 27 grep entr(y|ies), 4 violation(s), 0 empty gate(s)",
+    "commit": "8c2809afc2fb631264733bef9e34c908d57ca2aa",
+    "ran_at": "2026-09-24T17:55:57Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 110 file(s) read)\nok    L2 (forbid, 110 file(s) read)\nok    L3 (forbid, 110 file(s) read)\nok    L8 (forbid, 110 file(s) read)\nok    L12 (forbid, 110 file(s) read)\nok    P1 (forbid, 109 file(s) read)\nok    P2 (forbid, 1 file(s) read)\nok    P9 (forbid, 13 file(s) read)\nok    W3 (forbid, 115 file(s) read)\nok    W4 (forbid, 5 file(s) read)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 107 file(s) read)\nok    N5 (forbid, 110 file(s) read)\nok    N7 (forbid, 110 file(s) read)\nok    N9 (forbid, 110 file(s) read)\nok    N11 (forbid, 110 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 31 file(s) read)\nok    I4 (forbid, 3 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 59 file(s) read)\nok    X-MONEY (forbid, 10 file(s) read)\nok    GC-XSS (forbid, 110 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 115 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\nok    GC-RANK-NEGATION (forbid, 115 file(s) read)\nok    GC-LIB-CLIENT-DIRECTIVE (forbid, 43 file(s) read)\n\ngate:constraints — scanned 27 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "8c2809afc2fb631264733bef9e34c908d57ca2aa",
+    "ran_at": "2026-09-24T18:01:19Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:wording",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:wording\n> node scripts/wording-lint.mjs\n\nok    W-AUTO (112 file(s) read)\nok    W-DONATION (112 file(s) read)\nok    W-SUPPORT (112 file(s) read)\nok    W-RECEIPT (112 file(s) read)\nok    W-MERCHANT-GUIDE (2 file(s) read)\nok    W-FEE-FIXED (112 file(s) read)\n\ngate:wording — scanned 6 pattern group(s), 0 violation(s), 0 empty gate(s)",
+    "commit": "8c2809afc2fb631264733bef9e34c908d57ca2aa",
+    "ran_at": "2026-09-24T18:01:30Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "8c2809afc2fb631264733bef9e34c908d57ca2aa",
+    "ran_at": "2026-09-24T18:01:34Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:e2e",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:e2e\n> playwright test tests/e2e\n\n\nRunning 2 tests using 2 workers\n\n  ✓  1 [chromium] › tests/e2e/smoke.spec.ts:4:5 › トップページが開く (867ms)\n  ✓  2 [chromium] › tests/e2e/share.spec.ts:54:5 › LINE の外から開くと、URL コピーを含むフォールバックが出る（shareTargetPicker に依存しない） (1.1s)\n\n  2 passed (2.2s)",
+    "commit": "8c2809afc2fb631264733bef9e34c908d57ca2aa",
+    "ran_at": "2026-09-24T18:01:42Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 1,
+    "stdout_tail": "\n- Expected\n+ Received\n\n- `test:contract` は未定義\n\n ❯ tests/unit/gate-check.test.ts:213:53\n    211|     const { results } = report([\"--root\", root, \"--base\", repoRoot]);\n    212|     expect(gate(results, \"G2\").violations).toEqual([]);\n    213|     expect(gate(results, \"G2\").warnings.join(\"\\n\")).toContain(\"`test:c…\n       |                                                     ^\n    214|   });\n    215|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n FAIL  tests/unit/gate-check.test.ts > G2 の 3 分岐 > 着手済みタスクの未定義スクリプト参照は違反になる\nAssertionError: expected '' to contain '`test:contract` が package.json.script…'\n\n- Expected\n+ Received\n\n- `test:contract` が package.json.scripts にありません\n\n ❯ tests/unit/gate-check.test.ts:226:55\n    224|     );\n    225|     const { results } = report([\"--root\", root, \"--base\", repoRoot]);\n    226|     expect(gate(results, \"G2\").violations.join(\"\\n\")).toContain(\"`test…\n       |                                                       ^\n    227|   });\n    228|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯\n\n\n Test Files  1 failed | 49 passed (50)\n      Tests  2 failed | 1192 passed (1194)\n   Start at  18:01:50\n   Duration  190.12s (tests 94%, environment 2%, setup 2%, import 1%, transform 1%)",
+    "commit": "8c2809afc2fb631264733bef9e34c908d57ca2aa",
+    "ran_at": "2026-09-24T18:01:50Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "GATE-LINE-POLICY status=unknown, GATE-LINE-SHARE status=unknown（docs/gates/compliance-gates.json、2026-09-25 時点。Q-LN2/Q-LN7 は docs/external-inquiries.json で未回答）。Q-LN2 未回答のまま (liff) の配布導線（O-7）を実装した。一般公開時は GATE-LINE-POLICY の passed が必須。それまではクローズド β 限定（招待した幹事 3〜5 名）に留める前提（implementation-plan.md §18-2。ADR-011 は task_029 で正式作成予定）。",
+    "commit": "8c2809afc2fb631264733bef9e34c908d57ca2aa",
+    "ran_at": "2026-09-24T18:05:01Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  }
+]

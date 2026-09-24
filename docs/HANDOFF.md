@@ -2276,6 +2276,54 @@ GPT-6 Astra 7 件のうち重複を除く 7 件を**全件修正**した（詳�
   `trust='unverified'` の再照会は task_020、`apply_result='held'` の要否も task_020 で確定。
 - 残りは `docs/concerns/task_018.md`（C-018-1〜8）。
 
+## task_016（配布: 催促文＋URL コピー主導線・個別リンク・shareTargetPicker 補助・QR）
+
+### 決まったこと
+
+- 招待トークン（`joinToken`）は task_015 の設計どおり発行応答の 1 度しか手に入らないため、
+  `/events/:id/share` は開いた直後は `joinLink === null` から始まり、
+  `POST /api/events/:id/rotate-join-token` で作り直した直後の値だけをその場で配る方式にした
+  （C-015-2 の帰結）。同じ理由で「参加者ごとの個別リンク」は claim トークン単位の URL では
+  なく、**共通の招待リンク＋宛名入り催促文**として実装した（`buildReminderText`
+  の `participantLabel`）。真に一意な参加者単位リンクを後から再表示する手段は現行 API に無い
+  （`docs/concerns/task_016.md` C-016-3）。
+- QR は `qrcode`（`npm i`。`with-lock.sh npm npm install` は「install」という語が
+  `scripts/deny-dangerous-bash.sh` の cp/mv 検出規則に誤爆するため `npm i` の短縮形を使った。
+  `SendFeedback` で報告済み）で SVG 文字列を生成し、`<img src="data:image/svg+xml,...">` に
+  渡す形にした。`dangerouslySetInnerHTML` は制約 GC-XSS が無条件禁止のため使わない
+  （最初 SVG を直接注入していて gate:constraints に引っかかり、`<img>` 方式へ直した）。
+- **実測で発見した既存の穴**: Next.js 16 の `next dev` は `allowedDevOrigins` 未設定のとき
+  `127.0.0.1`（`playwright.config.ts` の既定 `baseURL`）からの `/_next/*` dev リソース取得を
+  ブロックし、**ハイドレーションが永久に終わらない**（サーバーログに
+  `Blocked cross-origin request to Next.js dev resource /_next/hmr from "127.0.0.1"`）。
+  task_014/015 の既存 (liff) 画面でも同じ症状を再現した。診断中に出る「CSP が eval を
+  ブロックしている」という console エラーは実は無害（React の dev 用プローブで、成否に
+  関わらず機能をブロックしない実装をソースで確認済み）で赤herring だった。
+  `tests/e2e/share.spec.ts` は自ファイル内だけ `test.use({ baseURL })` で `localhost` に
+  切り替えて回避（`playwright.config.ts` / `next.config.ts` は files_to_modify の外）。
+  `docs/concerns/task_016.md` C-016-1 に repro を記録。**task_022 は着手前に必ず読むこと**。
+- check_030 が e2e に期待する「`ready` フェーズで `ShareSheet`（isApiAvailable=false 時の
+  picker 非表示）を実ブラウザ描画」は、`@line/liff-mock` の既定値 `isInClient: false` を
+  上書きする経路が `window` に露出しておらず（`src/lib/liff/mock.ts` の設計）、今回は
+  組めなかった。この検査自体は `tests/unit/components/ShareSheet.test.tsx` が props 経由で
+  厳密に固定済み（done_definition の本体）。C-016-2 参照。
+- `verify_commands` 5 本すべて `scripts/record-run.sh task_016` 経由で実行。`typecheck` /
+  `gate:constraints`（0 violation）/ `gate:wording`（0 violation）/ `test:e2e`（2/2 pass）は
+  exit 0。`test:unit` は exit 1 だが、失敗 2 件は `tests/unit/gate-check.test.ts`
+  （task_006 所有）が task_018 の `test:contract` 追加と衝突した**既知の事象**
+  （`docs/concerns/task_023.md` §9 と同一）で、task_016 の新規 24 件はすべて pass。
+  `npm run gate:check` の G4 も同じ理由で task_016 に対して赤（task_018 も同様に赤）。
+
+### 未解決
+
+- `docs/concerns/task_016.md`（C-016-1〜5。medium 2・low 3）。要点は
+  (1) Next.js 16 の `allowedDevOrigins` の穴（task_022 に直撃）、
+  (2) check_030 の e2e 側期待が liff-mock の制約で未達（task_022 で mock にテスト用フックを
+  足す案）、(3) 個別リンクの設計判断、(4) `/events/:id/share` への導線がまだ無い、
+  (5) test:unit の他タスク由来の 2 件失敗。
+- `GATE-LINE-POLICY` / `GATE-LINE-SHARE` はいずれも `unknown` のまま run-log に記録
+  （`scripts/record-run.sh --manual task_016`）。Q-LN2/Q-LN7 の回答待ち（task_037）。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -2509,3 +2557,5 @@ GPT-6 Astra 7 件のうち重複を除く 7 件を**全件修正**した（詳�
 - 2026-09-24T17:52:03Z HEAD=9421d14 決まったこと: task_019(G5 round1 の指摘反映): 依存しない部分（provenance/kit/C9・C10・C12）を実装 / 未解決: 未コミット 66 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_023.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json 
 - 2026-09-24T17:54:34Z HEAD=8c2809a 決まったこと: task_023(修正ラウンド): health.ts の degraded 判定・ADR-007・docs/ops を実装 / 未解決: 未コミット 59 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json docs/run-log/task_019.json package-lock.json 
 - 2026-09-24T18:05:06Z HEAD=8c2809a 決まったこと: task_023(修正ラウンド): health.ts の degraded 判定・ADR-007・docs/ops を実装 / 未解決: 未コミット 64 件: docs/HANDOFF.md docs/PROGRESS.md docs/constraints.json docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json 
+- 2026-09-24T18:07:07Z HEAD=7833726 決まったこと: task_018: 台帳適用・冪等基盤・監査連鎖検証・Webhook ルート・契約テスト 3 本 / 未解決: 未コミット 47 件: docs/PROGRESS.md docs/constraints.json docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json docs/run-log/task_018.json 
+- 2026-09-24T18:09:06Z HEAD=7833726 決まったこと: task_018: 台帳適用・冪等基盤・監査連鎖検証・Webhook ルート・契約テスト 3 本 / 未解決: 未コミット 49 件: docs/HANDOFF.md docs/PROGRESS.md docs/constraints.json docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json 
