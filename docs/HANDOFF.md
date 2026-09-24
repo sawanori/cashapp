@@ -536,6 +536,123 @@
 - GitHub リモート未作成のため CI 実走は deferred（task_005 は `.github/workflows/**` を作らないので
   done_definition には影響しない）。
 
+## task_012（認証・セッション・CSRF・鍵運用・環境設定・セキュリティヘッダ）
+
+### 決まったこと
+
+- **ID トークンの nonce 検証は採らない。単回使用テーブルで止める**（`docs/decisions/ADR-009-id-token-single-use.md`、
+  confidence 高）。理由は LINE の一次資料で裏が取れている: `nonce` は「認可リクエストを組み立てた側」が
+  突き合わせる任意パラメータであり、LIFF ブラウザ内の `liff.login()` は動作が保証されないため、
+  サーバーが nonce を発行する経路が主経路で成立しない。代わりに `used_id_token` に
+  `sha256(idToken)` を `exp` まで保存し、2 回目の提示を 401 にする。
+  一次資料は `docs/vendor-docs/line/verify.md`（取得日 2026-09-24）へ退避済み。
+- **`LINE_ENV_PROFILE` は JSON 1 個**（`{"env","liffId","loginChannelId"}`）。
+  環境ごとに変数を散らすと片方だけ差し替え忘れる（R-LINE-04）ため、ペアで 1 値にした。
+  起動時に「`env` == `APP_ENV`」と「`loginChannelId` == LIFF ID のハイフン前」を検査する。
+  後者が制約 N3 の機械検査になっている（LIFF ID は `<LINE Login チャネル ID>-<8 文字>`）。
+- **`PEPPER` と `SESSION_KEYS` は `<版>:<秘密値>` のカンマ区切り**。
+  PEPPER は最大バージョンが現行、SESSION_KEYS は**先頭が現行**で **2 個まで**（3 個書くと起動しない）。
+  「2 世代前が通る」実装に滑らないよう、設定の段階で構造的に止めた。
+- **`APP_ENV` と Supabase project ref の対応は `src/lib/config/env.ts` にソース固定**する
+  （`EXPECTED_SUPABASE_PROJECT_REF`）。環境変数どうしの突き合わせにしなかったのは、
+  一括投入で両方が同じ誤った値になれば検査が意味を失うため。
+  **実 ref は未採番なので、staging / production はいま起動できない**（意図した fail-closed。C-012-1）。
+- **CSRF は Cookie を 1 つも増やさない**。`token = base64url(HMAC-SHA256("csrf:"+<セッションの jti>, <セッション鍵>))`
+  を応答ボディでだけ返し、`X-CSRF-Token` ヘッダで受けてサーバーが再計算して比較する。
+  保存先が要らず、セッションが切れれば自動的に無効になる。
+- **レート制限は fail-closed**。Workers の Rate Limiting バインディングか Durable Object のどちらかが
+  束縛されていなければ 503 を返す。**アイソレート内メモリは使わない**（A27）。
+  ローカルの逃げ道は `ALLOW_LOCAL_RATE_LIMIT_BYPASS=1` ＋ `APP_ENV=development` ＋
+  Hyperdrive バインディング不在の 3 条件 AND（`.env.example` の local 節）。
+- **middleware は「ヘッダ付与」と「非 production での webhook/cron 404」だけを担う**。
+  認証・CSRF の判定は置かない（middleware は DB を引けず `session_epoch` を突き合わせられないため、
+  ここで「認証済み」と判断すると失効済みセッションが通る）。
+- **`/api/me` は 30 分スライディングの更新を行う**（有効期間の半分を過ぎたら再発行）。
+  再発行で `jti` が変わるので CSRF トークンも入れ替わる。**応答の `csrfToken` を常に使うこと**。
+
+### 未解決（詳細は `docs/concerns/task_012.md`）
+
+- **[high] staging / production は起動できない**（C-012-1）。`EXPECTED_SUPABASE_PROJECT_REF` が
+  プレースホルダのまま。実値投入は task_035（staging）/ task_024（production）。
+- **[high] レート制限のバインディングが `wrangler.toml` に無い**（C-012-2）。
+  いまデプロイすると `/api/auth/line` は常に 503。`wrangler.toml` は本タスクの
+  `files_to_modify` に無く（task_003 / task_035 の所有）、`namespace_id` も未採番のため触っていない。
+  Durable Object 実装（`FixedWindowRateLimiterDurableObject`）はコードとテストだけ存在し、束縛されていない。
+- [medium] CSP の `frame-ancestors 'none'` と `connect-src` は未実測の暫定値（C-012-3。task_013 / task_022）。
+- [medium] `__Host-` Cookie は `http://localhost` では保存されない。ローカル画面確認は https が要る（C-012-4）。
+- [medium] `audit_log.actor_ref` は pepper_version 移行の対象外（追記専用で UPDATE できない）。
+  **旧 PEPPER を捨てると過去の監査ログの主体が辿れない**（C-012-5）。
+- [medium] acceptance-checks が名指しする `tests/security/{csrf,xss-csp,id-token-replay}.test.ts` は
+  **task_022 の `files_to_create`** なので作っていない。同じ検査は自タスク所有のファイルに置いた（C-012-7）。
+- [medium] `/api/me` の照会は直書き SQL。リポジトリ層（task_014 / 015）ができたら寄せる（C-012-9）。
+- [low] `gate:env` の「期待名の突き合わせ」は `docs/ops/env-baseline.json`（task_035 所有）待ちで pending（C-012-11）。
+- [low, deferred] CI 実走は GitHub リモート未作成のため未実施（C-012-12）。
+
+## task_006（gate-check G0〜G14・違反フィクスチャ・メタゲート・フック実在マトリクス）
+
+### 決まったこと
+
+- **ゲートは 4 値で報告する**: `ok` / `violation` / `warn` / `defer`。`defer` は理由（`notes`）が必須。
+  「対象が 0 件だから緑」を `ok` として返すことを禁止し、**G0 がそれを違反として検出する**。
+  対象が現れるまでの期間は `defer` ＋理由で報告する。この規約は `scripts/gate-check.mjs` の
+  全ゲートに通してある。
+- **違反フィクスチャは exit code だけでは合格にしない**。`meta.json` の `expect_output_contains`
+  で違反行そのものを固定する。`gate-constraints.sh` は対象 0 件のゲートがあるだけで exit 1 に
+  なるため、フィクスチャのディレクトリを `--root` に渡すと無関係な理由でも非ゼロになる。
+  「意図した違反で落ちた」ことは出力でしか判定できない。
+- **`gate-check.mjs` は overlay で動く**: `--root` 優先・`--base`（リポジトリ）フォールバック。
+  フィクスチャは違反を構成する数ファイルだけを持てばよい。`meta.json` の `absent` でベースの
+  ファイルを「無い」ことにでき、`inputs` で論理パスを別名ファイル／別ディレクトリへ差し替えられる。
+  `inputs` が要るのは、`deny-test-weakening.sh` が **フィクスチャであっても**
+  `docs/acceptance-checks.json` という名前・`docs/gates/**`・`docs/run-log/**` への書き込みを
+  拒否するため（ガードを緩めるのではなく退避で解決した）。
+- **`--only <gate>` は exit code の範囲だけを絞る。全ゲートは常に実行される。** G0 が他ゲートの
+  対象件数を見て判定するので、絞ると G0 が判定できなくなる。
+- **`docs/gates/integrity-baseline.json` の唯一の書き込み経路は
+  `node scripts/gate-integrity.mjs --write-baseline`**。Edit / Write / MCP 編集 / Bash 経由の
+  書き込みは全部ガードが塞いでいるため、他に作る手段が無い。ゲート対象領域（`docs/gates/**` /
+  `.claude/**` / `.github/workflows/**` / `scripts/gate-*` / `deny-*` / `assert-*` / `validate-*` /
+  `record-run.sh` / `append-handoff.sh` / `session-brief.mjs` / `scripts/ci/**`）を意図して
+  変えたときだけ再生成する。**再生成できてしまうこと自体が残懸念 high**（concerns 2）。
+- **Stop フックの `gate:check` は exit 1 で返す（exit 2 にしない）**。Stop の exit 2 は停止を
+  ブロックするので、ゲートが直るまでセッションが終われない罠になる。
+- **G2 の「コマンド捏造」の定義**: `§13 の予定表にも package.json.scripts にも無い名前` を
+  参照していたら、未着手タスクでも違反。`§13` に無いが package.json にはある名前（例:
+  `db:diff:drizzle`）は計画の追随漏れとして **warn** にした（実在するので捏造ではない）。
+- **`vitest.config.ts` の `include` に `tests/gates/**` を足した**（task_011 の
+  `tests/integration/**` と同じ理由・同じ書き方）。vitest は `include` に無いファイルを位置指定
+  フィルタでも拾えず、CLI に `--include` 相当のフラグも無い。task_006 の `files_to_modify` 外
+  なので concerns 8 に記録した。
+- **`scripts/record-run.sh` にシェル変数へ入れたコマンド文字列をそのまま渡さないこと。**
+  fish は変数を空白分割しないので `"npm run test:unit"` が 1 引数として渡り exit 127 になる。
+  1 本ずつ書き下すこと（run-log は追記専用なので取り消せない。concerns 9）。
+- **フック 6 イベントの実測は 3 階層で測る**: A 登録（settings.json）/ B 単体挙動（コマンドに
+  フック入力を stdin で渡す）/ C ライブ痕跡（transcript とフックの副作用）。**C が本体**で、
+  A と B だけでは「Claude Code が実際にそのイベントを発火させるか」は分からない。
+  `PostToolUse` はフックが exit 0 のとき痕跡を残さないので、意図的に 1 回差し戻させるまで
+  発火を観測できなかった。`SubagentStop` は `.locks/subagent-head-baseline-<session_id>` という
+  ファイルの副作用で観測できる。
+
+### 未解決
+
+- **（high）G13 の自己封じ**: 基準値を再生成できるエージェントは、ガードを書き換えてから基準値を
+  作り直せば G13 を緑に戻せる。残っている歯止めは「`docs/gates/**` の diff が PR に出る」ことだけ。
+  CODEOWNERS と `test-tamper-guard` で人間の関門に繋ぐのは **task_009**。
+- **（medium）違反フィクスチャに人間が手書きした 1 本が無い**。23 本すべてモデル製で、
+  `provenance.authored_by` にそう書いてある。G0 が毎回 warn で表示する。PO が 1 本書くまで消えない。
+- **（medium）CI 実走が未証明**。GitHub リモート未作成のため `gate-meta` / `acceptance` /
+  `gate-integrity` ジョブは一度も走っていない。**deferred: GitHub リモート作成後に実施**（task_009）。
+- **（medium）G8 は `tests/**/fixtures/**` を走査しない**。違反フィクスチャが秘密値の形をした値を
+  持つのは仕事なので外したが、本物を貼っても G8 では捕まらない。成果物 grep（task_009 の
+  `security` ジョブ）が補う。
+- **（medium）G8 の秘密値名リストが手書き**。task_012 の `gate-env-scope.mjs` が env スコープの
+  正本を持つので、そこから機械的に取り込むべき（task_012 完了後）。
+- **（low）G5 / G7 / G9 / G12 / G14 は対象 0 件の `defer`**。対象を作る task_007 / 018 / 019 の
+  完了で自動的に実判定へ切り替わる。切り替わった時点の挙動は違反フィクスチャで先に固定済み。
+- **（low）W1 のフィクスチャに runner が無い**（`enforcement: "test"` の制約なので grep で
+  落とせない）。`meta.test.ts` が「`blocked_on` の task がまだ未完であること」を検査しているので、
+  task_018 が完了した時点でテストが赤くなり、埋め忘れを検知する。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -582,3 +699,8 @@
 - 2026-09-24T06:38:37Z HEAD=7d17e92 決まったこと: task_005(4周目): 修正後の verify_commands を HEAD a76ca67 で再実行したログ / 未解決: 未コミット 3 件: docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_011.json 
 - 2026-09-24T06:41:36Z HEAD=7d17e92 決まったこと: task_005(4周目): 修正後の verify_commands を HEAD a76ca67 で再実行したログ / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json 
 - 2026-09-24T06:47:45Z HEAD=7d17e92 決まったこと: task_005(4周目): 修正後の verify_commands を HEAD a76ca67 で再実行したログ / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json 
+- 2026-09-24T06:51:35Z HEAD=c053281 決まったこと: chore: 検証エージェントが残した run-log / HANDOFF の追記をコミット（hardening 完了時点） / 未解決: 未コミットの変更なし
+- 2026-09-24T06:51:37Z HEAD=c053281 決まったこと: chore: 検証エージェントが残した run-log / HANDOFF の追記をコミット（hardening 完了時点） / 未解決: 未コミット 1 件: docs/HANDOFF.md 
+- 2026-09-24T06:59:38Z HEAD=c053281 決まったこと: chore: 検証エージェントが残した run-log / HANDOFF の追記をコミット（hardening 完了時点） / 未解決: 未コミット 3 件: docs/HANDOFF.md docs/run-log/task_012.json tests/gates/ 
+- 2026-09-24T06:59:43Z HEAD=c053281 決まったこと: chore: 検証エージェントが残した run-log / HANDOFF の追記をコミット（hardening 完了時点） / 未解決: 未コミット 3 件: docs/HANDOFF.md docs/run-log/task_012.json tests/gates/ 
+- 2026-09-24T07:41:49Z HEAD=c053281 決まったこと: chore: 検証エージェントが残した run-log / HANDOFF の追記をコミット（hardening 完了時点） / 未解決: 未コミット 41 件: .claude/settings.json .env.example docs/HANDOFF.md docs/PROGRESS.md package.json src/app/api/health/route.ts tests/unit/health.test.ts vitest.config.ts 

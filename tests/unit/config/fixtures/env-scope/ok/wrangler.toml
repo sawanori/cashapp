@@ -1,0 +1,35 @@
+# gate:env の正常フィクスチャ（tests/unit/config/env.test.ts が --root でここを指す）。
+# staging と production が資源を 1 つも共有していない状態。
+
+name = "fixture-dev"
+main = ".open-next/worker.js"
+compatibility_date = "2026-09-24"
+
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "fixture-dev-hyperdrive"
+
+[vars]
+APP_ENV = "development"
+
+[env.staging]
+name = "fixture-staging"
+
+[env.staging.vars]
+APP_ENV = "staging"
+SUPABASE_PROJECT_REF = "stagingprojectrefaaa"
+
+[[env.staging.hyperdrive]]
+binding = "HYPERDRIVE"
+id = "fixture-staging-hyperdrive"
+
+[env.production]
+name = "fixture-production"
+
+[env.production.vars]
+APP_ENV = "production"
+SUPABASE_PROJECT_REF = "productionprojectref"
+
+[[env.production.hyperdrive]]
+binding = "HYPERDRIVE"
+id = "fixture-production-hyperdrive"

@@ -1,0 +1,24 @@
+# gate:env の違反フィクスチャ その 2。
+# 秘密値（PEPPER）が [vars] に平文で置かれ、service role キーがランタイムに渡っている。
+# どちらも `wrangler secret put` / そもそも渡さない、が正解（§7-7）。
+
+name = "fixture-dev"
+main = ".open-next/worker.js"
+compatibility_date = "2026-09-24"
+
+[vars]
+APP_ENV = "development"
+
+[env.staging]
+name = "fixture-staging"
+
+[env.staging.vars]
+APP_ENV = "staging"
+PEPPER = "1:this-should-never-be-a-plaintext-var-0000"
+SUPABASE_SERVICE_ROLE_KEY = "this-should-never-reach-the-runtime-00000"
+
+[env.production]
+name = "fixture-production"
+
+[env.production.vars]
+APP_ENV = "production"

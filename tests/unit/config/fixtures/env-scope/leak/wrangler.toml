@@ -1,0 +1,32 @@
+# gate:env の違反フィクスチャ。
+# staging の [vars] に **本番の Supabase project ref** が混入し、
+# さらに staging の Hyperdrive が本番の ID を指している（R-SEC-05 そのものの形）。
+
+name = "fixture-dev"
+main = ".open-next/worker.js"
+compatibility_date = "2026-09-24"
+
+[vars]
+APP_ENV = "development"
+
+[env.staging]
+name = "fixture-staging"
+
+[env.staging.vars]
+APP_ENV = "staging"
+SUPABASE_PROJECT_REF = "productionprojectref"
+
+[[env.staging.hyperdrive]]
+binding = "HYPERDRIVE"
+id = "fixture-production-hyperdrive"
+
+[env.production]
+name = "fixture-production"
+
+[env.production.vars]
+APP_ENV = "production"
+SUPABASE_PROJECT_REF = "productionprojectref"
+
+[[env.production.hyperdrive]]
+binding = "HYPERDRIVE"
+id = "fixture-production-hyperdrive"

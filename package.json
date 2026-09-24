@@ -19,7 +19,14 @@
     "db:reset:local": "supabase db reset --local",
     "test:integration": "TZ=UTC vitest run tests/integration --testTimeout=60000 --hookTimeout=60000",
     "gates:sync": "node scripts/gates-sync.mjs",
-    "db:diff:drizzle": "D=node_modules/.cache/drizzle-diff/run-$(date +%s) && mkdir -p $D && DRIZZLE_DIFF_OUT=$D drizzle-kit pull && DRIZZLE_DIFF_OUT=$D drizzle-kit generate && node scripts/db-diff-drizzle.mjs $D"
+    "db:diff:drizzle": "D=node_modules/.cache/drizzle-diff/run-$(date +%s) && mkdir -p $D && DRIZZLE_DIFF_OUT=$D drizzle-kit pull && DRIZZLE_DIFF_OUT=$D drizzle-kit generate && node scripts/db-diff-drizzle.mjs $D",
+    "gate:env": "node scripts/gate-env-scope.mjs",
+    "gate:server-only": "node scripts/assert-server-only.mjs",
+    "gate:check": "node scripts/gate-check.mjs",
+    "gate:plan": "node scripts/validate-plan-json.mjs",
+    "gate:acceptance": "node scripts/assert-acceptance.mjs",
+    "gate:integrity": "node scripts/gate-integrity.mjs",
+    "test:gate-meta": "TZ=UTC vitest run tests/gates"
   },
   "private": true,
   "engines": {
