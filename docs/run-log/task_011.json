@@ -554,5 +554,59 @@
     "commit": "ea63ab3756c80076fc461ba1b42fb6f1d71204b2",
     "ran_at": "2026-09-24T05:42:42Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "d5089cc1a9bd9ec935126cd1ed111cc798a2d281",
+    "ran_at": "2026-09-24T05:43:30Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:integration\n> TZ=UTC vitest run tests/integration --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  2 passed (2)\n      Tests  47 passed (47)\n   Start at  05:43:32\n   Duration  13.18s (tests 97%, import 1%, setup 1%, transform 1%)",
+    "commit": "d5089cc1a9bd9ec935126cd1ed111cc798a2d281",
+    "ran_at": "2026-09-24T05:43:32Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gates:sync",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gates:sync\n> node scripts/gates-sync.mjs\n\ngates:sync OK — 10 gate(s) in docs/gates/compliance-gates.json match compliance_gate",
+    "commit": "d5089cc1a9bd9ec935126cd1ed111cc798a2d281",
+    "ran_at": "2026-09-24T05:43:45Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 5 file(s))\nok    L2 (forbid, 5 file(s))\nok    L3 (forbid, 5 file(s))\nok    L8 (forbid, 5 file(s))\nok    L12 (forbid, 5 file(s))\nok    P1 (forbid, 5 file(s))\ndefer P2 (0 targets; waiting on task_018)\ndefer P9 (0 targets; waiting on task_017)\nok    W3 (forbid, 11 file(s))\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 5 file(s))\nok    N5 (forbid, 5 file(s))\nok    N7 (forbid, 5 file(s))\nok    N9 (forbid, 5 file(s))\nok    N11 (forbid, 5 file(s))\nok    I1 (require, 1 file(s))\nok    I2 (require, 1 file(s))\nok    I3 (forbid, 2 file(s))\nok    I4 (forbid, 2 file(s))\nok    X-TIME (forbid, 7 file(s))\nok    X-ID (forbid, 3 file(s))\ndefer X-MONEY (0 targets; waiting on task_017)\nok    GC-XSS (forbid, 5 file(s))\nok    GC-ENV-PUBLIC (forbid, 10 file(s))\nok    GC-SERVER-ONLY (require, 1 file(s))\n\ngate:constraints — scanned 21 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "d5089cc1a9bd9ec935126cd1ed111cc798a2d281",
+    "ran_at": "2026-09-24T05:43:45Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  7 passed (7)\n      Tests  192 passed (192)\n   Start at  05:43:51\n   Duration  8.59s (tests 93%, setup 4%, import 2%, transform 1%)",
+    "commit": "d5089cc1a9bd9ec935126cd1ed111cc798a2d281",
+    "ran_at": "2026-09-24T05:43:51Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run db:diff:drizzle",
+    "exit_code": 0,
+    "stdout_tail": "[✓] 39  foreign keys fetched\n[✓] 0   policies fetched\n[✓] 92  check constraints fetched\n[✓] 0   views fetched\n\n[✓] Your SQL migration file ➜ node_modules/.cache/drizzle-diff/run-1790228640/0000_next_vulcan.sql 🚀\n[✓] Your schema file is ready ➜ node_modules/.cache/drizzle-diff/run-1790228640/schema.ts 🚀\n[✓] Your relations file is ready ➜ node_modules/.cache/drizzle-diff/run-1790228640/relations.ts 🚀\nNo config path provided, using default 'drizzle.config.ts'\nReading config file '/Users/noritakasawada/AI_P/cashapp/drizzle.config.ts'\n23 tables\nabuse_report 5 columns 0 indexes 0 fks\napp_user 12 columns 0 indexes 0 fks\naudit_log 17 columns 0 indexes 0 fks\ncompliance_gate 18 columns 0 indexes 0 fks\nconsent_log 5 columns 0 indexes 0 fks\nevent 21 columns 0 indexes 0 fks\nfeature_flag 4 columns 0 indexes 0 fks\nidempotency_key 10 columns 0 indexes 0 fks\ninvoice 16 columns 0 indexes 0 fks\nledger_entry 13 columns 0 indexes 0 fks\nmanual_attestation 7 columns 0 indexes 0 fks\noutbox 11 columns 0 indexes 0 fks\nparticipant 10 columns 0 indexes 0 fks\nparticipant_claim 8 columns 0 indexes 0 fks\npayment_attempt 18 columns 0 indexes 0 fks\npayment_event 18 columns 0 indexes 0 fks\npayment_self_report 6 columns 0 indexes 0 fks\npayout 8 columns 0 indexes 0 fks\nprovider_binding 13 columns 0 indexes 0 fks\nreconciliation_run 10 columns 0 indexes 0 fks\nreminder_log 5 columns 0 indexes 0 fks\nused_id_token 3 columns 0 indexes 0 fks\nwebhook_delivery 10 columns 0 indexes 0 fks\n\n[✓] Your SQL migration file ➜ node_modules/.cache/drizzle-diff/run-1790228640/0001_stiff_scarecrow.sql 🚀\ndb:diff:drizzle: 170 statement(s) in 1 file(s) under node_modules/.cache/drizzle-diff/run-1790228640\ndb:diff:drizzle: ignored by design — constraint/index statements (schema.ts declares columns only, §7-2)\ndb:diff:drizzle: ignored drop+add pairs (drizzle-kit re-emits GENERATED columns): invoice.settlement_rank, payment_attempt.is_open\ndb:diff:drizzle: OK — no table/column drift",
+    "commit": "d5089cc1a9bd9ec935126cd1ed111cc798a2d281",
+    "ran_at": "2026-09-24T05:44:00Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]
