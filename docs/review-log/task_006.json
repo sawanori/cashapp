@@ -136,5 +136,158 @@
     "task_mismatches": 0,
     "effective_high": 0,
     "exit_code": 0
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_006",
+    "reviewer": "adversarial-reviewer-gpt",
+    "vendor": "gpt",
+    "reviewer_route": "cli-fallback",
+    "model_id_requested": "gpt-6-astra",
+    "model_id_actual": "gpt-6-astra",
+    "model_id_source": "self_report",
+    "cli_version": "codex-cli 0.154.0",
+    "backend": "codex",
+    "ran_at": "2026-09-24T12:53:58Z",
+    "commit": "1bec976519004940972880cfb85022d4b7443b91",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "high",
+        "title": "検証コマンドがあるタスクでは手動検証の未実施を検出できない",
+        "detail": "gateG4 は verify_commands が非空ならコマンド記録の検査後に continue するため、併記された manual_verification を検査しない。同梱の task_005 も両方を持っており、SessionStart の手動確認記録がなくてもコマンドの成功記録だけで G4 を通過できる。",
+        "file": "scripts/gate-check.mjs",
+        "line": 760,
+        "repro": "静的反例（未実行）: g4-manual-items-uncovered フィクスチャのコピーを R とする。task_930 の manual_verification 3 項目と DONE 宣言を残し、verify_commands を [\"npm run test:unit\"] に変更する。runlog/task_930.json を [{\"type\":\"command\",\"command\":\"npm run test:unit\",\"exit_code\":0,\"commit\":\"0123456789abcdef0123456789abcdef01234567\",\"ran_at\":\"2026-09-24T00:00:00Z\",\"by\":\"fixture\"}] にする。node scripts/gate-check.mjs --root R --only G4 を実行すると、手動記録が 0 件でも G4 の違反は 0 件になる。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-2",
+        "severity": "high",
+        "title": "同じ手動検証項目の重複記録で別項目を充当できる",
+        "detail": "matchManualVerification の第2段階は、未使用記録が別項目を明示していても割り当てる。したがって項目0の記録を複製すると、未確認の項目1も確認済み扱いになる。同梱テストは3項目に2記録という件数不足しか検査しておらず、この反例を排除していない。",
+        "file": "scripts/gate-check.mjs",
+        "line": 674,
+        "repro": "静的反例（未実行）: g4-manual-items-uncovered のコピー R で manual_verification を [\"項目 A を確認\",\"項目 B を確認\"]、verify_commands を [] にする。既存の有効な manual 記録を2件に複製し、両方の observation を \"manual_verification[0] 項目 A を確認した\" にする。node scripts/gate-check.mjs --root R --only G4 を実行すると、項目 B の記録がなくても2件目が充当され、警告のみで通過する。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-3",
+        "severity": "high",
+        "title": "コミットすると秘密値の追加行がG8の走査対象から消える",
+        "detail": "loadDiff が取得するのは HEAD に対する未コミット差分、ステージ済み差分、未追跡ファイルだけである。コミット済みの追加行を取得する経路がなく、秘密値を含む変更でもコミット後のクリーンな作業ツリーでは検出用入力に含まれない。違反フィクスチャは固定差分を注入するため、この入力取得の欠落を検証していない。",
+        "file": "scripts/gate-check.mjs",
+        "line": 954,
+        "repro": "静的反例（未実行）: クリーンな作業コピーで src/g8-probe.ts に export const key = \"sk_live_***\"; を追加する。これは同梱フィクスチャ由来の合成値である。git add src/g8-probe.ts、git commit -m g8-probe の順に実行し、node scripts/gate-check.mjs --only G8 --json を実行する。コミット後は git diff HEAD、git diff --cached、未追跡ファイル一覧のいずれにも当該追加行がなく、G8 の秘密値走査へ渡らない。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-4",
+        "severity": "medium",
+        "title": "台帳の内容がJSONのnullでも構造検査が成功する",
+        "detail": "read は JSON の null を正常に読み取った場合も null を返す。直後の分岐は読み取り失敗と区別せず violations が空のまま返るため、台帳全体を null にした状態が gate:plan で exit 0 になる。acceptance-checks と constraints でも同じ経路が成立する。",
+        "file": "scripts/validate-plan-json.mjs",
+        "line": 112,
+        "repro": "静的反例（未実行）: 有効な3ファイルを持つ検査用ディレクトリ R で docs/task-list.json の全文だけを null にする。node scripts/validate-plan-json.mjs --root R --json を実行すると、counts はすべて0、violations は空配列となり exit 0 で終了する。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-5",
+        "severity": "medium",
+        "title": "計画にない検証コマンドをpackage.jsonに追加するとG2を通過する",
+        "detail": "同梱 task-list の task_006.scope は「§13 に無いスクリプト名は違反」としている。しかし G2 は package.json に存在すれば計画外の名前を警告にとどめる。計画にない成功するだけのコマンドを検証手段として登録できる。",
+        "file": "scripts/gate-check.mjs",
+        "line": 540,
+        "repro": "静的反例（未実行）: g2-fabricated-verify-command のコピー R では task_903 だけを残す。R/package.json に {\"scripts\":{\"verify:everything\":\"node -e \\\"process.exit(0)\\\"\"}} を置く。§13 は変更せず node scripts/gate-check.mjs --root R --only G2 を実行すると、verify:everything は計画外でも警告のみになり通過する。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-6",
+        "severity": "medium",
+        "title": "遮断フックをtrueに差し替えてもフック測定が成功する",
+        "detail": "登録検査はイベントの行があることしか確認せず、単体プローブは settings.json の登録コマンドを使わず固定の deny スクリプトを直接呼ぶ。このため実際の登録から遮断処理が外れていても「登録6イベント・単体挙動すべて期待どおり」と報告できる。",
+        "file": "scripts/test-hook-enforcement.sh",
+        "line": 104,
+        "repro": "静的反例（未実行）: 同梱ログの単体プローブが成功する環境で、.claude/settings.json の PreToolUse の matcher=Bash に登録された command だけを \"true\" に変更する。bash scripts/test-hook-enforcement.sh を実行する。A は登録ありとして扱い、B は引き続き deny-dangerous-bash.sh を直接実行するため、Bash の実登録に遮断能力がなくても成功判定になる。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-7",
+        "severity": "medium",
+        "title": "契約テストの階層によって基準値とG7の件数が一致しない",
+        "detail": "基準値生成側の countContractTests は再帰的に数える一方、G7 の countContractFiles は直下と1階層下だけを数える。深いディレクトリに契約テストを配置すると、削除していないのに削除違反になる。",
+        "file": "scripts/gate-check.mjs",
+        "line": 904,
+        "repro": "静的反例（未実行）: tests/contract がない作業コピーに tests/contract/provider/webhook/replay.test.ts を1本追加する。node scripts/gate-integrity.mjs --write-baseline で基準値を生成し、ファイルを変更せず node scripts/gate-check.mjs --only G7 を実行する。基準値は1件、G7の実数は0件となり「1件から0件に減っています」で失敗する。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      }
+    ],
+    "diagnostics": {
+      "exit_code": 0,
+      "event_types": [
+        "thread.started",
+        "turn.started",
+        "item.completed",
+        "item.completed",
+        "turn.completed"
+      ],
+      "cli_errors": [
+        "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+      ],
+      "last_message_bytes": 4654,
+      "stderr_tail": "2026-09-24T12:48:25.129259Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T12:48:25.129358Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T12:48:25.397719Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer error=\\\"invalid_request\\\", error_description=\\\"No access token was provided in this request\\\", resource_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n"
+    },
+    "packet_bytes": 324807,
+    "validated_at": "2026-09-24T12:54:34Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/gpt-retry/gpt-006.json",
+    "merged_at": "2026-09-24T12:54:34Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gpt-6-astra を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 3,
+        "medium": 4,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 7,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "type": "summary",
+    "task_id": "task_006",
+    "round": 1,
+    "merged_at": "2026-09-24T12:54:34Z",
+    "decision": "reject",
+    "envelopes": 1,
+    "votes": 1,
+    "vendors": [
+      "gpt"
+    ],
+    "author_vendor": "claude",
+    "missing_votes": 0,
+    "invalid_envelopes": 0,
+    "invalid_reviews": 0,
+    "self_reviews": 0,
+    "task_mismatches": 0,
+    "effective_high": 3,
+    "exit_code": 1
   }
 ]

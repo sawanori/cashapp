@@ -32,6 +32,23 @@
    1 件ずつ `npm run test:gate-meta` と `npm run gate:check` を通してコミットする。
 3. 各件の違反フィクスチャ（`tests/gates/fixtures/`）を同時に足し、G0（メタゲート）で空振りを防ぐ。
 
+## 追加（同日）: task_006 への GPT-6 Astra 敵対レビュー（docs/review-log/task_006.json、reject、high 3 / medium 4）
+
+gate-check.mjs 等の判定条件を変える指摘なので、上と同じ理由でワークフロー完了後に適用する。
+適用前に「現在の台帳で新たに違反になる完了済みタスク」を洗い出し、該当タスクの記録を先に補う
+（G4 の手動検証記録など）。そうしないと、進行中エージェントの Stop フック（gate:check）が他タスクの
+記録不足で止まる。
+
+| # | 対象 | 指摘（GPT F-id） | 変更 |
+|---|---|---|---|
+| H2-6 | `scripts/gate-check.mjs` G4 | F-1 (high): verify_commands が非空だと manual_verification の記録を検査しない | 両方を検査する（manual 項目は全件に記録を要求） |
+| H2-7 | `scripts/gate-check.mjs` G4 | F-2 (high): 同じ手動検証記録の複製で別項目を充当できる | 記録の `manual_verification[<索引>]` 明示を必須にし、索引の重複・欠落を違反にする |
+| H2-8 | `scripts/gate-check.mjs` G8 | F-3 (high): コミット済みの追加行が秘密値走査の入力に入らない | 直近 N コミット（または origin/main 以降）の追加行も走査対象に含める |
+| H2-9 | `scripts/validate-plan-json.mjs` | F-4 (medium): 台帳が JSON の null でも exit 0 | 読み取り結果が object でなければ違反 |
+| H2-10 | `scripts/gate-check.mjs` G2 | F-5 (medium): 計画（§13）に無い script 名を package.json に足せば warn 止まり | §13 に無い名前は違反（計画の記述どおり） |
+| H2-11 | `scripts/test-hook-enforcement.sh` | F-6 (medium): 登録行の存在だけを見て、登録コマンドの実体を使わずに固定の deny スクリプトを呼ぶ | settings.json の登録コマンドをそのまま実行して遮断を検査する |
+| H2-12 | `scripts/gate-check.mjs` G7 | F-7 (medium): 基準値は再帰、G7 は 2 階層までで件数が食い違う | 両者を同じ走査関数にする |
+
 ## 参考: P-01 / P-03 / P-07 / P-08 / P-10 / P-12 の扱い
 
 これらは実装タスク側の失敗モードなので、`docs/task-list.json` の task_014〜023 の `files_to_read` に

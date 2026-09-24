@@ -651,7 +651,8 @@
         "[severity: medium] 違反フィクスチャ 24 本すべてをモデルが書いており、人間が手書きした 1 本が無い（scope の「最初の 1 本は人間が手書きし CODEOWNERS 対象」が未達）。対応案: PO が 1 本を手書きし provenance.authored_by を human: にする。達成まで G0 が毎回 warn を出し続ける。詳細は docs/concerns/task_006.md の 1。",
         "[severity: medium] CI 実走が未証明（GitHub リモート未作成のため §16-6 の gate-meta / acceptance / gate-integrity ジョブが一度も走っていない）。対応案: deferred。GitHub リモート作成後に task_009 が required status checks へ登録し PR で緑になることを確認する。詳細は docs/concerns/task_006.md の 3。",
         "[severity: medium] G8 の秘密値名リストが手書きの固定リストで、新しい秘密値が増えたときに追随しないと素通りする。対応案: task_012 の gate-env-scope.mjs が env スコープの正本を持つので、そこから機械的に取り込む。詳細は docs/concerns/task_006.md の 5。",
-        "[severity: low] G4 の manual 記録は、名指し（manual_verification[索引]）が無い記録でも項目数ぶんあれば単射で充当する（充当時は warn を出す）。対応案: record-run.sh --manual の観察文に索引を書く運用を定着させ、全記録が名指しになった時点で名指しを必須にする。詳細は docs/concerns/task_006.md の 9。"
+        "[severity: low] G4 の manual 記録は、名指し（manual_verification[索引]）が無い記録でも項目数ぶんあれば単射で充当する（充当時は warn を出す）。対応案: record-run.sh --manual の観察文に索引を書く運用を定着させ、全記録が名指しになった時点で名指しを必須にする。詳細は docs/concerns/task_006.md の 9。",
+        "[severity: high] GPT-6 Astra の敵対レビュー（docs/review-log/task_006.json、reject）: gate-check.mjs の G4 が verify_commands 非空のとき manual_verification を検査しない／同じ手動記録の複製で別項目を充当できる／G8 がコミット済みの追加行を秘密値走査に含めない（high 3）、ほか medium 4（validate-plan-json の null 通過・G2 の計画外 script 名が warn 止まり・test-hook-enforcement が登録コマンドの実体を使わない・G7 の走査深さ不一致）／対応案: docs/proposals/harness-round2.md H2-6〜H2-12。判定条件の変更なのでワークフロー v5 完了後に、新たに違反になる完了済みタスクの記録を先に補ってから適用する"
       ]
     },
     {

@@ -129,5 +129,180 @@
     "task_mismatches": 0,
     "effective_high": 1,
     "exit_code": 1
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_005",
+    "reviewer": "adversarial-reviewer-gpt",
+    "vendor": "gpt",
+    "reviewer_route": "cli-fallback",
+    "model_id_requested": "gpt-6-astra",
+    "model_id_actual": "gpt-6-astra",
+    "model_id_source": "self_report",
+    "cli_version": "codex-cli 0.154.0",
+    "backend": "codex",
+    "ran_at": "2026-09-24T12:54:52Z",
+    "commit": "62c8b88357f89ee4f94fe06dcf30fd4094c10739",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "high",
+        "title": "絶対パスで起動した cp がフック設定を上書きできる",
+        "detail": "basename 化したコマンドに適用するのは raw_rules_hit だけで、write_rules_hit は元の文字列を検査する。/bin/cp は cp の正規表現に一致せず、保護対象への上書きが通る。",
+        "file": "scripts/deny-dangerous-bash.sh",
+        "line": 467,
+        "repro": "Bash フックへ {\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"/bin/cp /dev/null .claude/settings.json\"}} を渡す。判定は exit 0 となり、許可されたコマンドは既存のフック設定ファイルを空にする。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-2",
+        "severity": "high",
+        "title": "パスに ./ を挟むとガード本体を書き換えられる",
+        "detail": "Edit/Write 側は file_path を正規化せず正規表現に渡す。scripts/./deny-dangerous-bash.sh は保護パターンに一致しないが、実際には保護対象と同じファイルを指す。Bash 側も CWD_REL が空の場合はパスを正規化しない。",
+        "file": "scripts/deny-test-weakening.sh",
+        "line": 181,
+        "repro": "Write フックへ {\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"scripts/./deny-dangerous-bash.sh\",\"content\":\"#!/usr/bin/env bash\\nexit 0\\n\"}} を渡す。判定は exit 0 となり、書き込み後の Bash ガードはすべての入力を許可する。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-3",
+        "severity": "high",
+        "title": "ガード名を引数に残した無処理コマンドで構造検査を通過できる",
+        "detail": "settings.json の検査は command に期待する名前が含まれるかしか確認しない。true deny-dangerous-bash.sh は検査に合格する一方、ガードを実行せず成功終了する。",
+        "file": "scripts/deny-test-weakening.sh",
+        "line": 275,
+        "repro": "同梱 .claude/settings.json の hooks.PreToolUse[0].hooks[0].command だけを \"true deny-dangerous-bash.sh\" に変えた全文を Write に渡す。他の登録はそのままなので検査は exit 0 になる。変更後の Bash フックは、入力が git reset --hard HEAD でも true を実行して許可する。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-4",
+        "severity": "high",
+        "title": "編集断片の境界を使って遮断テストをまとめて skip にできる",
+        "detail": "Edit はファイル全体ではなく old_string と new_string だけで件数を比較する。it を編集範囲の外に残すと、実際には it.skip を追加しても SKIP_RE に一致せず、ケース数とアサーション数も減少しない。",
+        "file": "scripts/deny-test-weakening.sh",
+        "line": 118,
+        "repro": "Edit フックへ {\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"tests/unit/hooks/deny-dangerous-bash.test.ts\",\"old_string\":\"(`exit 2: ${command}`, () => {\",\"new_string\":\".skip(`exit 2: ${command}`, () => {\",\"replace_all\":true}} を渡す。判定は exit 0 となり、同梱ファイルの4種類の遮断ケース登録が it.skip に変わる。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-5",
+        "severity": "high",
+        "title": "git のグローバルオプションで reset --hard の遮断を回避できる",
+        "detail": "破壊的操作の判定は git の直後に reset が来る形に限定される。git -C . reset --hard HEAD は同じ操作を行うが、この正規表現にも他の書き込み判定にも一致しない。",
+        "file": "scripts/deny-dangerous-bash.sh",
+        "line": 350,
+        "repro": "1. Edit で docs/PROGRESS.md の先頭を \"# PROGRESS\\n\\nprobe\" に変更する。2. Bash フックへ command=\"git -C . reset --hard HEAD\" を渡す。判定は exit 0 となり、実行すると probe を含む追跡ファイルの未コミット変更が破棄される。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-6",
+        "severity": "high",
+        "title": "行継続を使うと本番デプロイを別々の節として判定する",
+        "detail": "normalize はバックスラッシュを削除してから改行を節区切りに変える。シェルでは一つのコマンドになる行継続が、検査では wrangler と deploy の別節になり、禁止パターンが消える。",
+        "file": "scripts/deny-dangerous-bash.sh",
+        "line": 158,
+        "repro": "Bash の command に、文字列 \"wrangler \"、バックスラッシュ1文字（U+005C）、改行1文字（U+000A）、文字列 \"deploy --env production\" を順に連結した値を渡す。フックは exit 0 となるが、シェルが実行するコマンドは wrangler deploy --env production である。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-7",
+        "severity": "high",
+        "title": "別ディレクトリの npm スクリプトをルートの package.json で判定する",
+        "detail": "resolve_script は cd 後も固定の PKG を読む。同梱フィクスチャには release から本番デプロイへ到達するスクリプトがあるが、ルートの package.json に release はなく、名前も危険語に一致しないため許可される。",
+        "file": "scripts/deny-dangerous-bash.sh",
+        "line": 639,
+        "repro": "DENY_BASH_PACKAGE_JSON を設定せず、プロジェクトルートから Bash フックへ command=\"cd tests/unit/hooks/fixtures && npm run release\" を渡す。判定は exit 0 になる。実際の npm は同梱フィクスチャの release を使い、build、deploy:production の順に実行して wrangler deploy --env production に到達する。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-8",
+        "severity": "high",
+        "title": "サブシェル内の cd が外側にも適用されたものとして判定される",
+        "detail": "括弧を単なる節区切りに変えるため、サブシェル終了時のディレクトリ復元を表現できない。検査上だけルートへ戻した状態を作ると、保護ディレクトリ内への相対書き込みが通る。",
+        "file": "scripts/deny-dangerous-bash.sh",
+        "line": 163,
+        "repro": "Bash フックへ command=\"cd .claude && (cd ..) && printf x > settings.json\" を渡す。検査は二つ目の cd で CWD_REL をルートへ戻し、exit 0 になる。実際の外側シェルは .claude に留まるため、.claude/settings.json が x で上書きされる。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-9",
+        "severity": "medium",
+        "title": "日本語ファイル名の変更が lint 対象から消える",
+        "detail": "Git が引用したパスは末尾に二重引用符を持つため、grep の [.]tsx?$ に一致しない。対象がそのファイルだけなら、構文エラーがあっても「対象なし」で成功終了する。",
+        "file": "package.json",
+        "line": 8,
+        "repro": "HEAD があり他の変更がない使い捨て Git リポジトリで core.quotePath=true を設定する。未追跡の src/日本語.ts を内容 \"export const x: number = ;\" で作り、同梱の lint:changed 定義を実行する。引用されたパスが grep で除外され、eslint は起動しない。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      }
+    ],
+    "diagnostics": {
+      "exit_code": 0,
+      "event_types": [
+        "thread.started",
+        "turn.started",
+        "item.completed",
+        "item.completed",
+        "turn.completed"
+      ],
+      "cli_errors": [
+        "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+      ],
+      "last_message_bytes": 4955,
+      "stderr_tail": "2026-09-24T12:48:25.119283Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T12:48:25.129217Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T12:48:25.400628Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer error=\\\"invalid_request\\\", error_description=\\\"No access token was provided in this request\\\", resource_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n"
+    },
+    "packet_bytes": 255894,
+    "validated_at": "2026-09-24T12:55:24Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/gpt-retry/gpt-005.json",
+    "merged_at": "2026-09-24T12:55:24Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gpt-6-astra を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 8,
+        "medium": 1,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 9,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "type": "summary",
+    "task_id": "task_005",
+    "round": 1,
+    "merged_at": "2026-09-24T12:55:24Z",
+    "decision": "reject",
+    "envelopes": 1,
+    "votes": 1,
+    "vendors": [
+      "gpt"
+    ],
+    "author_vendor": "claude",
+    "missing_votes": 0,
+    "invalid_envelopes": 0,
+    "invalid_reviews": 0,
+    "self_reviews": 0,
+    "task_mismatches": 0,
+    "effective_high": 8,
+    "exit_code": 1
   }
 ]
