@@ -426,11 +426,11 @@
         "src/lib/ledger/apply.ts"
       ],
       "allow_if_line_matches": [
-        "(status_rank|statusRank)[[:space:]]*<([^>]|$)",
-        "(^|[^<])>=?[[:space:]]*(status_rank|statusRank)"
+        "(status_rank|statusRank)[[:space:]]*<=?",
+        ">=?[[:space:]]*(status_rank|statusRank)"
       ],
       "expect_targets": "now",
-      "notes": "rank ガード（status_rank < $new_rank）と同一行に無い 'paid' 代入を違反とみなす。許可条件はランク名の出現ではなく**前進方向のランク比較**であること: 現在ランクが左辺なら < / <=、右辺なら > / >= だけを免除する（ランクを無条件に代入するだけの UPDATE［GPT 1 周目 F-3］、status_rank > 2 のような後退方向の比較［GPT 2 周目 F-4］、SQL の不等号 status_rank <> 2［GPT 3 周目 F-1］のいずれも免除しない。<> は < の直後が > でないこと・> の直前が < でないことで弾く）。状態遷移は src/lib/ledger/apply.ts 経由のみ。"
+      "notes": "rank ガード（status_rank < $new_rank）と同一行に無い 'paid' 代入を違反とみなす。許可条件はランク名の出現ではなく**前進方向のランク比較**であること: 現在ランクが左辺なら < / <=、右辺なら > / >= だけを免除する（ランクを無条件に代入するだけの UPDATE［GPT 1 周目 F-3］と、status_rank > 2 のような後退方向の比較［GPT 2 周目 F-4］のどちらも免除しない）。状態遷移は src/lib/ledger/apply.ts 経由のみ。"
     },
     {
       "id": "W4",
@@ -825,14 +825,14 @@
         "src/**/*.ts"
       ],
       "exclude_globs": [
-        "src/lib/**/*.ts",
-        "src/app/api/**/*.ts",
+        "src/lib/**",
+        "src/app/api/**",
         "src/app/**/route.ts",
         "src/middleware.ts"
       ],
       "allow_if_line_matches": [],
       "expect_targets": "now",
-      "notes": "サーバーコンポーネント（.tsx）からの DB 直アクセスも禁止する。DB は Route Handler 経由のみ。.ts の対象は src/components 配下に限らない（src/hooks 等に置いた 'use client' 付き .ts が漏れていた。GPT 2 周目 F-7）。除外はサーバー側と確定している **.ts だけ**に限る: src/lib/** や src/app/api/** を拡張子なしで除外すると、そこに置いた .tsx（クライアントコンポーネント）まで検査から外れる（GPT 3 周目 F-3）。"
+      "notes": "サーバーコンポーネント（.tsx）からの DB 直アクセスも禁止する。DB は Route Handler 経由のみ。.ts の対象は src/components 配下に限らない（src/hooks 等に置いた 'use client' 付き .ts が漏れていた。GPT レビュー F-7）。サーバー側と確定している src/lib・Route Handler・middleware だけを除外する。"
     },
     {
       "id": "I4",
@@ -892,7 +892,7 @@
         "(^|[(,])[[:space:]]*[\"']?[A-Za-z_][A-Za-z0-9_]*[\"']?[[:space:]]+[tT][iI][mM][eE][sS][tT][aA][mM][pP]([[:space:]]*(,|\\)|;|$)|[[:space:]]+[^wW[:space:]])",
         "([aA][dD][dD]([[:space:]]+[cC][oO][lL][uU][mM][nN])?|[tT][yY][pP][eE])[[:space:]]+([\"']?[A-Za-z_][A-Za-z0-9_]*[\"']?[[:space:]]+)?[dD][aA][tT][eE]([[:space:]]|,|\\)|;|$)",
         "([aA][dD][dD]([[:space:]]+[cC][oO][lL][uU][mM][nN])?|[tT][yY][pP][eE])[[:space:]]+([\"']?[A-Za-z_][A-Za-z0-9_]*[\"']?[[:space:]]+)?[tT][iI][mM][eE][sS][tT][aA][mM][pP]([[:space:]]*(,|\\)|;|$)|[[:space:]]+[^wW[:space:]])",
-        "[[:space:]][tT][iI][mM][eE][sS][tT][aA][mM][pP][[:space:]]*\\([[:space:]]*[0-9]+[[:space:]]*\\)([[:space:]]*(,|\\)|;|$)|[[:space:]]+[^wW[:space:]])",
+        "[[:space:]][tT][iI][mM][eE][sS][tT][aA][mM][pP][[:space:]]*\\([[:space:]]*[0-9]+[[:space:]]*\\)",
         "(^|[^A-Za-z_])date\\([\"']",
         "(^|[^A-Za-z_])timestamp\\([\"'][^\"']*[\"'][[:space:]]*\\)"
       ],
