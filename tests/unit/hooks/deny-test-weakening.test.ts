@@ -1,0 +1,170 @@
+// tests/unit/hooks/deny-test-weakening.test.ts
+//
+// check_036 / check_062（Write ツール側）の機械検証。
+// scripts/deny-test-weakening.sh を実際に spawn して、
+// PreToolUse(Edit|Write|MultiEdit) のフック入力 JSON を stdin に流す。2 = 遮断。
+//
+// テスト弱体化の見本（.skip / .only / .todo）と本番鍵の見本は、
+// いずれもリテラルで書かず実行時に組み立てる。リテラルで書くと
+// このファイル自身が同じフックに引っかかって書き換えられなくなるため。
+
+import { spawnSync } from "node:child_process";
+import path from "node:path";
+import process from "node:process";
+import { fileURLToPath } from "node:url";
+
+import { describe, expect, it } from "vitest";
+
+const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
+const script = path.join(repoRoot, "scripts", "deny-test-weakening.sh");
+
+const SKIP = ["it", "skip"].join(".");
+const ONLY = ["describe", "only"].join(".");
+const TODO = ["test", "todo"].join(".");
+const LIVE_SECRET = ["sk", "live", "51ABCdefGHIjkl"].join("_");
+
+interface RunResult {
+  status: number;
+  stderr: string;
+}
+
+function runHook(payload: unknown): RunResult {
+  const result = spawnSync("bash", [script], {
+    input: JSON.stringify(payload),
+    encoding: "utf8",
+    env: { ...process.env, CLAUDE_PROJECT_DIR: repoRoot },
+  });
+  if (result.error) throw result.error;
+  return { status: result.status ?? -1, stderr: result.stderr ?? "" };
+}
+
+function write(filePath: string, content: string): RunResult {
+  return runHook({ tool_name: "Write", tool_input: { file_path: filePath, content } });
+}
+
+function edit(filePath: string, oldString: string, newString: string): RunResult {
+  return runHook({
+    tool_name: "Edit",
+    tool_input: { file_path: filePath, old_string: oldString, new_string: newString },
+  });
+}
+
+function multiEdit(
+  filePath: string,
+  edits: { old_string: string; new_string: string }[],
+): RunResult {
+  return runHook({ tool_name: "MultiEdit", tool_input: { file_path: filePath, edits } });
+}
+
+const TWO_ASSERTIONS = [
+  'it("rank は動かない", () => {',
+  "  expect(invoice.settlementRank).toBe(0);",
+  "  expect(ledger.entries).toHaveLength(1);",
+  "});",
+].join("\n");
+
+const ONE_ASSERTION = [
+  'it("rank は動かない", () => {',
+  "  expect(invoice.settlementRank).toBe(0);",
+  "});",
+].join("\n");
+
+describe("deny-test-weakening.sh — run-log / gates / evidence への直接書き込み", () => {
+  it("Write で docs/run-log/<task>.json を書こうとすると exit 2", () => {
+    expect(write("docs/run-log/task_005.json", "[]").status).toBe(2);
+  });
+
+  it("絶対パスでも docs/run-log/ は遮断する", () => {
+    expect(write(path.join(repoRoot, "docs/run-log/task_005.json"), "[]").status).toBe(2);
+  });
+
+  it("Write で docs/gates/legal-clearance.json を書こうとすると exit 2", () => {
+    expect(write("docs/gates/legal-clearance.json", '{"cleared": true}').status).toBe(2);
+  });
+
+  it("Edit で docs/gates/compliance-gates.json の status を書き換えると exit 2", () => {
+    expect(edit("docs/gates/compliance-gates.json", '"status": "unknown"', '"status": "passed"').status).toBe(2);
+  });
+
+  it("Edit で acceptance-checks.json の evidence を書くと exit 2", () => {
+    expect(edit("docs/acceptance-checks.json", '"evidence": null', '"evidence": "run-log"').status).toBe(2);
+  });
+
+  it("遮断時は理由を stderr に書く", () => {
+    const result = write("docs/run-log/task_005.json", "[]");
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain("BLOCKED");
+  });
+});
+
+describe("deny-test-weakening.sh — tests/** の弱体化", () => {
+  it("expect を減らす Edit は exit 2", () => {
+    expect(edit("tests/contract/duplicate.test.ts", TWO_ASSERTIONS, ONE_ASSERTION).status).toBe(2);
+  });
+
+  it("it/test ごと消す Edit は exit 2", () => {
+    const before = `${TWO_ASSERTIONS}\n${TWO_ASSERTIONS}`;
+    expect(edit("tests/contract/duplicate.test.ts", before, TWO_ASSERTIONS).status).toBe(2);
+  });
+
+  it("skip 修飾子の追加は exit 2", () => {
+    const after = TWO_ASSERTIONS.replace("it(", `${SKIP}(`);
+    expect(edit("tests/contract/duplicate.test.ts", TWO_ASSERTIONS, after).status).toBe(2);
+  });
+
+  it("only 修飾子の追加は exit 2", () => {
+    const after = `${ONLY}("一部だけ", () => {\n${TWO_ASSERTIONS}\n});`;
+    expect(edit("tests/contract/duplicate.test.ts", TWO_ASSERTIONS, after).status).toBe(2);
+  });
+
+  it("todo 修飾子の追加は exit 2", () => {
+    const after = `${TODO}("あとで");\n${TWO_ASSERTIONS}`;
+    expect(edit("tests/contract/duplicate.test.ts", TWO_ASSERTIONS, after).status).toBe(2);
+  });
+
+  it("MultiEdit でも合計のアサーション数で判定する", () => {
+    const result = multiEdit("tests/contract/duplicate.test.ts", [
+      { old_string: TWO_ASSERTIONS, new_string: ONE_ASSERTION },
+      { old_string: "const a = 1;", new_string: "const a = 2;" },
+    ]);
+    expect(result.status).toBe(2);
+  });
+
+  it("アサーションを増やす Edit は通す", () => {
+    expect(edit("tests/contract/duplicate.test.ts", ONE_ASSERTION, TWO_ASSERTIONS).status).toBe(0);
+  });
+
+  it("新しいテストファイルの作成は通す", () => {
+    expect(write("tests/unit/new-thing.test.ts", TWO_ASSERTIONS).status).toBe(0);
+  });
+});
+
+describe("deny-test-weakening.sh — 本番鍵", () => {
+  it("本番シークレットを含む Write は exit 2", () => {
+    expect(write("src/lib/payments/keys.ts", `export const KEY = "${LIVE_SECRET}";`).status).toBe(2);
+  });
+
+  it("本番決済環境フラグを含む Write は exit 2", () => {
+    const assignment = `${["PAYPAY", "ENV"].join("_")}=${"PROD"}`;
+    expect(write(".dev.vars", assignment).status).toBe(2);
+  });
+});
+
+describe("deny-test-weakening.sh — 通常の編集は通す", () => {
+  it("src 配下の Write", () => {
+    expect(write("src/app/page.tsx", "export default function Page() {\n  return null;\n}\n").status).toBe(0);
+  });
+
+  it("docs/PROGRESS.md への追記", () => {
+    expect(edit("docs/PROGRESS.md", "# PROGRESS", "# PROGRESS\n\n- task_005: DONE").status).toBe(0);
+  });
+
+  it("対象外のツール名は素通しする", () => {
+    const result = runHook({ tool_name: "Bash", tool_input: { command: "echo hi" } });
+    expect(result.status).toBe(0);
+  });
+
+  it("file_path の無い入力は素通しする", () => {
+    expect(runHook({ tool_name: "Write", tool_input: {} }).status).toBe(0);
+  });
+});

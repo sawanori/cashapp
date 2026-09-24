@@ -144,8 +144,45 @@
 - task_038（新規・PO 裁定）: `check_071` の drizzle-kit 差分検査を「差分 0」のまま行くか「表・列レベルのみ」に定義し直すかを決める。
 - task_035: `wrangler.toml` の `localConnectionString` を `app_rw` ロールに揃える（上記 concerns）。
 
+## task_005（フック群・deny スクリプト・legal-clearance・毎ターン追記）
+
+### 決まったこと
+
+- **`.claude/settings.json` に 6 イベントを登録した**（PreCompact は意図的に使わない）。SessionStart=`scripts/session-brief.mjs`、UserPromptSubmit=`scripts/gate-status.mjs`、PreToolUse(Bash)=`scripts/deny-dangerous-bash.sh`、PreToolUse(Edit|Write|MultiEdit)=`scripts/deny-test-weakening.sh`、PostToolUse(Edit|Write|MultiEdit)=`typecheck` / `lint:changed` / `gate:constraints`、Stop=`scripts/append-handoff.sh`、SubagentStop=`scripts/assert-diff-exists.sh`。コマンドはすべて `"$CLAUDE_PROJECT_DIR/..."` 絶対参照。**Stop の `gate:check` と PostToolUse の `gate:plan` は task_006、Stop の `test:gate` は task_019 が追加する**（今は未登録）。
+- **`.claude/settings.json` はセッション途中でも読み込まれる**ことを実測した。本タスクの作業中に settings.json を作った直後から PreToolUse フックが発火し、こちらの Bash 呼び出しと Write 呼び出しを 2 件とも実際に遮断した（`docs/run-log/task_005.json` の manual 記録）。`.claude/` がセッション開始時に存在しなくても有効化された。
+- **`deny-dangerous-bash.sh` の判定単位は「正規化した後のサブコマンド」**。引用符（`"` `'` バッククォート）とバックスラッシュを除去し、連続空白を 1 個に潰し、`&&` / `||` / `|` / `;` / 改行で分割してから各節に部分一致をかける。引用符や連続空白による難読化も、改行で行を分けた書き方も通らない。
+- **遮断対象（生コマンド）**: wrangler の本番反映系コマンド 3 種（`deploy`、`versions deploy`、`secret put`。環境指定の有無を問わず常時）/ supabase のスキーマ破壊系 2 種（`db push`、`db reset`）/ git の強制系 2 種（強制 push、`reset --hard`）/ `rm` の再帰＋強制指定（フラグの順序と綴りを問わない）/ `pnpm` / `npm publish` / 本番シークレット接頭辞 / 本番決済環境フラグ / `--live`。**`legal-clearance.json` の `cleared` が true でも本番系はローカルからは常に exit 2**（デプロイは CI のみ。§16-6）。
+- **別名呼び出しは package.json.scripts を再帰解決する**。`npm run <名前>` / `npm run-script <名前>` / `yarn <名前>` / `npx <名前>` を拾い、解決できた本体を同じ規則で再帰的に走査する（深さ上限 5、循環は visited チェーンで打ち切り）。解決できず名前が `deploy|secret|publish|reset|push|prod` に一致する場合は **fail-closed で exit 2**。解決できて本体が無害なら通す（フィクスチャの `reset:fixtures` = `rm -f ...` は通る）。テストは実 package.json ではなく `tests/unit/hooks/fixtures/package.json` を `DENY_BASH_PACKAGE_JSON` で指して判定する。
+- **Bash 経由の書き込み遮断は「経路」で判定し、パス名の言及では判定しない**。`>` / `>>` のリダイレクト先、`tee` の引数、`sed -i` を含む節に現れる保護パス、`cp` / `mv` の最終引数（宛先）、`python -c ... open(..., 書き込みモード)` の 5 経路だけを見る。保護対象は `docs/run-log/**`・`docs/gates/**`・`docs/acceptance-checks.json`・`tests/**`・`scripts/deny-*`・`scripts/record-run.sh`・`.claude/**`・`.github/workflows/**`。**`scripts/record-run.sh <task_id> <command...>` はこの 5 経路のどれも持たないので通る。例外句は書いていない**（例外句があると同じ文字列を含めるだけで迂回できてしまうため。R-TH-02 の裁定どおり）。
+- **`deny-test-weakening.sh` の判定材料は「編集前後のテキスト」**。Edit は `old_string` / `new_string`、MultiEdit は全 `edits` の連結、Write は「ディスク上の現ファイル」対「`content`」で比較する。`tests/**` について (a) `it(` / `test(` の件数減、(b) `expect(` の件数減、(c) `describe|it|test` に対する `.skip` / `.todo` / `.only` の新規追加 のいずれかで exit 2。加えて全ファイル共通で本番鍵・本番決済環境フラグの書き込みを exit 2、`docs/run-log/**` と `docs/gates/**` への書き込みを無条件 exit 2、`docs/acceptance-checks.json` は `evidence` に触れる編集のみ exit 2。
+- **`docs/gates/legal-clearance.json` を `cleared:false` で作成した**（`basis` / `approved_by` / `approved_at` はすべて null）。このファイルは `docs/gates/**` に入るので、Edit/Write も Bash 経由の書き込みも自分自身のフックで遮断される。値を動かせるのは人間（PO）だけ。
+- **Stop フックは docs/HANDOFF.md 末尾の「ターンログ（Stop フック自動追記）」節に 1 行追記する**。内容は UTC 時刻・HEAD・直近コミット件名（＝決まったこと）・未コミットファイル一覧（＝未解決）。本文の散文は各タスク節に人／エージェントが書き、フックは「毎ターン必ず 1 行は残る」ことだけを機械的に保証する（F4。PreCompact に依存しない）。
+- **SubagentStop フック（`assert-diff-exists.sh`）は遮断せず報告する**。差分なしで終わるサブエージェント（調査・レビュー・敵対レビュー）と、`with-lock.sh git` でコミットを済ませて作業ツリーが綺麗なサブエージェントの両方が正常系なので、exit 2 にすると正しい振る舞いのほうに当たる。セッション開始時の HEAD を `.locks/subagent-head-baseline`（gitignore 済み）に控え、「作業ツリーに差分なし かつ HEAD が baseline から動いていない」ときだけ `systemMessage` で警告する。完了申告に対する強制力は `record-run.sh` 専有の run-log と CI の `verify_commands` 再実行が持つ。
+- **テストは 84 件**（`tests/unit/hooks/` 3 ファイル）。`npm run test:unit` 全体では 121 件が緑。フックのテストは実スクリプトを `spawnSync` で起動して終了コードだけを見る（スクリプトの中身をモックしない）。
+- **テストの中に禁止パターンのリテラルを書かない**という運用規約を立てた。`.skip` / `.only` / `.todo` の見本と本番鍵・本番環境フラグの見本は `["it","skip"].join(".")` のように実行時に組み立てる。リテラルで書くと、そのテストファイル自身が `deny-test-weakening.sh` に引っかかって以後書き換えられなくなる（実際に 1 回踏んだ）。
+
+### 未解決 / concerns
+
+- **[severity: medium] check_053（新規セッションでの SessionStart 注入の目視確認）は未達**。実施できたのは、`.claude/settings.json` に登録したコマンドそのものへ SessionStart のフック入力 JSON をパイプして stdout を確認するところまで（未通過ゲート 10 件・`cleared=false`・未回答照会 6 件・HANDOFF 末尾 40 行がすべて `additionalContext` に入ることを確認済み。`docs/run-log/task_005.json` の manual 記録）。サブエージェントからは新しい対話セッションを開けないため、「新規セッションを開いて画面上で目視する」は PO が実施すること。
+- **[severity: medium] `deny-dangerous-bash.sh` は禁止パターンが引数の文字列として登場するだけでも遮断する**。コマンド行を正規化して部分一致をかける設計上、引用符の中身と実際に実行される語を区別できない。本タスク中に、遮断された操作を説明する文章を `scripts/record-run.sh --manual` の引数に渡そうとして説明文自体が exit 2 になり、さらに本 HANDOFF 節をヒアドキュメントで書こうとして節の本文が exit 2 になった（いずれも run-log に記録済み。前者は言い換えで、後者は Write ツールで一時ファイルを作ってから挿入する手順で回避した）。**ここを緩めると難読化に対して穴が空く**ので、緩めずに運用側で回避する裁定にした。
+- **[severity: medium] Edit/Write ツールからの `scripts/deny-*` と `scripts/record-run.sh` の書き換えは塞げていない**。task_005 のスコープで、この 2 つは Bash 経路（`sed -i` / `cp` / `mv` / リダイレクト）の保護対象としてのみ列挙されており、`deny-test-weakening.sh` 側の遮断対象には挙がっていないため、スコープどおりに実装した。結果として Edit ツールでガード自身を書き換える経路が残っている。塞ぐなら `deny-test-weakening.sh` に `scripts/deny-`・`scripts/record-run.sh`・`.claude/**` を足す（task_006 の `test-hook-enforcement.sh` で穴として検出されるはず）。
+- **[severity: medium] `docs/acceptance-checks.json` の `evidence` を書ける経路が現時点でどこにも無い**。Edit/Write は `deny-test-weakening.sh` が、Bash のリダイレクト等は `deny-dangerous-bash.sh` が遮断する。task_006 の `gate-check.mjs` が evidence を書く設計なら、`record-run.sh` と同様に「そのスクリプトだけが書ける」経路を作る必要がある（`gate-check.mjs` を Bash から引数だけで起動し、スクリプト内部で fs 書き込みする形なら現行のフックを通る）。task_006 で設計を確定させること。
+- **[severity: low] PostToolUse の 3 コマンドは編集のたびに毎回走る**。`typecheck`（`tsc --noEmit`）＋`lint:changed`＋`gate:constraints` で 1 編集あたり数秒〜十数秒かかる。遅すぎる場合は `typecheck` を Stop 側へ移すなどの調整が要る（今は §16-4 の表どおりに置いた）。
+- **[severity: low] `lint:changed` は `origin/main...HEAD` を使う**。本リポジトリにリモートが無いため `git diff` が失敗し、`2>/dev/null` でファイル一覧が空になって `eslint --max-warnings=0` が引数なしで走る（実測 exit 0）。意図した「変更ファイルだけ」にはなっていない。`package.json` は本タスクの担当範囲外なので手を入れていない。
+- **[severity: low] `docs/PROGRESS.md` と `docs/HANDOFF.md` は task_005 の `files_to_create` に挙がっているが、task_002 / task_003 が既に作成済み**だったため新規作成せず追記した（雛形を上書きすると先行タスクの記録を消すため）。
+- **[severity: low] `tests/unit/hooks/fixtures/package.json` は npm からは参照されない偽の package.json**。`DENY_BASH_PACKAGE_JSON` 経由でのみ読まれる。`"type"` を持たないため、将来この配下に `.js` を置くと CJS 扱いになる点に注意。
+- **[severity: low] `.claude/settings.local.json` は作っていない**（個人設定は本タスクのスコープ外）。`.gitignore` にも追加していない。
+
+### 次のアクション
+
+- PO: 新規 Claude Code セッションをこのリポジトリで開き、SessionStart の注入内容を目視して `scripts/record-run.sh --manual task_005 "<観察>"` で記録する（check_053）。同じく 2 ターン動かして `docs/HANDOFF.md` の「ターンログ」節に 2 行増えることを確認する（check_063）。
+- task_006: `gate-check.mjs` を Stop に、`gate:plan` を PostToolUse に追加する。`scripts/test-hook-enforcement.sh` で 6 イベント × 遮断挙動の実測マトリクスを作るとき、上記 concerns の「Edit からガード自身を書き換えられる」「evidence を書ける経路が無い」の 2 点を違反フィクスチャに入れること。
+- task_019: Stop に `test:gate` を追加する。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
 
 - 2026-09-24T04:23:14Z HEAD=96503f1 決まったこと: task_011: 検証ログ（全 verify_commands exit 0 と未検証項目の手動記録） / 未解決: 未コミット 16 件: docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_011.json drizzle.config.ts package.json tests/integration/schema.test.ts .claude/ docs/gates/legal-clearance.json 
+- 2026-09-24T04:26:48Z HEAD=96503f1 決まったこと: task_011: 検証ログ（全 verify_commands exit 0 と未検証項目の手動記録） / 未解決: 未コミット 20 件: docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_011.json docs/task-list.json drizzle.config.ts package.json 
+- 2026-09-24T04:28:44Z HEAD=c25fab9 決まったこと: task_011: 修正後の verify_commands 4 本を HEAD 3c69f0a で再実行（全 exit 0） / 未解決: 未コミット 13 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json .claude/ docs/gates/legal-clearance.json docs/run-log/task_005.json scripts/append-handoff.sh scripts/assert-diff-exists.sh 

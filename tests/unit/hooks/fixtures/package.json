@@ -1,0 +1,15 @@
+{
+  "name": "deny-dangerous-bash-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "description": "tests/unit/hooks/deny-dangerous-bash.test.ts が DENY_BASH_PACKAGE_JSON で指す偽の package.json。npm run <script> 形式の別名呼び出しを実リポジトリの package.json に依存せず再現するためのフィクスチャ。npm からは一切参照されない。",
+  "scripts": {
+    "deploy:production": "wrangler deploy --env production",
+    "nested:deploy": "npm run deploy:production",
+    "release": "npm run build && npm run deploy:production",
+    "build": "echo build",
+    "test:unit": "vitest run tests/unit",
+    "safe:chain": "echo one && echo two",
+    "reset:fixtures": "rm -f /tmp/deny-bash-fixture-artifact"
+  }
+}

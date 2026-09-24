@@ -1,0 +1,14 @@
+{
+  "$comment": "本番決済（新規資金移動）を有効化してよいかの唯一の正本。変更は PO（noritaka）のみ。docs/implementation-plan.md §16-6 の release.yml 2 段ゲート (b) が `jq -e '.cleared == true'` でこのファイルを読む。AI は読むだけで、Edit/Write は scripts/deny-test-weakening.sh が、Bash 経由の書き込みは scripts/deny-dangerous-bash.sh が exit 2 で遮断する（docs/gates/** 全体が対象）。",
+  "schema_version": 1,
+  "cleared": false,
+  "basis": null,
+  "approved_by": null,
+  "approved_at": null,
+  "field_schema": {
+    "cleared": "boolean — true は『弁護士確認またはグレーゾーン解消制度の照会結果を得た』ことを示す（L11）。既定は false",
+    "basis": "string | null — cleared=true の根拠（照会 ID・書面の保管先）。cleared=true では必須",
+    "approved_by": "string | null — 承認した人間の識別子。cleared=true では必須",
+    "approved_at": "string(ISO 8601) | null — 承認日時（UTC）。cleared=true では必須"
+  }
+}
