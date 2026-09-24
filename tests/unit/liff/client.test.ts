@@ -261,6 +261,32 @@ describe("bootLiff の起動順序", () => {
     expect(SDK_LOAD_TIMEOUT_MS).toBe(3000);
   });
 
+  /**
+   * `liff.login()` が例外を投げる場合（4 周目 5 巡目・GPT-6 Astra F-2）。
+   *
+   * `bootLiff` の契約は「**例外を投げない**（呼び出し側は必ず `state` で分岐できる）」である。
+   * SDK 読み込みと `init` には例外処理があったが、`login()` の呼び出しだけ素のままだったので、
+   * ここで投げられると `bootLiff` ごと reject し、画面は state を受け取れずテレメトリも出ない
+   * （＝ R-LINE-03 が防ぎたい白画面）。
+   */
+  it("liff.login() が例外を投げても reject せず auth_unavailable とテレメトリを出す", async () => {
+    const { liff, login } = fakeLiff({ inClient: true, loggedIn: false });
+    login.mockImplementation(() => {
+      throw new Error("login failed");
+    });
+    const storage = memoryStorage();
+
+    const result = await bootLiff(LIFF_ID, { loadLiff: async () => liff, storage, report });
+
+    expect(result.state).toBe("auth_unavailable");
+    expect(result.reportedCode).toBe(CLIENT_ERROR_CODES.LOGIN_CALL_FAILED);
+    expect(reported).toEqual([CLIENT_ERROR_CODES.LOGIN_CALL_FAILED]);
+    expect(login).toHaveBeenCalledTimes(1);
+    // 呼ぶ前に数えた分はそのまま残す（投げたからといって「無かったこと」にしない）。
+    expect(result.loginAttempts).toBe(1);
+    expect(storage.dump()).toEqual({ [LOGIN_ATTEMPT_STORAGE_KEY]: "1" });
+  });
+
   it("ストレージが使えなくても（null）起動を止めない", async () => {
     const { liff, login } = fakeLiff({ inClient: true, loggedIn: false });
 
@@ -482,6 +508,59 @@ describe("bootLiff の起動順序", () => {
         expect(third.loginAttempts).toBe(MAX_LOGIN_ATTEMPTS);
         expect(login).toHaveBeenCalledTimes(MAX_LOGIN_ATTEMPTS);
         expect(reported).toEqual([CLIENT_ERROR_CODES.LOGIN_LOOP_ABORTED]);
+      } finally {
+        Reflect.deleteProperty(globalThis, "sessionStorage");
+      }
+    });
+
+    /**
+     * 4 周目の 5 巡目に GPT-6 Astra が挙げた反例。
+     *
+     * 「保存値を読んだだけ」の回は退避先に何も残らない。新しいページで保存値 2 を読んで
+     * `auth_unavailable` を返した直後に `sessionStorage` の取得が落ちると、
+     * 保存値も退避先も読めなくなって試行回数が 0 に戻り、3 回目の `login()` が通る。
+     * `writeAttempts` を通らない経路なので C-013-18 / C-013-19 の修正では塞がっていない。
+     */
+    it("保存値を読んだだけの回も退避先へ同期する（読んだ直後に storage が落ちても打ち切る）", async () => {
+      const { bootLiff: boot } = await import("@/lib/liff/client");
+      const { liff, login } = fakeLiff({ inClient: true, loggedIn: false });
+      // 前のページで 2 回まで数え終わっている状態から始める。
+      const map = new Map<string, string>([[LOGIN_ATTEMPT_STORAGE_KEY, "2"]]);
+      let available = true;
+      const real: AttemptStorage = {
+        getItem: (key) => map.get(key) ?? null,
+        setItem: (key, value) => {
+          map.set(key, value);
+        },
+        removeItem: (key) => {
+          map.delete(key);
+        },
+      };
+      Object.defineProperty(globalThis, "sessionStorage", {
+        configurable: true,
+        get: () => {
+          if (!available) throw new Error("SecurityError");
+          return real;
+        },
+      });
+
+      try {
+        // `storage` を渡さない ＝ `defaultStorage()` を通る本番と同じ経路。
+        const deps = { loadLiff: async () => liff, report };
+
+        // 1 回目: 保存値 2 を**読むだけ**で打ち切る（書き込みは起きない）。
+        const first = await boot(LIFF_ID, deps);
+        expect(first.state).toBe("auth_unavailable");
+        expect(first.loginAttempts).toBe(MAX_LOGIN_ATTEMPTS);
+        expect(login).not.toHaveBeenCalled();
+
+        // 2 回目: 同じページのまま sessionStorage の取得自体が落ちる。
+        available = false;
+        const second = await boot(LIFF_ID, deps);
+
+        expect(second.state).toBe("auth_unavailable");
+        expect(second.loginAttempts).toBe(MAX_LOGIN_ATTEMPTS);
+        expect(login).not.toHaveBeenCalled();
       } finally {
         Reflect.deleteProperty(globalThis, "sessionStorage");
       }

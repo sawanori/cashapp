@@ -599,3 +599,77 @@ C-013-18 のテストは「同じ置き場オブジェクトのメソッドが�
 3. 読めるが書けない（古い値が読める） → C-013-16
 4. 書けていたのに途中で読み書きが落ちる → C-013-18
 5. **既定の置き場の取得自体が途中で落ちる**（`defaultStorage()` が `null` に転じる） → 本項目
+6. **保存値を読んだだけで書き込みが起きない回がある**（打ち切り応答の回） → C-013-20
+
+**5 巡目の追記**: 本項目の修正（スコープ固定）は 5 巡目にレビューを回して確認した。
+gemini は **PASS**、GPT-6 Astra は本項目そのものは挙げず、代わりに 6 番目の故障モード
+（C-013-20）を挙げた。したがって本項目は「未レビュー」ではなくなっている。
+
+---
+
+## C-013-20 [high → 解消] 保存値を読んだだけの回が退避先に残らない（GPT-6 Astra F-1・5 巡目）
+
+**指摘**: `readAttempts` は保存値と退避先の大きいほうを返すだけで、読み取った保存値を
+退避先へ**書き戻していなかった**。新しいページ（新しいモジュール実体）で保存値 `2` を読んで
+`auth_unavailable` を返す回は `writeAttempts` を一度も通らないため、退避先は 0 のままである。
+その直後、同じページのまま `sessionStorage` の取得が落ちると、保存値も退避先も読めなくなって
+試行回数が 0 に戻り、3 回目の `login()` が通る。
+C-013-18 / C-013-19 の修正は「書いた回」しか退避先へ残していなかったので、この経路は塞げていない。
+
+**HEAD での再現（実測）**: `cashapp.liff.loginAttempts='2'` を持つストレージを返す
+`globalThis.sessionStorage` の getter を置き、**`storage` を渡さない本番経路**で
+`bootLiff` を 1 回呼んで `auth_unavailable` を確認したあと、getter を `SecurityError` に変えて
+もう一度呼ぶテストを足したところ、`AssertionError: expected 'redirecting_to_login' to be
+'auth_unavailable'` で再現した。
+
+**対応（実施済み）**: `readAttempts` が求めた値を `writeMemoryAttempts(scope, attempts)` で
+退避先へ同期するようにした。読み取りに副作用が入るが、`writeMemoryAttempts` は `Math.max` なので
+**退避先を実際の試行回数へ近づける方向にしか働かない**（減ることはない）。
+修正後は `tests/unit/liff/client.test.ts` 27 件が緑。
+
+---
+
+## C-013-21 [medium → 解消] `liff.login()` の例外が state とテレメトリを迂回する（GPT-6 Astra F-2・5 巡目）
+
+**指摘**: SDK の読み込みと `liff.init()` には例外処理があるのに、`liff.login()` の呼び出しだけ
+素のままだった。ここで例外が出ると `bootLiff` が reject し、
+「**例外を投げない**（呼び出し側は必ず `state` で分岐できる）」というこのモジュールの契約が破れる。
+画面は state を受け取れず、テレメトリも送られない ＝ R-LINE-03 が防ぎたい白画面になる。
+
+**HEAD での再現（実測）**: `login` が `throw new Error("login failed")` する SDK を渡すと、
+`bootLiff` が `Error: login failed` で reject した（テスト側に例外が素通りした）。
+
+**対応（実施済み）**: `liff.login()` を `try` で包み、失敗したら
+`auth_unavailable` ＋ 新しいテレメトリコード `login_call_failed` を返すようにした。
+
+- コードを `login_loop_aborted` と分けたのは、前者が「こちらが数えて止めた」、
+  後者が「SDK が転んだ」であり、監視で数える単位も次にやることも違うためである
+  （`src/lib/telemetry.ts` の allowlist に 1 つ追加した。自由入力欄は増えていない）。
+- 呼ぶ前に数えた分（`next`）は戻さない。`login()` が実際に遷移を始めてから投げた可能性があり、
+  「無かったこと」にすると上限が緩むためである。
+
+---
+
+## C-013-22 [medium → 解消] ビルドに適用されない環境変数代入でも固定値検査を通過する（GPT-6 Astra F-3・5 巡目）
+
+**指摘**: `scripts/build-web-only.mjs` の `checkProductionBuildEnv` は npm script の**本文に
+`NEXT_PUBLIC_LIFF_MOCK=0` という文字列があるか**しか見ておらず、その代入が実際のビルドコマンドに
+適用されるかを見ていなかった。シェルの `VAR=値 コマンド` は**そのコマンド 1 つ**にしか効かないので、
+`NEXT_PUBLIC_LIFF_MOCK=0 echo prepare && next build` のように別コマンドへ前置した形が合格し、
+実際の `next build` は環境から `1` を継承できる（＝ モックが本番バンドルに載る。制約 I4）。
+
+**HEAD での再現（実測）**: 同梱の fixture に
+`NEXT_PUBLIC_LIFF_MOCK=0 echo prepare && next build` を渡して `runGate` すると
+**exit 0（合格）**になった（`AssertionError: expected +0 to be 1`）。
+「ビルドコマンドが 1 つも無い」`NEXT_PUBLIC_LIFF_MOCK=0 echo nothing-to-build` も exit 0 だった。
+
+**対応（実施済み）**: `checkBuildCommandEnv()` を足し、npm script を `&&` / `||` / `;` で区切って
+**実際にビルドするコマンド**（`next build` / `opennextjs-cloudflare build`）を探し、
+その直前の代入（または先行する `export`）に `NEXT_PUBLIC_LIFF_MOCK=0` があることを要求する。
+ビルドコマンドが 1 つも見つからない場合も、検査が空振りしたまま通らないよう違反にする。
+`export NEXT_PUBLIC_LIFF_MOCK=0 && next build` は後続にも効くので合格とする
+（偽陽性を作らないための対照テストも置いた）。
+
+**残っていること**: パイプ（`|`）・部分シェル（`( )`）・変数展開経由の組み立ては解釈しない。
+本リポジトリの npm script はこの範囲で足りるが、将来それらを使う場合はこの検査をすり抜ける。
+その場合は npm script の書き方を平易な形に限る運用規約を置くか、シェルパーサを入れる。

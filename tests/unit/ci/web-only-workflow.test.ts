@@ -256,4 +256,31 @@ describe("build:web-only の本番ビルド経路検査（fixture tree で実走
     expect(status).toBe(1);
     expect(stderr).toContain("NEXT_PUBLIC_LIFF_MOCK を定義していません");
   });
+
+  /**
+   * 代入が**ビルドコマンド自身に掛かっているか**まで見る（4 周目 5 巡目・GPT-6 Astra F-3）。
+   *
+   * シェルの `VAR=値 コマンド` は**そのコマンド 1 つ**にしか効かない。スクリプト本文のどこかに
+   * `NEXT_PUBLIC_LIFF_MOCK=0` があることだけを見ていると、別コマンドにだけ前置した形が通り、
+   * 実際の `next build` は環境から `1` を継承できてしまう。
+   */
+  it("別コマンドにだけ前置した形は落ちる（next build 自身に効いていない）", async () => {
+    const root = await makeFixture("NEXT_PUBLIC_LIFF_MOCK=0 echo prepare && next build");
+    const { status, stderr } = runGate(root);
+    expect(status).toBe(1);
+    expect(stderr).toContain("前置されていません");
+  });
+
+  it("export で設定してからビルドする形は通る（後続コマンドにも効くため）", async () => {
+    const root = await makeFixture("export NEXT_PUBLIC_LIFF_MOCK=0 && next build");
+    const { status, stderr } = runGate(root);
+    expect(status, stderr).toBe(0);
+  });
+
+  it("ビルドコマンドが見当たらなければ落ちる（検査が空振りしていない）", async () => {
+    const root = await makeFixture("NEXT_PUBLIC_LIFF_MOCK=0 echo nothing-to-build");
+    const { status, stderr } = runGate(root);
+    expect(status).toBe(1);
+    expect(stderr).toContain("ビルドコマンド");
+  });
 });

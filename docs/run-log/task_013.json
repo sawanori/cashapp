@@ -986,5 +986,68 @@
     "commit": "3f2ea9bafd7a40b6fc4a95450523cbe7d343fd95",
     "ran_at": "2026-09-24T13:53:24Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "c8c799f6b52df4118ceb62657c992dd98ee720b2",
+    "ran_at": "2026-09-24T14:12:44Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run lint",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 lint\n> eslint .",
+    "commit": "c8c799f6b52df4118ceb62657c992dd98ee720b2",
+    "ran_at": "2026-09-24T14:12:48Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 46 file(s) read)\nok    L2 (forbid, 46 file(s) read)\nok    L3 (forbid, 46 file(s) read)\nok    L8 (forbid, 46 file(s) read)\nok    L12 (forbid, 46 file(s) read)\nok    P1 (forbid, 46 file(s) read)\ndefer P2 (0 targets; waiting on task_018)\nok    P9 (forbid, 7 file(s) read)\nok    W3 (forbid, 53 file(s) read)\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 44 file(s) read)\nok    N5 (forbid, 46 file(s) read)\nok    N7 (forbid, 46 file(s) read)\nok    N9 (forbid, 46 file(s) read)\nok    N11 (forbid, 46 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 15 file(s) read)\nok    I4 (forbid, 2 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 18 file(s) read)\nok    X-MONEY (forbid, 1 file(s) read)\nok    GC-XSS (forbid, 46 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 51 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\n\ngate:constraints — scanned 23 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "c8c799f6b52df4118ceb62657c992dd98ee720b2",
+    "ran_at": "2026-09-24T14:13:04Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  37 passed (37)\n      Tests  986 passed (986)\n   Start at  14:13:12\n   Duration  107.44s (tests 87%, environment 5%, setup 5%, import 1%, transform 1%)",
+    "commit": "c8c799f6b52df4118ceb62657c992dd98ee720b2",
+    "ran_at": "2026-09-24T14:13:11Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run build:web-only",
+    "exit_code": 0,
+    "stdout_tail": "\n  Learn more: https://nextjs.org/docs/messages/middleware-to-proxy\n  Creating an optimized production build ...\n✓ Compiled successfully in 810ms\n  Running TypeScript ...\n  Finished TypeScript in 2.3s ...\n  Collecting page data using 9 workers ...\n  Generating static pages using 9 workers (0/9) ...\n  Generating static pages using 9 workers (2/9) \r\n  Generating static pages using 9 workers (4/9) \r\n  Generating static pages using 9 workers (6/9) \r\n✓ Generating static pages using 9 workers (9/9) in 145ms\n  Finalizing page optimization ...\n\nRoute (app)\n┌ ○ /\n├ ○ /_not-found\n├ ƒ /api/auth/line\n├ ƒ /api/consent\n├ ƒ /api/events\n├ ƒ /api/events/[id]\n├ ƒ /api/events/[id]/participants\n├ ƒ /api/events/[id]/participants/[pid]\n├ ƒ /api/health\n├ ƒ /api/me\n├ ƒ /api/telemetry/client-error\n├ ƒ /events\n├ ƒ /events/[id]\n├ ƒ /events/[id]/invoices/confirm\n├ ƒ /events/[id]/participants\n└ ƒ /events/new\n\n\nƒ Proxy (Middleware)\n\n○  (Static)   prerendered as static content\nƒ  (Dynamic)  server-rendered on demand\n\nbuild:web-only: .next/static を検査しました（禁止マーカー 4 件）\nbuild:web-only: OK（(web) は LINE SDK に依存せず、バンドルにモックも dev LIFF ID も無い）",
+    "commit": "c8c799f6b52df4118ceb62657c992dd98ee720b2",
+    "ran_at": "2026-09-24T14:15:08Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run build",
+    "exit_code": 0,
+    "stdout_tail": "  To migrate automatically, run:\n  npx @next/codemod@canary middleware-to-proxy .\n\n  Learn more: https://nextjs.org/docs/messages/middleware-to-proxy\n  Creating an optimized production build ...\n✓ Compiled successfully in 247ms\n  Running TypeScript ...\n  Finished TypeScript in 5.6s ...\n  Collecting page data using 9 workers ...\n  Generating static pages using 9 workers (0/9) ...\n  Generating static pages using 9 workers (2/9) \r\n  Generating static pages using 9 workers (4/9) \r\n  Generating static pages using 9 workers (6/9) \r\n✓ Generating static pages using 9 workers (9/9) in 234ms\n  Finalizing page optimization ...\n\nRoute (app)\n┌ ○ /\n├ ○ /_not-found\n├ ƒ /api/auth/line\n├ ƒ /api/consent\n├ ƒ /api/events\n├ ƒ /api/events/[id]\n├ ƒ /api/events/[id]/participants\n├ ƒ /api/events/[id]/participants/[pid]\n├ ƒ /api/health\n├ ƒ /api/me\n├ ƒ /api/telemetry/client-error\n├ ƒ /events\n├ ƒ /events/[id]\n├ ƒ /events/[id]/invoices/confirm\n├ ƒ /events/[id]/participants\n└ ƒ /events/new\n\n\nƒ Proxy (Middleware)\n\n○  (Static)   prerendered as static content\nƒ  (Dynamic)  server-rendered on demand",
+    "commit": "c8c799f6b52df4118ceb62657c992dd98ee720b2",
+    "ran_at": "2026-09-24T14:15:17Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:acceptance",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:acceptance\n> node scripts/assert-acceptance.mjs\n\n        G3 check 133 件 / 参照 133 件\n        G4 完了タスク 11 件を検査\n        G4 docs/PROGRESS.md の完了宣言 13 件 / 台帳との食い違い 0 件\n        G9 evidence 記入済みの check がまだ 0 件です（HEAD=45fc8d191bbe…）\n   warn G4 task_036: manual_verification[0]「python3 -c \"import json;json.l」は、どの項目の記録か名乗っていない manual エントリで充当しました。観察結果の先頭に `manual_verification[<索引>]` を書いてください\n   warn G4 task_002: manual_verification[0]「python3 で JSON を検査し record-run」は、どの項目の記録か名乗っていない manual エントリで充当しました。観察結果の先頭に `manual_verification[<索引>]` を書いてください\n\ngate:acceptance — 対象 157 件（evidence 付き 0 件）、違反 0 件 / warn 2 件",
+    "commit": "45fc8d191bbe163061a16bf58d0e94c12ef427f0",
+    "ran_at": "2026-09-24T14:21:46Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]

@@ -82,6 +82,91 @@ const MOCK_DISABLED_VALUE = "0";
 /** npm script 中の `NEXT_PUBLIC_LIFF_MOCK=...` を（空白まで）拾う。 */
 const MOCK_ASSIGNMENT_PATTERN = /NEXT_PUBLIC_LIFF_MOCK=(\S*)/g;
 
+/** 検査する環境変数名。 */
+const MOCK_ENV_NAME = "NEXT_PUBLIC_LIFF_MOCK";
+
+/**
+ * 「実際にクライアントチャンクを吐くコマンド」の目印。
+ *
+ * ★ これが要るのは、シェルの `VAR=値 コマンド` が**そのコマンド 1 つ**にしか効かないためである。
+ *   スクリプト本文のどこかに `NEXT_PUBLIC_LIFF_MOCK=0` があることだけを見ていると、
+ *   `NEXT_PUBLIC_LIFF_MOCK=0 echo prepare && next build` のように別コマンドへ前置した形が通り、
+ *   実際の `next build` は環境から `1` を継承できてしまう（C-013-22）。
+ */
+const BUILD_COMMAND_MARKERS = [
+  /(^|\s)next\s+build(\s|$)/,
+  /(^|\s)opennextjs-cloudflare\s+build(\s|$)/,
+];
+
+/** 先頭に並ぶ `NAME=value ` を切り出す。残りが実際に走るコマンドである。 */
+function splitLeadingEnv(segment) {
+  /** @type {Map<string, string>} */
+  const env = new Map();
+  let rest = segment.trim();
+  for (;;) {
+    const match = /^([A-Za-z_][A-Za-z0-9_]*)=(\S*)\s+/.exec(rest);
+    if (match === null) break;
+    env.set(match[1], match[2]);
+    rest = rest.slice(match[0].length).trimStart();
+  }
+  return { env, rest };
+}
+
+/**
+ * 代入が**ビルドコマンド自身**に掛かっているかを見る。
+ *
+ * `&&` / `||` / `;` で区切って、`next build` 等に当たるコマンドを探し、その直前の代入
+ * （または先行する `export`）に `NEXT_PUBLIC_LIFF_MOCK=0` があることを要求する。
+ * パイプや部分シェルまでは解釈しない（本リポジトリの npm script はこの範囲で足りる）。
+ */
+function checkBuildCommandEnv(name, script) {
+  const violations = [];
+  /** `export NAME=value` は以降の全コマンドに効く。 */
+  const exported = new Map();
+  let sawBuildCommand = false;
+
+  for (const segment of script.split(/&&|\|\||;/)) {
+    const { env, rest } = splitLeadingEnv(segment);
+    if (rest.length === 0) {
+      // 代入だけの行（`FOO=1` のみ）も後続に効く。
+      for (const [key, value] of env) exported.set(key, value);
+      continue;
+    }
+    if (/^export(\s|$)/.test(rest)) {
+      for (const match of rest.matchAll(/([A-Za-z_][A-Za-z0-9_]*)=(\S*)/g)) {
+        exported.set(match[1], match[2]);
+      }
+      continue;
+    }
+    if (!BUILD_COMMAND_MARKERS.some((marker) => marker.test(rest))) continue;
+
+    sawBuildCommand = true;
+    const value = env.get(MOCK_ENV_NAME) ?? exported.get(MOCK_ENV_NAME);
+    if (value === undefined) {
+      violations.push(
+        `package.json の scripts.${name} の実ビルドコマンド（${rest}）に ` +
+          `${MOCK_ENV_NAME}=${MOCK_DISABLED_VALUE} が前置されていません。` +
+          "シェルの VAR=値 コマンド はそのコマンド 1 つにしか効かないので、" +
+          "別コマンドに前置しても next build は環境の値を継承します。",
+      );
+    } else if (value !== MOCK_DISABLED_VALUE) {
+      violations.push(
+        `package.json の scripts.${name} の実ビルドコマンド（${rest}）に掛かる ` +
+          `${MOCK_ENV_NAME} が "${MOCK_DISABLED_VALUE}" に固定されていません（実際: "${value}"）。`,
+      );
+    }
+  }
+
+  if (!sawBuildCommand) {
+    violations.push(
+      `package.json の scripts.${name} にビルドコマンドが見当たりません` +
+        `（探した目印: ${BUILD_COMMAND_MARKERS.map((marker) => marker.source).join(" / ")}）。` +
+        "検査が空振りしたまま通るのを避けるため違反にします。",
+    );
+  }
+  return violations;
+}
+
 /** `.next/static` に現れてはいけない識別子（モックが混ざったことの痕跡）。 */
 const FORBIDDEN_BUNDLE_MARKERS = ["@line/liff-mock", "LiffMockPlugin", "liffMock"];
 
@@ -338,6 +423,9 @@ function checkProductionBuildEnv() {
           "デプロイ環境の env 1 つで @line/liff-mock を本番バンドルへ載せられます。",
       );
     }
+
+    // 代入が**ビルドコマンド自身**に掛かっているかまで見る（本文に 0 があるだけでは足りない）。
+    violations.push(...checkBuildCommandEnv(name, script));
   }
   return violations;
 }

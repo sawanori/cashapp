@@ -34,6 +34,13 @@ export const CLIENT_ERROR_CODES = {
   SCRIPT_ERROR: "script_error",
   /** ログイン試行回数の上限に達したので打ち切った（R-LINE-02）。 */
   LOGIN_LOOP_ABORTED: "login_loop_aborted",
+  /**
+   * `liff.login()` の**呼び出しそのもの**が例外を投げた。
+   *
+   * 打ち切り（`login_loop_aborted`）とは別のコードにしている。前者は「こちらが数えて止めた」、
+   * こちらは「SDK が転んだ」であり、監視で数える単位も次にやることも違うためである。
+   */
+  LOGIN_CALL_FAILED: "login_call_failed",
 } as const;
 
 export type ClientErrorCode = (typeof CLIENT_ERROR_CODES)[keyof typeof CLIENT_ERROR_CODES];

@@ -261,15 +261,24 @@ function readStoredAttempts(storage: AttemptStorage | null): number {
 }
 
 /**
- * 試行回数。**保存値と退避先の大きいほう**を採る。
+ * 試行回数。**保存値と退避先の大きいほう**を採り、その値を退避先へ**書き戻す**。
  *
  * ★ 保存値を優先してはいけない。「読めるが書けない」ストレージ（quota 超過など）では
  *   `getItem` が古い値を返し続ける一方 `setItem` は落ちるので、保存値を信じると
  *   カウンタが永久に進まず `login()` を呼び続ける（再読み込みをまたがなくても起きる）。
  *   大きいほうを採れば、どちらか一方でも数えられている限り打ち切りに到達する。
+ *
+ * ★ **読むだけの回も退避先へ同期する。** 同期しないと、新しいページで保存値 2 を読んで
+ *   `auth_unavailable` を返した直後（＝ `writeAttempts` を一度も通らない）に
+ *   `sessionStorage` の取得が落ちると、保存値も退避先も読めなくなって 0 に戻り、
+ *   3 回目の `login()` が通る（C-013-20）。読み取りは副作用を持たないほうが行儀はよいが、
+ *   ここでの副作用は**退避先を実際の試行回数へ近づける**方向にしか働かない
+ *   （`writeMemoryAttempts` は `Math.max` で、減ることはない）。
  */
 function readAttempts(storage: AttemptStorage | null, scope: object): number {
-  return Math.max(readMemoryAttempts(scope), readStoredAttempts(storage));
+  const attempts = Math.max(readMemoryAttempts(scope), readStoredAttempts(storage));
+  writeMemoryAttempts(scope, attempts);
+  return attempts;
 }
 
 /**
@@ -420,7 +429,15 @@ export async function bootLiff(liffId: string, deps: BootLiffDeps = {}): Promise
     }
     const next = attempts + 1;
     writeAttempts(storage, scope, next);
-    liff.login();
+    // `login()` は例外を投げうる（SDK の内部状態不正・`location` への代入が拒否される等）。
+    // 素で呼ぶと `bootLiff` ごと reject し、「**例外を投げない**」というこのモジュールの契約が
+    // 破れる ＝ 画面は state を受け取れずテレメトリも出ない（R-LINE-03 の白画面）。
+    // 数えた分（`next`）は戻さない。呼んだ事実は残っており、消すと上限が緩むためである。
+    try {
+      liff.login();
+    } catch {
+      return fail("auth_unavailable", CLIENT_ERROR_CODES.LOGIN_CALL_FAILED, next);
+    }
     return { state: "redirecting_to_login", loginAttempts: next };
   }
 

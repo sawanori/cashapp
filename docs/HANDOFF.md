@@ -1702,6 +1702,29 @@ GPT-6 Astra の敵対レビュー（high 1 / medium 2）。**再現 2 件・非�
   ④書けていたのに途中で落ちる ⑤**既定の置き場の取得自体が途中で落ちる**。
   この種の「退避先」を書くときは最初から 5 つ全部をテストに並べること。
 
+### 5 巡目（メインセッションが回した最終レビューを受けて）
+
+- 4 巡目修正（`2b44ea3`）へのレビューは gemini **PASS（finding 0）**、
+  GPT-6 Astra が high 1 / medium 2 で reject。**4 巡目の懸案（C-013-19）は再提起されず**、
+  代わりに 3 件の別経路が出た。3 件とも再現 → 修正 → 実測まで済ませた。
+- **[high] 保存値を読んだだけの回が退避先に残らない**。`readAttempts` が読んだ値を書き戻して
+  いなかったため、新しいページで保存値 `2` を読んで打ち切る回（`writeAttempts` を通らない回）の
+  あとに `sessionStorage` の取得が落ちると 0 に戻る。読み取り時も
+  `writeMemoryAttempts`（`Math.max`）で同期するようにした。→ C-013-20
+  **故障モードは 6 つ目がある**: ⑥保存値を読んだだけで書き込みが起きない回。
+- **[medium] `liff.login()` の例外**が `bootLiff` を reject させ、「例外を投げない」契約を破っていた。
+  `try` で包み `auth_unavailable` ＋ 新コード `login_call_failed` を返す。
+  打ち切り（`login_loop_aborted`）とコードを分けたのは監視で数える単位が違うため。→ C-013-21
+- **[medium] `build:web-only` の env 検査が本文 grep だった**。シェルの `VAR=値 コマンド` は
+  そのコマンド 1 つにしか効かないので、`NEXT_PUBLIC_LIFF_MOCK=0 echo prepare && next build` が
+  合格していた（実測 exit 0）。`&&` / `||` / `;` で区切って実ビルドコマンドを探し、
+  その直前の代入か先行する `export` に `=0` があることを要求する形にした。→ C-013-22
+- **`docs/PROGRESS.md` の先頭宣言行を BLOCKED に更新した**。`gate:check` の G4 は
+  task ごとに**最初の**宣言行だけを台帳と突き合わせる（`progressDeclarations` が
+  `if (!out.has(...))` で最初を採る）ため、周回の途中で状態が変わったら
+  **最初の行のトークンを直す**必要がある。本文は初回のまま残し、更新した旨を行内に明記した。
+  `npm run gate:acceptance` は違反 0 件（warn 2 件は task_002 / task_036 のもの）。
+
 ## task_012（レビュー修正・2 周目）
 
 GPT-6 Astra の敵対レビュー（high 1 / medium 3）。**4 件すべて HEAD で再現してから塞いだ**（非再現 0 件）。
@@ -2081,3 +2104,8 @@ GPT-6 Astra の敵対レビュー（high 1 / medium 3）。**4 件すべて HEAD
 - 2026-09-24T14:16:39Z HEAD=c8c799f 決まったこと: task_012(4周目): 3 周目レビューの medium 2 件（引用符付き表名・cron のライブ検査漏れ）を塞ぐ / 未解決: 未コミット 28 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/concerns/task_012.md docs/constraints.json docs/review-log/task_004.json docs/review-log/task_012.json docs/run-log/task_004.json 
 - 2026-09-24T14:17:10Z HEAD=ea10fe7 決まったこと: task_012(5周目): 4 周目レビューの medium 2 件を「直さず残す」判断として記録する / 未解決: 未コミット 23 件: docs/concerns/task_004.md docs/concerns/task_013.md docs/constraints.json docs/review-log/task_004.json docs/run-log/task_004.json docs/run-log/task_008.json docs/run-log/task_013.json docs/run-log/task_014.json 
 - 2026-09-24T14:17:37Z HEAD=ea10fe7 決まったこと: task_012(5周目): 4 周目レビューの medium 2 件を「直さず残す」判断として記録する / 未解決: 未コミット 24 件: docs/HANDOFF.md docs/concerns/task_004.md docs/concerns/task_013.md docs/constraints.json docs/review-log/task_004.json docs/run-log/task_004.json docs/run-log/task_008.json docs/run-log/task_013.json 
+- 2026-09-24T14:18:35Z HEAD=46fc8bf 決まったこと: task_012(5周目): HANDOFF のターンログ行を取り込む（scripts/append-handoff.sh 経由） / 未解決: 未コミット 24 件: docs/concerns/task_004.md docs/concerns/task_013.md docs/constraints.json docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/run-log/task_004.json docs/run-log/task_008.json docs/run-log/task_013.json 
+- 2026-09-24T14:19:33Z HEAD=46fc8bf 決まったこと: task_012(5周目): HANDOFF のターンログ行を取り込む（scripts/append-handoff.sh 経由） / 未解決: 未コミット 26 件: docs/HANDOFF.md docs/concerns/task_004.md docs/concerns/task_013.md docs/constraints.json docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/run-log/task_004.json docs/run-log/task_008.json 
+- 2026-09-24T14:20:35Z HEAD=171760b 決まったこと: task_012: 直前のコミットが巻き込んだ他タスクの古い index 内容を、作業ツリーの現在の内容に戻す / 未解決: 未コミット 21 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_013.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_013.json docs/run-log/task_014.json docs/task-list.json 
+- 2026-09-24T14:21:33Z HEAD=45fc8d1 決まったこと: task_004(4周目・再適用): 2 回目の G5 の実効 high 2 / medium 3 を再現してから塞ぐ / 未解決: 未コミット 22 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_013.md docs/gates/integrity-baseline.json docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_013.json docs/run-log/task_014.json 
+- 2026-09-24T14:22:21Z HEAD=45fc8d1 決まったこと: task_004(4周目・再適用): 2 回目の G5 の実効 high 2 / medium 3 を再現してから塞ぐ / 未解決: 未コミット 22 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_013.md docs/gates/integrity-baseline.json docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_013.json docs/run-log/task_014.json 
