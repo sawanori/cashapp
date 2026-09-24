@@ -48,6 +48,8 @@ gate-check.mjs 等の判定条件を変える指摘なので、上と同じ理�
 | H2-10 | `scripts/gate-check.mjs` G2 | F-5 (medium): 計画（§13）に無い script 名を package.json に足せば warn 止まり | §13 に無い名前は違反（計画の記述どおり） |
 | H2-11 | `scripts/test-hook-enforcement.sh` | F-6 (medium): 登録行の存在だけを見て、登録コマンドの実体を使わずに固定の deny スクリプトを呼ぶ | settings.json の登録コマンドをそのまま実行して遮断を検査する |
 | H2-12 | `scripts/gate-check.mjs` G7 | F-7 (medium): 基準値は再帰、G7 は 2 階層までで件数が食い違う | 両者を同じ走査関数にする |
+| H2-15 | `scripts/deny-dangerous-bash.sh`（ガード本体。task_005 の 7 周目候補） | 実測 2026-09-24〜25: 並行エージェントの `git add -A` が他タスクの add 済み内容を巻き戻し（a6953f2 → 46fc8bf、171760b で復旧）、以後 task_004 は私用インデックス（GIT_INDEX_FILE + write-tree/commit-tree）で回避した。規則で禁止していてもフックは止めない | `git add -A` / `git add --all` / リポジトリ直下での `git add .` を遮断（パス明示だけを許す）。併せて `git commit -a` も遮断 |
+| H2-16 | 制約ゲート（task_004、`scripts/gate-constraints.sh` / `wording-lint.mjs`） | C-004-8 [high・未解消]: 行指向 grep は複数行にまたがる回避（改行した `OR`、改行した動的 import、エスケープしたバックティック）を閉じられず、G5 が 2〜6 回目まで毎回同型の high を返した | 道具の交換。TypeScript 側は AST（task_011 の `assert-server-only.mjs` と同じ手法）、SQL 側は task_018 の台帳テストで担保し、grep ゲートは「早期検出」に格下げする |
 | H2-14 | `scripts/gate-check.mjs` G4（`progressDeclarations`） | 実測 2026-09-24（task_013 の修正者）: task ごとに docs/PROGRESS.md の**最初の**宣言行しか採らないため、後から正しい形式で BLOCKED / DONE_WITH_CONCERNS の行を足しても台帳との照合に使われず、先頭行のトークンを書き換える運用になった | 最後の宣言行（最新）を採る。先頭行は履歴として残す |
 | H2-13 | `scripts/merge-review.sh` / `scripts/validate-findings.mjs`（task_007） | 実測 2026-09-24: GPT の finding の repro に例示の本番鍵形式トークンが含まれ、GitHub の push protection が docs/review-log/task_006.json:184 で push を拒否した（メインセッションが該当トークンだけを `***` にマスクして再 push） | 封筒を review-log に追記する前に秘密値らしきトークン（sk_/rk_/pk_ の live|test、AKIA、ghp_、xox*-、PEM、JWT 形式）をマスクする。scripts/record-evidence.mjs の maskSecrets() と同じ規則を共有する |
 
