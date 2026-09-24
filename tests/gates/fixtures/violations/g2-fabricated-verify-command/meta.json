@@ -1,0 +1,16 @@
+{
+  "fixture_id": "g2-fabricated-verify-command",
+  "gate": "G2",
+  "description": "存在もせず §13 の予定表にも無い npm スクリプトを verify_commands に書いたタスク（コマンド捏造）。未着手タスクでも違反にしないと、実行されないコマンドが台帳に溜まって『検証済み』の外見だけが積み上がる。着手済みタスクが §13 にはあるが未定義のスクリプトを参照する経路も同じ overlay で押さえる。",
+  "runner": {
+    "cmd": "node",
+    "args": ["scripts/gate-check.mjs", "--root", "{FIXTURE}", "--only", "G2"]
+  },
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "task_903: コマンド捏造",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "task_903 は completion_status=null（未着手）。それでも違反になることが §15-2 G2 の但し書きの要点である。"
+  }
+}

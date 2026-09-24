@@ -1,0 +1,16 @@
+{
+  "fixture_id": "g10-accepted-adr-on-unknown",
+  "gate": "G10",
+  "description": "[不明] に依存したまま accepted になった ADR。未確認の外部仕様の上に確定判断を積むと、回答が返ってきたときに設計骨格ごと巻き戻る。",
+  "runner": {
+    "cmd": "node",
+    "args": ["scripts/gate-check.mjs", "--root", "{FIXTURE}", "--only", "G10"]
+  },
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "ADR-900-fixture.md: [設計] / [不明] に依存したまま accepted",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "ステータス行は ADR-002 と同じ箇条書き形式にしてある。ADR-010 の見出し形式は tests/unit/gate-check.test.ts のパーサ単体テストで押さえている。"
+  }
+}

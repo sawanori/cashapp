@@ -1,0 +1,56 @@
+{
+  "feature": "violation fixture: G11（high concerns 残高と in_progress）",
+  "version": 1,
+  "generated_at": "2026-09-24",
+  "notes": "本物の task-list ではない。tests/gates/fixtures/violations/README.md を参照。",
+  "tasks": [
+    {
+      "task_id": "task_910",
+      "title": "high 懸念を 2 件抱えた完了タスク",
+      "completion_status": "DONE_WITH_CONCERNS",
+      "risk_level": "high",
+      "adversarial_review": "not_required",
+      "files_to_create": ["src/lib/example.ts"],
+      "files_to_modify": [],
+      "done_definition": ["test:unit が緑"],
+      "verify_commands": ["npm run test:unit"],
+      "manual_verification": null,
+      "acceptance_check_ids": [],
+      "concerns": [
+        "[severity: high] Webhook の署名検証が未実装のまま出荷されている。対応案: task_018 で signature 契約テストを追加してから有効化する。",
+        "[severity: high] 冪等キーの越境チェックが無い。対応案: task_018 の重複契約テストで先に反例を作る。"
+      ]
+    },
+    {
+      "task_id": "task_911",
+      "title": "high 懸念を 1 件抱えた完了タスク（解決済みの懸念も 1 件持つ）",
+      "completion_status": "DONE_WITH_CONCERNS",
+      "risk_level": "high",
+      "adversarial_review": "not_required",
+      "files_to_create": ["src/lib/example2.ts"],
+      "files_to_modify": [],
+      "done_definition": ["test:unit が緑"],
+      "verify_commands": ["npm run test:unit"],
+      "manual_verification": null,
+      "acceptance_check_ids": [],
+      "concerns": [
+        "[severity: high] 台帳の追記専用トリガが一部のテーブルに掛かっていない。対応案: task_011 の hardening で追加する。",
+        "[severity: high / 本セッションで修正済み] 生成列の NOT NULL 漏れ。対応案: 追加マイグレーションで解消済み。"
+      ]
+    },
+    {
+      "task_id": "task_912",
+      "title": "high 懸念を抱えたまま進行中の新規機能タスク",
+      "completion_status": "in_progress",
+      "risk_level": "medium",
+      "adversarial_review": "not_required",
+      "files_to_create": ["src/app/(liff)/page.tsx"],
+      "files_to_modify": [],
+      "done_definition": ["画面が出る"],
+      "verify_commands": ["npm run test:unit"],
+      "manual_verification": null,
+      "acceptance_check_ids": [],
+      "concerns": []
+    }
+  ]
+}

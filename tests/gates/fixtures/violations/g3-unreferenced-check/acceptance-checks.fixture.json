@@ -1,0 +1,19 @@
+{
+  "feature": "violation fixture: G3（check の被参照）",
+  "version": 1,
+  "generated_at": "2026-09-24",
+  "notes": "本物の acceptance-checks ではない。tests/gates/fixtures/violations/README.md を参照。",
+  "checks": [
+    {
+      "id": "check_900",
+      "target": "どの task からも参照されていないチェック",
+      "rule": "誰も実行しない受入基準がここに残り続ける",
+      "expected_result": "G3 が未参照として検出する",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run gate:check",
+      "constraint_ids": [],
+      "risk_ids": ["R-TH-01"],
+      "evidence": null
+    }
+  ]
+}

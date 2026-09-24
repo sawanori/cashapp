@@ -1,0 +1,36 @@
+{
+  "feature": "violation fixture: G6（DONE_WITH_CONCERNS の concerns）",
+  "version": 1,
+  "generated_at": "2026-09-24",
+  "notes": "本物の task-list ではない。tests/gates/fixtures/violations/README.md を参照。",
+  "tasks": [
+    {
+      "task_id": "task_908",
+      "title": "severity の無い懸念つき完了",
+      "completion_status": "DONE_WITH_CONCERNS",
+      "risk_level": "medium",
+      "adversarial_review": "not_required",
+      "files_to_create": ["src/lib/example.ts"],
+      "files_to_modify": [],
+      "done_definition": ["test:unit が緑"],
+      "verify_commands": ["npm run test:unit"],
+      "manual_verification": null,
+      "acceptance_check_ids": [],
+      "concerns": ["あとで直す"]
+    },
+    {
+      "task_id": "task_909",
+      "title": "severity はあるが対応案が無い懸念つき完了",
+      "completion_status": "DONE_WITH_CONCERNS",
+      "risk_level": "medium",
+      "adversarial_review": "not_required",
+      "files_to_create": ["src/lib/example2.ts"],
+      "files_to_modify": [],
+      "done_definition": ["test:unit が緑"],
+      "verify_commands": ["npm run test:unit"],
+      "manual_verification": null,
+      "acceptance_check_ids": [],
+      "concerns": ["[severity: high] 未解決"]
+    }
+  ]
+}

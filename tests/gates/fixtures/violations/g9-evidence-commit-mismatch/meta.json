@@ -1,0 +1,19 @@
+{
+  "fixture_id": "g9-evidence-commit-mismatch",
+  "gate": "G9",
+  "description": "受入チェックの evidence が過去のコミットのまま残っている状態。コードを変えたあとも古い合格証跡が受入基準の横に居座り、『検証済み』の外見だけが維持される。",
+  "runner": {
+    "cmd": "node",
+    "args": ["scripts/gate-check.mjs", "--root", "{FIXTURE}", "--only", "G9"]
+  },
+  "inputs": {
+    "docs/acceptance-checks.json": "acceptance-checks.fixture.json"
+  },
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "check_901: evidence.commit",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "HEAD は gate-inputs/head.txt で固定してあるので、リポジトリが進んでもこのフィクスチャの意味は変わらない。ファイル名を docs/acceptance-checks.json にしないのは deny-test-weakening.sh が evidence の直接編集を拒否するため。"
+  }
+}

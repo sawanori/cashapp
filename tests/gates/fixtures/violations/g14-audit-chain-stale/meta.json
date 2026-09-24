@@ -1,0 +1,19 @@
+{
+  "fixture_id": "g14-audit-chain-stale",
+  "gate": "G14",
+  "description": "audit:verify（監査連鎖の先頭からの検証）の最新 exit 0 が 7 日より古い状態。監査連鎖はキルスイッチ条件⑥の入力であり、検証が止まっていることは『不一致が無い』ことを意味しない。",
+  "runner": {
+    "cmd": "node",
+    "args": ["scripts/gate-check.mjs", "--root", "{FIXTURE}", "--only", "G14"]
+  },
+  "inputs": {
+    "docs/run-log": "run-log"
+  },
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "日を超えています",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "package.json を overlay して audit:verify が実在する世界を作っている（実リポジトリでは未定義なので G14 は defer）。run-log も overlay 側だけを見るので、実リポジトリの記録は混ざらない。"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "fixture_id": "l1-operator-account-in-money-flow",
+  "gate": "L1",
+  "description": "運営者の口座・決済アカウントを資金が経由する構成（operatorAccount / payoutToOperator）。L1 は本サービスの適法性の一本足であり、ここを素通しするとゲート網の意味が無くなる。",
+  "runner": {
+    "cmd": "bash",
+    "args": [
+      "scripts/gate-constraints.sh",
+      "--root",
+      "{FIXTURE}",
+      "--constraints",
+      "docs/constraints.json",
+      "--task-list",
+      "docs/task-list.json",
+      "--run-log-dir",
+      "docs/run-log"
+    ]
+  },
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "L1 src/lib/payouts.ts:",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "実インシデントの写しではなく、docs/constraints.json の L1 の禁止パターンから合成した最小反例。"
+  }
+}

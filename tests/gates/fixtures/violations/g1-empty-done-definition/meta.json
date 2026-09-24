@@ -1,0 +1,16 @@
+{
+  "fixture_id": "g1-empty-done-definition",
+  "gate": "G1",
+  "description": "done_definition が空のまま着手できるタスク。完了の定義が無いタスクは、何をもって DONE と言ったのかを後から検算できない。",
+  "runner": {
+    "cmd": "node",
+    "args": ["scripts/gate-check.mjs", "--root", "{FIXTURE}", "--only", "G1"]
+  },
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "task_901: done_definition が空",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "同じ overlay に『docs/** のみなのに verify_commands も manual_verification も空』のタスク（task_902）を同居させ、G1 の 2 経路を 1 本で押さえている。"
+  }
+}

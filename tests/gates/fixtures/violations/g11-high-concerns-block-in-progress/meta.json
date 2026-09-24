@@ -1,0 +1,16 @@
+{
+  "fixture_id": "g11-high-concerns-block-in-progress",
+  "gate": "G11",
+  "description": "未解決の severity=high concerns が 3 件あるのに新規機能タスクが in_progress になっている状態。高リスクの積み残しを抱えたまま前進し続けると、後段のタスクが全部その上に乗る。",
+  "runner": {
+    "cmd": "node",
+    "args": ["scripts/gate-check.mjs", "--root", "{FIXTURE}", "--only", "G11"]
+  },
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "を進められません",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "『本セッションで修正済み』と書かれた high concern を 1 件混ぜてあり、解決済みを残高に数えてしまう実装だとしきい値の意味が変わる（ここでは 3 件でちょうど発火する）。"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "fixture_id": "n2-client-asserted-identity",
+  "gate": "N2",
+  "description": "参加者の本人識別をクライアント側の liff.getDecodedIDToken() の結果に依存させる実装。サーバー側のトークン検証を経由しないため、なりすましで他人の請求を操作できる。",
+  "runner": {
+    "cmd": "bash",
+    "args": [
+      "scripts/gate-constraints.sh",
+      "--root",
+      "{FIXTURE}",
+      "--constraints",
+      "docs/constraints.json",
+      "--task-list",
+      "docs/task-list.json",
+      "--run-log-dir",
+      "docs/run-log"
+    ]
+  },
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "N2 src/lib/participant-identity.ts:",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "N2 は src/lib/liff/** を除外する。このフィクスチャは除外対象外のパスに置き、除外グロブが広がりすぎた場合に検知できるようにしている。"
+  }
+}

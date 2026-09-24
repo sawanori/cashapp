@@ -1,0 +1,19 @@
+{
+  "fixture_id": "g13-gate-definition-hash-mismatch",
+  "gate": "G13",
+  "description": "ゲート定義ファイル（ここでは scripts/record-run.sh）のハッシュが基準値と食い違う状態。F13『AI による本番ゲート・フラグ・ゲート定義ファイルの書き換え』の検知そのもの。",
+  "runner": {
+    "cmd": "node",
+    "args": ["scripts/gate-check.mjs", "--root", "{FIXTURE}", "--only", "G13"]
+  },
+  "inputs": {
+    "docs/gates/integrity-baseline.json": "integrity-baseline.fixture.json"
+  },
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "不一致: scripts/record-run.sh",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "ハッシュ対象の実ファイルはベースリポジトリのものを読むので、基準値だけを差し替えれば『実ファイルが書き換わった』のと同じ判定になる。基準値を docs/gates/ に置かないのは deny-test-weakening.sh が docs/gates/** への直接書き込みを拒否するため。"
+  }
+}

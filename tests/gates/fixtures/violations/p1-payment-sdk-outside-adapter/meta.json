@@ -1,0 +1,26 @@
+{
+  "fixture_id": "p1-payment-sdk-outside-adapter",
+  "gate": "P1",
+  "description": "決済事業者 SDK をアダプタ層の外（src/lib/checkout.ts）から import する行。P1 が緩むと provider 差し替えが不可能になり、Phase 2 の停止条件を守れなくなる。",
+  "runner": {
+    "cmd": "bash",
+    "args": [
+      "scripts/gate-constraints.sh",
+      "--root",
+      "{FIXTURE}",
+      "--constraints",
+      "docs/constraints.json",
+      "--task-list",
+      "docs/task-list.json",
+      "--run-log-dir",
+      "docs/run-log"
+    ]
+  },
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "P1 src/lib/checkout.ts:",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "決済 SDK は本リポジトリに意図的に未インストール（deps ジョブの検査対象）なので、実 import 文ではなく gate が走査する行テキストを定数として置いている。対象ゲートが grep である以上、忠実な反例である。"
+  }
+}

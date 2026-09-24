@@ -1,0 +1,16 @@
+{
+  "fixture_id": "g6-concerns-without-severity",
+  "gate": "G6",
+  "description": "DONE_WITH_CONCERNS なのに concerns に severity も対応案も無い状態。『懸念つき完了』が、何が残っているか分からないまま DONE と同じ扱いになる。",
+  "runner": {
+    "cmd": "node",
+    "args": ["scripts/gate-check.mjs", "--root", "{FIXTURE}", "--only", "G6"]
+  },
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "task_908 concerns[0]: severity がありません",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "severity はあるが対応案が短すぎる concerns（task_909）も同居させ、G6 の 2 経路を 1 本で押さえている。"
+  }
+}

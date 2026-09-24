@@ -1,0 +1,16 @@
+{
+  "fixture_id": "g0-gate-with-zero-targets",
+  "gate": "G0",
+  "description": "task-list が空になり、task を対象にするゲート（G1 / G2 / G11）が『対象 0 件のまま ok』になる状態。ゲート網全体が無言で無効化される R-TH-01 の本体で、緑という結果からは見分けがつかない。G0 はこれを違反として検出しなければならない。",
+  "runner": {
+    "cmd": "node",
+    "args": ["scripts/gate-check.mjs", "--root", "{FIXTURE}", "--only", "G0"]
+  },
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "は対象 0 件で ok になっています",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "空振りを『合格』と読んでしまう状態を最短で再現するため、tasks を空配列にしてある。"
+  }
+}

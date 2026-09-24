@@ -1,0 +1,26 @@
+{
+  "fixture_id": "w3-direct-paid-assignment",
+  "gate": "W3",
+  "description": "支払状態を rank ガードの外から直接 'paid' に代入する実装。Webhook の逆順到着で refunded が paid に巻き戻る事故の直接原因になる。",
+  "runner": {
+    "cmd": "bash",
+    "args": [
+      "scripts/gate-constraints.sh",
+      "--root",
+      "{FIXTURE}",
+      "--constraints",
+      "docs/constraints.json",
+      "--task-list",
+      "docs/task-list.json",
+      "--run-log-dir",
+      "docs/run-log"
+    ]
+  },
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "W3 src/lib/invoice-state.ts:",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "W3 は allow_if_line_matches に status_rank / statusRank を持つ。このフィクスチャはその免除語を含まないので、免除の判定が壊れた場合も検知できる。"
+  }
+}

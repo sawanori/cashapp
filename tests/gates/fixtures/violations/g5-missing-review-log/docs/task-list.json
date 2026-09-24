@@ -1,0 +1,36 @@
+{
+  "feature": "violation fixture: G5（敵対レビュー記録）",
+  "version": 1,
+  "generated_at": "2026-09-24",
+  "notes": "本物の task-list ではない。tests/gates/fixtures/violations/README.md を参照。",
+  "tasks": [
+    {
+      "task_id": "task_007",
+      "title": "レビュー経路（overlay 上では DONE として扱う）",
+      "completion_status": "DONE",
+      "risk_level": "low",
+      "adversarial_review": "not_required",
+      "files_to_create": ["scripts/review-gemini.mjs"],
+      "files_to_modify": [],
+      "done_definition": ["レビュー経路が通る"],
+      "verify_commands": ["npm run test:unit"],
+      "manual_verification": null,
+      "acceptance_check_ids": [],
+      "concerns": []
+    },
+    {
+      "task_id": "task_907",
+      "title": "敵対レビュー必須なのに記録が無い完了タスク",
+      "completion_status": "DONE",
+      "risk_level": "high",
+      "adversarial_review": "required",
+      "files_to_create": ["src/lib/payments/adapter.ts"],
+      "files_to_modify": [],
+      "done_definition": ["契約テストが緑"],
+      "verify_commands": ["npm run test:unit"],
+      "manual_verification": null,
+      "acceptance_check_ids": [],
+      "concerns": []
+    }
+  ]
+}

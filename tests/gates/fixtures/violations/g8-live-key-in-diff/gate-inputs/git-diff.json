@@ -1,0 +1,13 @@
+{
+  "$comment": "violation fixture: G8。各要素が文字列なら 1 行、配列なら断片を連結して 1 行になる。",
+  "lines": [
+    "diff --git a/src/lib/payments/keys.ts b/src/lib/payments/keys.ts",
+    "index 0000000..1111111 100644",
+    "--- a/src/lib/payments/keys.ts",
+    "+++ b/src/lib/payments/keys.ts",
+    "@@ -1,2 +1,4 @@",
+    " export const providerKey = \"fixture_provider\";",
+    ["+export const secretKey = \"sk", "_live_", "51QrTvWxYzAbCdEfGhIjKlMn\";"],
+    ["+export const environment = \"", "PAYPAY_ENV", "=", "PROD", "\";"]
+  ]
+}

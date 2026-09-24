@@ -1,0 +1,23 @@
+{
+  "feature": "violation fixture: G9（evidence.commit === HEAD）",
+  "version": 1,
+  "generated_at": "2026-09-24",
+  "notes": "本物の acceptance-checks ではない。tests/gates/fixtures/violations/README.md を参照。",
+  "checks": [
+    {
+      "id": "check_901",
+      "target": "古い証跡が残ったままのチェック",
+      "rule": "evidence.commit が HEAD ではない",
+      "expected_result": "G9 が古い証跡として検出する",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run gate:check",
+      "constraint_ids": [],
+      "risk_ids": ["R-TH-02"],
+      "evidence": {
+        "commit": "2222222222222222222222222222222222222222",
+        "ran_at": "2026-01-01T00:00:00Z",
+        "by": "fixture"
+      }
+    }
+  ]
+}

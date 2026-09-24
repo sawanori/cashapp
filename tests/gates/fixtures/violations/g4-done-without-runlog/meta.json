@@ -1,0 +1,16 @@
+{
+  "fixture_id": "g4-done-without-runlog",
+  "gate": "G4",
+  "description": "run-log を 1 行も持たないまま DONE を名乗るタスク（完了の過大申告 F2）と、verify_commands が空なのに manual 記録が無いまま DONE を名乗るタスク。どちらも『検証した』という自己申告だけが根拠になっている状態。",
+  "runner": {
+    "cmd": "node",
+    "args": ["scripts/gate-check.mjs", "--root", "{FIXTURE}", "--only", "G4"]
+  },
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "docs/run-log/task_905.json がありません",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "task_905 / task_906 はベースリポジトリにも run-log が無い task_id を選んである（overlay のフォールバックで実ログを拾わないため）。"
+  }
+}

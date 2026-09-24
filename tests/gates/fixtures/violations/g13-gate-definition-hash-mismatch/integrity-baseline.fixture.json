@@ -1,0 +1,11 @@
+{
+  "$comment": "violation fixture: G13。record-run.sh のハッシュだけが実物と食い違う基準値。",
+  "schema_version": 1,
+  "algorithm": "sha256",
+  "counters": {
+    "contract_test_min_count": 0
+  },
+  "files": {
+    "scripts/record-run.sh": "0000000000000000000000000000000000000000000000000000000000000000"
+  }
+}

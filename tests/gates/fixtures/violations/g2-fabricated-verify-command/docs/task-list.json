@@ -1,0 +1,36 @@
+{
+  "feature": "violation fixture: G2（verify_commands の実在とコマンド捏造）",
+  "version": 1,
+  "generated_at": "2026-09-24",
+  "notes": "本物の task-list ではない。tests/gates/fixtures/violations/README.md を参照。",
+  "tasks": [
+    {
+      "task_id": "task_903",
+      "title": "存在しないスクリプトを検証コマンドに書いたタスク（未着手）",
+      "completion_status": null,
+      "risk_level": "medium",
+      "adversarial_review": "not_required",
+      "files_to_create": ["src/lib/example.ts"],
+      "files_to_modify": [],
+      "done_definition": ["何かが緑になる"],
+      "verify_commands": ["npm run verify:everything"],
+      "manual_verification": null,
+      "acceptance_check_ids": [],
+      "concerns": []
+    },
+    {
+      "task_id": "task_904",
+      "title": "着手済みなのに未定義のスクリプトを参照するタスク",
+      "completion_status": "in_progress",
+      "risk_level": "medium",
+      "adversarial_review": "not_required",
+      "files_to_create": ["src/lib/example2.ts"],
+      "files_to_modify": [],
+      "done_definition": ["test:contract が緑"],
+      "verify_commands": ["npm run test:contract"],
+      "manual_verification": null,
+      "acceptance_check_ids": [],
+      "concerns": []
+    }
+  ]
+}

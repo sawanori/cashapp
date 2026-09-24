@@ -1,0 +1,10 @@
+{
+  "name": "violation-fixture-g14",
+  "private": true,
+  "version": "0.0.0",
+  "description": "violation fixture: G14。audit:verify が実在する世界を作るためだけの package.json。",
+  "scripts": {
+    "audit:verify": "node scripts/audit-verify.mjs",
+    "test:unit": "vitest run tests/unit"
+  }
+}

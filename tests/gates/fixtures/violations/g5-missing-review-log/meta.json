@@ -1,0 +1,16 @@
+{
+  "fixture_id": "g5-missing-review-log",
+  "gate": "G5",
+  "description": "risk_level=high かつ adversarial_review=required の完了タスクが、敵対レビューの記録も欠票記録も持たない状態。task_007 を DONE にした overlay で、G5 が warn からブロッキングへ切り替わることも同時に確認する。",
+  "runner": {
+    "cmd": "node",
+    "args": ["scripts/gate-check.mjs", "--root", "{FIXTURE}", "--only", "G5"]
+  },
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "task_907: docs/review-log/task_907.json がありません",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "§15-2 の『task_007 が DONE になるまで G5 は warn』という猶予そのものが外れないことを押さえるフィクスチャ。猶予を無条件 warn に変えるとこれが緑になって落ちる。"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "$comment": "violation fixture: W1。同一イベントの 2 回配送。task_018 の tests/contract/duplicate.test.ts がこれを入力に取り、台帳の適用が 1 回に収束することを検査する。収束しなければ W1 違反。",
+  "provenance": {
+    "kind": "synthesized",
+    "note": "実 Webhook の写しではない。決済事業者の再送仕様（at-least-once）から組み立てたもの。"
+  },
+  "provider": "fixture_provider",
+  "deliveries": [
+    {
+      "sequence": 1,
+      "headers": { "x-fixture-signature": "sig-1" },
+      "raw_body": "{\"event_id\":\"evt_dup_0001\",\"type\":\"payment.succeeded\",\"amount_minor\":3000,\"currency\":\"JPY\",\"occurred_at\":\"2026-09-24T00:00:00Z\"}"
+    },
+    {
+      "sequence": 2,
+      "headers": { "x-fixture-signature": "sig-1" },
+      "raw_body": "{\"event_id\":\"evt_dup_0001\",\"type\":\"payment.succeeded\",\"amount_minor\":3000,\"currency\":\"JPY\",\"occurred_at\":\"2026-09-24T00:00:00Z\"}"
+    }
+  ],
+  "expected": {
+    "webhook_events_rows": 1,
+    "ledger_entries_applied": 1,
+    "invoice_paid_amount_minor": 3000
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "fixture_id": "w1-webhook-replay-applied-twice",
+  "gate": "W1",
+  "description": "同一 (provider, event_id) の Webhook が 2 回届き、受信ログの一意制約が無いために台帳へ 2 回適用される状態。W1 は enforcement=test の制約なので grep では検出できず、契約テスト（test:contract、task_018）でしか落とせない。",
+  "runner": null,
+  "blocked_on": "task_018",
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "実行手段（npm run test:contract）が未作成のため、本フィクスチャは meta.test.ts では『実行不能・待ちタスクつき』として検証される（実行できないものを緑と報告しないため）。task_018 が tests/contract/duplicate.test.ts を作った時点で runner を埋めること。"
+  }
+}

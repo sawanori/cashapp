@@ -1,0 +1,26 @@
+{
+  "fixture_id": "p2-json-parse-in-webhook-route",
+  "gate": "P2",
+  "description": "Webhook ルートで生ボディを JSON.parse してしまう実装。署名検証は raw 文字列に対して行う必要があり、ここで parse するとアダプタの外で改竄検知が壊れる。",
+  "runner": {
+    "cmd": "bash",
+    "args": [
+      "scripts/gate-constraints.sh",
+      "--root",
+      "{FIXTURE}",
+      "--constraints",
+      "docs/constraints.json",
+      "--task-list",
+      "docs/task-list.json",
+      "--run-log-dir",
+      "docs/run-log"
+    ]
+  },
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "P2 src/app/api/webhooks/fixture_provider/route.ts:",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "P2 は expect_targets=from_task_018 のため実リポジトリでは現在 0 件（defer）。このフィクスチャは、対象ファイルが存在するようになった時点でゲートが実際に落ちることを先に固定する。"
+  }
+}

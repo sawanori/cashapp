@@ -1,0 +1,19 @@
+{
+  "fixture_id": "g3-unreferenced-check",
+  "gate": "G3",
+  "description": "どの task からも参照されていない受入チェック。誰も実行しないチェックは、受入基準の一覧に載っているだけで永久に未検証のまま残る。",
+  "runner": {
+    "cmd": "node",
+    "args": ["scripts/gate-check.mjs", "--root", "{FIXTURE}", "--only", "G3"]
+  },
+  "inputs": {
+    "docs/acceptance-checks.json": "acceptance-checks.fixture.json"
+  },
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "check_900: どの task からも参照されていません",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "acceptance-checks だけを差し替えるため、実 task-list が参照する check_001.. は『存在しない参照』としても検出される。G3 の両方向（未参照・宙ぶらりん参照）が 1 本で確認できる。ファイル名を docs/acceptance-checks.json にしないのは、deny-test-weakening.sh がその名前のファイルへの直接書き込みを（正しく）拒否するため。"
+  }
+}

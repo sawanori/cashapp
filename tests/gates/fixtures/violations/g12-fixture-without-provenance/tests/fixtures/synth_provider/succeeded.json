@@ -1,0 +1,12 @@
+{
+  "$comment": "violation fixture: G12。synth_provider は合成 fixture しか持たない。",
+  "provenance": {
+    "kind": "synthesized",
+    "note": "実 Webhook の写しではない"
+  },
+  "event_id": "evt_synth_0001",
+  "type": "payment.succeeded",
+  "amount_minor": 3000,
+  "currency": "JPY",
+  "occurred_at": "2026-09-24T02:00:00Z"
+}

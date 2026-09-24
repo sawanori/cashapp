@@ -1,0 +1,16 @@
+{
+  "fixture_id": "g12-fixture-without-provenance",
+  "gate": "G12",
+  "description": "決済 provider の fixture が captured_from も provenance も持たない状態（provenance 欠落）。出所の分からない fixture は、実在しない API 形状を『実測』として固定してしまう（F1 / R-TH-07）。合成 fixture しか無い provider が autoDetect を宣言している経路も同じ overlay で押さえる。",
+  "runner": {
+    "cmd": "node",
+    "args": ["scripts/gate-check.mjs", "--root", "{FIXTURE}", "--only", "G12"]
+  },
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "captured_from も provenance.kind もありません",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "tests/fixtures/<provider>/ はまだ実在しない（task_018 / 019 の成果物）ため、実リポジトリでの G12 は defer。このフィクスチャはその時点でゲートが実際に落ちることを先に固定する。"
+  }
+}

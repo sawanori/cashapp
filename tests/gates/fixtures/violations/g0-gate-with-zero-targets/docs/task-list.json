@@ -1,0 +1,7 @@
+{
+  "feature": "violation fixture: task-list が空（G0 の空振り検知用）",
+  "version": 1,
+  "generated_at": "2026-09-24",
+  "notes": "本物の task-list ではない。tests/gates/fixtures/violations/README.md を参照。",
+  "tasks": []
+}

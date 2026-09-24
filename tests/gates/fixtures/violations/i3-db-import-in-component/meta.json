@@ -1,0 +1,26 @@
+{
+  "fixture_id": "i3-db-import-in-component",
+  "gate": "I3",
+  "description": "コンポーネント層から drizzle-orm を直接 import する実装。MVP は RLS を使わずサーバー側で全 DB アクセスを行う前提なので、これはクライアントに DB 接続の断片を持ち込む。",
+  "runner": {
+    "cmd": "bash",
+    "args": [
+      "scripts/gate-constraints.sh",
+      "--root",
+      "{FIXTURE}",
+      "--constraints",
+      "docs/constraints.json",
+      "--task-list",
+      "docs/task-list.json",
+      "--run-log-dir",
+      "docs/run-log"
+    ]
+  },
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "I3 src/components/roster-table.ts:",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "drizzle-orm は実インストール済みなので、ここは実 import として書いてある（typecheck も通る）。"
+  }
+}

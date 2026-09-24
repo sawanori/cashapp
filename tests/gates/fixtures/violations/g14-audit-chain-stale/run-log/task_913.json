@@ -1,0 +1,20 @@
+[
+  {
+    "type": "command",
+    "command": "npm run audit:verify",
+    "exit_code": 0,
+    "stdout_tail": "audit:verify — 連鎖 1240 件を検証、不一致 0 件",
+    "commit": "3333333333333333333333333333333333333333",
+    "ran_at": "2026-01-05T00:00:00Z",
+    "by": "fixture@fixture"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "Test Files 7 passed (7)",
+    "commit": "3333333333333333333333333333333333333333",
+    "ran_at": "2026-09-20T00:00:00Z",
+    "by": "fixture@fixture"
+  }
+]

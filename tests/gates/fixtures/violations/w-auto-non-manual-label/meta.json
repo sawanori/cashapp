@@ -1,0 +1,26 @@
+{
+  "fixture_id": "w-auto-non-manual-label",
+  "gate": "W-AUTO",
+  "description": "Phase 1 は幹事の手作業（manual_confirm）でしか支払を確認できないのに、UI 文言が自動確認を断定している。縮退構成を「自動チェック要件を満たした」と説明することの 8 層禁止のうち、文言層の反例。",
+  "runner": {
+    "cmd": "node",
+    "args": [
+      "scripts/wording-lint.mjs",
+      "--root",
+      "{FIXTURE}",
+      "--policy",
+      "docs/wording-policy.md",
+      "--task-list",
+      "docs/task-list.json",
+      "--run-log-dir",
+      "docs/run-log"
+    ]
+  },
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "W-AUTO src/ui/roster-summary.ts:",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "docs/wording-policy.md の allowed_phrases（『幹事が手動で確認』等）に当たらない断定文を選んである。"
+  }
+}

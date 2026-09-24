@@ -1,0 +1,8 @@
+{
+  "$comment": "violation fixture: G12。captured_from も provenance も無い決済イベント fixture。",
+  "event_id": "evt_fixture_0001",
+  "type": "payment.succeeded",
+  "amount_minor": 3000,
+  "currency": "JPY",
+  "occurred_at": "2026-09-24T00:00:00Z"
+}

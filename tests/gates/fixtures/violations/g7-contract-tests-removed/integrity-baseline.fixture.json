@@ -1,0 +1,9 @@
+{
+  "$comment": "violation fixture: G7。契約テスト数の基準値だけを持つ最小の基準値ファイル。",
+  "schema_version": 1,
+  "algorithm": "sha256",
+  "counters": {
+    "contract_test_min_count": 3
+  },
+  "files": {}
+}

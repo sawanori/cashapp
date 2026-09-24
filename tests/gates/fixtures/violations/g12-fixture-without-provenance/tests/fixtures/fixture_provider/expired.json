@@ -1,0 +1,12 @@
+{
+  "$comment": "violation fixture: G12。provenance.kind=synthesized のみで captured_from を持たない fixture。",
+  "provenance": {
+    "kind": "synthesized",
+    "note": "実 Webhook の写しではなく、仕様書の記述から組み立てたもの"
+  },
+  "event_id": "evt_fixture_0002",
+  "type": "payment.expired",
+  "amount_minor": 3000,
+  "currency": "JPY",
+  "occurred_at": "2026-09-24T01:00:00Z"
+}

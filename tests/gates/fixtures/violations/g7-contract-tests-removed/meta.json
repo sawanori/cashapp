@@ -1,0 +1,19 @@
+{
+  "fixture_id": "g7-contract-tests-removed",
+  "gate": "G7",
+  "description": "基準値では 3 本あった tests/contract/ の契約テストが 0 本に減っている状態。落ちるテストを消して緑にする、という最短経路を塞ぐためのゲート。",
+  "runner": {
+    "cmd": "node",
+    "args": ["scripts/gate-check.mjs", "--root", "{FIXTURE}", "--only", "G7"]
+  },
+  "inputs": {
+    "docs/gates/integrity-baseline.json": "integrity-baseline.fixture.json"
+  },
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "tests/contract のファイル数が 3 件から 0 件に減っています",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "基準値ファイルを docs/gates/ に置かないのは、deny-test-weakening.sh が docs/gates/** への直接書き込みを（正しく）拒否するため。meta.json の inputs で論理パスを差し替えている。"
+  }
+}

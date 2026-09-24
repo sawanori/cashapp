@@ -1,0 +1,16 @@
+{
+  "fixture_id": "g8-live-key-in-diff",
+  "gate": "G8",
+  "description": "本番決済事業者のライブ鍵と本番環境フラグがコミット差分に混ざった状態。鍵は CI の production environment にしか置かない規約（L11 / F8）の最後の砦。",
+  "runner": {
+    "cmd": "node",
+    "args": ["scripts/gate-check.mjs", "--root", "{FIXTURE}", "--only", "G8"]
+  },
+  "expect_exit_nonzero": true,
+  "expect_output_contains": "実シークレットの形をした値",
+  "provenance": {
+    "authored_by": "model:opus-5.5 (task_006)",
+    "kind": "synthesized",
+    "note": "gate-inputs/git-diff.json の各行は断片の配列で、gate-check.mjs 側で連結される。リポジトリ内のどのファイルにも鍵の literal が現れない形にしてあるのは、(a) deny-test-weakening.sh が本番鍵の書き込みを拒否するため、(b) フィクスチャ自身が G8 に引っかかるのを避けるため。値は当然ながら実在の鍵ではない。"
+  }
+}
