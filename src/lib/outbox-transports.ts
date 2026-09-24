@@ -8,7 +8,8 @@
  *     PII を含まない payload（kind・outboxId・attempts のみ）を送る。未設定ならログのみ
  *     （fail-open。運用アラートの送達先が無くても outbox 本体の配達は止めない）。
  *   - `organizer_notify` → `src/lib/line/messaging.ts` の `notifyOrganizer()`。ADR-007
- *     （パターン B, accepted）により Phase 1 は LINE Messaging API を一切呼ばない。
+ *     （パターン B, proposed・PO 承認前の暫定運用）により Phase 1 は LINE Messaging API を
+ *     一切呼ばない。
  *
  * `line_messaging` transport（Phase 2 で `organizer_notify` を LINE push に切り替える際の
  * 拡張点）と `none`（配達不要な kind ができた場合の拡張点）は Phase 1 では未使用。

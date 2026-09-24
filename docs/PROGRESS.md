@@ -863,3 +863,23 @@
   exit 0（`src/lib/reconcile.ts` の既存の型エラーは他タスクの未コミット差分に起因し
   本タスクの変更とは無関係。現在は解消済み）。残懸念 8 件は `docs/concerns/task_022.md`
   （high 2・medium 3・low 3）。ファネルの実配線（#8）と CI 実行確認（#9）は deferred。
+- task_023（修正ラウンド）: DONE_WITH_CONCERNS — 敵対レビューの「レビューのギャップ」（high 1・
+  medium 6）と「検証の失敗」を受けて着手。検証の失敗（`tests/unit/record-evidence.test.ts` /
+  `tests/integration/audit-chain.test.ts`、いずれも task_023 と無関係な他タスクのファイル）は
+  本ラウンド開始時点で既に他タスクの後続コミットにより解消済みであることをフレッシュな再実行
+  （51 ファイル 1215/1215・22 ファイル 257/257）で確認した。high 1 件（`docs/decisions/
+  ADR-007-raw-userid-consent.md` が PO 決定なしに `accepted` になっていた。
+  `docs/implementation-plan.md`:765 の PO ゲート違反）は本ラウンドで `proposed` へ差し戻して
+  解消した（パターン B のコード自体は変更なし。`src/lib/line/messaging.ts` 等の `accepted` 表記も
+  合わせて修正）。medium 2 件を追加で解消: `tests/integration/outbox-delivery.test.ts` に
+  `sendOpsAlertViaWebhook` / 本番既定 `deliverOutboxJob` を直接検証するテスト 5 件を追加
+  （fetch スタブで 200 / 非 2xx→throw / 未設定→fetch 未呼び出しを確認）、`docs/ops/monitoring.md`
+  に `OPS_ALERT_WEBHOOK_URL` の用途と fail-open リスクを追記した。medium 4 件（route.ts 未配線・
+  review-log 未再実施・health.ts の reconcile ゼロ行判定・check_115）は対応不能または新規
+  スキーマを要すると判断し、理由つきで据え置いた。`scripts/with-lock.sh db scripts/record-run.sh
+  task_023` で verify_commands 4 本を再実行し全件 exit 0（`test:integration` は 1 回目に
+  task_023 と無関係な `audit-chain.test.ts` の並行実行フレークで 1 件失敗、直後の再実行で
+  262/262 pass。詳細は `docs/concerns/task_023.md` §17）。残懸念 8 件は
+  `docs/concerns/task_023.md`（medium 5・low 3）。`docs/review-log/task_023.json` は round 1
+  （commit `54325a6`、reject）のまま維持し、規約どおり本ラウンド（修正者）では再レビューを
+  実施していない。

@@ -2643,11 +2643,14 @@
       "optional": false,
       "completion_status": "DONE_WITH_CONCERNS",
       "concerns": [
-        "[severity: medium] check_115（attention_unseen_hours・週次メトリクス）は週次ログ集計パイプラインの所有タスクが無く未着手（done_definition には含まれないため今回もスコープ外）／対応案: docs/concerns/task_023.md §4・§8。PO判断で新規タスクを切り出した後、src/app/(liff)/events/page.tsxへ単発計測とバッジ配線を追加",
-        "[severity: medium] check_114 の外形監視の実測（手動）は staging デプロイが前提のため未達。自動化部分（health.ts の DB 側 degraded 判定 4 条件・tests/unit/health.test.ts 24件）は達成済み（typecheck/test:unit/test:integration/gate:constraints 全件 exit 0 を確認）／対応案: docs/concerns/task_023.md §5。task_024 以降の staging デプロイ後に record-run --manual で実測記録",
-        "[severity: medium] src/lib/outbox-transports.ts の deliverOutboxJob を本番 cron（src/app/api/cron/outbox/route.ts、task_020 所有）の runOutboxBatch 呼び出しへ配線していない（route.ts は task_023 の files_to_modify に無いため）。tests/integration/outbox-delivery.test.ts は runOutboxBatch + deliverOutboxJob を直接組み合わせて実 DB で動作検証済み／対応案: docs/concerns/task_023.md §10。route.ts の handle() 内 1 行差し替え（task_020 所有者 or 次回 task_023）",
-        "[severity: low] check_113 の expected_result 文言（LINE Messaging API 経由で push）が、本ラウンドで accepted にした ADR-007 パターン B（Phase 1 は push しない）と食い違う。docs/acceptance-checks.json は task_023 の files_to_create/files_to_modify に無いため未改訂／対応案: docs/concerns/task_023.md §11。PO 判断で check_113 の文言改訂",
-        "[severity: low] docs/ops/line-channels.md・docs/ops/monitoring.md の実施記録は空欄のまま（実チャネル開設・監視サービス契約は未実施）／対応案: docs/concerns/task_023.md §7。task_025（チャネル開設）・task_024 以降（監視実測）で追記",
+        "[severity: high→対応済み] ADR-007 が PO 決定なしに accepted へ変更されていた（docs/implementation-plan.md:765 の PO ゲート未通過）。本ラウンドで proposed に差し戻し、依存する src/lib/line/messaging.ts 等の『accepted』表記も修正した（設計＝パターン B のコードは変更なし）／docs/concerns/task_023.md §12。PO 本人のレビューで accepted 化するまで proposed のまま据え置く",
+        "[severity: medium] src/lib/outbox-transports.ts の deliverOutboxJob を本番 cron（src/app/api/cron/outbox/route.ts、task_020 所有）の runOutboxBatch 呼び出しへ配線していない（route.ts は task_023 の files_to_modify に無いため）／対応案: docs/concerns/task_023.md §10。route.ts の handle() 内 1 行差し替え（task_020 所有者 or 次回 task_023）",
+        "[severity: medium] OPS_ALERT_WEBHOOK_URL が wrangler.toml / .env.example / .dev.vars.example のいずれにも未宣言（docs/ops/monitoring.md には本ラウンドで用途と未設定時の fail-open リスクを追記済み）／対応案: docs/concerns/task_023.md §14。デプロイ前に宣言を追加（所有タスク不明）",
+        "[severity: medium] src/lib/health.ts は reconciliation_run が 1 行も無いとき永遠に degraded にならない。task_020 の cron 着地後は本来検知すべき故障（R-OPS-07）だが、デプロイ開始マーカー等の新規スキーマが必要で本ラウンドでは見送った／対応案: docs/concerns/task_023.md §15。次回 task_023 または task_020 所有者",
+        "[severity: medium] docs/review-log/task_023.json は round 1（commit 54325a6、decision=reject、依存未着手時点のレビュー）のまま。本ラウンドの実装コミットに対する再レビューは実施していない（規約上は検証者が行う）／対応案: docs/concerns/task_023.md §16",
+        "[severity: medium] check_115（attention_unseen_hours・週次メトリクス）は週次ログ集計パイプラインの所有タスクが無く未着手（done_definition には含まれないため今回もスコープ外。並行して他タスクが docs/metrics/・src/lib/metrics/・tests/e2e/organizer-flow.spec.ts を作業中と観測）／対応案: docs/concerns/task_023.md §4・§8",
+        "[severity: low] check_113 の expected_result 文言（LINE Messaging API 経由で push）が ADR-007 パターン B（Phase 1 は push しない）と食い違う。docs/acceptance-checks.json は task_023 の files_to_create/files_to_modify に無いため未改訂／対応案: docs/concerns/task_023.md §11。PO 判断で文言改訂",
+        "[severity: low] docs/ops/line-channels.md・docs/ops/monitoring.md の実施記録は空欄のまま（実チャネル開設・監視サービス契約は未実施）／対応案: docs/concerns/task_023.md §7。task_025・task_024 以降で追記",
         "[severity: low] Messaging API の通数課金と幹事の友だち追加率は未検証（既存懸念。docs/ops/line-channels.md の未確認事項として持ち越し）"
       ]
     },

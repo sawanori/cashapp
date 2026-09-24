@@ -1,14 +1,18 @@
 /**
  * `src/lib/outbox-transports.ts` の統合テスト（task_023 / check_113 / done_definition #1）。
  *
- *   - `OUTBOX_TRANSPORT` の全 kind が `deliverOutboxJob` 経由で例外なく配達できる（未定義 0 件）
+ *   - `OUTBOX_TRANSPORT` の全 kind が `createOutboxDeliver`（送信部分をモック差し替え）経由で
+ *     例外なく配達できる（未定義 0 件。実 DB の `runOutboxBatch` と組み合わせて検証）
  *   - `ops_alert` は PII を含まない payload で運営者向け内部 webhook（モック）を呼ぶ
- *   - `organizer_notify` は ADR-007（パターン B, accepted）どおり LINE API を一切呼ばず、
+ *   - `organizer_notify` は ADR-007（パターン B, proposed・PO 承認前の暫定運用）どおり LINE API を一切呼ばず、
  *     `notifyOrganizer()` 経由で完了する（モック）
+ *   - `sendOpsAlertViaWebhook` と本番既定の `deliverOutboxJob`（送信部分を未モックのまま）自体も
+ *     `globalThis.fetch` スタブで直接検証する（200 / 非 2xx→throw / 未設定→fetch 未呼び出し。
+ *     task_023 修正ラウンドで追加。レビューのギャップ §（実 I/O 関数が未実行）に対応）
  */
 
 import postgres from "postgres";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@opennextjs/cloudflare", () => ({
@@ -21,7 +25,9 @@ import { createAppRwSql, createMigratorSql, ensureAppRwLoginPassword, withRollba
 
 const { OUTBOX_TRANSPORT, enqueueOutbox, transportFor } = await import("@/lib/outbox");
 const { runOutboxBatch } = await import("@/app/api/cron/outbox/route");
-const { createOutboxDeliver } = await import("@/lib/outbox-transports");
+const { createOutboxDeliver, deliverOutboxJob, sendOpsAlertViaWebhook } = await import(
+  "@/lib/outbox-transports"
+);
 const { notifyOrganizer } = await import("@/lib/line/messaging");
 
 let migrator: postgres.Sql;
@@ -133,6 +139,120 @@ describe("outbox の配達先実装（check_113）", () => {
       const result = await notifyOrganizer();
       expect(result.delivered).toBe(true);
       expect(result.channel).toBe("in_app_badge");
+      expect(fetchCalled).toBe(false);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+describe("sendOpsAlertViaWebhook / deliverOutboxJob（本番既定の実装そのものを検証。task_023 修正ラウンド）", () => {
+  const ENV_KEY = "OPS_ALERT_WEBHOOK_URL";
+  const originalEnvValue = process.env[ENV_KEY];
+
+  afterEach(() => {
+    if (originalEnvValue === undefined) {
+      delete process.env[ENV_KEY];
+    } else {
+      process.env[ENV_KEY] = originalEnvValue;
+    }
+  });
+
+  it("OPS_ALERT_WEBHOOK_URL が未設定なら fetch を呼ばずログのみで完了する（fail-open）", async () => {
+    delete process.env[ENV_KEY];
+    const originalFetch = globalThis.fetch;
+    let fetchCalled = false;
+    globalThis.fetch = (async (...args: Parameters<typeof fetch>) => {
+      fetchCalled = true;
+      return originalFetch(...args);
+    }) as typeof fetch;
+
+    try {
+      await expect(
+        sendOpsAlertViaWebhook({ kind: "mismatch_alert", outboxId: "x", attempts: 0 }),
+      ).resolves.toBeUndefined();
+      expect(fetchCalled).toBe(false);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("200 応答なら例外を投げず、POST で PII を含まない payload を送る", async () => {
+    process.env[ENV_KEY] = "https://example.invalid/ops-alert";
+    const originalFetch = globalThis.fetch;
+    const calls: Array<{ url: string; method: string | undefined; body: unknown }> = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({
+        url: String(input),
+        method: init?.method,
+        body: init?.body === undefined ? undefined : JSON.parse(String(init.body)),
+      });
+      return new Response(null, { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      await expect(
+        sendOpsAlertViaWebhook({ kind: "mismatch_alert", outboxId: "x", attempts: 1 }),
+      ).resolves.toBeUndefined();
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.url).toBe("https://example.invalid/ops-alert");
+      expect(calls[0]?.method).toBe("POST");
+      expect(calls[0]?.body).toEqual({ kind: "mismatch_alert", outboxId: "x", attempts: 1 });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("非 2xx 応答なら例外を投げる（R-OPS-01: 呼び出し側の再試行・dead letter 経路に委ねる）", async () => {
+    process.env[ENV_KEY] = "https://example.invalid/ops-alert";
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => new Response(null, { status: 500 })) as typeof fetch;
+
+    try {
+      await expect(
+        sendOpsAlertViaWebhook({ kind: "mismatch_alert", outboxId: "x", attempts: 0 }),
+      ).rejects.toThrow(/500/);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("deliverOutboxJob（本番既定の配達関数）は ops_alert を sendOpsAlertViaWebhook 経由で実際に配達する", async () => {
+    process.env[ENV_KEY] = "https://example.invalid/ops-alert";
+    const originalFetch = globalThis.fetch;
+    let called = false;
+    globalThis.fetch = (async () => {
+      called = true;
+      return new Response(null, { status: 200 });
+    }) as typeof fetch;
+
+    try {
+      await expect(
+        deliverOutboxJob({ id: "job-1", kind: "mismatch_alert", transport: "ops_alert", attempts: 0 }),
+      ).resolves.toBeUndefined();
+      expect(called).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("deliverOutboxJob（本番既定の配達関数）は organizer_notify を notifyOrganizer 経由で配達し外部へ fetch しない", async () => {
+    const originalFetch = globalThis.fetch;
+    let fetchCalled = false;
+    globalThis.fetch = (async (...args: Parameters<typeof fetch>) => {
+      fetchCalled = true;
+      return originalFetch(...args);
+    }) as typeof fetch;
+
+    try {
+      await expect(
+        deliverOutboxJob({
+          id: "job-2",
+          kind: "payment_detected",
+          transport: "organizer_notify",
+          attempts: 0,
+        }),
+      ).resolves.toBeUndefined();
       expect(fetchCalled).toBe(false);
     } finally {
       globalThis.fetch = originalFetch;

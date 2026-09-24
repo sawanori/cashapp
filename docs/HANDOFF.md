@@ -2508,6 +2508,41 @@ GPT-6 Astra 7 件のうち重複を除く 7 件を**全件修正**した（詳�
 - check_043（organizer_label の NULL 化）と audit-verify の 7 日窓は前ラウンドから変わらず未達。
   G5 は reject のままで再レビューはしない（共通ルール）。
 
+## task_023（修正ラウンド: ADR-007 の PO ゲート差し戻し・outbox-transports テスト補強）
+
+### 決まったこと
+
+- ADR-007（`docs/decisions/ADR-007-raw-userid-consent.md`）の直前ラウンドでの `accepted` 化は
+  `docs/implementation-plan.md`:765 が定める PO 専権ゲート（ADR の `accepted` 化は PO 本人が
+  関与する 3 関門の 1 つ）を経ていなかった（決定の主体が「運営フロー側の申し送り」であり
+  AskUserQuestion 等の PO 本人の明示的な回答ではないと ADR 自身が明記していた）。敵対レビューの
+  指摘どおり `proposed` へ差し戻し、`[設計]` ラベルも復元した。**パターン B（生 userId を保存せず
+  push しない）という設計自体は取り下げていない** — `src/lib/line/messaging.ts` /
+  `src/lib/outbox-transports.ts` のコードは無変更で、依存する各ファイルの `accepted` という
+  文言表記だけを `proposed・PO 承認前の暫定運用` に修正した。
+- 前ラウンドで報告された `test:unit`（`record-evidence.test.ts`）/ `test:integration`
+  （`audit-chain.test.ts`）の失敗はいずれも task_023 と無関係な他タスクのファイル起因で、本ラウンド
+  開始時点で他タスクの後続コミットにより既に解消済みだった（フレッシュな再実行で確認）。
+- `sendOpsAlertViaWebhook` と本番既定の `deliverOutboxJob` がどのテストからも実行されていなかった
+  指摘を受け、`tests/integration/outbox-delivery.test.ts` に `globalThis.fetch` スタブで直接検証
+  するテストを 5 件追加した（200 / 非 2xx→throw / 未設定→fetch 未呼び出し）。
+- `OPS_ALERT_WEBHOOK_URL` の用途・fail-open リスクを `docs/ops/monitoring.md` に追記した
+  （`wrangler.toml`/`.env.example` への実宣言は task_023 の files_to_modify 外のため未実施）。
+
+### 未解決 / concerns
+
+- `src/app/api/cron/outbox/route.ts`（task_020 所有）は `deliverOutboxJob` へ未配線のまま
+  （既定の `logOnlyDeliver` のまま。1 行差し替えで直る）。
+- `src/lib/health.ts` は `reconciliation_run` が 1 行も無いとき永遠に degraded にならない。
+  task_020 の cron 着地後は本来検知すべき故障（R-OPS-07）だが、デプロイ開始マーカー等の新規
+  スキーマが要り本ラウンドでは見送った。
+- `docs/review-log/task_023.json` は round 1（commit `54325a6`、reject、依存未着手時点の
+  レビュー）のまま。規約どおり修正者（本ラウンド）は再レビューを実施していない。
+- `test:integration` の 1 回目実行で task_023 と無関係な `audit-chain.test.ts` が並行実行の
+  フレークで 1 件失敗し、直後の再実行で解消した（`docs/concerns/task_023.md` §17）。
+- 詳細は `docs/concerns/task_023.md`（medium 5・low 3）。completion_status は
+  `DONE_WITH_CONCERNS` のまま。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -2776,3 +2811,11 @@ GPT-6 Astra 7 件のうち重複を除く 7 件を**全件修正**した（詳�
 - 2026-09-24T19:11:49Z HEAD=162738d 決まったこと: tests(record-evidence): 共有実行のフィクスチャ script の引用を修正（直前のコミットで赤のまま push していた） / 未解決: 未コミット 38 件: .github/workflows/e2e.yml docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json docs/run-log/task_018.json 
 - 2026-09-24T19:12:24Z HEAD=162738d 決まったこと: tests(record-evidence): 共有実行のフィクスチャ script の引用を修正（直前のコミットで赤のまま push していた） / 未解決: 未コミット 40 件: .github/workflows/e2e.yml docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json 
 - 2026-09-24T19:16:23Z HEAD=162738d 決まったこと: tests(record-evidence): 共有実行のフィクスチャ script の引用を修正（直前のコミットで赤のまま push していた） / 未解決: 未コミット 44 件: .github/workflows/e2e.yml docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_020.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json 
+- 2026-09-24T19:18:25Z HEAD=2555cdd 決まったこと: task_022: E2E・セキュリティ・a11y テストと CI ジョブ（LINE非依存build含む） / 未解決: 未コミット 13 件: docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json docs/run-log/task_018.json docs/run-log/task_019.json 
+- 2026-09-24T19:19:33Z HEAD=2555cdd 決まったこと: task_022: E2E・セキュリティ・a11y テストと CI ジョブ（LINE非依存build含む） / 未解決: 未コミット 14 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json docs/run-log/task_018.json 
+- 2026-09-24T19:20:07Z HEAD=2555cdd 決まったこと: task_022: E2E・セキュリティ・a11y テストと CI ジョブ（LINE非依存build含む） / 未解決: 未コミット 15 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json docs/run-log/task_018.json 
+- 2026-09-24T19:22:24Z HEAD=2555cdd 決まったこと: task_022: E2E・セキュリティ・a11y テストと CI ジョブ（LINE非依存build含む） / 未解決: 未コミット 17 件: docs/HANDOFF.md docs/metrics/weekly-2026-09-21.json docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json 
+- 2026-09-24T19:25:25Z HEAD=2555cdd 決まったこと: task_022: E2E・セキュリティ・a11y テストと CI ジョブ（LINE非依存build含む） / 未解決: 未コミット 22 件: docs/HANDOFF.md docs/decisions/ADR-007-raw-userid-consent.md docs/metrics/weekly-2026-09-21.json docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json 
+- 2026-09-24T19:27:26Z HEAD=ce00969 決まったこと: task_022: 敵対レビュー記録（G5） / 未解決: 未コミット 24 件: docs/HANDOFF.md docs/decisions/ADR-007-raw-userid-consent.md docs/metrics/weekly-2026-09-21.json docs/ops/line-channels.md docs/ops/monitoring.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json 
+- 2026-09-24T19:28:24Z HEAD=ce00969 決まったこと: task_022: 敵対レビュー記録（G5） / 未解決: 未コミット 25 件: docs/HANDOFF.md docs/concerns/task_023.md docs/decisions/ADR-007-raw-userid-consent.md docs/metrics/weekly-2026-09-21.json docs/ops/line-channels.md docs/ops/monitoring.md docs/run-log/task_008.json docs/run-log/task_012.json 
+- 2026-09-24T19:33:25Z HEAD=ce00969 決まったこと: task_022: 敵対レビュー記録（G5） / 未解決: 未コミット 27 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_023.md docs/decisions/ADR-007-raw-userid-consent.md docs/metrics/weekly-2026-09-21.json docs/ops/line-channels.md docs/ops/monitoring.md docs/run-log/task_008.json 

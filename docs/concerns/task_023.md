@@ -16,6 +16,21 @@ consent.md`（`proposed` で起票）、`docs/ops/line-channels.md` / `docs/ops/
 （手順の記録）。§1〜§4 はいずれも根本原因（task_018/020 未着手・PO 未決定・週次集計パイプライン
 不在）が解消していないため、下記のとおり更新して残す。以下は新しい指摘。
 
+**2026-09-25 第 3 ラウンド（修正ラウンド）**: 第 2 ラウンド（実装コミット `0012243`）に対する
+敵対レビュー由来の「レビューのギャップ」（high 1・medium 6）と、当時報告された「検証の失敗」
+（`tests/unit/record-evidence.test.ts` / `tests/integration/audit-chain.test.ts`）を受けて着手した。
+検証の失敗はいずれも task_023 の所有ファイルではなく（`git log` で task_013 / task_004 系の
+「evidence」「audit-chain」コミットが起源と確認）、本ラウンド開始時点で `scripts/with-lock.sh db
+scripts/record-run.sh task_023 npm run test:unit`（51 ファイル **1215/1215** pass）と
+`test:integration`（22 ファイル **257/257** pass）をフレッシュに再実行したところ両方とも既に
+解消済みだった（`162738d` / `e2ab76b` 等、task_023 と無関係な他タスクの後続コミットで直った）。
+レビューのギャップのうち high 1 件（ADR-007 の PO ゲート未通過）と medium 2 件
+（`outbox-transports.ts` の実 I/O 関数が未テスト・`OPS_ALERT_WEBHOOK_URL` 未文書化）を本ラウンドで
+解消した（§12〜§14）。medium 4 件（route.ts 配線・review-log 未再実施・check_113 文言・health.ts
+の reconcile ゼロ行判定）は対応不能または対応不相応と判断し、理由を付して据え置いた（§10・§13〜
+§15）。`scripts/with-lock.sh db scripts/record-run.sh task_023` で 4 本の verify_commands を
+再実行し全件 exit 0 を確認した（詳細は末尾の実行記録）。
+
 **2026-09-25 第 2 ラウンド（依存解消後の再実装）**: task_020（cron 6 本、`9dcab77`）と
 task_018（outbox 基盤、確定コミット済み）が着地し、実装ワークフロー側の指示で ADR-007 を
 パターン B（Phase 1 は生 userId を保存せず push しない。運営者向け内部 outbox と幹事画面の
@@ -179,7 +194,13 @@ docstring に記録のみ）。以下は解消前の記録。
   task_023 "<観察結果>"` で記録する。
 - **対応予定タスク**: task_024（本番環境分離）以降の staging デプロイ後
 
-## 6. ADR-007 は `proposed` で起票済み。PO 決定はまだ無い（解消済み・§3 参照。2026-09-25 第 2 ラウンド）
+## 6. ADR-007 は `proposed` で起票済み。PO 決定はまだ無い（第 2 ラウンドで一時「解消済み」としたが、第 3 ラウンドで `accepted` を `proposed` へ差し戻したため再オープン。§12 参照）
+
+**2026-09-25 第 3 ラウンドでの再オープン**: 第 2 ラウンドは本節を「ADR-007 が `accepted` に
+なったので解消」としたが、その `accepted` 化自体が PO ゲート（`docs/implementation-plan.md`:765）
+を経ていない実体不一致だったと敵対レビューで指摘された（§12）。本ラウンドでステータスを
+`proposed` に差し戻したため、「PO 決定はまだ無い」という本節の指摘は実質的に有効なまま
+だったことになる。以下は第 2 ラウンド時点の記録（歴史的経緯として残す）。
 
 - **指摘**: §3 の指摘（ADR-007 未作成）を解消し、`docs/decisions/ADR-007-raw-userid-
   consent.md` を `ADR-010-q-lg1-negative-branch.md` と同じ「PO 回答受領前の分岐設計。proposed」
@@ -266,7 +287,7 @@ docstring に記録のみ）。以下は解消前の記録。
   所有者、または次回 task_023 再着手時に行う。
 - **対応予定タスク**: task_020（所有者）または次回 task_023
 
-## 11. `check_113` の `expected_result` 文言が ADR-007 パターン B（accepted）と食い違っている
+## 11. `check_113` の `expected_result` 文言が ADR-007 パターン B（proposed・暫定運用）と食い違っている
 
 - **指摘**: `docs/acceptance-checks.json` の `check_113.expected_result` は「幹事（友だち追加
   済み）に Messaging API 経由で通知が送られ（モック）」という Pattern A 相当の文言のままだが、
@@ -279,3 +300,123 @@ docstring に記録のみ）。以下は解消前の記録。
 - **対応案**: PO 判断のうえ `check_113.expected_result` を「Phase 1 は運営者向け内部通知
   （`ops_alert`）のみ、幹事への通知は O-2 バッジ、Messaging API push は Phase 2」に改訂する。
 - **対応予定タスク**: 未定（`docs/acceptance-checks.json` の改訂を持つタスクが無い。PO 判断）
+
+## 12. ADR-007 が PO 決定なしに `proposed` → `accepted` へ変更されていた（解消・2026-09-25 第 3 ラウンド）
+
+**解消**: 敵対レビュー（本ラウンドに渡された「レビューのギャップ」、severity: high）の指摘どおり、
+`docs/implementation-plan.md`:765「本リポジトリで人間（PO）が実際に関与する関門は 3 つだけ
+（① `docs/gates/**.json` の変更、② ADR の `accepted` 化、③ 実機確認とパイロット）」に照らすと、
+第 2 ラウンドでの `accepted` 化は PO 本人の明示的な回答を経ていなかった（ADR 本文自身が「決定の
+主体はプロジェクト運営フロー（PO 指示の申し送り）」と自認していた）。`docs/decisions/
+ADR-007-raw-userid-consent.md` の「ステータス」節を `proposed` に差し戻し、「確信度」節も
+`Confidence: medium` から `[設計]` ラベルへ戻した（G10 は `status !== "accepted"` のとき対象外
+なので、この差し戻しにより G10 は素通りではなく非対象になる。`npm run gate:check` で確認済み）。
+`src/lib/line/messaging.ts` / `src/lib/outbox-transports.ts` / `src/lib/outbox.ts` /
+`tests/integration/outbox-delivery.test.ts` / `docs/ops/monitoring.md` /
+`docs/ops/line-channels.md`（いずれも task_023 所有ファイル）内の `ADR-007（...accepted）`
+という記述も `proposed・PO 承認前の暫定運用` に修正した（`src/app/api/cron/outbox/route.ts` は
+task_020 所有のため対象外・未確認）。
+
+- **重要**: パターン B（生 userId を保存せず push しない）という**設計そのもの**は取り下げて
+  いない。`src/lib/line/messaging.ts` の `notifyOrganizer()` と `src/lib/outbox-transports.ts` の
+  実装はコード上は本ラウンドでも変更していない（Pattern B のまま動作継続。テストもコード変更
+  無しで全件 pass）。変えたのは「この選択を PO が正式に承認した」という**ステータス表明**のみ。
+- **深刻度**: high（ガバナンスの正確性の問題。放置すると「実装ワークフローの申し送り」が
+  積み重なるだけで PO の実質的なレビューを経ずに ADR が `accepted` になり続ける前例になる）
+- **対応予定タスク**: PO 本人が ADR-007 をレビューし、パターン B を正式採用するなら `accepted`
+  へ、パターン A へ切り替えるなら本文を改訂のうえ `accepted` へ、更新する。それまで `proposed`
+  のまま据え置く。
+
+## 13. `src/lib/outbox-transports.ts` の実 I/O 関数（`sendOpsAlertViaWebhook`・本番既定の `deliverOutboxJob`）がどのテストからも実行されていなかった（解消・2026-09-25 第 3 ラウンド）
+
+**解消**: `tests/integration/outbox-delivery.test.ts` に `describe("sendOpsAlertViaWebhook /
+deliverOutboxJob（本番既定の実装そのものを検証。task_023 修正ラウンド）")` を追加した（5 件）。
+`globalThis.fetch` を直接スタブし、(1) `OPS_ALERT_WEBHOOK_URL` 未設定 → fetch 未呼び出し・
+ログのみで完了、(2) 200 応答 → 例外なし・POST で PII なし payload を送る、(3) 非 2xx 応答 →
+例外を投げる（呼び出し側の指数バックオフ・dead letter 経路に委ねる）、(4)(5) 本番既定の
+`deliverOutboxJob`（`createOutboxDeliver` の override 無し版）自体が `ops_alert` /
+`organizer_notify` の双方を正しく配達することを直接検証した。`TZ=UTC npx vitest run
+tests/integration/outbox-delivery.test.ts` で 9/9 pass を確認済み（うち新規 5 件）。
+
+- **深刻度**: medium（解消済み）
+- **対応予定タスク**: なし（解消済み）
+
+## 14. `OPS_ALERT_WEBHOOK_URL` がリポジトリのどの設定面にも宣言されていなかった（部分解消・2026-09-25 第 3 ラウンド）
+
+**部分解消**: `docs/ops/monitoring.md`（task_023 所有）に「`ops_alert`（`src/lib/outbox-
+transports.ts`）が使う環境変数」節を追加し、`OPS_ALERT_WEBHOOK_URL` の用途・未設定時の
+fail-open 挙動（運営者向け内部通知が恒久的に無送信になるリスク）を明記した。
+
+- **指摘（未解消部分）**: `wrangler.toml` の `[vars]`/secrets、`.env.example` の runtime 節、
+  `.dev.vars.example` のいずれも task_023 の `files_to_create`/`files_to_modify` に含まれない
+  ため、これらへの宣言追加は本ラウンドでも行っていない。`src/lib/outbox-transports.ts` は
+  他の server 経路（`src/app/api/health/route.ts` 等）と異なり `src/lib/config/env.ts` の
+  `RawEnv` を経由せず `process.env` を直読みしたままである（挙動は変更していない。読取方法の
+  統一は追加のリファクタになるため本ラウンドでは見送った）。
+- **深刻度**: medium（ドキュメント面は解消。実際の環境変数宣言と、未設定時に info ログではなく
+  degraded 相当のシグナルへ昇格させる設計変更は未着手）
+- **対応案**: デプロイ前に `wrangler.toml`/`.env.example` へ `OPS_ALERT_WEBHOOK_URL` を追加する
+  （所有タスク不明。task_024 の本番環境分離、または新規タスクで対応）。将来的には
+  `src/lib/config/env.ts` の `RawEnv` に追加し引数で渡す形へ統一する。
+- **対応予定タスク**: 未定（`wrangler.toml`/`.env.example` の改訂を持つタスクが無い。PO 判断
+  または task_024）
+
+## 15. `reconciliation_run` が 1 行も無いとき、health が永遠に degraded にならない（据え置き・2026-09-25 第 3 ラウンドで検討したが未着手）
+
+- **指摘**: `src/lib/health.ts` の `assessDbHealth()` は `latestReconcile !== null` のときだけ
+  鮮度を見る（`reconciliation_run` に行が 1 つも無ければ reconcile 条件は無条件で degraded に
+  ならない）。この既定は「reconcile の producer（task_020）が存在しない」ことを理由に前ラウンド
+  で導入されたが、task_020（`9dcab77`）の着地でその前提は消えている。cron が一度も起動しない
+  という最も検知したい故障（R-OPS-07）を、この実装は永遠に見逃す。
+- **検討した対応と見送った理由**: 「行ゼロが閾値超えて続いたら degraded」にするには基準時刻
+  （デプロイ開始時刻・初回 cron 実行マーカー等）が要るが、現行スキーマ（`supabase/migrations/
+  0001_init.sql`）にはそのような列・テーブルが無い。代替として `payment_attempt` の最古行の
+  経過時間を「業務が始まっている証拠」の代理シグナルに使う案も検討したが、(a) 新しい
+  `HealthDbReader` メソッドとクエリの追加を要し、(b) 決済の健全性判定という事故時に人が読む
+  安全側のロジックに、十分なテスト設計無しで急いで手を入れるのはリスクが実装速度の利得に
+  見合わないと判断し、本ラウンドでは見送った。`supabase/migrations/*.sql` は task_023 の
+  `files_to_create`/`files_to_modify` に無く、デプロイ開始時刻を記録する新列の追加はスコープ外
+  でもある。
+- **深刻度**: medium（`done_definition` 自体には含まれない edge case だが、R-OPS-07 の検知漏れ
+  という実質的なリスクが残る）
+- **対応案**: 次回 task_023 再着手（または task_020 所有者）で、(a) `reconciliation_run` に
+  デプロイ直後の seed 行を 1 つ INSERT するマイグレーション、または (b) 猶予期間付きの
+  デプロイ開始時刻マーカーのいずれかを追加し、`tests/unit/health.test.ts` の該当テスト
+  （「reconciliation_run が 1 行も無ければ degraded にならない」）を「行ゼロ＋猶予超過で
+  degraded」「行ゼロ＋猶予内は ok」に更新する。
+- **対応予定タスク**: 次回 task_023 再着手、または task_020 所有者
+
+## 16. `docs/review-log/task_023.json` は round 1（commit `54325a6`、decision=reject）のまま。本ラウンドの実装コミットに対する再レビューは未実施
+
+- **指摘**: task_023 は `risk_level=high` かつ `adversarial_review=required` で G5 対象だが、
+  本ラウンドの指示（「既に `docs/review-log/task_023.json` があるなら再作成は不要」）に従い、
+  `scripts/review-drive.sh` / `scripts/merge-review.sh` は実行していない。round 1 の
+  `effective_high: 1` は commit `54325a6`（実装コミット 0 件の BLOCKED 状態）に対するもので、
+  以降のコミット（`0012243` の outbox 実装、本ラウンドの ADR-007 差し戻し・テスト追加）を
+  反映していない。round 1 の high 指摘（依存未着手 2 点・ADR-007 未決定 1 点）のうち依存 2 点は
+  その後の task_018/020 着地で解消済みだが、ADR-007 の PO 未決定という核心は §12 のとおり
+  本ラウンドでも未解消（`proposed` のまま）であり、round 1 の指摘は実質的には現在も有効である
+  可能性が高い。
+- **深刻度**: medium（G5 の記録が最新コミットを反映していないという記録面の欠落。実体面の
+  指摘＝ADR-007 未決定は §12 で扱った）
+- **対応案**: 次回、検証者が `bash scripts/review-drive.sh task_023 <最初の自コミット SHA>
+  <最終の自コミット SHA>` → `bash scripts/merge-review.sh` を実行し round 2 を記録する。
+- **対応予定タスク**: 次回の検証者（G5 は検証者が行う規約のため、本ラウンド＝修正者は実施しない）
+
+## 17. `npm run test:integration` の 1 回目の実行で `tests/integration/audit-chain.test.ts`（task_023 と無関係）が 1 件フレークした（情報記録・対応不要）
+
+- **指摘**: 本ラウンド最終検証で `scripts/with-lock.sh db scripts/record-run.sh task_023 npm run
+  test:integration` を実行したところ、1 回目は `並行 20 本の追記でも prev_hash の重複が 0 件で、
+  連鎖全体が一致する（check_057）`（`tests/integration/audit-chain.test.ts:130`）が
+  `expected 13426n to be 13425n` で失敗した（Test Files 1 failed | 21 passed / Tests 1 failed |
+  261 passed）。直後に同じコマンドを再実行したところ全件 pass（22 files / 262 tests）した。
+  `audit_log` の連番 `id` が「他の書き込み元が割り込まない」ことを前提にした検証であり、
+  `scripts/with-lock.sh db` の規約を守らない並行プロセス（他タスクの手動実行等）が同じ共有
+  DB へ同時に書き込んだ場合に環境要因でフレークしうる。`tests/integration/audit-chain.test.ts`
+  は task_023 の所有ファイルではない（§9 と同種、所有は task_004/013 系のコミット履歴）。
+  `src/lib/health.ts` / `src/lib/outbox-transports.ts` / `src/lib/line/messaging.ts` に起因する
+  失敗ではない。
+- **深刻度**: low（再実行で解消・task_023 のスコープ外・再現性の低い環境要因）
+- **対応案**: 対応不要（記録のみ）。頻発するようなら `scripts/with-lock.sh db` の規約違反が
+  無いか他タスクの実行ログを確認する。
+- **対応予定タスク**: なし

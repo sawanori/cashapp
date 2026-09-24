@@ -1,7 +1,7 @@
 /**
  * LINE Messaging API 向けの幹事通知モジュール（task_023 / ADR-007 / check_113）。
  *
- * `docs/decisions/ADR-007-raw-userid-consent.md`（accepted, パターン B）:
+ * `docs/decisions/ADR-007-raw-userid-consent.md`（proposed・PO 承認前の暫定運用, パターン B）:
  * Phase 1 では幹事の生 LINE userId を一切保存しない。Messaging API の `push` は宛先指定に
  * 生 userId を要求するため、生 userId を持たない Phase 1 では呼びようがない。
  *
@@ -34,6 +34,6 @@ export function notifyOrganizer(): Promise<OrganizerNotifyResult> {
   return Promise.resolve({
     delivered: true,
     channel: "in_app_badge",
-    reason: "ADR-007 pattern B (accepted): LINE messaging push deferred to phase 2",
+    reason: "ADR-007 pattern B (proposed, interim): LINE messaging push deferred to phase 2",
   });
 }

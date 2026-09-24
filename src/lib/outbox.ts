@@ -24,9 +24,10 @@ type SqlLike = postgres.ISql;
 /** 配達先。`kind` は必ずこのいずれかに割り当てる。 */
 export type OutboxTransport =
   /**
-   * 幹事本人への通知。ADR-007（`docs/decisions/ADR-007-raw-userid-consent.md`、パターン B,
-   * accepted）により Phase 1 は `src/lib/line/messaging.ts` の `notifyOrganizer()`（画面内の
-   * 要対応バッジ止まり）。Messaging API の push は Phase 2 で同意設計とともに扱う。
+   * 幹事本人への通知。ADR-007（`docs/decisions/ADR-007-raw-userid-consent.md`、パターン B、
+   * proposed・PO 承認前の暫定運用）により Phase 1 は `src/lib/line/messaging.ts` の
+   * `notifyOrganizer()`（画面内の要対応バッジ止まり）。Messaging API の push は Phase 2 で
+   * 同意設計とともに扱う。
    */
   | "organizer_notify"
   /** 運用者への警報（決済・台帳の整合が疑わしいとき）。`src/lib/outbox-transports.ts` の `internal_webhook`。 */
