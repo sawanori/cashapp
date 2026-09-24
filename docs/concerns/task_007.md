@@ -80,6 +80,14 @@
 
 ## 3. G5 が task_007 の完了でブロッキングになり、既存 5 タスクが review-log を持たない
 
+> **解消（2026-09-24、メインセッションで実測）**: task_004 / 005 / 006 / 011 / 012 / 013 の
+> `docs/review-log/<task_id>.json` を実経路（`scripts/review-drive.sh` → `scripts/merge-review.sh`。
+> Gemini は `gemini-2.5-pro` を CLI stats で観測、GPT は codex フック遮断で欠票）で作成した
+> （コミット e03a539・bd4ad72）。summary は 004 / 006 / 011 / 012 / 013 が pass、005 が reject
+> （F-BASH-01 high。対応案は `docs/proposals/task_005-round5.md`）。`npm run gate:check` の G5 は
+> 違反 0 件（task_007 が BLOCKED のため現在は warn 扱いだが、DONE に戻しても対象全件に記録がある）。
+> 欠票で敷き詰めず Gemini の実レビューを取った。台帳の severity は high → low に更新。
+
 - **指摘**: `scripts/gate-check.mjs` の G5 は「task_007 が DONE になるまで warn、以降は
   ブロッキング」と実装されている（§15-2 の設計どおり）。本タスクの完了により、
   `risk_level: high` かつ `adversarial_review: required` の完了済みタスク

@@ -42,6 +42,14 @@
 
 ## C-011-1 — CI の実走（PR で緑・required status check 登録）
 
+> **解消（2026-09-24、メインセッションで実測）**: GitHub リモート `sawanori/cashapp` 作成後、
+> `.github/workflows/gate-integration.yml` は main への push で実走し、integration ジョブは
+> success（run 35985828326、以降 e03a539 / d722cc4 / 16ec887 / 8ecf3be でも success）。main の
+> ブランチ保護 required status checks に `integration` が含まれることを
+> `gh api repos/sawanori/cashapp/branches/main/protection` で確認した。「実 PR での緑」は PR 運用に
+> 切り替えた時点で改めて確認する（enforce_admins=false のため現在は管理者の直 push）。
+> 台帳の severity は high → low に更新。
+
 - **指摘**: done_definition 第 5 項「gate.yml に integration ジョブが追加され PR で緑」が未達。
 - **深刻度**: medium
 - **状態**: **deferred: GitHub リモート作成後に実施**
