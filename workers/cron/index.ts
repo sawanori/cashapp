@@ -24,9 +24,12 @@ interface CronRoute {
 }
 
 // wrangler.toml の [triggers] crons と 1:1 で対応させること。
-const CRON_ROUTES: readonly CronRoute[] = [
+// パス一覧は src/lib/cron-auth.ts の CRON_PATHS と一致していなければならない
+// （tests/unit/cron-auth.test.ts が三者一致を機械検査する）。
+export const CRON_ROUTES: readonly CronRoute[] = [
   { cron: "*/5 * * * *", path: "/api/cron/reconcile" },
   { cron: "* * * * *", path: "/api/cron/outbox" },
+  { cron: "*/10 * * * *", path: "/api/cron/apply-pending" },
   { cron: "0 19 * * *", path: "/api/cron/retention" }, // JST 04:00
   { cron: "10 19 * * *", path: "/api/cron/idempotency-cleanup" }, // JST 04:10
   { cron: "20 19 * * *", path: "/api/cron/audit-verify" }, // JST 04:20
@@ -49,6 +52,9 @@ async function callCronRoute(route: CronRoute, env: Env): Promise<void> {
       method: "POST",
       headers: { "X-Cron-Secret": secret },
     });
+    // ★ 1 発火につき 1 行。`wrangler dev --test-scheduled` での疎通確認（task_020 の
+    //   done_definition）はこの行を数える。シークレットは出さない。
+    console.log(`workers/cron: fetched ${route.path} cron="${route.cron}" status=${res.status}`);
     if (!res.ok) {
       console.error(`workers/cron: ${route.path} responded ${res.status}`);
     }

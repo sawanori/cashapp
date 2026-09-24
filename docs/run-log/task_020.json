@@ -1,0 +1,99 @@
+[
+  {
+    "type": "manual",
+    "observation": "wrangler dev --test-scheduled（workers/cron, port 8788, --var APP_BASE_URL=http://127.0.0.1:3010 / CRON_SECRETS=ローカル専用値）に /cdn-cgi/local/scheduled?cron=<6パターン> を1回ずつ投げた結果、cron Worker のログに 'workers/cron: fetched <path> cron=\"<pattern>\" status=404' が 6 パス各1行だけ出力された（reconcile=*/5, outbox=*, apply-pending=*/10, retention=0 19, idempotency-cleanup=10 19, audit-verify=20 19）。本体は next dev (port 3010, APP_ENV=development) で 6 パスとも 404 を返し、非 production の環境ガードが破れていないことを確認。curl での直接叩き（X-Cron-Secret 付き）も 6 パスとも 404。",
+    "commit": "9d5b11c310faf978a9884282b8cba13da74767c8",
+    "ran_at": "2026-09-24T18:39:00Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "9d5b11c310faf978a9884282b8cba13da74767c8",
+    "ran_at": "2026-09-24T18:39:03Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 1,
+    "stdout_tail": " ❯ tests/integration/reconcile.test.ts:254:27\n    252|           forcePaidRescan: false,\n    253|         });\n    254|         expect(first.ran).toBe(true);\n       |                           ^\n    255|         expect(first.runId).not.toBeNull();\n    256|\n ❯ tests/integration/setup.ts:107:27\n ❯ scope node_modules/postgres/src/index.js:260:18\n ❯ Function.begin node_modules/postgres/src/index.js:243:14\n ❯ Module.withRollback tests/integration/setup.ts:106:5\n ❯ tests/integration/reconcile.test.ts:241:7\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯\n\n FAIL  tests/integration/reconcile.test.ts > 多重起動防止（check_042 / W11 / R-OPS-08） > ロックを持ったまま接続を強制切断しても pg_locks に残らない（xact スコープ）\nAssertionError: expected 1 to be +0 // Object.is equality\n\n- Expected\n+ Received\n\n- 0\n+ 1\n\n ❯ tests/integration/reconcile.test.ts:309:19\n    307|       await new Promise((resolve) => setTimeout(resolve, 50));\n    308|     }\n    309|     expect(after).toBe(0);\n       |                   ^\n    310|   });\n    311| });\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯\n\n\n Test Files  1 failed | 20 passed (21)\n      Tests  6 failed | 245 passed (251)\n   Start at  18:39:59\n   Duration  20.06s (tests 83%, import 11%, setup 3%, transform 2%)",
+    "commit": "9d5b11c310faf978a9884282b8cba13da74767c8",
+    "ran_at": "2026-09-24T18:39:59Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:integration\n> TZ=UTC vitest run tests/integration --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  21 passed (21)\n      Tests  251 passed (251)\n   Start at  18:42:23\n   Duration  15.81s (tests 77%, import 15%, setup 5%, transform 3%)",
+    "commit": "5228946f6e38d95270852d126ac6f1ce3431c73c",
+    "ran_at": "2026-09-24T18:42:23Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run audit:verify",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 audit:verify\n> node scripts/audit-verify.mjs\n\n{\"gate\":\"audit:verify\",\"ok\":true,\"rowsChecked\":0,\"brokenAtId\":null,\"reason\":null,\"truncated\":false}",
+    "commit": "5228946f6e38d95270852d126ac6f1ce3431c73c",
+    "ran_at": "2026-09-24T18:42:47Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 120 file(s) read)\nok    L2 (forbid, 120 file(s) read)\nok    L3 (forbid, 120 file(s) read)\nok    L8 (forbid, 120 file(s) read)\nok    L12 (forbid, 120 file(s) read)\nok    P1 (forbid, 119 file(s) read)\nok    P2 (forbid, 1 file(s) read)\nok    P9 (forbid, 13 file(s) read)\nok    W3 (forbid, 125 file(s) read)\nok    W4 (forbid, 5 file(s) read)\nok    W9 (forbid, 1 file(s) read)\nW11 src/lib/reconcile.ts:1 | required pattern missing (pg_try_advisory(_xact)?_lock)\nok    N2 (forbid, 117 file(s) read)\nok    N5 (forbid, 120 file(s) read)\nok    N7 (forbid, 120 file(s) read)\nok    N9 (forbid, 120 file(s) read)\nok    N11 (forbid, 120 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 31 file(s) read)\nok    I4 (forbid, 3 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 65 file(s) read)\nok    X-MONEY (forbid, 10 file(s) read)\nok    GC-XSS (forbid, 120 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 125 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\nok    GC-RANK-NEGATION (forbid, 125 file(s) read)\nok    GC-LIB-CLIENT-DIRECTIVE (forbid, 47 file(s) read)\n\ngate:constraints — scanned 29 grep entr(y|ies), 1 violation(s), 0 empty gate(s)",
+    "commit": "5228946f6e38d95270852d126ac6f1ce3431c73c",
+    "ran_at": "2026-09-24T18:42:47Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:integration\n> TZ=UTC vitest run tests/integration --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  21 passed (21)\n      Tests  251 passed (251)\n   Start at  18:44:29\n   Duration  14.92s (tests 80%, import 13%, setup 4%, transform 2%)",
+    "commit": "5228946f6e38d95270852d126ac6f1ce3431c73c",
+    "ran_at": "2026-09-24T18:44:29Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx vitest run tests/unit/cron-auth.test.ts",
+    "exit_code": 0,
+    "stdout_tail": "(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  1 passed (1)\n      Tests  10 passed (10)\n   Start at  03:44:50\n   Duration  541ms (transform 41%, setup 35%, tests 15%, import 7%, worker 1%)",
+    "commit": "5228946f6e38d95270852d126ac6f1ce3431c73c",
+    "ran_at": "2026-09-24T18:44:49Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 120 file(s) read)\nok    L2 (forbid, 120 file(s) read)\nok    L3 (forbid, 120 file(s) read)\nok    L8 (forbid, 120 file(s) read)\nok    L12 (forbid, 120 file(s) read)\nok    P1 (forbid, 119 file(s) read)\nok    P2 (forbid, 1 file(s) read)\nok    P9 (forbid, 13 file(s) read)\nok    W3 (forbid, 125 file(s) read)\nok    W4 (forbid, 5 file(s) read)\nok    W9 (forbid, 1 file(s) read)\nok    W11 (require, 1 file(s) read)\nok    N2 (forbid, 117 file(s) read)\nok    N5 (forbid, 120 file(s) read)\nok    N7 (forbid, 120 file(s) read)\nok    N9 (forbid, 120 file(s) read)\nok    N11 (forbid, 120 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 31 file(s) read)\nok    I4 (forbid, 3 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 65 file(s) read)\nok    X-MONEY (forbid, 10 file(s) read)\nok    GC-XSS (forbid, 120 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 125 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\nok    GC-RANK-NEGATION (forbid, 125 file(s) read)\nok    GC-LIB-CLIENT-DIRECTIVE (forbid, 47 file(s) read)\n\ngate:constraints — scanned 29 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "5228946f6e38d95270852d126ac6f1ce3431c73c",
+    "ran_at": "2026-09-24T18:44:51Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run audit:verify",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 audit:verify\n> node scripts/audit-verify.mjs\n\n{\"gate\":\"audit:verify\",\"ok\":true,\"rowsChecked\":0,\"brokenAtId\":null,\"reason\":null,\"truncated\":false}",
+    "commit": "5228946f6e38d95270852d126ac6f1ce3431c73c",
+    "ran_at": "2026-09-24T18:45:04Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "5228946f6e38d95270852d126ac6f1ce3431c73c",
+    "ran_at": "2026-09-24T18:45:04Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  }
+]

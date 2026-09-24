@@ -715,3 +715,20 @@
   （`tests/unit/gate-check.test.ts` の既存 2 件のみ、task_006 所有で task_021 と無関係）、
   `gate:constraints` も exit 1（`src/lib/reconcile.ts` W11 の 1 件のみ、task_020 所有かつ
   task_020 は未着手）で、いずれも前回セッションから変化なし。G5 は規約により再レビューしない。
+- task_020: DONE_WITH_CONCERNS — cron 6 本を実装。`src/lib/reconcile.ts`（状態走査のみ・時刻カーソル無し /
+  `pg_try_advisory_xact_lock` をこのファイルで直接発行 / バッチ 100・1 件 3 秒 timeout・並列 5 /
+  期限切れ猶予 4 日と最終照会 / paid 30 日の日次再照会と `paid_rescanned`・`post_paid_changes`）、
+  `src/lib/retention.ts`（終了 +90 日の期日を cron 自身が埋める＝ P-03 の起点問題 / `display_label` は NULL 化、
+  `organizer_label` は NOT NULL のため固定文字列へ置換 / `raw_body` 14 日 / 冪等キーと `used_id_token` の
+  期限切れ削除）、`src/lib/cron-auth.ts`（非 production 404 → シークレット不一致 401・定数時間比較・
+  許容リスト方式）、`/api/cron/{reconcile,outbox,apply-pending,retention,idempotency-cleanup,audit-verify}`、
+  `workers/cron` に apply-pending（`*/10 * * * *`）を追加し fetch ログを 1 発火 1 行にした。
+  **verify_commands 4 本すべて `scripts/record-run.sh task_020` 経由で実行し全て exit 0**
+  （`typecheck` / `test:integration` **21 ファイル 251/251 pass** / `audit:verify` ok /
+  `gate:constraints` **0 violation**＝ task_018 が記録した W11 の 1 件はこのタスクで解消）。
+  `tests/unit/cron-auth.test.ts` 10/10 pass（三者一致＋認可）。`wrangler dev --test-scheduled` の
+  手動確認: 6 パターンを 1 回ずつ発火し、cron Worker のログに 6 パス各 1 行の fetch と本体の 404
+  （APP_ENV=development の環境ガード）を観測（run-log に manual 記録）。並列テストの偽陽性対策として
+  `ReconcileDeps.lockKey`（テスト隔離専用）を足した。残懸念 10 件は `docs/concerns/task_020.md`
+  （medium 5・low 5）。最大のものは check_043 の期待値「organizer_label が NULL」が NOT NULL 制約で
+  実現不可能な点（固定文字列置換で実装し、受入基準は書き換えていない）。

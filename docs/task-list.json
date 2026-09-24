@@ -2290,8 +2290,19 @@
       "adversarial_review": "required",
       "evidence_label": "[設計]",
       "optional": false,
-      "completion_status": null,
-      "concerns": []
+      "completion_status": "DONE_WITH_CONCERNS",
+      "concerns": [
+        "[severity: medium] check_043 の期待値『event.organizer_label が NULL』は NOT NULL 制約（0001_init.sql:150）のため物理的に不可能 / 対応案: 固定文字列『(保持期間経過)』への置換で実装済み。列を NULL 可にする migration（task_011）か受入基準の是正かを PO が決める",
+        "[severity: medium] 保持期限の起点 closed_at がスキーマに無く COALESCE(collect_by_at, event_at, updated_at)+90日 を代理に使う（P-03） / 対応案: closed_at を足す migration（task_011）と status 遷移時に書く経路（task_014）",
+        "[severity: medium] /api/cron/audit-verify は先頭から最大 100,000 行の全連鎖検証で『直近 7 日』の窓検証ではない / 対応案: 窓の入口に prev_hash を与える関数を src/lib/audit.ts に足す（task_018 所有）。超過時は 500 で失敗させ未検証を緑にしない",
+        "[severity: medium] 監査連鎖の不一致で PAYMENTS_ENABLED を自動 false にできない（feature_flag.updated_by の CHECK が自動化を拒否。P-10） / 対応案: Phase 1 は 500 とログで検知し停止は人手。自動化の可否を PO が決める",
+        "[severity: medium] P-08（監査ロックと照合バッチの同時実行）の p95 実測が未実施 / 対応案: 外部照会を並列 5 で先に済ませ DB 書き込みはロック保持中に外部 HTTP を呼ばない実装にした。計測は task_022 / task_035",
+        "[severity: low] outbox の Phase 1 配達はログのみ（幹事 push は ADR-007 未決） / 対応案: task_023 で実配達を足す。要対応は O-9 が DB を直接読む",
+        "[severity: low] apply-pending は payment_event に無い ledger_dedupe_key を既定規則で復元する / 対応案: 独自宣言を持つアダプタ追加時（task_026/030）に列追加を検討",
+        "[severity: low] deferred: Hyperdrive 経路での実測（A21 / P-05 / P-09）は task_035 完了後",
+        "[severity: low] deferred: 本番での 200 疎通は task_025（ローカルは wrangler dev --test-scheduled で 6 パス各 1 回の fetch と 404 を確認済み）",
+        "[severity: low] ReconcileDeps.lockKey はテスト隔離専用の差し替え口。本番経路は既定 RECONCILE_LOCK_KEY を使う"
+      ]
     },
     {
       "task_id": "task_021",
@@ -2431,8 +2442,7 @@
         "[severity: low] (web)/layout.tsxへの法務リンク差し込みはfiles_to_modify対象外のため未実施（法務情報はsettings/legal/page.tsxに集約）/ 対応案: files_to_modifyにlayout.tsxを追加する後続タスク",
         "[severity: low] POST /api/invoices/:id/refundの自動アダプタ経路はPhase1にmanual_confirm(capabilities.refund='none')しか無く統合テストで未到達 / 対応案: Phase2の自動アダプタ実装タスクで検証",
         "[severity: low] GET /api/me/export.zipは依存追加なしの手書きZIP（無圧縮STORE・export.json単一エントリ）/ 対応案: 必要になればzipライブラリ追加で拡張",
-        "[severity: low] npm run test:unitでtests/unit/gate-check.test.tsの2件が既存失敗（task_018のtest:contract追加とtask_006側フィクスチャの食い違い、task_021のファイルとは無関係）/ 対応案: task_006所有側でフィクスチャの参照スクリプト名を差し替え",
-        "[severity: low] npm run gate:constraintsがsrc/lib/reconcile.ts（W11 advisory lock欠落）1件でexit 1。所有はtask_020でcompletion_statusがnull（未着手）のためtask_021では対応不可 / 対応案: task_020側での実装完了を待つ"
+        "[severity: low→解消済み] npm run test:unitのtests/unit/gate-check.test.ts失敗（task_006所有）とnpm run gate:constraintsのsrc/lib/reconcile.ts W11（task_020所有）は、本ラウンド中に該当タスクの並行コミットで解消済み（1214/1214 pass・29 grep entry 0 violation を本ラウンドの再実行で確認）。対応不要"
       ]
     },
     {

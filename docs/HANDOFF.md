@@ -2414,6 +2414,28 @@ GPT-6 Astra 7 件のうち重複を除く 7 件を**全件修正**した（詳�
 - fixture 5 本の `captured_at` 欠落は、task_019 の `tests/conformance/fixture-provider.conformance.test.ts`
   が「欠落していること」を検査しているため**同時に直す必要がある**（片方だけ直すと赤になる）。
 
+## task_020（cron: 照合バッチ・outbox・保持期間・冪等キー掃除・監査検証）
+
+### 決まったこと
+
+- cron は 6 パス（reconcile / outbox / apply-pending / retention / idempotency-cleanup / audit-verify）。
+  `workers/cron/index.ts` の `CRON_ROUTES`・`[triggers] crons`・`src/app/api/cron/*/route.ts` の
+  三者一致を `tests/unit/cron-auth.test.ts` が機械検査する。認可は 404（非 production）→ 401 の順。
+- 再照合は状態走査のみ（時刻カーソル無し）。ロックは `pg_try_advisory_xact_lock` を
+  `src/lib/reconcile.ts` 内で直接発行する（gate:constraints の W11 はコメントを剥がして検査するため）。
+  外部照会は並列 5・1 件 3 秒 timeout で**先に**済ませ、台帳・監査の書き込みは 1 トランザクション上で順に行う（P-08）。
+- 保持期間の起点（P-03）は cron 自身が `COALESCE(collect_by_at, event_at, updated_at)+90 日` を 1 度だけ書く。
+  `organizer_label` は NOT NULL のため **NULL 化ではなく固定文字列へ置換**した（check_043 とはここだけ食い違う）。
+
+### 未解決
+
+- check_043 の期待値（organizer_label が NULL）と実装（固定文字列）の食い違いは PO 判断待ち。
+  列を NULL 可にする migration は task_011 所有、`closed_at` の追加も同様。
+- audit-verify は全連鎖検証（上限 10 万行、超過時 500）であり「直近 7 日」の窓検証ではない。
+  窓検証関数は `src/lib/audit.ts`（task_018 所有）に要る。監査不一致での `PAYMENTS_ENABLED` 自動 false は
+  `feature_flag.updated_by` の CHECK が自動化を拒むため実装できない（P-10 は Phase 1 で人手運用）。
+- Hyperdrive 経路の実測は task_035 後、本番 200 疎通は task_025（ローカルは 404 を確認済み）。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -2666,3 +2688,5 @@ GPT-6 Astra 7 件のうち重複を除く 7 件を**全件修正**した（詳�
 - 2026-09-24T18:41:57Z HEAD=5228946 決まったこと: task_016: ShareSheet が src/lib/liff/** を型 import していた違反を解消（結果型を src/lib/share-outcome.ts へ切り出し。build:web-only 違反 0 件） / 未解決: 未コミット 30 件: docs/concerns/task_021.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json docs/run-log/task_019.json 
 - 2026-09-24T18:42:21Z HEAD=5228946 決まったこと: task_016: ShareSheet が src/lib/liff/** を型 import していた違反を解消（結果型を src/lib/share-outcome.ts へ切り出し。build:web-only 違反 0 件） / 未解決: 未コミット 32 件: docs/HANDOFF.md docs/concerns/task_021.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json 
 - 2026-09-24T18:43:21Z HEAD=5228946 決まったこと: task_016: ShareSheet が src/lib/liff/** を型 import していた違反を解消（結果型を src/lib/share-outcome.ts へ切り出し。build:web-only 違反 0 件） / 未解決: 未コミット 34 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_021.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json 
+- 2026-09-24T18:46:21Z HEAD=6100a0e 決まったこと: task_018: 最終 HEAD d54a8a0 での verify_commands 再実行ログと台帳同期 / 未解決: 未コミット 34 件: docs/concerns/task_021.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json docs/run-log/task_019.json 
+- 2026-09-24T18:47:40Z HEAD=6100a0e 決まったこと: task_018: 最終 HEAD d54a8a0 での verify_commands 再実行ログと台帳同期 / 未解決: 未コミット 38 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_021.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json 
