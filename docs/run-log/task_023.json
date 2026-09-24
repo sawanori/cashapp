@@ -439,5 +439,41 @@
     "commit": "ce00969520c83080ea46e1ea0f528c20202bf6d2",
     "ran_at": "2026-09-24T19:34:41Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit\n\ntests/e2e/manual-only-complete.spec.ts(183,28): error TS2552: Cannot find name 'REPO_ROOT'. Did you mean 'Report'?",
+    "commit": "9f56ddb6332d06a33573a8f494a2be505fcb7a69",
+    "ran_at": "2026-09-24T19:36:13Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  51 passed (51)\n      Tests  1215 passed (1215)\n   Start at  19:36:17\n   Duration  61.11s (tests 93%, environment 2%, setup 2%, import 1%, transform 1%)",
+    "commit": "9f56ddb6332d06a33573a8f494a2be505fcb7a69",
+    "ran_at": "2026-09-24T19:36:16Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:integration\n> TZ=UTC vitest run tests/integration --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  22 passed (22)\n      Tests  262 passed (262)\n   Start at  19:37:20\n   Duration  13.42s (tests 80%, import 13%, setup 4%, transform 3%)",
+    "commit": "9f56ddb6332d06a33573a8f494a2be505fcb7a69",
+    "ran_at": "2026-09-24T19:37:20Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 123 file(s) read)\nok    L2 (forbid, 123 file(s) read)\nok    L3 (forbid, 123 file(s) read)\nok    L8 (forbid, 123 file(s) read)\nok    L12 (forbid, 123 file(s) read)\nok    P1 (forbid, 122 file(s) read)\nok    P2 (forbid, 1 file(s) read)\nok    P9 (forbid, 13 file(s) read)\nok    W3 (forbid, 128 file(s) read)\nok    W4 (forbid, 5 file(s) read)\nok    W9 (forbid, 1 file(s) read)\nok    W11 (require, 1 file(s) read)\nok    N2 (forbid, 120 file(s) read)\nok    N5 (forbid, 123 file(s) read)\nok    N7 (forbid, 123 file(s) read)\nok    N9 (forbid, 123 file(s) read)\nok    N11 (forbid, 123 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 31 file(s) read)\nok    I4 (forbid, 11 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 65 file(s) read)\nok    X-MONEY (forbid, 10 file(s) read)\nok    GC-XSS (forbid, 123 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 128 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\nok    GC-RANK-NEGATION (forbid, 128 file(s) read)\nok    GC-LIB-CLIENT-DIRECTIVE (forbid, 50 file(s) read)\n\ngate:constraints — scanned 29 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "9f56ddb6332d06a33573a8f494a2be505fcb7a69",
+    "ran_at": "2026-09-24T19:37:36Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]

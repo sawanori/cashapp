@@ -984,5 +984,68 @@
     "commit": "c8c799f6b52df4118ceb62657c992dd98ee720b2",
     "ran_at": "2026-09-24T14:16:37Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "171760bea4c9405bdf516207a1966422ef246df6",
+    "ran_at": "2026-09-24T14:19:57Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n ❯ tests/unit/ci/acceptance-rerun.test.ts (15 tests | 1 failed) 26225ms\n   ❯ gate.yml acceptance: verify_commands の再実行 (15)\n     × 標準入力を読むコマンドが先頭にあっても、後続 2 本がどちらも実行される 5710ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  tests/unit/ci/acceptance-rerun.test.ts > gate.yml acceptance: verify_commands の再実行 > 標準入力を読むコマンドが先頭にあっても、後続 2 本がどちらも実行される\nError: Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n ❯ tests/unit/ci/acceptance-rerun.test.ts:176:3\n    174|   });\n    175|\n    176|   it(\"標準入力を読むコマンドが先頭にあっても、後続 2 本がどちらも実行される\", () => {\n       |   ^\n    177|     const res = runLoop(\n    178|       {\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\n\n\n Test Files  1 failed | 36 passed (37)\n      Tests  1 failed | 985 passed (986)\n   Start at  14:20:12\n   Duration  131.12s (tests 87%, environment 5%, setup 4%, import 2%, transform 2%)",
+    "commit": "171760bea4c9405bdf516207a1966422ef246df6",
+    "ran_at": "2026-09-24T14:20:10Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:env",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:env\n> node scripts/gate-env-scope.mjs\n\nok      main: APP_ENV of 'default' is 'development'\nok      main: APP_ENV of 'staging' is 'staging'\nok      main: APP_ENV of 'production' is 'production'\nok      main: staging and production share no non-trivial value\nok      cron: staging and production share no non-trivial value\nok      LINE_ENV_PROFILE is documented in .env.example\nok      PEPPER is documented in .env.example\nok      SESSION_KEYS is documented in .env.example\nok      CRON_SECRETS is documented in .env.example\nok      .env.example runtime section carries no local-only escape hatch\npending docs/ops/env-baseline.json not found — expected-name comparison is deferred to task_035. 実走したのは (1) 禁止名がランタイム var に無い / (2) APP_ENV が environment 名と一致 / (3) staging と production が同じ値を共有していない、の 3 つだけである。本番の値を staging **だけ**に書いた片側混入は (3) では検出できない\npending EXPECTED_SUPABASE_PROJECT_REF.production is still a placeholder — one-sided injection of the production Supabase project ref is NOT checked (task_024)\npending EXPECTED_SUPABASE_PROJECT_REF.staging is still a placeholder — one-sided injection of the staging Supabase project ref is NOT checked (task_035)\npending 片側混入を検出できない本番資源が残っている: production LIFF ID / production Hyperdrive id。ソース固定の宣言が無く、docs/ops/env-baseline.json の production_only_values 待ち（task_035 / task_024）\npending .dev.vars.example に無い必須秘密値: LINE_ENV_PROFILE, PEPPER, SESSION_KEYS, CRON_SECRETS — wrangler dev / next dev の platform proxy は .env / .env.local を読まないため、雛形どおりコピーした開発者はルートが 500 / 503 になる（.dev.vars.example は task_003 所有。task_003 / task_035 で追記）\nnote    **静的検査のみで判定した**: wrangler CLI が未認証（CLOUDFLARE_API_TOKEN 未設定）のため `wrangler secret list` との突き合わせは行っていない。CI 接続は task_024。\n\ngate:env — 0 violation(s), 5 pending, 10 check(s) passed",
+    "commit": "45fc8d191bbe163061a16bf58d0e94c12ef427f0",
+    "ran_at": "2026-09-24T14:22:23Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 46 file(s) read)\nok    L2 (forbid, 46 file(s) read)\nok    L3 (forbid, 46 file(s) read)\nok    L8 (forbid, 46 file(s) read)\nok    L12 (forbid, 46 file(s) read)\nok    P1 (forbid, 46 file(s) read)\ndefer P2 (0 targets; waiting on task_018)\nok    P9 (forbid, 7 file(s) read)\nok    W3 (forbid, 53 file(s) read)\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 44 file(s) read)\nok    N5 (forbid, 46 file(s) read)\nok    N7 (forbid, 46 file(s) read)\nok    N9 (forbid, 46 file(s) read)\nok    N11 (forbid, 46 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 15 file(s) read)\nok    I4 (forbid, 2 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 18 file(s) read)\nok    X-MONEY (forbid, 1 file(s) read)\nok    GC-XSS (forbid, 46 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 51 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\n\ngate:constraints — scanned 23 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "45fc8d191bbe163061a16bf58d0e94c12ef427f0",
+    "ran_at": "2026-09-24T14:22:23Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  37 passed (37)\n      Tests  986 passed (986)\n   Start at  14:22:47\n   Duration  81.82s (tests 89%, environment 5%, setup 4%, import 1%, transform 1%)",
+    "commit": "45fc8d191bbe163061a16bf58d0e94c12ef427f0",
+    "ran_at": "2026-09-24T14:22:46Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:integration\n> TZ=UTC vitest run tests/integration --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  6 passed (6)\n      Tests  96 passed (96)\n   Start at  14:24:15\n   Duration  14.49s (tests 80%, import 10%, transform 5%, setup 5%)",
+    "commit": "d1a2eebce2070078f2d31fed800ad53b35e1322f",
+    "ran_at": "2026-09-24T14:24:15Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run lint",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 lint\n> eslint .",
+    "commit": "d1a2eebce2070078f2d31fed800ad53b35e1322f",
+    "ran_at": "2026-09-24T14:24:36Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]

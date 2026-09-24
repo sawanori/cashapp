@@ -363,5 +363,59 @@
     "commit": "5228946f6e38d95270852d126ac6f1ce3431c73c",
     "ran_at": "2026-09-24T18:42:39Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit\n\ntests/security/idempotency-cross-user.test.ts(65,32): error TS2339: Property 'begin' does not exist on type 'TransactionSql<{}>'.\ntests/security/idempotency-cross-user.test.ts(65,39): error TS7006: Parameter 'inner' implicitly has an 'any' type.\ntests/security/idempotency-cross-user.test.ts(71,32): error TS2339: Property 'begin' does not exist on type 'TransactionSql<{}>'.\ntests/security/idempotency-cross-user.test.ts(71,39): error TS7006: Parameter 'inner' implicitly has an 'any' type.\ntests/security/idempotency-cross-user.test.ts(97,16): error TS2339: Property 'begin' does not exist on type 'TransactionSql<{}>'.\ntests/security/idempotency-cross-user.test.ts(97,23): error TS7006: Parameter 'inner' implicitly has an 'any' type.\ntests/security/idempotency-cross-user.test.ts(99,72): error TS1308: 'await' expressions are only allowed within async functions and at the top levels of modules.\ntests/security/idempotency-cross-user.test.ts(105,12): error TS2339: Property 'begin' does not exist on type 'TransactionSql<{}>'.\ntests/security/idempotency-cross-user.test.ts(105,19): error TS7006: Parameter 'inner' implicitly has an 'any' type.\ntests/security/idempotency-cross-user.test.ts(107,74): error TS1308: 'await' expressions are only allowed within async functions and at the top levels of modules.\ntests/security/idempotency-cross-user.test.ts(111,46): error TS2322: Type '\"IDEMPOTENCY_CONFLICT\"' is not assignable to type 'ErrorCode | undefined'.\ntests/security/idempotency-cross-user.test.ts(123,30): error TS2339: Property 'begin' does not exist on type 'TransactionSql<{}>'.\ntests/security/idempotency-cross-user.test.ts(123,37): error TS7006: Parameter 'inner' implicitly has an 'any' type.\ntests/security/idempotency-cross-user.test.ts(133,31): error TS2339: Property 'begin' does not exist on type 'TransactionSql<{}>'.\ntests/security/idempotency-cross-user.test.ts(133,38): error TS7006: Parameter 'inner' implicitly has an 'any' type.",
+    "commit": "6100a0e30c2c27221aa4f9ccba0b0226875fab06",
+    "ran_at": "2026-09-24T18:47:52Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  51 passed (51)\n      Tests  1214 passed (1214)\n   Start at  18:47:59\n   Duration  103.31s (tests 93%, environment 3%, setup 2%, import 1%, transform 1%)",
+    "commit": "6100a0e30c2c27221aa4f9ccba0b0226875fab06",
+    "ran_at": "2026-09-24T18:47:59Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:contract",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:contract\n> TZ=UTC vitest run tests/contract --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  3 passed (3)\n      Tests  8 passed (8)\n   Start at  18:49:58\n   Duration  1.52s (import 43%, tests 26%, transform 20%, setup 11%)",
+    "commit": "14e2f5b3af0e39e68c4dd0168b553c4b5f1680e6",
+    "ran_at": "2026-09-24T18:49:58Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:integration\n> TZ=UTC vitest run tests/integration --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  21 passed (21)\n      Tests  251 passed (251)\n   Start at  18:50:07\n   Duration  28.02s (tests 77%, import 15%, setup 4%, transform 3%)",
+    "commit": "14e2f5b3af0e39e68c4dd0168b553c4b5f1680e6",
+    "ran_at": "2026-09-24T18:50:06Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run audit:verify",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 audit:verify\n> node scripts/audit-verify.mjs\n\n{\"gate\":\"audit:verify\",\"ok\":true,\"rowsChecked\":0,\"brokenAtId\":null,\"reason\":null,\"truncated\":false}",
+    "commit": "14e2f5b3af0e39e68c4dd0168b553c4b5f1680e6",
+    "ran_at": "2026-09-24T18:50:43Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 120 file(s) read)\nok    L2 (forbid, 120 file(s) read)\nok    L3 (forbid, 120 file(s) read)\nok    L8 (forbid, 120 file(s) read)\nok    L12 (forbid, 120 file(s) read)\nok    P1 (forbid, 119 file(s) read)\nok    P2 (forbid, 1 file(s) read)\nok    P9 (forbid, 13 file(s) read)\nok    W3 (forbid, 125 file(s) read)\nok    W4 (forbid, 5 file(s) read)\nok    W9 (forbid, 1 file(s) read)\nok    W11 (require, 1 file(s) read)\nok    N2 (forbid, 117 file(s) read)\nok    N5 (forbid, 120 file(s) read)\nok    N7 (forbid, 120 file(s) read)\nok    N9 (forbid, 120 file(s) read)\nok    N11 (forbid, 120 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 31 file(s) read)\nok    I4 (forbid, 3 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 65 file(s) read)\nok    X-MONEY (forbid, 10 file(s) read)\nok    GC-XSS (forbid, 120 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 125 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\nok    GC-RANK-NEGATION (forbid, 125 file(s) read)\nok    GC-LIB-CLIENT-DIRECTIVE (forbid, 47 file(s) read)\n\ngate:constraints — scanned 29 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "14e2f5b3af0e39e68c4dd0168b553c4b5f1680e6",
+    "ran_at": "2026-09-24T18:51:06Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]
