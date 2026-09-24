@@ -18,7 +18,8 @@
     "db:migrate": "supabase migration up --local",
     "db:reset:local": "supabase db reset --local",
     "test:integration": "TZ=UTC vitest run tests/integration --testTimeout=60000 --hookTimeout=60000",
-    "gates:sync": "node scripts/gates-sync.mjs"
+    "gates:sync": "node scripts/gates-sync.mjs",
+    "db:diff:drizzle": "D=node_modules/.cache/drizzle-diff/run-$(date +%s) && mkdir -p $D && DRIZZLE_DIFF_OUT=$D drizzle-kit pull && DRIZZLE_DIFF_OUT=$D drizzle-kit generate && echo \"drizzle diff written to $D\""
   },
   "private": true,
   "engines": {

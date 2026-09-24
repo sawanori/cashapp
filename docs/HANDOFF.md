@@ -119,3 +119,33 @@
 - task_014（リポジトリ関数）: `createDbClient(env)` / `tryAdvisoryXactLock(tx, key)` / `AUDIT_CHAIN_LOCK_KEY` を前提にしてよい。`invoice.settlement_rank` は生成列なのでアプリから書かない（書くと `428C9`）。
 - task_024 / task_035: 本番・staging の `app_rw` パスワード投入（`ALTER ROLE app_rw PASSWORD ...`）と Hyperdrive の実 ID 差し替え、A21 の実測。
 - `supabase start` は本タスクの作業中に起動したまま（`supabase stop` は禁止コマンドのため停止していない）。他タスクが `54322` のローカル Postgres をそのまま使える。
+
+## task_011（レビュー指摘の修正・2 周目）
+
+### 直したこと
+
+- **`supabase/migrations/0003_event_scope_fk.sql` を追加**した。`participant` に `UNIQUE (event_id, id)` を張り、`invoice` と `participant_claim` からそれぞれ複合 FK `(event_id, participant_id) → participant (event_id, id)`（ON DELETE は既存の単独 FK と同じく RESTRICT / CASCADE）を張った。
+  - 直した穴: 0001 では `event_id` と `participant_id` が**独立した 2 本の単独 FK** でしか縛られておらず、「participant が属する event」と「行が名乗る event_id」がずれていても DB が受理していた。そのため (a) `invoice_event_participant_uk UNIQUE (event_id, participant_id)` が迂回でき 1 人の participant に複数 invoice を作れ、(b) `participant_claim (event_id, line_user_ref) WHERE released_at IS NULL` の部分一意も迂回でき、同一イベント内で 1 人の LINE ユーザーが未解放 claim を複数持てた（R-PAY-03 / R-SEC-01）。**修正前に psql の BEGIN/ROLLBACK で両方とも再現済み**。修正後は同じ INSERT が `23503` で落ちる [実測]。
+  - **0001 を直接編集しなかった**理由: ローカル Postgres には既に 0001 / 0002 が適用済みで、0001 を書き換えると `supabase db diff`（shadow DB はマイグレーションから再生される）が差分ありになる。整合させるには `supabase db reset` が要るが、これは並行タスクのデータを壊すため禁止コマンド。新しい 0003 なら `supabase migration up` だけで済み、素の状態から reset しても同じスキーマに着地する。
+  - 統合テストに 3 ケース追加（別イベントの `event_id` を名乗る invoice は作れない / participant が属さない `event_id` での claim は拒否される / 誤った `event_id` を使っても同一イベント内の未解放 claim を 2 つ持てない）。`check_071` の「適用済みマイグレーション一覧」テストも `0003_event_scope_fk` を含むよう更新。統合テストは 32 → **35 ケース全 pass**。
+- **`drizzle.config.ts` の `schema` を実在パス `./src/lib/db/schema.ts` に直した**（以前は存在しない `./src/db/schema.ts` を指しており drizzle-kit 系コマンドが一切動かなかった）。`out` は `DRIZZLE_DIFF_OUT` で上書きできる使い捨ての `node_modules/.cache/drizzle-diff/**` にした。`npm run db:diff:drizzle` を追加（introspect → generate の**読み取り専用の差分検査**。`supabase/migrations/` には何も書かず DB にも適用しない。実行のたびに `run-<epoch>` の新しいディレクトリを使う — 前回のスナップショットが残っていると次の差分が空に見えてしまうため。`rm -rf` は `scripts/deny-dangerous-bash.sh` が塞いでいるので削除はしない）。
+
+### 未解決 / concerns（2 周目時点）
+
+- **[severity: medium] `check_071` の drizzle-kit 側は現方針では達成不能**であることが実測で判明した。差分は **190 文**（`DROP CONSTRAINT` 127・`DROP INDEX` 34・生成列 `settlement_rank` / `is_open` の drop+add 2 組・`idempotency_key` の PK 名 1）。`CREATE TABLE` / `DROP TABLE` は 0 で、**実際のスキーマ乖離は 1 件も無い**。原因は `src/lib/db/schema.ts` が §7-2 の裁定どおり列だけを宣言し、9 unique・92 check・34 index・31 FK を書かないこと。差分を本当に 0 にするにはそれらを schema.ts に写す必要があり、§7-2 が避けようとした DDL の二重化そのものになる。PO の裁定が要るので **task_038 として起票**した。列単位の完全一致（248 列・`format_type`・NOT NULL）は既に統合テストが自動で守っている。
+- **[severity: medium] `done_definition` 第 5 項「gate.yml に integration ジョブが追加され PR で緑」は依然として未達**。本セッションでも `.github/workflows/` には `gate-integration.yml` しか無く、`docs/run-log/task_009.json` も存在しない（task_009 未着手）。`gate.yml` は task_009 の `files_to_create` なので本タスクでは作らない。CI 実走は `git push` が禁止コマンドのため未検証。**`completion_status` は DONE_WITH_CONCERNS のまま据え置く**。
+- **[severity: medium] `wrangler.toml` の `[[hyperdrive]] localConnectionString` がロール `postgres` のまま**で、`src/lib/db/client.ts` の `resolveDbConnection()` が `app_rw` 以外を `DbConfigError` で拒否するため、ローカルの `wrangler dev` / `npm run cf:dev` は Hyperdrive 経路で必ず失敗する。`wrangler.toml` は task_011 の `files_to_modify` 外なので編集せず、**task_035 の scope に修正項目として追記**した。静的な突合せのみで `wrangler dev` の実走確認はしていない。
+- **[severity: low] `ledger_entry` にも同種の穴が残っている**。`ledger_entry` は `invoice_id` と `event_id` を独立した単独 FK で持つため、invoice の実 `event_id` と異なる `event_id` を名乗る台帳行を作れる。今回のレビュー指摘には含まれていないため修正していない（スコープ規律）。直すなら `invoice` に `UNIQUE (event_id, id)` を足して `ledger_entry` から複合 FK を張る、という今回と同型の手当てになる。PO / 次のレビューの判断待ち。
+- **[severity: low] 本タスクの `files_to_modify` 外のファイルを 2 つ触った**。`drizzle.config.ts`（レビューの fix が明示的に指示）と `docs/task-list.json`（task_035 の scope に 1 行追記 ＋ task_038 を起票。同じくレビューの fix の指示）。`docs/acceptance-checks.json` は PO 専管と判断して触っていない（`check_071` の未達は本節と run-log に記録）。
+
+### 次のアクション（2 周目時点）
+
+- task_009: `.github/workflows/gate.yml` を作ったら required status checks に `gate-integration / integration` を加え、実 PR で緑になることを確認する。そこまで確認できて初めて task_011 を DONE にできる。
+- task_038（新規・PO 裁定）: `check_071` の drizzle-kit 差分検査を「差分 0」のまま行くか「表・列レベルのみ」に定義し直すかを決める。
+- task_035: `wrangler.toml` の `localConnectionString` を `app_rw` ロールに揃える（上記 concerns）。
+
+## ターンログ（Stop フック自動追記）
+
+各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
+
+- 2026-09-24T04:23:14Z HEAD=96503f1 決まったこと: task_011: 検証ログ（全 verify_commands exit 0 と未検証項目の手動記録） / 未解決: 未コミット 16 件: docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_011.json drizzle.config.ts package.json tests/integration/schema.test.ts .claude/ docs/gates/legal-clearance.json 

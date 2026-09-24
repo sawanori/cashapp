@@ -1060,7 +1060,8 @@
         "staging 用 Supabase プロジェクト（Tokyo・Pro・PITR）と Hyperdrive 構成を作成し、wrangler.toml の [[hyperdrive]] プレースホルダを staging の実 ID に置き換える（production は task_024）",
         "Hyperdrive の origin に direct connection と Supavisor のどちらを置くかを Cloudflare / Supabase の一次資料（取得日つきで docs/vendor-docs/cloudflare/hyperdrive.md）で決め ADR-012 に記録",
         "tests/integration の schema.test.ts を Hyperdrive 経由（wrangler dev --remote または staging デプロイ）で 1 回実行し、2 接続間の xact ロック排他・FOR UPDATE・生成列・トリガ例外を確認して A21 を [実測] に更新",
-        "docs/ops/env-baseline.json（環境別の期待シークレット名・バインディング名）を作る"
+        "docs/ops/env-baseline.json（環境別の期待シークレット名・バインディング名）を作る",
+        "wrangler.toml の [[hyperdrive]] localConnectionString をランタイムロールに揃える。現状は postgres://postgres:postgres@127.0.0.1:54322/postgres（ロール postgres）で、src/lib/db/client.ts の resolveDbConnection() が app_rw 以外を DbConfigError で拒否するため、ローカルの wrangler dev / npm run cf:dev は Hyperdrive 経路で必ず失敗する。postgres://app_rw:<ローカル専用パスワード>@127.0.0.1:54322/postgres に直し、wrangler dev 実走で確認する（task_011 のレビュー指摘。task_011 の files_to_modify 外のため未修正）"
       ],
       "non_scope": [
         "本番プロジェクト（task_024）",
@@ -1122,6 +1123,71 @@
       "completion_status": null,
       "concerns": [
         "Hyperdrive の料金枠・staging の Supabase Pro 費用は未確認（A12）"
+      ]
+    },
+    {
+      "task_id": "task_038",
+      "title": "check_071 の drizzle-kit 差分検査の裁定（差分 0 を求めるか、表・列レベルに定義し直すか）",
+      "phase": "1",
+      "goal": "check_071 の「drizzle-kit の差分 0」は現状の方針では達成不能であることが task_011 で実測された。PO が (a) 差分 0 を本当に求める (b) 検査対象を表・列レベルに定義し直す のどちらかを裁定し、acceptance-checks.json の check_071 をその裁定に合わせて書き直す。",
+      "scope": [
+        "実測事実（task_011、2026-09-24、drizzle-kit 0.31.11、npm run db:diff:drizzle）: 実 DB を introspect して src/lib/db/schema.ts との差分を取ると 190 文が出る。内訳は DROP CONSTRAINT 127（unique 9・check 92・FK 23 相当）・DROP INDEX 34・生成列 2 本の drop+add・idempotency_key の PK 名 1。CREATE TABLE / DROP TABLE は 0 で、実際のスキーマ乖離は 1 件も無い",
+        "原因: src/lib/db/schema.ts は implementation-plan.md §7-2 の裁定に従って**列だけ**を宣言している（制約・索引・FK を書かない）。drizzle-kit はそれらを「消すべきもの」として差分に出す",
+        "(a) を選ぶ場合: schema.ts に 9 unique・92 check・34 index・31 FK を宣言し、生成列の式テキストを Postgres の正規化形と一致させる。§7-2 が避けようとした DDL の二重化そのものになる点と、check 制約の式テキスト一致が壊れやすい点を了解したうえで行う",
+        "(b) を選ぶ場合: check_071 の rule を「supabase db diff の差分 0 ＋ drizzle-kit 差分に表・列レベルの文（CREATE TABLE / DROP TABLE / drop column / ALTER COLUMN）が無いこと」に書き直し、その判定を自動化する",
+        "どちらの場合も、列単位の完全一致は既に tests/integration/schema.test.ts の『Drizzle スキーマの全列が実 DB と一致する』が自動で守っている（248 列・format_type・NOT NULL）"
+      ],
+      "non_scope": [
+        "supabase/migrations/*.sql の変更（正本は動かさない）",
+        "drizzle-kit を使ったマイグレーション生成（§7-2 で不採用）"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §7-2",
+        "docs/HANDOFF.md task_011 の『未解決 / concerns』",
+        "docs/run-log/task_011.json"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "docs/acceptance-checks.json",
+        "src/lib/db/schema.ts",
+        "drizzle.config.ts"
+      ],
+      "dependencies": [
+        "task_011"
+      ],
+      "implementation_steps": [
+        "npm run db:diff:drizzle を実行して現状の差分を再確認する",
+        "PO が (a) / (b) を裁定する",
+        "裁定に合わせて check_071 と実装を更新し、判定を自動化する"
+      ],
+      "done_definition": [
+        "check_071 の rule と expected_result が、実際に満たせる形で acceptance-checks.json に書かれている",
+        "その判定が npm run で自動実行でき、exit 0 になる記録が run-log にある"
+      ],
+      "verify_commands": [
+        "npm run db:diff:drizzle",
+        "npm run test:integration"
+      ],
+      "manual_verification": [
+        "PO による (a) / (b) の裁定の記録"
+      ],
+      "risk_level": "low",
+      "owner_model": "human:noritaka",
+      "agent": null,
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-SEC-03"
+      ],
+      "acceptance_check_ids": [
+        "check_071"
+      ],
+      "gate_level": "phase1",
+      "adversarial_review": "optional",
+      "evidence_label": "[実測]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": [
+        "task_011 は check_071 のうち supabase db diff 側（差分 0）と列単位の完全一致のみを満たして DONE_WITH_CONCERNS になっている。drizzle-kit 側は本タスクの裁定待ち"
       ]
     },
     {

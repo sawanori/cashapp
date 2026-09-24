@@ -41,6 +41,25 @@ interface Attempt {
   readonly error?: unknown;
 }
 
+/**
+ * 同じ幹事・同じ provider_binding の下に 2 つ目のイベントを作る。
+ * 「別イベントの event_id を名乗る行」を作ろうとする迂回テストで使う。
+ */
+async function insertSecondEvent(
+  tx: postgres.TransactionSql,
+  f: { readonly userId: string; readonly bindingId: string },
+): Promise<string> {
+  const suffix = uniq();
+  const [row] = await tx<{ id: string }[]>`
+    INSERT INTO event (organizer_user_id, title, organizer_label, join_token_hash,
+                       minors_included, provider_binding_id)
+    VALUES (${f.userId}, ${`event2-${suffix}`}, 'organizer', ${Buffer.from(`join2-${suffix}`)},
+            false, ${f.bindingId})
+    RETURNING id
+  `;
+  return row!.id;
+}
+
 /** 文を実行し、成功したか例外になったかを返す。「0 行成功」を成功として扱う。 */
 async function attempt(run: () => Promise<unknown>): Promise<Attempt> {
   try {
@@ -386,6 +405,55 @@ describe("check_016: participant_claim の部分一意", () => {
       expect(reclaim).toHaveLength(1);
     });
   });
+
+  // 部分一意 (event_id, line_user_ref) は「行が名乗る event_id」が participant の
+  // 実際の event_id と一致していて初めて防御になる。0003_event_scope_fk.sql の
+  // 複合 FK がその一致を DB で担保していることを確かめる（R-SEC-01）。
+  it("participant が属さない event_id での claim は拒否される", async () => {
+    await withRollback(migrator, async (tx) => {
+      const f = await insertBaseFixture(tx, uniq());
+      const otherEventId = await insertSecondEvent(tx, f);
+
+      const error = await expectFailure(tx, (sp) => sp`
+        INSERT INTO participant_claim (event_id, participant_id, line_user_ref)
+        VALUES (${otherEventId}, ${f.participantId}, ${Buffer.from(`spoof-${uniq()}`)})
+      `);
+      expect(error).toBeDefined();
+      // 23503 = foreign_key_violation（participant_claim_event_participant_fk）
+      expect(asPgError(error).code).toBe("23503");
+    });
+  });
+
+  it("誤った event_id を使っても同一イベント内の未解放 claim を 2 つ持てない", async () => {
+    await withRollback(migrator, async (tx) => {
+      const f = await insertBaseFixture(tx, uniq());
+      const otherEventId = await insertSecondEvent(tx, f);
+      const [second] = await tx<{ id: string }[]>`
+        INSERT INTO participant (event_id, display_label)
+        VALUES (${f.eventId}, ${`p2-${uniq()}`})
+        RETURNING id
+      `;
+      const userRef = Buffer.from(`claimer-${uniq()}`);
+
+      await tx`
+        INSERT INTO participant_claim (event_id, participant_id, line_user_ref)
+        VALUES (${f.eventId}, ${f.participantId}, ${userRef})
+      `;
+      // event_id を別イベントにすり替えれば部分一意を避けられる、という迂回が塞がれている。
+      const error = await expectFailure(tx, (sp) => sp`
+        INSERT INTO participant_claim (event_id, participant_id, line_user_ref)
+        VALUES (${otherEventId}, ${second!.id}, ${userRef})
+      `);
+      expect(error).toBeDefined();
+      expect(asPgError(error).code).toBe("23503");
+
+      const rows = await tx<{ n: number }[]>`
+        SELECT count(*)::int AS n FROM participant_claim
+        WHERE line_user_ref = ${userRef} AND released_at IS NULL
+      `;
+      expect(rows[0]?.n).toBe(1);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -487,6 +555,29 @@ describe("check_070: DB 制約の追加分", () => {
     });
   });
 
+  // UNIQUE (event_id, participant_id) は「行が名乗る event_id」が participant の
+  // 実際の event_id と一致していて初めて「1 参加者 1 請求」を意味する。
+  // 0003_event_scope_fk.sql の複合 FK がその一致を担保する（R-PAY-03）。
+  it("別イベントの event_id を名乗る invoice は作れない", async () => {
+    await withRollback(migrator, async (tx) => {
+      const f = await insertBaseFixture(tx, uniq());
+      const otherEventId = await insertSecondEvent(tx, f);
+
+      const error = await expectFailure(tx, (sp) => sp`
+        INSERT INTO invoice (event_id, participant_id, amount_minor)
+        VALUES (${otherEventId}, ${f.participantId}, 3000)
+      `);
+      expect(error).toBeDefined();
+      // 23503 = foreign_key_violation（invoice_event_participant_fk）
+      expect(asPgError(error).code).toBe("23503");
+
+      const rows = await tx<{ n: number }[]>`
+        SELECT count(*)::int AS n FROM invoice WHERE participant_id = ${f.participantId}
+      `;
+      expect(rows[0]?.n).toBe(1);
+    });
+  });
+
   it("participant_id は ON DELETE RESTRICT（請求のある参加者を物理削除できない）", async () => {
     await withRollback(migrator, async (tx) => {
       const f = await insertBaseFixture(tx, uniq());
@@ -571,7 +662,11 @@ describe("check_071: マイグレーションの正本", () => {
     const rows = await migrator<{ version: string; name: string }[]>`
       SELECT version, name FROM supabase_migrations.schema_migrations ORDER BY version
     `;
-    expect(rows.map((r) => `${r.version}_${r.name}`)).toEqual(["0001_init", "0002_seed_gates"]);
+    expect(rows.map((r) => `${r.version}_${r.name}`)).toEqual([
+      "0001_init",
+      "0002_seed_gates",
+      "0003_event_scope_fk",
+    ]);
   });
 
   it("Drizzle スキーマの全列が実 DB と一致する（名前・型・NOT NULL）", async () => {
