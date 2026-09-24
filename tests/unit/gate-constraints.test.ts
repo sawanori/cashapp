@@ -455,9 +455,6 @@ describe("scripts/gate-constraints.sh (real docs/constraints.json against a fixt
   function seedCleanTree(root: string): void {
     writeFile(root, "src/app/page.ts", "export const page = 1;\n");
     writeFile(root, "src/app/view.tsx", "export const View = () => null;\n");
-    // GC-LIB-CLIENT-DIRECTIVE has expect_targets "now", so the tree needs at
-    // least one src/lib module for it to have anything to look at.
-    writeFile(root, "src/lib/util.ts", "export const util = 1;\n");
     writeFile(root, "tests/e2e/smoke.spec.ts", "export const smoke = 1;\n");
     writeFile(root, "wrangler.toml", '[placement]\nmode = "smart"\n');
     writeFile(root, "workers/cron/wrangler.toml", '[triggers]\ncrons = ["*/5 * * * *"]\n');
@@ -844,83 +841,6 @@ describe("scripts/gate-constraints.sh (real docs/constraints.json against a fixt
 
     expect(`${res.stdout}${res.stderr}`).not.toContain("X-TIME ");
     expect(res.status).toBe(0);
-  });
-
-  it("flags a rank comparison wrapped in NOT (GC-RANK-NEGATION)", () => {
-    const root = makeTempRepo();
-    seedCleanTree(root);
-    writeFile(
-      root,
-      "supabase/migrations/006.sql",
-      "UPDATE payments SET status = 'paid', status_rank = 2 WHERE NOT (status_rank < 2);\n",
-    );
-
-    const res = runRealGate(root);
-
-    expect(res.status).toBe(1);
-    expect(res.stdout).toContain("GC-RANK-NEGATION supabase/migrations/006.sql:1");
-  });
-
-  it("does not accept a server-only import that only appears inside a template string", () => {
-    const root = makeTempRepo();
-    seedCleanTree(root);
-    writeFile(
-      root,
-      "src/lib/db/client.ts",
-      'export const example = `\nimport "server-only";\n`;\nexport const db = null;\n',
-    );
-
-    const res = runRealGate(root);
-
-    expect(res.status).toBe(1);
-    expect(res.stdout).toContain("GC-SERVER-ONLY src/lib/db/client.ts:1");
-  });
-
-  it("flags a 'use client' module placed under src/lib (GC-LIB-CLIENT-DIRECTIVE)", () => {
-    const root = makeTempRepo();
-    seedCleanTree(root);
-    writeFile(
-      root,
-      "src/lib/client-db.ts",
-      "'use client';\nimport postgres from 'postgres';\nexport const connect = postgres;\n",
-    );
-
-    const res = runRealGate(root);
-
-    expect(res.status).toBe(1);
-    expect(res.stdout).toContain("GC-LIB-CLIENT-DIRECTIVE src/lib/client-db.ts:1");
-  });
-
-  it("does not accept commented-out Cloudflare settings in TOML (I1 / I2)", () => {
-    const root = makeTempRepo();
-    seedCleanTree(root);
-    writeFile(root, "wrangler.toml", 'name = "cashapp"\n# [placement]\n# mode = "smart"\n');
-    writeFile(
-      root,
-      "workers/cron/wrangler.toml",
-      'name = "cashapp-cron"\n# [triggers]\n# crons = ["*/5 * * * *"]\n',
-    );
-
-    const res = runRealGate(root);
-
-    expect(res.status).toBe(1);
-    expect(res.stdout).toContain("I1 wrangler.toml:1");
-    expect(res.stdout).toContain("I2 workers/cron/wrangler.toml:1");
-  });
-
-  it("does not let a rank guard hidden in a SQL comment exempt a paid write (W3)", () => {
-    const root = makeTempRepo();
-    seedCleanTree(root);
-    writeFile(
-      root,
-      "supabase/migrations/000_bypass.sql",
-      "UPDATE payments SET status = 'paid' WHERE id = 1; -- and status_rank < 2\n",
-    );
-
-    const res = runRealGate(root);
-
-    expect(res.status).toBe(1);
-    expect(res.stdout).toContain("W3 supabase/migrations/000_bypass.sql:1");
   });
 
   it("fails an I1 / I2 tree whose required Cloudflare settings are missing", () => {

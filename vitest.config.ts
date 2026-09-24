@@ -52,5 +52,12 @@ export default defineConfig({
     env: {
       TZ: "UTC",
     },
+    // 並列実装（複数エージェントが同時に vitest を起動）での偽陽性対策 [実測 2026-09-24]:
+    // 既定のワーカー数（= CPU 数）で 6〜12 プロセスが同時に走ると 10 コア機で load average が
+    // 22〜54 に達し、bash を spawn するテスト（gate-constraints 等）が 5 秒で打ち切られて
+    // 「Test timed out」が run-log に 62 回記録された。落ちるたびに検証→レビュー→修正の周回が
+    // 1 つ増える。ワーカーを 4 に固定し、タイムアウトを 20 秒にする（テストの内容は変えない）。
+    maxWorkers: 4,
+    testTimeout: 20000,
   },
 });

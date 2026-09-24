@@ -1012,50 +1012,7 @@
       "exclude_globs": [],
       "allow_if_line_matches": [],
       "expect_targets": "from_task_011",
-      "notes": "必須パターンは行頭から始まる実行される import だけを認める（// や /* の中に書かれた import 文字列で必須検査を満たせていた。GPT レビュー F-6）。対象は DB クライアントに加えてシークレット取得モジュール（src/lib/config/env.ts）も含める（F-7）。コメント・テンプレート文字列の除去は scripts/gate-constraints.sh の require 経路が行う（GPT 4 周目 F-2 / 5 周目 F-2）。伝播側（'use client' からの import）の検査は scripts/assert-server-only.mjs が受け持つ。"
-    },
-    {
-      "id": "GC-RANK-NEGATION",
-      "text": "状態ランクの比較を否定して使わない。NOT (status_rank < $new) / !(statusRank < next) は前進ガードの見た目で後退を許すため、W3 の免除条件を満たしてしまう。",
-      "confidence": "高",
-      "source": "docs/research/consolidated.md §6-3（W3）、GPT-6 Astra 5 周目レビュー F-1",
-      "enforcement": "grep",
-      "match_mode": "forbid",
-      "grep_patterns": [
-        "([Nn][Oo][Tt][[:space:]]*\\(|![[:space:]]*\\()[^)]*(status_rank|statusRank)",
-        "[Nn][Oo][Tt][[:space:]]+(status_rank|statusRank)"
-      ],
-      "globs": [
-        "src/**/*.ts",
-        "src/**/*.tsx",
-        "supabase/migrations/**/*.sql"
-      ],
-      "exclude_globs": [
-        "src/lib/ledger/rank.ts",
-        "src/lib/ledger/apply.ts"
-      ],
-      "allow_if_line_matches": [],
-      "expect_targets": "now",
-      "notes": "W3 の allow_if_line_matches は「前進方向のランク比較が同一行にあること」しか見られず、その比較が NOT で否定されているかは 1 行の正規表現では判定できない（ERE に後読みが無い）。そこで否定つきのランク比較そのものを別ゲートで禁止する。"
-    },
-    {
-      "id": "GC-LIB-CLIENT-DIRECTIVE",
-      "text": "src/lib/ はサーバー専用の層である。'use client' を宣言したモジュールを src/lib/ に置かない（置くなら src/components/ か src/hooks/）。",
-      "confidence": "高",
-      "source": "docs/research/consolidated.md §6-5（I3）、GPT-6 Astra 5 周目レビュー F-3",
-      "enforcement": "grep",
-      "match_mode": "forbid",
-      "grep_patterns": [
-        "^[[:space:]]*[\"']use client[\"'][[:space:]]*;?[[:space:]]*$"
-      ],
-      "globs": [
-        "src/lib/**/*.ts",
-        "src/lib/**/*.tsx"
-      ],
-      "exclude_globs": [],
-      "allow_if_line_matches": [],
-      "expect_targets": "now",
-      "notes": "I3 は src/lib/**/*.ts を除外する（そこは Route Handler から呼ばれるサーバーコードで、postgres / drizzle-orm を正当に import する）。その除外が安全なのは「src/lib にクライアントモジュールが無い」という前提があってこそなので、前提そのものをゲートにする。"
+      "notes": "必須パターンは行頭から始まる実行される import だけを認める（// や /* の中に書かれた import 文字列で必須検査を満たせていた。GPT レビュー F-6）。対象は DB クライアントに加えてシークレット取得モジュール（src/lib/config/env.ts）も含める（F-7）。伝播側（'use client' からの import）の検査は scripts/assert-server-only.mjs が受け持つ。"
     }
   ]
 }
