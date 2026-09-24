@@ -531,5 +531,145 @@
     "task_mismatches": 0,
     "effective_high": 0,
     "exit_code": 0
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_012",
+    "reviewer": "adversarial-reviewer-gemini",
+    "vendor": "gemini",
+    "reviewer_route": "verified",
+    "model_id_requested": "gemini-2.5-pro",
+    "model_id_actual": "gemini-2.5-pro",
+    "model_id_source": "cli_stats",
+    "cli_version": "0.38.1",
+    "backend": "gemini-cli",
+    "ran_at": "2026-09-24T14:08:43Z",
+    "commit": "97d9810e26fdb395953dece3f8632e9d607e6d57",
+    "verdict": "PASS",
+    "findings": [],
+    "raw_warnings": [],
+    "packet_bytes": 170804,
+    "validated_at": "2026-09-24T14:13:03Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/review-012-r4/gemini.json",
+    "merged_at": "2026-09-24T14:13:03Z",
+    "round": 4,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gemini-2.5-pro を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 0,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_012",
+    "reviewer": "adversarial-reviewer-gpt",
+    "vendor": "gpt",
+    "reviewer_route": "cli-fallback",
+    "model_id_requested": "gpt-6-astra",
+    "model_id_actual": "gpt-6-astra",
+    "model_id_source": "self_report",
+    "cli_version": "codex-cli 0.154.0",
+    "backend": "codex",
+    "ran_at": "2026-09-24T14:11:37Z",
+    "commit": "97d9810e26fdb395953dece3f8632e9d607e6d57",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "medium",
+        "title": "インラインテーブルで禁止ランタイム変数の検査を回避できる",
+        "detail": "readTomlAssignments はインラインテーブルを展開せず、値全体を文字列として保持する。[env.staging] 内の vars = { ... } は path='env.staging', key='vars' となり、禁止名を検査する inVars 判定を通らない。APP_ENV の未検出も pending にとどまるため、禁止変数があっても終了コード0になる。静的追跡による反例であり、実走は未実施。",
+        "file": "scripts/gate-env-scope.mjs",
+        "line": 188,
+        "repro": "同梱の quoted-tables/wrangler.toml を複製する。[env.staging.\"vars\"] とその直後の2代入を、[env.staging] 内の1行 vars = { APP_ENV = \"staging\", SUPABASE_SERVICE_ROLE_KEY = \"synthetic-service-role-value-00000000\" } に置き換える。production 側は重複する2個目の [env.production] と DATABASE_URL の代入を削除する。このファイルだけを置いた fixture に対して node scripts/gate-env-scope.mjs --root <fixture> --no-live を実行する。禁止名はインラインテーブル内に残るが検出されない。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-2",
+        "severity": "medium",
+        "title": "baseline に指定された必須シークレット名が検査されない",
+        "detail": "checkBaseline は文書化された expected.secrets を参照せず、vars と bindings だけを確認する。ライブ検査も main は固定の REQUIRED_SECRET_NAMES、cron は空配列を使うため、baseline が要求したシークレットの欠落を検出する経路がない。今回追加された cron の照会も、この欠落を成功として扱う。静的追跡による反例であり、実走は未実施。",
+        "file": "scripts/gate-env-scope.mjs",
+        "line": 681,
+        "repro": "静的検査が通る構成の docs/ops/env-baseline.json に {\"runtimes\":{\"cron\":{\"production\":{\"secrets\":[\"CRON_SECRETS\"]}}}} を設定する。ライブ照会で main の両環境は固定の必須4名を返し、cron の両環境は空の一覧 [] を返す状態にする。CLOUDFLARE_API_TOKEN を設定してゲートを実行すると、cron/production に指定した CRON_SECRETS が存在しなくても違反にならず、照会成功と終了コード0になる。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      }
+    ],
+    "diagnostics": {
+      "exit_code": 0,
+      "event_types": [
+        "thread.started",
+        "turn.started",
+        "item.completed",
+        "item.completed",
+        "turn.completed"
+      ],
+      "cli_errors": [
+        "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+      ],
+      "last_message_bytes": 1468,
+      "stderr_tail": "st(\"http/request failed: error sending request for url (https://api.githubcopilot.com/mcp/)\")))\n2026-09-24T14:09:09.440251Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T14:09:10.794130Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T14:09:15.126631Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer error=\\\"invalid_request\\\", error_description=\\\"No access token was provided in this request\\\", resource_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n"
+    },
+    "packet_bytes": 170804,
+    "validated_at": "2026-09-24T14:13:04Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/review-012-r4/gpt.json",
+    "merged_at": "2026-09-24T14:13:03Z",
+    "round": 4,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gpt-6-astra を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 0,
+        "medium": 2,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 2,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "type": "summary",
+    "task_id": "task_012",
+    "round": 4,
+    "merged_at": "2026-09-24T14:13:03Z",
+    "decision": "pass",
+    "envelopes": 2,
+    "votes": 2,
+    "vendors": [
+      "gemini",
+      "gpt"
+    ],
+    "author_vendor": "claude",
+    "missing_votes": 0,
+    "invalid_envelopes": 0,
+    "invalid_reviews": 0,
+    "self_reviews": 0,
+    "task_mismatches": 0,
+    "effective_high": 0,
+    "exit_code": 0
   }
 ]

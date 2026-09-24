@@ -975,5 +975,14 @@
     "commit": "7932d16a3e157a0d7ebeba433c7975339e871fa2",
     "ran_at": "2026-09-24T14:04:32Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:plan",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:plan\n> node scripts/validate-plan-json.mjs\n\n\ngate:plan — task 38 件 / check 133 件 / 制約 57 件を検査、0 件の構造違反",
+    "commit": "c8c799f6b52df4118ceb62657c992dd98ee720b2",
+    "ran_at": "2026-09-24T14:16:37Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]

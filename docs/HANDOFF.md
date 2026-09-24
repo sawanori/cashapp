@@ -1900,6 +1900,31 @@ GPT-6 Astra の敵対レビュー（high 1 / medium 3）。**4 件すべて HEAD
 - **[severity: low] TOML 読み取りは依然として最小実装**（複数行文字列・インラインテーブルは未対応）。
   → C-012-23
 
+## task_012（レビュー 5 周目 — 記録のみ。指摘は直さず残した）
+
+4 周目の修正（`c8c799f`）への G5。**Gemini 2.5 Pro = PASS（指摘 0）/ GPT-6 Astra = medium 2 件（high 0）**、
+**merge = pass**（実効 high 0 / 有効票 2 / 欠票 0）。3 周目に続き **2 周連続で pass**。
+
+### 決まったこと
+
+- **この 2 件は直さずに残す**。理由と恒久対処は docs/concerns/task_012.md C-012-25 / C-012-26 に書いた。
+  - (a) **インラインテーブル（`vars = { … }`）の中の禁止名を `gate:env` が見ない**。
+    2 周目から「未対応」と明示してきた穴（最小限の TOML 読み取り）の別の顔で、
+    引用符付きキー → Unicode エスケープ → 引用符付き表名 → インラインテーブル、と塞いできたが、
+    **手書きの読み取りを継ぎ足すかぎり次の形が必ず残る**。恒久対処は TOML パーサの導入で、
+    依存を増やす判断は `wrangler.toml` の正本を持つ task_035 / task_024 へ送る。
+    それまでの緩和は「素のキー・素の表名・1 行 1 代入で書く」運用規約
+    （実リポジトリの `wrangler.toml` / `workers/cron/wrangler.toml` は現にその形）。
+  - (b) **`docs/ops/env-baseline.json` の `secrets` を誰も検査していない**。baseline は task_035 の
+    `files_to_create` でまだ存在せず、ライブ検査も実走できていない。いま書くと
+    **入力も出力も検証できないコードをゲートに足す**ことになるので、task_035 が baseline を作るときに
+    検査も同時に足し、実際の `wrangler secret list` の出力で検証する。
+
+### 未解決
+
+- 上の (a) (b) がそのまま未解決。**深刻度はどちらも medium で、merge は 2 周連続 pass**。
+- `npm run test:integration` の赤 1 件は他タスク（task_014）の `tests/integration/events.test.ts`。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -2050,3 +2075,7 @@ GPT-6 Astra の敵対レビュー（high 1 / medium 3）。**4 件すべて HEAD
 - 2026-09-24T14:00:26Z HEAD=3323c11 決まったこと: task_008(8周目): 不達ベンダーの「PO 承認」を、承認ファイルの実在で判定する / 未解決: 未コミット 13 件: docs/constraints.json docs/review-log/task_004.json docs/review-log/task_012.json docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json scripts/gate-constraints.sh scripts/gate-env-scope.mjs 
 - 2026-09-24T14:01:26Z HEAD=15d9987 決まったこと: task_008(8周目): 最終 HEAD 3323c11 での verify_commands 再実行ログと、G13 不一致 2 件の出どころ / 未解決: 未コミット 15 件: docs/HANDOFF.md docs/concerns/task_012.md docs/constraints.json docs/review-log/task_004.json docs/review-log/task_012.json docs/run-log/task_012.json docs/run-log/task_014.json scripts/gate-constraints.sh 
 - 2026-09-24T14:04:30Z HEAD=7932d16 決まったこと: G5: task_013 の 4 巡目修正（2b44ea3）に対する最終レビューを追記（Gemini PASS / GPT high 1 で reject） / 未解決: 未コミット 18 件: docs/HANDOFF.md docs/concerns/task_012.md docs/constraints.json docs/review-log/task_004.json docs/review-log/task_012.json docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json 
+- 2026-09-24T14:06:31Z HEAD=7932d16 決まったこと: G5: task_013 の 4 巡目修正（2b44ea3）に対する最終レビューを追記（Gemini PASS / GPT high 1 で reject） / 未解決: 未コミット 24 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/concerns/task_012.md docs/constraints.json docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/review-log/task_012.json 
+- 2026-09-24T14:09:04Z HEAD=c8c799f 決まったこと: task_012(4周目): 3 周目レビューの medium 2 件（引用符付き表名・cron のライブ検査漏れ）を塞ぐ / 未解決: 未コミット 20 件: docs/HANDOFF.md docs/concerns/task_004.md docs/constraints.json docs/review-log/task_004.json docs/run-log/task_004.json docs/run-log/task_008.json docs/run-log/task_014.json docs/task-list.json 
+- 2026-09-24T14:15:53Z HEAD=c8c799f 決まったこと: task_012(4周目): 3 周目レビューの medium 2 件（引用符付き表名・cron のライブ検査漏れ）を塞ぐ / 未解決: 未コミット 26 件: docs/HANDOFF.md docs/concerns/task_004.md docs/concerns/task_012.md docs/constraints.json docs/review-log/task_004.json docs/review-log/task_012.json docs/run-log/task_004.json docs/run-log/task_008.json 
+- 2026-09-24T14:16:39Z HEAD=c8c799f 決まったこと: task_012(4周目): 3 周目レビューの medium 2 件（引用符付き表名・cron のライブ検査漏れ）を塞ぐ / 未解決: 未コミット 28 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/concerns/task_012.md docs/constraints.json docs/review-log/task_004.json docs/review-log/task_012.json docs/run-log/task_004.json 

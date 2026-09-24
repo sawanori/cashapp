@@ -604,3 +604,58 @@ Cloudflare アカウントも未作成。C-012-12）。したがって「cron �
 task_024）と同じ制約である。実走は Cloudflare アカウント作成後に task_024 で行う。
 
 **対応予定タスク**: task_024（ライブ検査の CI 接続と実走）
+
+---
+
+# 敵対レビュー 4 周目（GPT-6 Astra, 2026-09-24, review-view 97d9810）— **直さずに残した 2 件**
+
+3 周目の指摘を直したコミット（`c8c799f`）に対する 4 周目。
+Gemini 2.5 Pro は **PASS（指摘 0 件）**、GPT-6 Astra は **medium 2 件（high 0 件）**、
+merge は **pass**（実効 high 0 / 有効票 2 / 欠票 0）。
+3 周目に続いて 2 周連続で pass しており、**この 2 件は直さずに残す**判断をした。理由は各項に書く。
+
+---
+
+## C-012-25 [medium・未修正] インラインテーブルの中の禁止名を `gate:env` が見ない
+
+**指摘（4 周目 F-1）**: `readTomlAssignments` はインラインテーブルを展開せず、値全体を文字列として
+保持する。`[env.staging]` の中に `vars = { APP_ENV = "staging", SUPABASE_SERVICE_ROLE_KEY = "…" }` と
+書くと `path='env.staging'` / `key='vars'` になり、`vars` 表の中を見る検査 (1) を通らない。
+
+**扱い**: **直していない**（未再現・未修正）。これは C-012-19 / C-012-22 / C-012-23 で
+「未対応」として明示的に残してきた同じ穴（最小限の TOML 読み取りしか持っていないこと）の
+別の顔である。2 周・3 周と「引用符付きキー → Unicode エスケープ → 引用符付き表名 →
+インラインテーブル」と 1 つずつ塞いできたが、**手書きの読み取りを継ぎ足すかぎり次の形が必ず残る**。
+
+**恒久対処（推奨）**: TOML パーサを導入して `readTomlAssignments()` を置き換える。
+依存を 1 つ増やす判断が要るため PO / task_035（`wrangler.toml` の正本を持つタスク）で決める。
+それまでの緩和は「`wrangler.toml` は素のキー・素の表名・1 行 1 代入で書く」という運用規約であり、
+実リポジトリの `wrangler.toml` と `workers/cron/wrangler.toml` は現にその形である（検査 (1) は効いている）。
+
+**リスクの見積もり**: この穴を踏むには、**書き手が意図的に**普通は使わない TOML の書き方を選ぶ必要が
+ある。人の書き間違い（禁止名を素直に `[vars]` に置く）は現行の検査で止まる。
+一方、ゲートを回避しようとする書き手に対しては現状でも十分ではない（G13 の自己参照と同じ性質。
+docs/concerns/task_006.md の 2）。
+
+**対応予定タスク**: task_035 / task_024（`wrangler.toml` の正本を持つタスクで TOML パーサ導入を判断）
+
+---
+
+## C-012-26 [medium・未修正] `docs/ops/env-baseline.json` の `secrets` を誰も検査していない
+
+**指摘（4 周目 F-2）**: `checkBaseline()` は baseline の `vars` と `bindings` しか見ず、
+doc コメントに書いてある `secrets` を参照しない。ライブ検査も main は固定の
+`REQUIRED_SECRET_NAMES`、cron は空配列を使うため、**baseline が要求したシークレットの欠落を
+検出する経路がない**。
+
+**扱い**: **直していない**（未再現・未修正）。`docs/ops/env-baseline.json` は
+**task_035 の `files_to_create`** でまだ存在せず（C-012-11）、ライブ検査も実走できていない
+（C-012-12 / C-012-24）。いま `secrets` の検査を書いても、**入力も出力も検証できないコードを
+ゲートに足す**ことになる。
+
+**恒久対処**: task_035 が `docs/ops/env-baseline.json` を作るときに、`checkBaseline()` の
+`secrets` 対応（＝ライブ照会の名前一覧との突き合わせ）を同じ変更で足し、実際の baseline と
+実際の `wrangler secret list` の出力で検査すること。**それまでの間、`secrets` を書いても
+無視される**という事実をここに残す。
+
+**対応予定タスク**: task_035（baseline の作成と同時に検査を足す）/ task_024（ライブ検査の実走）
