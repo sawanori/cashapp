@@ -206,11 +206,11 @@ describe("G2 の 3 分岐", () => {
     write(
       root,
       "docs/task-list.json",
-      taskListWith([task({ task_id: "task_955", completion_status: null, verify_commands: ["npm run test:contract"] })]),
+      taskListWith([task({ task_id: "task_955", completion_status: null, verify_commands: ["npm run bench:models"] })]),
     );
     const { results } = report(["--root", root, "--base", repoRoot]);
     expect(gate(results, "G2").violations).toEqual([]);
-    expect(gate(results, "G2").warnings.join("\n")).toContain("`test:contract` は未定義");
+    expect(gate(results, "G2").warnings.join("\n")).toContain("`bench:models` は未定義");
   });
 
   it("着手済みタスクの未定義スクリプト参照は違反になる", () => {
@@ -219,11 +219,11 @@ describe("G2 の 3 分岐", () => {
       root,
       "docs/task-list.json",
       taskListWith([
-        task({ task_id: "task_956", completion_status: "in_progress", verify_commands: ["npm run test:contract"] }),
+        task({ task_id: "task_956", completion_status: "in_progress", verify_commands: ["npm run bench:models"] }),
       ]),
     );
     const { results } = report(["--root", root, "--base", repoRoot]);
-    expect(gate(results, "G2").violations.join("\n")).toContain("`test:contract` が package.json.scripts にありません");
+    expect(gate(results, "G2").violations.join("\n")).toContain("`bench:models` が package.json.scripts にありません");
   });
 
   it("§13 の表にも package.json にも無い名前は、未着手でも捏造として違反になる", () => {
