@@ -220,6 +220,32 @@
 - task_035: `wrangler.toml` の `localConnectionString` を `app_rw` に直し、`wrangler dev` で Hyperdrive 経路が通ることを実走確認する。
 - task_038（PO）: check_071 の (a) / (b) を裁定する。
 
+## task_005（レビュー修正・2 周目）
+
+### 決まったこと
+
+- **`npm` / `yarn` の `run` 解析はフラグを読み飛ばす**。`scripts/deny-dangerous-bash.sh` の `script_names()` は、サブコマンドの前（`npm --silent run X`）・後（`npm run --silent X`、`npm run --workspace=w X`）のどちらに来るフラグも許し、`-` 始まりのトークンを落として最初の実トークンをスクリプト名に取る。修正前は直後の 1 トークンを無条件で名前にしていたため、フラグを 1 つ挟むだけで別名解決も fail-closed も効かなかった。**実測**: 修正前は 6 形式すべて exit 0、修正後は 6 形式すべて exit 2。`.claude/settings.json` の PostToolUse 自身が `--silent` 付きの形を使っているので、この書き方はリポジトリの慣習でもあり、放置すると自然に踏む経路だった。
+- **`cp` / `mv` / `rsync` / `install` は節の全トークンを検査する**。最終トークンだけを宛先とみなす実装だったため、`cp src docs/gates/legal-clearance.json 2>/dev/null` のように末尾にトークンが 1 つ増えるだけで素通りしていた。`sed -i` と同じ方針に揃えた。副作用として保護パスからの**読み出し**（`cp docs/gates/x.json /tmp/`）も遮断される。上書きだけを見分ける手段が正規化後の文字列には無いため fail-closed 側に倒してある。読み出したいときは `cat` を使うこと。
+- **`scripts/assert-diff-exists.sh` の baseline はセッション単位で、毎回前進する**。フック入力の `session_id`（Claude Code の全フックが stdin JSON に載せる。update-config スキルの schema で確認）を使って `.locks/subagent-head-baseline-<session_id>` に保存し、評価後に必ず現在の HEAD を書き戻す。旧実装はファイルが無いときだけ baseline を書いていたので、HEAD が baseline を追い越した時点で `HEAD = BASE` が恒久的に偽になり検査が二度と発火しなくなっていた（本リポジトリは既にその状態だった。baseline=96503f1 に対し HEAD=9f5f55d）。`session_id` が無い入力では無印のファイルにフォールバックする。**実測**（使い捨てリポジトリ 8 ケース）: 差分なし → 警告、コミット直後 → 無言、その次にまた差分なし → 警告（旧実装ではここが永久に無言）、作業ツリーが汚い → 無言、別 session_id → 独立した baseline。全ケース exit 0（契約どおり遮断しない）。
+- **ハーネスの自己保全を Edit/Write 側にも入れた**。`scripts/deny-test-weakening.sh` が `scripts/deny-*` と `scripts/record-run.sh` への Edit/Write を exit 2 にする。Bash 側（リダイレクト・`tee`・`sed -i`・`cp`/`mv`）は元から塞がっていたが、Edit ツール 1 回でガードを無効化できる穴が残っていた。
+- **`.claude/**` は「追加は通す・ガードを外す編集は遮断する」**。`docs/task-list.json` の task_006 / task_018 / task_019 はいずれも `.claude/settings.json` を `files_to_modify` に持つ（Stop の `gate:check`、PostToolUse の `gate:plan`、`test:gate` の登録）ので、レビューが提案した「`.claude/` への Edit/Write を一律 exit 2」にすると後続 3 タスクが実行不能になる。代わりに `tests/**` の弱体化判定と同じ数え方を使い、編集前に現れるガードスクリプト名（`deny-dangerous-bash.sh` / `deny-test-weakening.sh` / `session-brief.mjs` / `gate-status.mjs` / `append-handoff.sh` / `assert-diff-exists.sh` / `record-run.sh`）の出現数が編集後に減っていたら遮断する。フックを足す編集は通る。
+- フックのユニットテストは 84 → 108 件。増分は deny-dangerous-bash 側 13 ケース（フラグ入り別名 7・`cp`/`mv`/`rsync` の末尾トークン 4・素通ししてはいけない対照 3 のうち新規分）と deny-test-weakening 側 10 ケース（ガード本体・`.claude/` の増減）。
+
+### 未解決 / concerns
+
+- **[severity: high] check_053（新規セッションで SessionStart の注入内容を目視確認した記録）は依然として未達**。サブエージェントからは新しい対話セッションを開けない。PO がこのリポジトリで新規セッションを開き、画面に出る注入（未通過ゲート・`cleared=false`・未回答照会・HANDOFF 末尾 40 行）を目視して `scripts/record-run.sh --manual task_005 "<観察>"` で記録すること。同じく check_063（2 ターン後に「ターンログ」節が 2 行増える）も PO 側の確認が残る。**この 2 件が埋まるまで task_005 を DONE にしない。**
+- **[severity: medium] `cp` / `mv` / `rsync` / `install` の全トークン検査は保護パスからの読み出しも巻き込む**。上記のとおり意図的な fail-closed。`docs/run-log/` や `docs/gates/` のファイルを他所へコピーしたいタスクは `cat` を使うこと。
+- **[severity: medium] `.claude/**` の判定は「ガード名の出現数」であって意味解析ではない**。フックのコマンドをコメント文字列として残しつつ実行されない場所へ移す、といった書き換えは数が減らないので通る。ハッシュ基準値との照合（task_006 の `scripts/gate-integrity.mjs`。`.claude/**` を対象に含む）が最終的な検出手段であり、この判定はその前段の安価な防護に過ぎない。
+- **[severity: medium] `docs/acceptance-checks.json` の evidence を書ける経路が無い問題は未解決のまま**（1 周目からの持ち越し）。Edit/Write は `deny-test-weakening.sh` が、Bash のリダイレクト等は `deny-dangerous-bash.sh` が遮断する。task_006 の `gate-check.mjs` が evidence を書く設計なら、`record-run.sh` と同じ「そのスクリプトだけが書ける」経路が要る。
+- **[severity: low] `npm run lint:changed` は `origin/main...HEAD` を使うがリモートが無いためファイル一覧が空になる**（1 周目からの持ち越し）。`package.json` は本タスクの担当範囲外。
+- **[severity: low] ガード本体を今後直すには順序の制約がある**。`scripts/deny-*` は自分自身への Edit/Write を拒否するため、変更するタスクは `docs/task-list.json` に scope として起票し、人間がフックを一時的に外すか `git` 経由で当てる必要がある。task_006 の `scripts/test-hook-enforcement.sh` の違反フィクスチャに「Edit でガード自身を書き換える」を入れて、塞がったことを実測で残すこと。
+
+### 次のアクション
+
+- PO: check_053 と check_063 を実施して `scripts/record-run.sh --manual task_005` で記録する。
+- task_006: `gate-check.mjs` を Stop に、`gate:plan` を PostToolUse に追加する（`.claude/settings.json` への**追加**は通る。既存のガード登録を消さないこと）。違反フィクスチャに「Edit でガード自身を書き換える」「`.claude/settings.json` からガード登録を外す」を入れる。
+- task_019: Stop に `test:gate` を追加する（同上）。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -232,3 +258,4 @@
 - 2026-09-24T04:36:43Z HEAD=9f5f55d 決まったこと: task_005: 検証ログ（settings.json の参照先照合）を追記 / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json 
 - 2026-09-24T04:38:42Z HEAD=9f5f55d 決まったこと: task_005: 検証ログ（settings.json の参照先照合）を追記 / 未解決: 未コミット 6 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json supabase/migrations/0004_ledger_event_scope_fk.sql 
 - 2026-09-24T04:44:45Z HEAD=9f5f55d 決まったこと: task_005: 検証ログ（settings.json の参照先照合）を追記 / 未解決: 未コミット 17 件: .github/workflows/gate-integration.yml docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json docs/task-list.json 
+- 2026-09-24T04:46:44Z HEAD=4ab9ed8 決まったこと: task_011: 修正後の verify_commands 4 本を HEAD 913a45b で再実行（全 exit 0） / 未解決: 未コミット 10 件: docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json scripts/assert-diff-exists.sh scripts/deny-dangerous-bash.sh scripts/deny-test-weakening.sh 

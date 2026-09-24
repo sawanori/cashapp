@@ -123,5 +123,91 @@
     "commit": "e87aa775e450d3dd06c2e86f2e29bf61cd07658a",
     "ran_at": "2026-09-24T04:29:45Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  7 passed (7)\n      Tests  121 passed (121)\n   Start at  04:31:33\n   Duration  4.55s (tests 88%, setup 7%, import 3%, transform 2%)",
+    "commit": "9f5f55dea788237eb948150386124df6e6dc02f5",
+    "ran_at": "2026-09-24T04:31:33Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 5 file(s))\nok    L2 (forbid, 5 file(s))\nok    L3 (forbid, 5 file(s))\nok    L8 (forbid, 5 file(s))\nok    L12 (forbid, 5 file(s))\nok    P1 (forbid, 5 file(s))\ndefer P2 (0 targets; waiting on task_018)\ndefer P9 (0 targets; waiting on task_017)\nok    W3 (forbid, 8 file(s))\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 5 file(s))\nok    N5 (forbid, 5 file(s))\nok    N7 (forbid, 5 file(s))\nok    N9 (forbid, 5 file(s))\nok    N11 (forbid, 5 file(s))\nok    I1 (require, 1 file(s))\nok    I2 (require, 1 file(s))\nok    I3 (forbid, 2 file(s))\nok    I4 (forbid, 2 file(s))\nok    X-TIME (forbid, 4 file(s))\nok    X-ID (forbid, 3 file(s))\ndefer X-MONEY (0 targets; waiting on task_017)\nok    GC-XSS (forbid, 5 file(s))\nok    GC-ENV-PUBLIC (forbid, 10 file(s))\nok    GC-SERVER-ONLY (require, 1 file(s))\n\ngate:constraints — scanned 21 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "9f5f55dea788237eb948150386124df6e6dc02f5",
+    "ran_at": "2026-09-24T04:31:40Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  7 passed (7)\n      Tests  145 passed (145)\n   Start at  04:44:21\n   Duration  6.17s (tests 92%, setup 4%, import 2%, transform 2%)",
+    "commit": "9f5f55dea788237eb948150386124df6e6dc02f5",
+    "ran_at": "2026-09-24T04:44:21Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 5 file(s))\nok    L2 (forbid, 5 file(s))\nok    L3 (forbid, 5 file(s))\nok    L8 (forbid, 5 file(s))\nok    L12 (forbid, 5 file(s))\nok    P1 (forbid, 5 file(s))\ndefer P2 (0 targets; waiting on task_018)\ndefer P9 (0 targets; waiting on task_017)\nok    W3 (forbid, 9 file(s))\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 5 file(s))\nok    N5 (forbid, 5 file(s))\nok    N7 (forbid, 5 file(s))\nok    N9 (forbid, 5 file(s))\nok    N11 (forbid, 5 file(s))\nok    I1 (require, 1 file(s))\nok    I2 (require, 1 file(s))\nok    I3 (forbid, 2 file(s))\nok    I4 (forbid, 2 file(s))\nok    X-TIME (forbid, 5 file(s))\nok    X-ID (forbid, 3 file(s))\ndefer X-MONEY (0 targets; waiting on task_017)\nok    GC-XSS (forbid, 5 file(s))\nok    GC-ENV-PUBLIC (forbid, 10 file(s))\nok    GC-SERVER-ONLY (require, 1 file(s))\n\ngate:constraints — scanned 21 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "9f5f55dea788237eb948150386124df6e6dc02f5",
+    "ran_at": "2026-09-24T04:44:32Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "9f5f55dea788237eb948150386124df6e6dc02f5",
+    "ran_at": "2026-09-24T04:44:35Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run lint",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 lint\n> eslint .",
+    "commit": "9f5f55dea788237eb948150386124df6e6dc02f5",
+    "ran_at": "2026-09-24T04:44:38Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "bash /private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/repro-assert.sh",
+    "exit_code": 0,
+    "stdout_tail": "1 clean, session S1, no baseline yet           WARN  exit=0\n2 clean, session S1, baseline present          WARN  exit=0\n3 after a commit (HEAD moved), S1              quiet exit=0\n4 clean again, S1  <- used to be dead          WARN  exit=0\n5 dirty tree, S1                               quiet exit=0\n6 S2 first run (own baseline)                  WARN  exit=0\n7 no session_id (fallback file)                WARN  exit=0\n8 no session_id again                          WARN  exit=0\n--- baseline files ---\nsubagent-head-baseline\nsubagent-head-baseline-S1\nsubagent-head-baseline-S2\n--- HEAD ---\nf12b9b510876e1f40a9c43d8949ca53c4aace84f\n--- contents ---\n.locks/subagent-head-baseline = f12b9b510876e1f40a9c43d8949ca53c4aace84f\n.locks/subagent-head-baseline-S1 = dc27cd056c9e77851236951d59165b4c509b1dd7\n.locks/subagent-head-baseline-S2 = f12b9b510876e1f40a9c43d8949ca53c4aace84f",
+    "commit": "9f5f55dea788237eb948150386124df6e6dc02f5",
+    "ran_at": "2026-09-24T04:45:20Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "[実測] PreToolUse(Bash) フックがこのセッションで実発火することを確認。禁止パッケージマネージャのバージョン確認コマンドが deny-dangerous-bash.sh により遮断され、ツールは実行されなかった（BLOCKED メッセージが返った）。",
+    "commit": "9f5f55dea788237eb948150386124df6e6dc02f5",
+    "ran_at": "2026-09-24T04:45:24Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "[実測] 修正の実環境確認。フラグを挟んだスクリプト別名呼び出し（サブコマンドの直後に --silent を置き risky 名のスクリプトを指す形）を実際のツール呼び出しとして発行したところ、deny-dangerous-bash.sh が fail-closed で遮断した。修正前は同じ形が exit 0 で素通りしていた（scratchpad の probe で exit 0 を実測済み）。",
+    "commit": "9f5f55dea788237eb948150386124df6e6dc02f5",
+    "ran_at": "2026-09-24T04:45:29Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:wording",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:wording\n> node scripts/wording-lint.mjs\n\nok    W-AUTO (5 file(s))\nok    W-DONATION (5 file(s))\nok    W-SUPPORT (5 file(s))\nok    W-RECEIPT (5 file(s))\ndefer W-MERCHANT-GUIDE (0 targets; waiting on task_025)\nok    W-FEE-FIXED (5 file(s))\n\ngate:wording — scanned 5 pattern group(s), 0 violation(s), 0 empty gate(s)",
+    "commit": "4ab9ed8d77cb29b15447ee63850b933c2b38698b",
+    "ran_at": "2026-09-24T04:46:49Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]

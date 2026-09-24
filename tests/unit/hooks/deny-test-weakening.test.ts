@@ -9,6 +9,7 @@
 // このファイル自身が同じフックに引っかかって書き換えられなくなるため。
 
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -136,6 +137,59 @@ describe("deny-test-weakening.sh — tests/** の弱体化", () => {
 
   it("新しいテストファイルの作成は通す", () => {
     expect(write("tests/unit/new-thing.test.ts", TWO_ASSERTIONS).status).toBe(0);
+  });
+});
+
+describe("deny-test-weakening.sh — ハーネス自身の保全", () => {
+  it("Write でガード本体を書き換えると exit 2", () => {
+    expect(write("scripts/deny-dangerous-bash.sh", "exit 0\n").status).toBe(2);
+  });
+
+  it("Edit でもう一方のガード本体を書き換えると exit 2", () => {
+    expect(edit("scripts/deny-test-weakening.sh", "exit 2", "exit 0").status).toBe(2);
+  });
+
+  it("Write で record-run.sh を書き換えると exit 2", () => {
+    expect(write("scripts/record-run.sh", "exit 0\n").status).toBe(2);
+  });
+
+  it("絶対パスでもガード本体は遮断する", () => {
+    expect(write(path.join(repoRoot, "scripts/deny-dangerous-bash.sh"), "exit 0\n").status).toBe(2);
+  });
+
+  it("ガード以外の scripts/ は通す", () => {
+    expect(write("scripts/session-brief.mjs", "process.exit(0);\n").status).toBe(0);
+  });
+
+  it("settings.json をそのまま書き直すのは通す", () => {
+    const current = readFileSync(path.join(repoRoot, ".claude/settings.json"), "utf8");
+    expect(write(".claude/settings.json", current).status).toBe(0);
+  });
+
+  it("settings.json からガードの参照を落とす Write は exit 2", () => {
+    const current = readFileSync(path.join(repoRoot, ".claude/settings.json"), "utf8");
+    const weakened = current.replace("deny-dangerous-bash.sh", "noop.sh");
+    expect(weakened).not.toBe(current);
+    expect(write(".claude/settings.json", weakened).status).toBe(2);
+  });
+
+  it("settings.json からガード登録を Edit で外すと exit 2", () => {
+    const before = '"command": "bash \\"$CLAUDE_PROJECT_DIR/scripts/deny-test-weakening.sh\\""';
+    const after = '"command": "true"';
+    expect(edit(".claude/settings.json", before, after).status).toBe(2);
+  });
+
+  it("settings.json にフックを追加する Edit は通す", () => {
+    const before = '"command": "bash \\"$CLAUDE_PROJECT_DIR/scripts/append-handoff.sh\\""';
+    const after = [
+      '"command": "bash \\"$CLAUDE_PROJECT_DIR/scripts/append-handoff.sh\\""',
+      '},{"type": "command", "command": "npm run --silent gate:check"',
+    ].join("\n");
+    expect(edit(".claude/settings.json", before, after).status).toBe(0);
+  });
+
+  it("ガード参照を含まない .claude/ のファイルは通す", () => {
+    expect(write(".claude/agents/release-auditor.md", "# release auditor\n").status).toBe(0);
   });
 });
 

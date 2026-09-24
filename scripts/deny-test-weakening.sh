@@ -11,7 +11,14 @@
 #   3. write docs/run-log/** directly — only scripts/record-run.sh may (R-TH-02);
 #   4. write the `evidence` field of docs/acceptance-checks.json directly (G9);
 #   5. rewrite docs/gates/** — gate definitions are the PO's, not the AI's
-#      (R-SEC-07, F13).
+#      (R-SEC-07, F13);
+#   6. rewrite the guards themselves — scripts/deny-* and scripts/record-run.sh
+#      (R-SEC-07). The Bash side has always blocked these; without the same
+#      rule here, one Edit disabled the whole harness;
+#   7. remove a hook registration from .claude/** — adding hooks stays allowed
+#      (task_006 / 018 / 019 each register more), but an edit that drops a
+#      reference to one of the registered guard scripts is a weakening, judged
+#      the same way as a tests/** edit that drops assertions.
 #
 # The Bash-side equivalents (`>` redirects, tee, sed -i, cp/mv, python open)
 # live in scripts/deny-dangerous-bash.sh.
@@ -97,6 +104,30 @@ fi
 
 if printf '%s' "$FILE" | grep -Eq '(^|/)docs/gates/'; then
   block "$FILE" "docs/gates/** は PO 専管のゲート定義の正本です（R-SEC-07 / F13）。AI は読むだけで書き換えられません"
+fi
+
+# The guards themselves. scripts/deny-dangerous-bash.sh already refuses every
+# Bash-side write to these paths; this is the Edit/Write half of the same rule.
+if printf '%s' "$FILE" | grep -Eq '(^|/)scripts/(deny-[^/]*|record-run\.sh)$'; then
+  block "$FILE" "ハーネスのガード本体（scripts/deny-* ・scripts/record-run.sh）は Edit/Write で書き換えられません（R-SEC-07 / R-TH-02）。変更が要るなら task_005 の scope として起票し、人間のレビューを通してください"
+fi
+
+# .claude/** — hooks may be added, never silently removed.
+if printf '%s' "$FILE" | grep -Eq '(^|/)\.claude/'; then
+  for guard in \
+    'deny-dangerous-bash\.sh' \
+    'deny-test-weakening\.sh' \
+    'session-brief\.mjs' \
+    'gate-status\.mjs' \
+    'append-handoff\.sh' \
+    'assert-diff-exists\.sh' \
+    'record-run\.sh'; do
+    old_refs="$(count_of "$TMP_OLD" "$guard")"
+    new_refs="$(count_of "$TMP_NEW" "$guard")"
+    if [ "$new_refs" -lt "$old_refs" ]; then
+      block "$FILE" "フック登録からガードスクリプトの参照が ${old_refs} 件から ${new_refs} 件に減っています（R-SEC-07 / R-TH-02）。.claude/** へのフック追加は通りますが、登録済みのガードを外すことはできません"
+    fi
+  done
 fi
 
 if printf '%s' "$FILE" | grep -Eq '(^|/)docs/acceptance-checks\.json$'; then

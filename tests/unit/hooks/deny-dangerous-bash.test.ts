@@ -79,6 +79,12 @@ const blockedWrites: string[] = [
   "cp /tmp/settings.json .claude/settings.json",
   "mv /tmp/gate.yml .github/workflows/gate.yml",
   `python3 -c "open('docs/run-log/task_005.json','w').write('[]')"`,
+  // 宛先の後ろにトークンが 1 つ付くだけで素通りしていた（最終トークンだけを
+  // 見ていたため）。cp/mv は節の全トークンを検査する。
+  "cp /tmp/a.json docs/gates/legal-clearance.json 2>/dev/null",
+  "cp /tmp/a.json docs/gates/legal-clearance.json --verbose",
+  "mv /tmp/gate.yml .github/workflows/gate.yml --force",
+  "rsync -a /tmp/logs/ docs/run-log/ --delete",
 ];
 
 const blockedAliases: string[] = [
@@ -95,10 +101,25 @@ const blockedAliases: string[] = [
   // 解決不能 + 名前が deploy|secret|publish|reset|push|prod に一致 -> fail-closed
   "npm run prod-push",
   "npm run publish:beta",
+  // npm のフラグを挟む形。.claude/settings.json の PostToolUse が
+  // `npm run --silent <script>` を使うため、この書き方はリポジトリの慣習で
+  // もある。フラグを読み飛ばして最初の非フラグトークンを名前として扱う。
+  "npm run --silent deploy:production",
+  "npm run -s deploy:production",
+  "npm --silent run deploy:production",
+  "npm run --workspace=w deploy:production",
+  "yarn run --silent deploy:production",
+  "yarn --silent deploy:production",
+  // フラグ付きでも解決不能 + risky 名なら fail-closed
+  "npm run --silent prod-push",
 ];
 
 const allowed: string[] = [
   "npm run test:unit",
+  // フラグ読み飛ばしが安全なスクリプトまで巻き込まないこと
+  "npm run --silent test:unit",
+  "npm --silent run test:unit",
+  "npm install --silent",
   "scripts/record-run.sh task_005 npm run test:unit",
   "scripts/with-lock.sh git git commit -m 'task_005: hooks'",
   "npm run safe:chain",

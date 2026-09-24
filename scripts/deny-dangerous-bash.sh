@@ -18,7 +18,8 @@
 #      human-only: docs/run-log/**, docs/gates/**, docs/acceptance-checks.json,
 #      tests/**, scripts/deny-*, scripts/record-run.sh, .claude/**,
 #      .github/workflows/**. Blocked mechanisms: `>` / `>>` redirects, `tee`,
-#      `sed -i`, the destination of `cp` / `mv`, and `python -c ... open(..,'w')`.
+#      `sed -i`, any operand of `cp` / `mv` / `rsync` / `install`, and
+#      `python -c ... open(..,'w')`.
 #      There is deliberately NO exception clause for scripts/record-run.sh:
 #      a record-run.sh invocation carries none of those mechanisms, so it is
 #      allowed by construction rather than by a carve-out an attacker could
@@ -168,7 +169,7 @@ protected() {
 
 write_rules_hit() {
   # $1 = one normalized subcommand. Echoes a description when it matches.
-  local sub="$1" target tok dest seen_tee
+  local sub="$1" target tok seen_tee
 
   for target in $(printf '%s' "$sub" | grep -oE '>>?[[:space:]]*[^[:space:]]+' | sed -E 's/^>>?[[:space:]]*//'); do
     if protected "$target"; then
@@ -201,13 +202,21 @@ write_rules_hit() {
     done
   fi
 
-  # `cp` / `mv` destination (the last token of the clause).
+  # `cp` / `mv` / `rsync` / `install`: every token of the clause is checked,
+  # not just the last one. A trailing `2>/dev/null` or `--verbose` used to
+  # become the "destination" and let the real destination through. Same policy
+  # as `sed -i` above: a protected path anywhere in such a clause blocks, even
+  # when it is the source — copying a gate file out is rare, overwriting it is
+  # what must never happen, and fail-closed is the cheaper error here.
   if printf '%s' "$sub" | grep -Eq '(^| )(cp|mv|rsync|install)( |$)'; then
-    dest=""
-    for tok in $sub; do dest="$tok"; done
-    if [ -n "$dest" ] && protected "$dest"; then
-      echo "cp/mv の宛先 $dest"; return 0
-    fi
+    for tok in $sub; do
+      case "$tok" in
+        cp|mv|rsync|install) continue ;;
+      esac
+      if protected "$tok"; then
+        echo "cp/mv の対象 $tok"; return 0
+      fi
+    done
   fi
 
   return 1
@@ -225,11 +234,20 @@ python_write_hit() {
 
 # -------------------------------------------------------------- script refs --
 script_names() {
+  # Flags may appear before `run` (npm --silent run X), after it
+  # (npm run --silent X / npm run --workspace=w X), or both. Every
+  # `-`-prefixed token is skipped so the first real token is the script name;
+  # without this, `npm run --silent deploy:production` resolved the flag
+  # instead of the script and neither the alias lookup nor the fail-closed
+  # name check ever saw `deploy:production`.
   local sub="$1"
-  printf '%s' "$sub" | grep -oE '(^| )(npm|yarn) +(run|run-script) +[^[:space:]]+' \
-    | sed -E 's/.*(run|run-script) +//'
-  printf '%s' "$sub" | grep -oE '(^| )yarn +[^-[:space:]][^[:space:]]*' \
+  printf '%s' "$sub" \
+    | grep -oE '(^| )(npm|yarn) +(-[^[:space:]]+ +)*(run|run-script) +(-[^[:space:]]+ +)*[^[:space:]]+' \
+    | sed -E 's/.*(run|run-script) +//' \
+    | sed -E 's/^(-[^[:space:]]+ +)*//'
+  printf '%s' "$sub" | grep -oE '(^| )yarn +(-[^[:space:]]+ +)*[^-[:space:]][^[:space:]]*' \
     | sed -E 's/.*yarn +//' \
+    | sed -E 's/^(-[^[:space:]]+ +)*//' \
     | grep -Ev '^(run|run-script|install|add|remove|why|info|init|link|unlink|cache|config|dlx|node|workspace|workspaces|up|set|version|pack|publish)$'
   printf '%s' "$sub" | grep -oE '(^| )npx +(-[^[:space:]]+ +)*[^[:space:]]+' \
     | sed -E 's/.*npx +//' \
