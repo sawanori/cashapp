@@ -1,0 +1,188 @@
+[
+  {
+    "schema_version": 1,
+    "task_id": "task_022",
+    "reviewer": "adversarial-reviewer-gemini",
+    "vendor": "gemini",
+    "reviewer_route": "verified",
+    "model_id_requested": "gemini-2.5-pro",
+    "model_id_actual": "gemini-2.5-pro",
+    "model_id_source": "cli_stats",
+    "cli_version": "0.38.1",
+    "backend": "gemini-cli",
+    "ran_at": "2026-09-24T19:22:56Z",
+    "commit": "d4b43a5906a749a449c0500bbfba1ec6f0de1ea1",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "medium",
+        "title": "E2E tests fail during cleanup due to incorrect teardown order, violating database foreign key constraints",
+        "detail": "The `cleanupE2eUsers` helper in `tests/e2e/helpers/session.ts` attempts to delete `app_user` records directly. However, if a user is an organizer for an event created during the test, this violates the `event_organizer_user_id_fkey` foreign key constraint on the `event` table. Attempting to delete the user before its dependent event records results in a PostgresError, causing test runs to fail during the teardown phase. This issue is visible in the run log for `manual-only-complete.spec.ts` but is not explicitly listed as a known flaw in the test harness itself in the task's concerns.",
+        "file": "tests/e2e/helpers/session.ts",
+        "line": 146,
+        "repro": "Execute the `manual-only-complete.spec.ts` E2E test. The provided `docs/run-log/task_022.json` shows the following error during teardown: `PostgresError: update or delete on table \\\"app_user\\\" violates foreign key constraint \\\"event_organizer_user_id_fkey\\\" on table \\\"event\\\"`.",
+        "citation": "PostgreSQL Documentation, Section 5.4.5. Foreign Keys: \"A foreign key constraint specifies that the values in a column (or a group of columns) must match the values appearing in some row of another table. [...] This maintains the referential integrity between two tables.\" Deleting a row that is still referenced by a foreign key is a violation of this integrity. Source: postgresql.org/docs/current/tutorial-fk.html, accessed 2026-09-25.",
+        "suggested_fix": "Modify the test teardown logic to delete dependent records before the records they reference. For example, delete events created by a test user before deleting the user itself. This could be done within the `cleanupE2eUsers` function or in an `afterEach`/`afterAll` block within the test files that create events.",
+        "effective_severity": "medium"
+      }
+    ],
+    "raw_warnings": [],
+    "packet_bytes": 265956,
+    "validated_at": "2026-09-24T19:26:42Z",
+    "classification": "vote",
+    "source_file": "/var/folders/h6/2q0crwpx3zx94d5zxclh_f5c0000gn/T//cashapp-review/task_022/gemini.json",
+    "merged_at": "2026-09-24T19:26:42Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gemini-2.5-pro を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 0,
+        "medium": 1,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 1,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_022",
+    "reviewer": "adversarial-reviewer-gpt",
+    "vendor": "gpt",
+    "reviewer_route": "cli-fallback",
+    "model_id_requested": "gpt-6-astra",
+    "model_id_actual": "gpt-6-astra",
+    "model_id_source": "self_report",
+    "cli_version": "codex-cli 0.154.0",
+    "backend": "codex",
+    "ran_at": "2026-09-24T19:26:23Z",
+    "commit": "d4b43a5906a749a449c0500bbfba1ec6f0de1ea1",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "high",
+        "title": "CSV検査のアサーションが矛盾しており、修正後も合格できない",
+        "detail": "field が malicious と完全一致することを要求した直後に、その先頭が数式開始文字ではないことを要求しています。全ケースの malicious は数式開始文字で始まるため、両条件は同時に成立しません。安全に加工された出力も、先行する startsWith(malicious) の行検索で失敗します。",
+        "file": "tests/security/xss-csp.test.ts",
+        "line": 77,
+        "repro": "npx vitest run tests/security/xss-csp.test.ts を実行する。「=1+1」が無加工なら77行目は通るが82行目で失敗する。先頭にアポストロフィを付けた安全な出力なら73行目の検索が一致せず74行目で失敗する。残る3入力も同じ矛盾を持つ。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-2",
+        "severity": "medium",
+        "title": "ファネル本体の故障をファネルE2Eが検出できない",
+        "detail": "テストは recordFunnelStage と computeWeeklyFunnel を呼ばず、独自のINSERTと集計で期待値を生成しています。その集計には本体の週境界条件もなく、本体が全段階をゼロ件として返してもテストは成功します。",
+        "file": "tests/e2e/manual-only-complete.spec.ts",
+        "line": 161,
+        "repro": "同梱の src/lib/metrics/funnel.ts の computeWeeklyFunnel を全段階ゼロ件を返す実装に置き換え、npx playwright test tests/e2e/manual-only-complete.spec.ts -g ファネル を実行する。テストは変更した関数を参照せず、独自に投入した各1件を集計するため、その故障を検出しない。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-3",
+        "severity": "medium",
+        "title": "ファネルテストが既存の週次メトリクスを人工データで上書きする",
+        "detail": "現在週の docs/metrics/weekly-*.json に、テスト専用イベントの集計結果を無条件で書き込みます。既存ファイルの実測値や他のメトリクスは保持されず、全段階1件のデータへ置き換わります。",
+        "file": "tests/e2e/manual-only-complete.spec.ts",
+        "line": 191,
+        "repro": "実行日のUTC週に対応する weekly-YYYY-MM-DD.json に、各段階7件の funnel と別のメトリクス項目を保存する。ファネルテストを実行すると、各段階は1件に置換され、別の項目は消える。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-4",
+        "severity": "medium",
+        "title": "preview失敗時に参加者フローのDBフィクスチャが残る",
+        "detail": "幹事・イベント・参加者・請求をコミットした後、previewの成功確認より後で初めて幹事IDを後始末対象へ登録しています。同梱ログにある503応答では登録行へ到達せず、afterAllのcleanupは空配列を受け取って終了します。",
+        "file": "tests/e2e/participant-flow.spec.ts",
+        "line": 88,
+        "repro": "同梱ログと同じく /api/e/preview が503を返す環境で participant-flow.spec.ts を実行する。78行目で失敗し、88行目は実行されない。テストが作成した app_user、event、participant、invoice の行が残る。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-5",
+        "severity": "medium",
+        "title": "イベントを作成したユーザーを後始末ヘルパで削除できない",
+        "detail": "cleanupE2eUsers は従属行を処理せず app_user だけをDELETEしています。同梱ログには同じDELETEが event_organizer_user_id_fkey により拒否された記録があり、現在のヘルパにもイベントを削除する処理はありません。",
+        "file": "tests/e2e/helpers/session.ts",
+        "line": 180,
+        "repro": "seedOrganizerSession('cleanup-probe') でユーザーを作成する。そのIDを organizer_user_id として、manual-only-complete.spec.ts のフィクスチャと同じ列構成で event をINSERTしてコミットする。cleanupE2eUsers([session.userId]) を呼ぶと、event_organizer_user_id_fkey の外部キー違反で失敗する。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      }
+    ],
+    "diagnostics": {
+      "exit_code": 0,
+      "event_types": [
+        "thread.started",
+        "turn.started",
+        "item.completed",
+        "item.completed",
+        "turn.completed"
+      ],
+      "cli_errors": [
+        "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+      ],
+      "last_message_bytes": 2324,
+      "stderr_tail": "r: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T19:22:57.826545Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T19:22:57.910199Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer error=\\\"invalid_request\\\", error_description=\\\"No access token was provided in this request\\\", resource_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n2026-09-24T19:22:57.972828Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n"
+    },
+    "packet_bytes": 265956,
+    "validated_at": "2026-09-24T19:26:42Z",
+    "classification": "vote",
+    "source_file": "/var/folders/h6/2q0crwpx3zx94d5zxclh_f5c0000gn/T//cashapp-review/task_022/gpt.json",
+    "merged_at": "2026-09-24T19:26:42Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gpt-6-astra を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 1,
+        "medium": 4,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 5,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "type": "summary",
+    "task_id": "task_022",
+    "round": 1,
+    "merged_at": "2026-09-24T19:26:42Z",
+    "decision": "reject",
+    "envelopes": 2,
+    "votes": 2,
+    "vendors": [
+      "gemini",
+      "gpt"
+    ],
+    "author_vendor": "claude",
+    "missing_votes": 0,
+    "invalid_envelopes": 0,
+    "invalid_reviews": 0,
+    "self_reviews": 0,
+    "task_mismatches": 0,
+    "effective_high": 1,
+    "exit_code": 1
+  }
+]
