@@ -34,6 +34,13 @@ test("preview は認証不要で読める。claim 以降は認証済みセッシ
     RETURNING id
   `;
   const organizerId = organizerRows[0]!.id;
+  // 後続の HTTP 呼び出し（preview / claim）が失敗しても後始末できるよう、
+  // 作成した直後に登録する（成功確認の後に登録すると、途中で失敗したときに
+  // このフィクスチャが afterAll の cleanupE2eUsers に一切渡らず残り続ける。
+  // レビューで実際に指摘された挙動: /api/e/preview が 503 を返す既知の不具合
+  // （docs/concerns/task_022.md #2）で 78 行目の expect が失敗すると、
+  // 元の実装では 88 行目に到達せず organizerId が後始末対象から漏れていた）。
+  seededUserIds.push(organizerId);
 
   // トークンの生成・ハッシュは `src/lib/join-token.ts`（`generateToken` / `hashToken`）と
   // 同じ形（16 バイト・base64url・SHA-256）を独自に複製する（アプリのコードは
@@ -85,7 +92,7 @@ test("preview は認証不要で読める。claim 以降は認証済みセッシ
   // 参加者セッションを直接発行する（LINE ログインを経由できない事情は
   // organizer-flow.spec.ts / helpers/session.ts の docstring を参照）。
   const session = await seedOrganizerSession(`participant-${suffix}`);
-  seededUserIds.push(session.userId, organizerId);
+  seededUserIds.push(session.userId);
 
   // 同意を先に記録する（`POST /api/consent` は task_022 の scope 外なので直接 INSERT する。
   // `assertParticipantConsent` が読む行の形は `src/lib/db/repositories/claims.ts` の

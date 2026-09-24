@@ -1617,7 +1617,7 @@
       "id": "check_111",
       "target": "アクセシビリティ",
       "rule": "npm run test:a11y",
-      "expected_result": "axe-core 違反 0。フォント 200% で崩れない。支払状態が色＋テキスト＋アイコン。最小タップ 44px。ダークモードで判読可能",
+      "expected_result": "axe-core 違反 0（WCAG2A/AA/21AA タグのみ。best-practice 限定ルールは対象外。docs/concerns/task_022.md #7）。フォント 200% で崩れない。支払状態が色＋テキスト＋アイコン（三重表現の担保は tests/unit/components/InvoiceRow.test.tsx）。最小タップ 44px。ダークモードで判読可能",
       "manual_or_automated": "automated",
       "verification_method": "npm run test:a11y",
       "constraint_ids": [],

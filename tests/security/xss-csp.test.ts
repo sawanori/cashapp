@@ -69,12 +69,26 @@ describe("CSV 数式インジェクション（export.csv / O-12）", () => {
   ])("先頭が %s のセルは、Excel/Sheets に数式として解釈されない形で出力される", (_label, malicious) => {
     // カンマ・引用符・改行を含まない値を選ぶ（csvField は引用符で囲まないので、
     // 出力の 1 列目はこの値そのままになる — 抽出を単純に保つための意図的な選択）。
+    //
+    // ★ データ行の位置は固定（DISCLAIMER_LINES 3 行 + 空行 1 行 + ヘッダ 1 行 = 5 行目
+    // （0-indexed）が 1 行目のデータ）。安全な実装（数式開始文字の前に `'` を前置するなど）
+    // に直った後は出力が `malicious` そのままでは無くなるため、`line.startsWith(malicious)`
+    // で行を探す方式は「未対策の現状」でしか一致せず、修正後に必ず失敗する
+    // （固定インデックスなら現状・修正後のどちらでも同じ行を指せる）。
     const csv = buildCsv("manual_confirm", [{ ...BASE_ROW, display_label: malicious }]);
-    const dataLine = csv.split("\r\n").find((line) => line.startsWith(malicious));
-    expect(dataLine, `expected a line starting with '${malicious}' in:\n${csv}`).toBeDefined();
+    const lines = csv.split("\r\n");
+    const dataLine = lines[5];
+    expect(dataLine, `expected a data row (index 5) in:\n${csv}`).toBeDefined();
 
     const field = dataLine!.split(",")[0]!;
-    expect(field).toBe(malicious); // 現状 csvField() はこの値を無加工でそのまま通す。
+    // 安全な実装なら、値の内容そのもの（前置文字を除いた部分）は変わらないはず。
+    const withoutSafetyPrefix = field.startsWith("'") ? field.slice(1) : field;
+    expect(withoutSafetyPrefix).toBe(malicious);
+    // 現状 csvField() は数式開始文字をエスケープせず、値を無加工でそのまま通すため、
+    // このアサーションは意図的に赤のまま固定する（対応案は docs/concerns/task_022.md #4）。
+    // 上の 2 つの expect は矛盾しない: 前者は「値の中身が保たれる」こと、後者は
+    // 「出力の先頭が数式開始文字であってはならない」ことを別々に見ているので、
+    // 前置文字を足すだけの修正でどちらも同時に満たせる。
     const startsWithFormulaChar = /^[=+\-@]/.test(field);
     expect(
       startsWithFormulaChar,

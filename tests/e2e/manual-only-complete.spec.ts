@@ -1,14 +1,10 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import { test, expect } from "@playwright/test";
 
 import { cleanupE2eUsers, seedOrganizerSession, testSql, uniq, withRollback } from "./helpers/session";
-
-// `playwright.config.ts` の `testDir` はリポジトリ直下なので、`npm run test:e2e` は常に
-// リポジトリルートから起動される（`import.meta.url` は本ファイルの transform 設定では
-// 使えないため `process.cwd()` を使う）。
-const REPO_ROOT = process.cwd();
 
 /**
  * check_112:
@@ -22,13 +18,19 @@ const REPO_ROOT = process.cwd();
  * 同じ根本原因）。テストは正しい仕様のまま残す。
  *
  * (2) は `src/lib/metrics/funnel.ts`（本タスクで新規作成）が生む `audit_log` の行と、
- * その集計・週次 JSON 出力そのものを検証する。`src/lib/metrics/funnel.ts` は
- * `import "server-only"` を持つため Playwright のテストランナーから import できず
- * （`tests/e2e/helpers/session.ts` の docstring と同じ事情）、ここでは同モジュールと
- * 同じデータモデル（`audit_log.action = 'funnel.<stage>'` / `target_type='event'`）で
- * 行を直接書き、集計ロジックを複製して実際に `docs/metrics/weekly-*.json` を書き出す。
+ * その集計・週次 JSON 出力の**データモデルと形**を、Playwright（Node 実行だが Next.js の
+ * webpack/turbopack ローダーを経由しない）の環境から検証する。`recordFunnelStage` /
+ * `computeWeeklyFunnel` 自体の実行を通した検証（本物のバグを検出できる形）は
+ * `tests/integration/funnel.test.ts`（vitest。`import "server-only"` が問題にならない
+ * Node 環境で実モジュールを直接 import する）が担う。ここでの複製は「E2E 環境からでも
+ * 同じ集計結果と JSON 形状が得られる」ことのスモーク確認という位置づけ。
  * **実際の集金導線から `recordFunnelStage` を呼ぶ配線は、対象ルートが task_022 の
  * files_to_modify に無いため未実施**（`docs/concerns/task_022.md` に deferred として記録）。
+ *
+ * ★ 週次 JSON の書き出し先: 本物の `docs/metrics/weekly-*.json`（cron 等が書く正本）には
+ * 書かない。実コミットされた既存の値を無条件に上書きしてしまう事故が実際に起きたため
+ * （`docs/concerns/task_022.md` #9 に記録）、この確認専用の一時ディレクトリ
+ * （`os.tmpdir()` 配下）に書いて読み戻すだけにする。
  */
 
 const seededUserIds: string[] = [];
@@ -184,28 +186,33 @@ test("ファネル 5 段（着地→同意→claim→checkout→paid）が週次
   const weekStart = startOfIsoWeekUtc(now);
   const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-  const outDir = path.join(REPO_ROOT, "docs", "metrics");
-  fs.mkdirSync(outDir, { recursive: true });
+  // 本物の docs/metrics/weekly-*.json（正本）には書かない — 上のファイル docstring と
+  // docs/concerns/task_022.md #9 を参照。確認専用の一時ディレクトリに書いて読み戻す。
+  const outDir = fs.mkdtempSync(path.join(os.tmpdir(), "cashapp-e2e-funnel-metrics-"));
   const fileName = `weekly-${weekStart.toISOString().slice(0, 10)}.json`;
   const filePath = path.join(outDir, fileName);
-  fs.writeFileSync(
-    filePath,
-    `${JSON.stringify(
-      {
-        funnel: {
-          weekStart: weekStart.toISOString(),
-          weekEnd: weekEnd.toISOString(),
-          generatedAt: new Date().toISOString(),
-          stages: counts,
+  try {
+    fs.writeFileSync(
+      filePath,
+      `${JSON.stringify(
+        {
+          funnel: {
+            weekStart: weekStart.toISOString(),
+            weekEnd: weekEnd.toISOString(),
+            generatedAt: new Date().toISOString(),
+            stages: counts,
+          },
         },
-      },
-      null,
-      2,
-    )}\n`,
-  );
+        null,
+        2,
+      )}\n`,
+    );
 
-  const written = JSON.parse(fs.readFileSync(filePath, "utf8")) as { funnel: { stages: Record<string, number> } };
-  for (const stage of stages) {
-    expect(written.funnel.stages[stage]).toBeGreaterThanOrEqual(1);
+    const written = JSON.parse(fs.readFileSync(filePath, "utf8")) as { funnel: { stages: Record<string, number> } };
+    for (const stage of stages) {
+      expect(written.funnel.stages[stage]).toBeGreaterThanOrEqual(1);
+    }
+  } finally {
+    fs.rmSync(outDir, { recursive: true, force: true });
   }
 });

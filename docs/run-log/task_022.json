@@ -277,5 +277,95 @@
     "commit": "162738db75b1e0bbe3d37d36ebb9a8f2115bd555",
     "ran_at": "2026-09-24T19:14:47Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  51 passed (51)\n      Tests  1215 passed (1215)\n   Start at  19:19:54\n   Duration  59.56s (tests 93%, environment 3%, setup 2%, import 1%, transform 1%)",
+    "commit": "2555cddc6538bf9dc839856f047ff93299fa1a2b",
+    "ran_at": "2026-09-24T19:19:54Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:integration\n> TZ=UTC vitest run tests/integration --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  22 passed (22)\n      Tests  257 passed (257)\n   Start at  19:20:58\n   Duration  13.54s (tests 79%, import 14%, setup 5%, transform 2%)",
+    "commit": "2555cddc6538bf9dc839856f047ff93299fa1a2b",
+    "ran_at": "2026-09-24T19:20:57Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:security",
+    "exit_code": 1,
+    "stdout_tail": "+ ]\n\n ❯ tests/security/webhook-ip.test.ts:44:58\n     42|     [\"1 件だけ不正でも全体を空にする\", \"203.0.113.0/24,not-an-ip\"],\n     43|   ])(\"%s は空配列\", (_label, spec) => {\n     44|     expect(parseIpAllowlist(spec as string | undefined)).toEqual([]);\n       |                                                          ^\n     45|   });\n     46|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯\n\n FAIL  tests/security/xss-csp.test.ts > CSV 数式インジェクション（export.csv / O-12） > 先頭が = のセルは、Excel/Sheets に数式として解釈されない形で出力される\n FAIL  tests/security/xss-csp.test.ts > CSV 数式インジェクション（export.csv / O-12） > 先頭が + のセルは、Excel/Sheets に数式として解釈されない形で出力される\n FAIL  tests/security/xss-csp.test.ts > CSV 数式インジェクション（export.csv / O-12） > 先頭が - のセルは、Excel/Sheets に数式として解釈されない形で出力される\n FAIL  tests/security/xss-csp.test.ts > CSV 数式インジェクション（export.csv / O-12） > 先頭が @ のセルは、Excel/Sheets に数式として解釈されない形で出力される\nAssertionError: csvField() が数式先頭文字をエスケープしていない（対応案は docs/concerns/task_022.md）: expected true to be false // Object.is equality\n\n- Expected\n+ Received\n\n- false\n+ true\n\n ❯ tests/security/xss-csp.test.ts:82:7\n     80|       startsWithFormulaChar,\n     81|       \"csvField() が数式先頭文字をエスケープしていない（対応案は docs/concerns/task_022.md）\",\n     82|     ).toBe(false);\n       |       ^\n     83|   });\n     84|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯\n\n\n Test Files  2 failed | 9 passed (11)\n      Tests  5 failed | 98 passed (103)\n   Start at  19:21:14\n   Duration  859ms (tests 33%, import 29%, setup 21%, transform 15%, worker 1%)",
+    "commit": "2555cddc6538bf9dc839856f047ff93299fa1a2b",
+    "ran_at": "2026-09-24T19:21:14Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:a11y",
+    "exit_code": 1,
+    "stdout_tail": "    Error: expect(received).toBeLessThanOrEqual(expected)\n\n    Expected: <= 444\n    Received:    640\n\n      67 |     // 200% 拡大時は横方向のコンテンツ量そのものが増えるため厳密な <= ではなく、\n      68 |     // 縦積みへの折り返しが機能していること（極端な超過が無いこと）を見る。\n    > 69 |     expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth + 32);\n         |                                  ^\n      70 |   });\n      71 | });\n      72 |\n        at /Users/noritakasawada/AI_P/cashapp/tests/a11y/pages.spec.ts:69:34\n\n    Error Context: test-results/a11y-pages-フォント-200-で崩れない--b8e27-のフォントサイズを-200-にしても横スクロールしない-chromium/error-context.md\n\n  2) [chromium] › tests/a11y/pages.spec.ts:74:7 › 最小タップサイズ 44px（操作可能要素） › /onboarding のチェックボックス・ラジオボタンのラベル（タップ領域）は 44px 以上の高さを持つ \n\n    Error: label 3 height\n\n    expect(received).toBeGreaterThanOrEqual(expected)\n\n    Expected: >= 44\n    Received:    18\n\n      83 |       const box = await labels.nth(i).boundingBox();\n      84 |       expect(box, `label ${i} has no bounding box`).not.toBeNull();\n    > 85 |       expect(box!.height, `label ${i} height`).toBeGreaterThanOrEqual(44);\n         |                                                ^\n      86 |     }\n      87 |   });\n      88 |\n        at /Users/noritakasawada/AI_P/cashapp/tests/a11y/pages.spec.ts:85:48\n\n    Error Context: test-results/a11y-pages-最小タップサイズ-44px（操-daa80-ンのラベル（タップ領域）は-44px-以上の高さを持つ-chromium/error-context.md\n\n  2 failed\n    [chromium] › tests/a11y/pages.spec.ts:59:7 › フォント 200% で崩れない › /onboarding はルート要素のフォントサイズを 200% にしても横スクロールしない \n    [chromium] › tests/a11y/pages.spec.ts:74:7 › 最小タップサイズ 44px（操作可能要素） › /onboarding のチェックボックス・ラジオボタンのラベル（タップ領域）は 44px 以上の高さを持つ \n  6 passed (5.1s)",
+    "commit": "2555cddc6538bf9dc839856f047ff93299fa1a2b",
+    "ran_at": "2026-09-24T19:21:17Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:e2e",
+    "exit_code": 1,
+    "stdout_tail": "      63 |     },\n      64 |   });\n    > 65 |   expect(createRes.status(), await createRes.text()).toBe(201);\n         |                                                      ^\n      66 |   const created = (await createRes.json()) as { event: { id: string }; joinToken: string };\n      67 |\n      68 |   // O-4: 参加者 4 名を追加。\n        at /Users/noritakasawada/AI_P/cashapp/tests/e2e/organizer-flow.spec.ts:65:54\n\n    Error Context: test-results/e2e-organizer-flow-幹事が請求発行-→-手動確認までを完走し、非自動バッジとサマリが正しい値になる-chromium/error-context.md\n\n    Error Context: test-results/e2e-organizer-flow-幹事が請求発行-→-手動確認までを完走し、非自動バッジとサマリが正しい値になる-chromium/error-context.md\n\n  3) [chromium] › tests/e2e/participant-flow.spec.ts:26:5 › preview は認証不要で読める。claim 以降は認証済みセッションで進める \n\n    Error: {\"code\":\"RATE_LIMIT_UNAVAILABLE\",\"message\":\"ただいま受け付けできません。時間をおいてお試しください。\",\"requestId\":\"2f59c3ee3154794c47d086091c8fcf12\"}\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 200\n    Received: 503\n\n      76 |     headers: { \"x-join-token\": joinToken },\n      77 |   });\n    > 78 |   expect(previewRes.status(), await previewRes.text()).toBe(200);\n         |                                                        ^\n      79 |   const preview = (await previewRes.json()) as Record<string, unknown>;\n      80 |   expect(Object.keys(preview).sort()).toEqual(\n      81 |     [\"allowCash\", \"amountRangeMinor\", \"collectByAt\", \"organizerLabel\", \"participantCount\", \"title\"].sort(),\n        at /Users/noritakasawada/AI_P/cashapp/tests/e2e/participant-flow.spec.ts:78:56\n\n    Error Context: test-results/e2e-participant-flow-previ-4e314-で読める。claim-以降は認証済みセッションで進める-chromium/error-context.md\n\n    Error Context: test-results/e2e-participant-flow-previ-4e314-で読める。claim-以降は認証済みセッションで進める-chromium/error-context.md\n\n  3 failed\n    [chromium] › tests/e2e/manual-only-complete.spec.ts:40:5 › 手動確認版だけで、参加者 2 名とも幹事が手動確認まで完走する ─────\n    [chromium] › tests/e2e/organizer-flow.spec.ts:33:5 › 幹事が請求発行 → 手動確認までを完走し、非自動バッジとサマリが正しい値になる ───\n    [chromium] › tests/e2e/participant-flow.spec.ts:26:5 › preview は認証不要で読める。claim 以降は認証済みセッションで進める \n  12 passed (4.6s)",
+    "commit": "2555cddc6538bf9dc839856f047ff93299fa1a2b",
+    "ran_at": "2026-09-24T19:21:26Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  52 passed (52)\n      Tests  1217 passed (1217)\n   Start at  19:41:08\n   Duration  57.79s (tests 94%, environment 2%, setup 2%, import 1%, transform 1%)",
+    "commit": "9f56ddb6332d06a33573a8f494a2be505fcb7a69",
+    "ran_at": "2026-09-24T19:41:08Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:integration\n> TZ=UTC vitest run tests/integration --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  23 passed (23)\n      Tests  266 passed (266)\n   Start at  19:42:10\n   Duration  13.48s (tests 80%, import 13%, setup 4%, transform 3%)",
+    "commit": "9f56ddb6332d06a33573a8f494a2be505fcb7a69",
+    "ran_at": "2026-09-24T19:42:09Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:security",
+    "exit_code": 1,
+    "stdout_tail": "+ ]\n\n ❯ tests/security/webhook-ip.test.ts:44:58\n     42|     [\"1 件だけ不正でも全体を空にする\", \"203.0.113.0/24,not-an-ip\"],\n     43|   ])(\"%s は空配列\", (_label, spec) => {\n     44|     expect(parseIpAllowlist(spec as string | undefined)).toEqual([]);\n       |                                                          ^\n     45|   });\n     46|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯\n\n FAIL  tests/security/xss-csp.test.ts > CSV 数式インジェクション（export.csv / O-12） > 先頭が = のセルは、Excel/Sheets に数式として解釈されない形で出力される\n FAIL  tests/security/xss-csp.test.ts > CSV 数式インジェクション（export.csv / O-12） > 先頭が + のセルは、Excel/Sheets に数式として解釈されない形で出力される\n FAIL  tests/security/xss-csp.test.ts > CSV 数式インジェクション（export.csv / O-12） > 先頭が - のセルは、Excel/Sheets に数式として解釈されない形で出力される\n FAIL  tests/security/xss-csp.test.ts > CSV 数式インジェクション（export.csv / O-12） > 先頭が @ のセルは、Excel/Sheets に数式として解釈されない形で出力される\nAssertionError: csvField() が数式先頭文字をエスケープしていない（対応案は docs/concerns/task_022.md）: expected true to be false // Object.is equality\n\n- Expected\n+ Received\n\n- false\n+ true\n\n ❯ tests/security/xss-csp.test.ts:96:7\n     94|       startsWithFormulaChar,\n     95|       \"csvField() が数式先頭文字をエスケープしていない（対応案は docs/concerns/task_022.md）\",\n     96|     ).toBe(false);\n       |       ^\n     97|   });\n     98|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯\n\n\n Test Files  2 failed | 9 passed (11)\n      Tests  5 failed | 98 passed (103)\n   Start at  19:42:26\n   Duration  857ms (tests 32%, import 31%, setup 21%, transform 14%, worker 1%)",
+    "commit": "9f56ddb6332d06a33573a8f494a2be505fcb7a69",
+    "ran_at": "2026-09-24T19:42:25Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:a11y",
+    "exit_code": 1,
+    "stdout_tail": "    Error: expect(received).toBeLessThanOrEqual(expected)\n\n    Expected: <= 444\n    Received:    640\n\n      67 |     // 200% 拡大時は横方向のコンテンツ量そのものが増えるため厳密な <= ではなく、\n      68 |     // 縦積みへの折り返しが機能していること（極端な超過が無いこと）を見る。\n    > 69 |     expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth + 32);\n         |                                  ^\n      70 |   });\n      71 | });\n      72 |\n        at /Users/noritakasawada/AI_P/cashapp/tests/a11y/pages.spec.ts:69:34\n\n    Error Context: test-results/a11y-pages-フォント-200-で崩れない--b8e27-のフォントサイズを-200-にしても横スクロールしない-chromium/error-context.md\n\n  2) [chromium] › tests/a11y/pages.spec.ts:74:7 › 最小タップサイズ 44px（操作可能要素） › /onboarding のチェックボックス・ラジオボタンのラベル（タップ領域）は 44px 以上の高さを持つ \n\n    Error: label 3 height\n\n    expect(received).toBeGreaterThanOrEqual(expected)\n\n    Expected: >= 44\n    Received:    18\n\n      83 |       const box = await labels.nth(i).boundingBox();\n      84 |       expect(box, `label ${i} has no bounding box`).not.toBeNull();\n    > 85 |       expect(box!.height, `label ${i} height`).toBeGreaterThanOrEqual(44);\n         |                                                ^\n      86 |     }\n      87 |   });\n      88 |\n        at /Users/noritakasawada/AI_P/cashapp/tests/a11y/pages.spec.ts:85:48\n\n    Error Context: test-results/a11y-pages-最小タップサイズ-44px（操-daa80-ンのラベル（タップ領域）は-44px-以上の高さを持つ-chromium/error-context.md\n\n  2 failed\n    [chromium] › tests/a11y/pages.spec.ts:59:7 › フォント 200% で崩れない › /onboarding はルート要素のフォントサイズを 200% にしても横スクロールしない \n    [chromium] › tests/a11y/pages.spec.ts:74:7 › 最小タップサイズ 44px（操作可能要素） › /onboarding のチェックボックス・ラジオボタンのラベル（タップ領域）は 44px 以上の高さを持つ \n  6 passed (4.7s)",
+    "commit": "9f56ddb6332d06a33573a8f494a2be505fcb7a69",
+    "ran_at": "2026-09-24T19:42:30Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:e2e",
+    "exit_code": 1,
+    "stdout_tail": "      63 |     },\n      64 |   });\n    > 65 |   expect(createRes.status(), await createRes.text()).toBe(201);\n         |                                                      ^\n      66 |   const created = (await createRes.json()) as { event: { id: string }; joinToken: string };\n      67 |\n      68 |   // O-4: 参加者 4 名を追加。\n        at /Users/noritakasawada/AI_P/cashapp/tests/e2e/organizer-flow.spec.ts:65:54\n\n    Error Context: test-results/e2e-organizer-flow-幹事が請求発行-→-手動確認までを完走し、非自動バッジとサマリが正しい値になる-chromium/error-context.md\n\n    Error Context: test-results/e2e-organizer-flow-幹事が請求発行-→-手動確認までを完走し、非自動バッジとサマリが正しい値になる-chromium/error-context.md\n\n  3) [chromium] › tests/e2e/participant-flow.spec.ts:26:5 › preview は認証不要で読める。claim 以降は認証済みセッションで進める \n\n    Error: {\"code\":\"RATE_LIMIT_UNAVAILABLE\",\"message\":\"ただいま受け付けできません。時間をおいてお試しください。\",\"requestId\":\"b97035a63c36fbad7d955f63e2fe73ee\"}\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 200\n    Received: 503\n\n      83 |     headers: { \"x-join-token\": joinToken },\n      84 |   });\n    > 85 |   expect(previewRes.status(), await previewRes.text()).toBe(200);\n         |                                                        ^\n      86 |   const preview = (await previewRes.json()) as Record<string, unknown>;\n      87 |   expect(Object.keys(preview).sort()).toEqual(\n      88 |     [\"allowCash\", \"amountRangeMinor\", \"collectByAt\", \"organizerLabel\", \"participantCount\", \"title\"].sort(),\n        at /Users/noritakasawada/AI_P/cashapp/tests/e2e/participant-flow.spec.ts:85:56\n\n    Error Context: test-results/e2e-participant-flow-previ-4e314-で読める。claim-以降は認証済みセッションで進める-chromium/error-context.md\n\n    Error Context: test-results/e2e-participant-flow-previ-4e314-で読める。claim-以降は認証済みセッションで進める-chromium/error-context.md\n\n  3 failed\n    [chromium] › tests/e2e/manual-only-complete.spec.ts:42:5 › 手動確認版だけで、参加者 2 名とも幹事が手動確認まで完走する ─────\n    [chromium] › tests/e2e/organizer-flow.spec.ts:33:5 › 幹事が請求発行 → 手動確認までを完走し、非自動バッジとサマリが正しい値になる ───\n    [chromium] › tests/e2e/participant-flow.spec.ts:26:5 › preview は認証不要で読める。claim 以降は認証済みセッションで進める \n  12 passed (3.4s)",
+    "commit": "9f56ddb6332d06a33573a8f494a2be505fcb7a69",
+    "ran_at": "2026-09-24T19:42:40Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]

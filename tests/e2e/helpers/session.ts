@@ -101,10 +101,13 @@ function currentSessionKey(): { readonly kid: string; readonly secret: string } 
   return { kid: first.slice(0, sep), secret: first.slice(sep + 1) };
 }
 
-const SESSION_COOKIE_NAME = "__Host-session";
-const SESSION_ISSUER = "cashapp";
-const SESSION_AUDIENCE = "cashapp-session";
-const SESSION_TTL_SECONDS = 30 * 60;
+// `export` する理由: `tests/unit/e2e-helpers-session-contract.test.ts`（契約テスト）が
+// `src/lib/auth/session.ts` の同名の値と突き合わせ、アプリ側の仕様が変わったのに
+// この複製が追随していない状態を検出する（docs/concerns/task_022.md #3 の対応の一部）。
+export const SESSION_COOKIE_NAME = "__Host-session";
+export const SESSION_ISSUER = "cashapp";
+export const SESSION_AUDIENCE = "cashapp-session";
+export const SESSION_TTL_SECONDS = 30 * 60;
 
 function base64Url(bytes: Uint8Array): string {
   let binary = "";
@@ -173,9 +176,60 @@ export async function seedOrganizerSession(labelSuffix: string): Promise<SeededS
   };
 }
 
-/** テストが作った `e2e-test:` 接頭辞の app_user とその従属行を片付ける。 */
+/**
+ * テストが作った `e2e-test:` 接頭辞の app_user とその従属行を片付ける。
+ *
+ * ★ `app_user` を単独で DELETE すると `event.organizer_user_id`（`ON DELETE RESTRICT`）に
+ *   阻まれて外部キー違反になる — 実際に発生した事故（`docs/run-log/task_022.json`、
+ *   `PostgresError: ... violates foreign key constraint "event_organizer_user_id_fkey"`）。
+ *   `POST /api/events` が 500 を返しても（`docs/concerns/task_022.md` #1 の timestamptz
+ *   不具合）内部で `event` 行だけ実コミットされて残るケースがあるため、テストの成否に
+ *   関わらず従属行を先に消す必要がある。`event` を DELETE すれば `participant` /
+ *   `invoice` / `participant_claim` / `payment_attempt` / `payment_self_report` /
+ *   `abuse_report` は `ON DELETE CASCADE` で連鎖するが、`manual_attestation.invoice_id` /
+ *   `ledger_entry.{invoice_id,event_id}` は `ON DELETE` 指定が無い（`NO ACTION`）ため
+ *   明示的に先に消す必要がある。
+ *
+ * ★ `ledger_entry` は追記専用（`forbid_mutation` トリガーが UPDATE/DELETE/TRUNCATE を
+ *   文レベルで常に拒否する。件数 0 でも発火する）ため、**この関数からは一切 DELETE しない**
+ *   （設計上そうあるべきで、バグではない）。`manual-attest` まで到達した e2e フィクスチャは
+ *   `ledger_entry` 行を持つため `event` の DELETE が `ledger_entry_event_id_fkey` で失敗し
+ *   得る。その場合は該当行が恒久的に残ることを許容し（`identity_scope` が
+ *   `e2e-test:` 接頭辞なので実データと混ざらない）、例外を投げてテストの本来の
+ *   assertion 失敗を後始末の失敗で覆い隠さないよう `console.warn` に留める。
+ */
 export async function cleanupE2eUsers(userIds: readonly string[]): Promise<void> {
   if (userIds.length === 0) return;
   const sql = testSql();
-  await sql`DELETE FROM app_user WHERE id = ANY(${sql.array([...userIds])}::uuid[])`;
+  const ids = [...userIds];
+
+  await sql`
+    DELETE FROM manual_attestation
+    WHERE invoice_id IN (
+      SELECT i.id FROM invoice i
+      JOIN event e ON e.id = i.event_id
+      WHERE e.organizer_user_id = ANY(${sql.array(ids)}::uuid[])
+    )
+  `;
+  await sql`DELETE FROM consent_log WHERE user_id = ANY(${sql.array(ids)}::uuid[])`;
+  await sql`DELETE FROM provider_binding WHERE organizer_user_id = ANY(${sql.array(ids)}::uuid[])`;
+  await sql`DELETE FROM reminder_log WHERE sent_by_organizer = ANY(${sql.array(ids)}::uuid[])`;
+
+  try {
+    await sql`DELETE FROM event WHERE organizer_user_id = ANY(${sql.array(ids)}::uuid[])`;
+  } catch (error) {
+    // `ledger_entry` が参照している場合はここで失敗する（上の docstring を参照）。
+    // 後始末の失敗でテスト本体の結果を覆い隠さない。
+    console.warn(
+      "cleanupE2eUsers: event の削除に失敗しました（ledger_entry が参照している可能性があります。" +
+        "e2e-test: 接頭辞のフィクスチャなので実データとは混ざりません）:",
+      error,
+    );
+  }
+
+  try {
+    await sql`DELETE FROM app_user WHERE id = ANY(${sql.array(ids)}::uuid[])`;
+  } catch (error) {
+    console.warn("cleanupE2eUsers: app_user の削除に失敗しました（従属行が残っています）:", error);
+  }
 }

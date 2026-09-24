@@ -883,3 +883,32 @@
   `docs/concerns/task_023.md`（medium 5・low 3）。`docs/review-log/task_023.json` は round 1
   （commit `54325a6`、reject）のまま維持し、規約どおり本ラウンド（修正者）では再レビューを
   実施していない。
+- task_022（修正ラウンド）: DONE_WITH_CONCERNS — 検証の失敗（test:e2e/test:security/test:a11y
+  exit 1）と `docs/review-log/task_022.json`（decision=reject、実効 high 1）の全 6 件（gemini
+  F-1 medium + gpt F-1 high / F-2〜F-5 medium）を 1 周だけ修正した。high 1 件（gpt F-1）:
+  `tests/security/xss-csp.test.ts` の CSV 数式インジェクション検査が「値が無加工で一致する」と
+  「数式先頭文字を含まない」を同時に要求する自己矛盾で `csvField()` が直っても永久に合格し得
+  なかったのを、データ行をインデックス固定にして前置文字を剥がしてから比較する形へ修正した。
+  medium 5 件: (1) `tests/e2e/helpers/session.ts` の `cleanupE2eUsers` が `app_user` 単独 DELETE
+  で `event.organizer_user_id`（ON DELETE RESTRICT）に阻まれ後始末自体が失敗していたのを、
+  従属行（manual_attestation/consent_log/provider_binding/reminder_log/event）を先に消す順序へ
+  修正（ledger_entry は追記専用で意図的に触れず、失敗時は console.warn に留める）。(2)
+  `participant-flow.spec.ts` が preview 失敗時にフィクスチャ登録を漏らしていたのを、作成直後に
+  登録する形へ修正。(3) `src/lib/metrics/funnel.ts` がリポジトリのどこからも呼ばれておらず
+  実装破壊を検出できないギャップに対し、`tests/integration/funnel.test.ts`（新規・4 件 pass）で
+  実装を直接 import して検証する形を追加。(4) 週次メトリクス正本 `docs/metrics/weekly-*.json`
+  をファネル E2E テストが無条件上書きしていた事故を、書き出し先を一時ディレクトリへ変更して
+  解消し、汚染されていた `docs/metrics/weekly-2026-09-21.json` を削除した。あわせて
+  `tests/unit/e2e-helpers-session-contract.test.ts`（新規・2 件 pass）で e2e ヘルパの
+  Cookie名/issuer/audience/TTL がアプリ本体の仕様と乖離したら落ちる契約テストを追加し、
+  `docs/acceptance-checks.json` の `check_111.expected_result` に axe 判定タグ範囲と三重表現の
+  担保先を明記した（`evidence` フィールド以外は Edit 可能と実測）。timestamptz 不具合
+  （`src/lib/db/client.ts`）・レート制限バインディング未設定（`wrangler.toml`）・CSV
+  未エスケープ（`export.csv/route.ts`）・IP 許可リスト誤分類（`ip-allowlist.ts`）・
+  `/onboarding` の 44px/200% は files_to_modify 外のため引き続き未解消（外部要因のまま）。
+  `scripts/with-lock.sh db scripts/record-run.sh task_022` で verify_commands 5 本を再実行:
+  test:unit 52/1217 pass・test:integration 23/266 pass は exit 0、test:e2e（3 failed/12
+  passed）・test:security（5 failed/98 passed）・test:a11y（2 failed/6 passed+2 smoke）は
+  是正ラウンド前と同じ失敗数・同じ既知原因で exit 1（回帰なし）。`docs/review-log/task_022.json`
+  は round 1（commit `d4b43a5`、reject）のまま維持し、規約どおり本ラウンド（修正者）では
+  再レビューを実施していない。残懸念は `docs/concerns/task_022.md`（high 2・medium 3・low 4）。
