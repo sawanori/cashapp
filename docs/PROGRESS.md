@@ -402,6 +402,26 @@
   経由で exit 0**（`typecheck` / `test:unit` 43 ファイル **1096/1096** / `test:integration`
   10 ファイル **175/175**（新規 64 件）/ `gate:constraints` / `gate:wording`）。残懸念 7 件は
   `docs/concerns/task_015.md`（C-015-1〜7。medium 5・low 2）。
+- task_015（G5 round1 の指摘反映）: DONE_WITH_CONCERNS — `2a17eb5` に対する G5 round1 は
+  **reject（有効票 2・欠票 0・実効 high 1）**。gemini 1 件・GPT-6 Astra 7 件のうち重複を除く
+  **7 件すべてを修正**した。**[high] 氏名を共有していない参加者を個別リンクなしで claim できた**
+  （`listCandidates` は `name_visibility='participants'` に絞るのに `claimParticipant` の
+  participantId 経路が見ていなかった。UUID を知る第三者が候補一覧に出ない行を claim して氏名・
+  金額・状態を読めた）→ 名簿選択の経路に `name_visibility='participants'` を必須にし 404。
+  **[medium] 作成時の招待トークンに期限が付かなかった**（`createEvent` が
+  `join_token_expires_at` を書かず、NULL を「期限なし」として受理していた）→ **NULL は無効**
+  （fail-closed）に変え、`POST /api/events` が作成と同一トランザクションで 90 日の期限を書く。
+  **[medium] P-1→P-2 で個別 claim トークンが失われる** → `c` を引き継ぐ。
+  **[medium] claim 済みの人が招待リンクを開き直すと候補 0 件の袋小路** → P-2 が先に
+  `GET /api/e/me` を引いて P-3 へ送る。**[medium] 「自分に送る」がイベントを失う** →
+  `<permanentLink>/e?t=<joinToken>` を組み立てる。**[medium] 追加リクエストの承認後に本人が
+  自分の行へ辿り着けない** → `requestAdd` が同じトランザクションでリクエスト者の claim も作り、
+  承認は「その claim を有効にする操作」になる（`awaiting_approval` → `not_issued` → `unpaid`）。
+  **[medium/low] 追加リクエストの同時実行で名簿上限を超えられる** → `createParticipants` と同じ
+  advisory lock を COUNT の前に取る。**verify_commands 5 本と lint がすべて
+  `scripts/record-run.sh task_015` 経由で exit 0**（`typecheck` / `lint` / `test:unit` 43 ファイル
+  **1099/1099** / `test:integration` 11 ファイル **193/193** / `gate:constraints` /
+  `gate:wording`）。
 - task_017: DONE_WITH_CONCERNS — PaymentProvider IF v2（全メソッドの第一引数が `binding`、
   `ProviderCapabilities` 15 項目、`PaymentEventKind` に紛争・返金中、`ProviderAccountError`）、
   ブランド型 `Money`（`yen()` 以外で作れず、オブジェクトリテラルは型エラー。均等割りは最大剰余法で
@@ -427,3 +447,27 @@
   （`typecheck` / `lint` / `test:unit` 43 ファイル **1096/1096** / `test:integration`
   11 ファイル **187/187** / `gate:constraints` / `gate:wording`）。`npm ls` に決済 SDK 無しも実測。
   残懸念 10 件は `docs/concerns/task_017.md`（C-017-1〜10。medium 4・low 6）。
+- task_017（G5 round1 の指摘反映）: DONE_WITH_CONCERNS — `c79db44` に対する敵対レビューは
+  `docs/review-log/task_017.json`（round 1・**merge-review: pass**・有効票 2・欠票 0・実効 high 0）。
+  gemini 2.5 Pro は PASS（指摘 0）、GPT-6 Astra が medium 4 件 / low 1 件。差し戻しではないが
+  5 件とも実在の穴なので同じ周で処理した（`a3e42a5`）。(1) **[medium F-2]
+  `PROVIDER_<KEY>_MODE` が未設定（行なし = `null`）・不正値のときにガードを素通りしていた**
+  （`'off'` のときだけ拒否していたため、`gates.ts` の「読めなければ無効に倒す」と食い違っていた）。
+  `!== 'on'` の fail-closed に変え、回帰テストを足した。書いた回帰テストが最初は空振りしていた
+  （フェイク環境の `options.mode ?? "on"` が `null` を既定値に吸っていた）ことも実測で見つけて直した。
+  (2) **[medium F-3] ブランドが構造的なので `{ ...yen(3000), amountMinor: 3000.5 }` が
+  型アサーション無しで `Money` になり、境界を通っていた**。`toProviderAmount()` に整数・範囲の
+  検査を足し、`ManualConfirmAdapter` の金額検査もその 1 本へ寄せた（回帰テスト 2 件）。
+  (3) **[medium F-4] P-6 がサーバーに問い合わせず常に「幹事の確認待ちです」を出していた**ため、
+  幹事が `manual-attest` を済ませても参加者は確定後の状態を見られなかった。招待トークン（`?t=`）を
+  P-4 → P-6 → P-7 で持ち回し、`GET /api/e/me` の実状態を出す形にした（トークンが無い場合は
+  状態を断定せず P-3 へ誘導）。(4) **[low F-5] `mixedCount > 0` でも「すべて手動確認」と
+  表示していた**ので条件に `mixedCount === 0` を足した。(5) **[medium F-1] write-ahead の保証は
+  同一トランザクションの中では成立しない**（呼び出し後にコミット前で落ちれば試行記録も
+  ロールバックされる）。Phase 1 の `manual_confirm` は外部呼び出しをしないので実害は無く、
+  docstring を実態に訂正して C-017-11 として記録した（設計変更は task_018 / task_026）。
+  `X-ID` の grep が React の依存配列 `}, [joinToken]);` を URL パス配置と誤検知したため、
+  P-6 の局所変数名を `inviteToken` にした（トークンをヘッダでのみ運ぶ中身は不変）。
+  **verify_commands 6 本すべて `scripts/record-run.sh task_017` 経由で exit 0**
+  （`typecheck` / `lint` / `test:unit` 43 ファイル **1099/1099** / `test:integration`
+  11 ファイル **193/193** / `gate:constraints` / `gate:wording`）。残懸念は 11 件（C-017-1〜11）。
