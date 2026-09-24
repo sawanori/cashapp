@@ -494,3 +494,12 @@
   `scripts/record-run.sh task_019` 経由で exit 0（`docs/run-log/task_019.json`）。残懸念は
   `docs/concerns/task_019.md`（severity: high 1 件。対応案: task_018 完了後に task_019 再着手）。
   実装コミットは 0 件（BLOCKED のため）。
+- task_015（G5 記録の確定・クローズ）: DONE_WITH_CONCERNS — 前ワークフローで中断していた仕上げを
+  完了させた。実装本体（`2a17eb5`）と round1 の指摘反映（`d3e5368`）は既にコミット済みで、
+  未コミットで残っていた **敵対レビュー記録 `docs/review-log/task_015.json`**（round 1・
+  merge-review: **reject**・有効票 2・欠票 0・実効 high 1。指摘 7 件は `d3e5368` で全件処理済み）と
+  run-log を確定させた。`verify_commands` 5 本すべてを最終 HEAD `8f04f0a` で `scripts/record-run.sh
+  task_015` 経由で実行し exit 0（`typecheck` / `test:unit` 43 ファイル **1099/1099** /
+  `test:integration` 11 ファイル **193/193** / `gate:constraints` 25 grep 0 violation /
+  `gate:wording` 0 violation）。ソースの追加変更は無し。残懸念は `docs/concerns/task_015.md`
+  の C-015-1〜7（medium 5・low 2）のままで、増減なし。

@@ -1,0 +1,209 @@
+[
+  {
+    "schema_version": 1,
+    "task_id": "task_015",
+    "reviewer": "adversarial-reviewer-gemini",
+    "vendor": "gemini",
+    "reviewer_route": "verified",
+    "model_id_requested": "gemini-2.5-pro",
+    "model_id_actual": "gemini-2.5-pro",
+    "model_id_source": "cli_stats",
+    "cli_version": "0.38.1",
+    "backend": "gemini-cli",
+    "ran_at": "2026-09-24T16:03:14Z",
+    "commit": "2a80cbbebbafc9999e9ef3edcb69317591aacccb",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "low",
+        "title": "参加者追加リクエストの競合状態で参加者数上限を超過しうる",
+        "detail": "参加者からの追加リクエストを処理する `requestAdd` 関数は、参加者数の上限を `COUNT` で確認してから `INSERT` を実行しますが、この2つの操作がアトミックではありません。複数のリクエストが同時に上限チェックをパスし、結果として `MAX_PARTICIPANTS_PER_EVENT` の上限を超えて参加者が登録されてしまう競合状態（TOCTOU）が存在します。これは、イベント作成時の上限チェックが `pg_advisory_xact_lock` で保護されているのとは対照的です。",
+        "file": "src/lib/db/repositories/claims.ts",
+        "line": 526,
+        "repro": "イベント参加者数が上限 (MAX_PARTICIPANTS_PER_EVENT) の1つ手前の状態で、2人の異なる参加者が `POST /api/e/request-add` を同時に呼び出す。両方のリクエストが上限チェックをパスし、2つの participant 行が INSERT され、結果として上限を超える。",
+        "suggested_fix": "`requestAdd` 関数内で、`createEvent` が `organizer_user_id` で advisory lock を取るのと同様に、`eventId` をキーにして `pg_advisory_xact_lock` を呼び出し、参加者数の確認と INSERT をアトミックにしてください。",
+        "effective_severity": "low"
+      }
+    ],
+    "raw_warnings": [],
+    "packet_bytes": 477955,
+    "validated_at": "2026-09-24T16:09:08Z",
+    "classification": "vote",
+    "source_file": "/var/folders/h6/2q0crwpx3zx94d5zxclh_f5c0000gn/T//cashapp-review/task_015/gemini.json",
+    "merged_at": "2026-09-24T16:09:08Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gemini-2.5-pro を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 0,
+        "medium": 0,
+        "low": 1,
+        "info": 0,
+        "unknown": 0,
+        "total": 1,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_015",
+    "reviewer": "adversarial-reviewer-gpt",
+    "vendor": "gpt",
+    "reviewer_route": "cli-fallback",
+    "model_id_requested": "gpt-6-astra",
+    "model_id_actual": "gpt-6-astra",
+    "model_id_source": "self_report",
+    "cli_version": "codex-cli 0.154.0",
+    "backend": "codex",
+    "ran_at": "2026-09-24T16:09:05Z",
+    "commit": "2a80cbbebbafc9999e9ef3edcb69317591aacccb",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "high",
+        "title": "非公開の参加者を個別トークンなしでclaimできる",
+        "detail": "listCandidates は name_visibility='participants' に限定するが、claimParticipant の participantId 経路はこの条件を確認しない。未claimの非公開行のUUIDを知る利用者は、個別のclaimTokenなしでその行を取得でき、氏名・請求金額・状態を閲覧できる。セッション・同意・イベント一致の検証では、この越権を防げない。",
+        "file": "src/app/api/e/claim/route.ts",
+        "line": 76,
+        "repro": "静的追跡による手順（実行未検証）: イベントEに、status='active'、name_visibility='organizer_only'、claim_token_hash非NULL、未claimの参加者Pと発行済み請求を用意する。PのUUIDを知る別人Aが、有効なセッション・同意・CSRFトークンとEの招待トークンTを持つ。GET /api/e/candidates にX-Join-Token:Tを送るとPは返らない。続いて同じ認証情報でPOST /api/e/claimへ{\"participantId\":\"PのUUID\",\"confirmed\":true}を送ると成功する。その後GET /api/e/meでPの氏名・金額・状態が返る。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-2",
+        "severity": "medium",
+        "title": "イベント作成時の招待トークンに期限が設定されない",
+        "detail": "同梱の events.ts の createEvent は、期限を返さない独自の mintJoinToken を使用し、INSERTにも join_token_expires_at を含めない。一方、resolveEventByJoinToken は期限がNULLなら無期限で受理する。join-token.ts にある90日間の期限は、この作成経路には適用されない。idor.test.ts の共通準備は作成直後にrotateするため、初回トークンの問題を検出しない。",
+        "file": "src/lib/join-token.ts",
+        "line": 229,
+        "repro": "静的追跡による手順（実行未検証）: createEventが返した初回トークンTについて、join_token_expires_at=NULLのイベントを使用する。rotateせず、resolveEventByJoinToken(sql,T,{now:new Date('2099-01-01T00:00:00Z')})を呼ぶ。イベントがcanceledでなければ、期限判定を通過してイベントが返る。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-3",
+        "severity": "medium",
+        "title": "同意画面から進むと個別claimトークンが失われる",
+        "detail": "P-1からP-2への遷移URLにはtしか含まれず、個別リンクのcが引き継がれない。P-2の自動claimは現在のURLにcがある場合だけなので、previewと同意を経由すると個別リンクによるclaimが成立しない。",
+        "file": "src/app/(liff)/e/page.tsx",
+        "line": 193,
+        "repro": "静的追跡による手順（実行未検証）: 未claimかつname_visibility='organizer_only'の参加者に対応するTとCで/e?t=T&c=Cを開く。同意チェック後、認証と同意記録を成功させる。遷移先は/e/claim?t=Tとなり、claimTokenを送る分岐に入らない。公開候補がなければ追加リクエスト画面になる。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-4",
+        "severity": "medium",
+        "title": "claim済みの参加者が元の招待リンクから自分の請求へ戻れない",
+        "detail": "P-1は毎回P-2へ遷移し、P-2は既存claimを確認せず候補一覧を取得する。listCandidatesはclaim済みの行を除外するため、本人の行も表示されない。既存claimからP-3へ進む分岐がなく、候補ゼロの場合は既に登録済みの本人にも追加リクエストを案内する。",
+        "file": "src/app/(liff)/e/claim/page.tsx",
+        "line": 164,
+        "repro": "静的追跡による手順（実行未検証）: 公開参加者Pが1人だけのイベントで、Aが/e?t=TからPをclaimしてP-3へ到達する。その後、同じAが元の/e?t=Tを再度開き、認証と同意記録を成功させる。P-2の候補は空になり、追加リクエスト画面が表示される。自分の請求への遷移は行われない。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-5",
+        "severity": "medium",
+        "title": "自分に送るリンクとLINE復帰リンクからイベント情報が欠落する",
+        "detail": "liffPermanentLinkはhttps://liff.line.me/<LIFF ID>だけを返す。P-3はこの値をそのままコピーするため、/e/meと招待トークンtが含まれない。P-1・P-2・P-3のLINE復帰導線にも同じ基底URLを渡しており、表示中のイベントへ戻るための情報を保持していない。",
+        "file": "src/app/(liff)/e/me/page.tsx",
+        "line": 193,
+        "repro": "静的追跡による手順（実行未検証）: LIFF IDを2000000000-abcd1234として/e/me?t=Tを表示し、「このリンクを自分に送る」を押す。コピーされる値はhttps://liff.line.me/2000000000-abcd1234であり、現在の請求画面のパスもTも含まれない。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-6",
+        "severity": "medium",
+        "title": "追加リクエストの承認後も参加者画面からclaimできない",
+        "detail": "request-add成功時、画面は応答のparticipantIdを保持せず待機表示に移る。approveAddは承認日時だけを更新し、個別トークンの発行も氏名公開への変更も行わない。既定のorganizer_onlyの行は承認後も候補一覧に現れず、画面を開き直しても本人が選べない。統合テストは返却されたparticipantIdを直接claimParticipantへ渡しており、この画面上の行き止まりを通らない。",
+        "file": "src/app/(liff)/e/claim/page.tsx",
+        "line": 223,
+        "repro": "静的追跡による手順（実行未検証）: 公開候補ゼロのイベントでAが「田中」と入力して追加リクエストを送る。作られたorganizer_onlyの参加者Pを幹事がapprove-addで承認する。待機画面には次の操作がなく、/e/claim?t=Tを開き直してもPは候補に含まれず、再び追加リクエスト画面になる。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-7",
+        "severity": "medium",
+        "title": "追加リクエストの同時実行で参加者数上限を超過できる",
+        "detail": "requestAddの件数確認とINSERTの間にイベント単位の排他がない。異なるリクエストが同じ残り枠を読み取れるため、MAX_PARTICIPANTS_PER_EVENT=100を超えて登録できる。appendAuditLogのロックは参加者INSERT後に取得されるので、この競合を防がない。",
+        "file": "src/app/api/e/request-add/route.ts",
+        "line": 107,
+        "repro": "静的追跡による手順（実行未検証）: active参加者99人のイベントEを用意する。有効なセッション・同意・CSRF・招待トークンを持つAとBが、POST /api/e/request-addへそれぞれ{\"displayLabel\":\"追加A\"}と{\"displayLabel\":\"追加B\"}を同時送信する。両トランザクションのCOUNTが99を返してから各INSERTを実行する順序では、両方が成功しactive参加者が101人になる。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      }
+    ],
+    "diagnostics": {
+      "exit_code": 0,
+      "event_types": [
+        "thread.started",
+        "turn.started",
+        "item.completed",
+        "item.completed",
+        "turn.completed"
+      ],
+      "cli_errors": [
+        "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+      ],
+      "last_message_bytes": 3767,
+      "stderr_tail": "source_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n2026-09-24T16:03:44.540341Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T16:03:44.601837Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T16:03:44.962886Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer error=\\\"invalid_request\\\", error_description=\\\"No access token was provided in this request\\\", resource_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n"
+    },
+    "packet_bytes": 477955,
+    "validated_at": "2026-09-24T16:09:08Z",
+    "classification": "vote",
+    "source_file": "/var/folders/h6/2q0crwpx3zx94d5zxclh_f5c0000gn/T//cashapp-review/task_015/gpt.json",
+    "merged_at": "2026-09-24T16:09:08Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gpt-6-astra を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 1,
+        "medium": 6,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 7,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "type": "summary",
+    "task_id": "task_015",
+    "round": 1,
+    "merged_at": "2026-09-24T16:09:08Z",
+    "decision": "reject",
+    "envelopes": 2,
+    "votes": 2,
+    "vendors": [
+      "gemini",
+      "gpt"
+    ],
+    "author_vendor": "claude",
+    "missing_votes": 0,
+    "invalid_envelopes": 0,
+    "invalid_reviews": 0,
+    "self_reviews": 0,
+    "task_mismatches": 0,
+    "effective_high": 1,
+    "exit_code": 1
+  }
+]

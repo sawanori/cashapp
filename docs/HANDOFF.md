@@ -2205,6 +2205,26 @@ GPT-6 Astra 7 件のうち重複を除く 7 件を**全件修正**した（詳�
   task_020）・C-017-8（`applyToLedger` 本体 → task_018）・C-017-11（write-ahead を別トランザクション
   へ → task_018 / task_026）。C-017-1（PayPay 受取リンク）は PO の一次資料待ちで `verified:false`。
 
+## task_015（G5 記録の確定・クローズ）
+
+### 決まったこと
+
+- task_015 は実装（`2a17eb5`）と G5 round1 の反映（`d3e5368`）で完了済みなので作り直さない。
+  未コミットで残っていた敵対レビュー記録 `docs/review-log/task_015.json`（round 1・
+  **merge-review: reject**・有効票 2 / 欠票 0 / 実効 high 1）と run-log をコミットして閉じた。
+- round1 の 7 件は `d3e5368` で全件処理済み（high の「氏名非共有の行を個別リンクなしで claim
+  できた」を含む）。規約どおり**再レビューはしない**。HEAD `8f04f0a` で verify_commands 5 本を
+  `scripts/record-run.sh task_015` 経由で再実行し全て exit 0。ソースの追加変更は無い。
+
+### 未解決
+
+- C-015-1〜7（`docs/concerns/task_015.md`）。deferred は C-015-4（レート制限 429 の実測 →
+  task_024 / task_035）と C-015-7（Hyperdrive 実測 → task_035）、C-015-5（`/api/e/*` の
+  Route Handler 実行テスト → task_022 の E2E）。
+- ハーネス: `.locks/run-log/task_015.lock` が前ワークフローの中断で残り、`record-run.sh` が
+  14 分スピンした（保持プロセスは不在）。空ディレクトリを `rmdir` して復旧。stale lock の
+  自動失効（保持 PID の記録と死活確認）が無い。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -2416,3 +2436,7 @@ GPT-6 Astra 7 件のうち重複を除く 7 件を**全件修正**した（詳�
 - 2026-09-24T16:51:39Z HEAD=692f24d 決まったこと: task_017(引き継ぎ・確認): 最終 HEAD での verify 再実行ログと確認結果を記録する / 未解決: 未コミット 8 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json docs/review-log/task_015.json tests/gates/probe.test.ts 
 - 2026-09-24T16:53:28Z HEAD=692f24d 決まったこと: task_017(引き継ぎ・確認): 最終 HEAD での verify 再実行ログと確認結果を記録する / 未解決: 未コミット 12 件: docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json docs/task-list.json 
 - 2026-09-24T16:53:47Z HEAD=692f24d 決まったこと: task_017(引き継ぎ・確認): 最終 HEAD での verify 再実行ログと確認結果を記録する / 未解決: 未コミット 12 件: docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json docs/task-list.json 
+- 2026-09-24T16:54:39Z HEAD=61b18a1 決まったこと: task_019: BLOCKED — 依存タスク task_018 が未着手のため ConformanceKit を実装できない / 未解決: 未コミット 7 件: docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json docs/review-log/task_015.json tests/gates/probe.test.ts 
+- 2026-09-24T16:55:44Z HEAD=61b18a1 決まったこと: task_019: BLOCKED — 依存タスク task_018 が未着手のため ConformanceKit を実装できない / 未解決: 未コミット 9 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json docs/run-log/task_019.json docs/review-log/task_015.json 
+- 2026-09-24T16:56:42Z HEAD=61b18a1 決まったこと: task_019: BLOCKED — 依存タスク task_018 が未着手のため ConformanceKit を実装できない / 未解決: 未コミット 10 件: docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json docs/run-log/task_019.json 
+- 2026-09-24T16:57:40Z HEAD=298b720 決まったこと: task_019: 敵対レビュー記録（G5） / 未解決: 未コミット 10 件: docs/HANDOFF.md docs/PROGRESS.md docs/review-log/task_015.json docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json 
