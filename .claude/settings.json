@@ -90,6 +90,12 @@
             "command": "cd \"$CLAUDE_PROJECT_DIR\" && npm run --silent gate:check",
             "timeout": 300,
             "statusMessage": "gate:check（G0〜G14）"
+          },
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && npm run --silent test:gate",
+            "timeout": 300,
+            "statusMessage": "test:gate（契約テスト＋ProviderConformanceKit。実Postgres必須）"
           }
         ]
       }

@@ -3,10 +3,12 @@
  *
  * done_definition: 「manual_confirm は該当ケース pass・他は n/a 記録」。
  *
- * Phase 1 時点では task_018（台帳適用・冪等基盤・Webhook ルート・fixture_provider 契約テスト
- * ヘルパー）が未着手（`docs/concerns/task_019.md`）。DB / Webhook ルートを要するケース
- * （C1〜C8・C11・C13〜C22・C24〜C26・C28・C31 ほか）は n/a として記録し、task_018 完了後に
- * `tests/conformance/fixture-provider.conformance.test.ts`（未作成・task_018 待ち）側で実行する。
+ * task_018（台帳適用・冪等基盤・Webhook ルート・fixture_provider 契約テストヘルパー）は
+ * 7833726 で完了済み。ただし `manual_confirm` は `capabilities.webhook === false`
+ * （自己申告のみで Webhook を一切持たない）ため、DB / Webhook ルートを要するケース
+ * （C1〜C8・C11・C13〜C22・C24〜C26・C28・C31 ほか）は task_018 の完了有無にかかわらず
+ * 構造的に n/a のままである。これらは `tests/conformance/fixture-provider.conformance.test.ts`
+ * （task_019 が task_018 完了後に作成）側で実行する。
  * `manual_confirm` 自身の能力宣言（`refund: 'none'` 等・§7-6 guard 0 でゲートを一切見ない）で
  * 構造的に n/a になるケースも同様に記録する。
  *
@@ -256,9 +258,11 @@ describe("C12: ゲート未通過で ProviderNotEnabledError（→ 409。汎用�
 // ============================================================================
 
 const NOT_YET_LEDGER =
-  "task_018（台帳適用 applyToLedger・Webhook ルート）が未着手のため実行不能（docs/concerns/task_019.md）";
+  "capabilities.webhook === false（manual_confirm は自己申告のみで Webhook を一切持たない）のため" +
+  "台帳適用（applyToLedger）を通す経路が無い。同じケースは fixture_provider 側で検査する" +
+  "（tests/conformance/fixture-provider.conformance.test.ts。task_018 は 7833726 で完了済み）";
 const NOT_YET_WEBHOOK_ROUTE =
-  "task_018（Webhook ルート /api/webhooks/[providerKey]/[bindingRef]）が未着手のため実行不能";
+  "capabilities.webhook === false のため Webhook ルートに届くイベントが無い（NO_WEBHOOK と同義）";
 const NOT_YET_ROUTE_INFRA =
   "checkout API ルート側の attempt 一意性実装（DB 制約＋ルートハンドラ）に依存し、アダプタ単体では検証できない";
 const REFUND_NOT_SUPPORTED = "capabilities.refund === 'none' のため対象外";

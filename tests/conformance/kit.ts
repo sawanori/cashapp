@@ -3,12 +3,11 @@
  * §9-2 / `docs/research/premortem-risks.md` §3-4）。
  *
  * アダプタを1本書いたら `registerProvider()` に `key` を登録するだけで、C1〜C31（+C4b）の
- * ケースが自動で回る……という設計の**土台**。task_019 の時点では task_018（台帳適用・
- * 冪等基盤・Webhook ルート・fixture_provider 契約テストヘルパー）が未着手のため、DB /
- * Webhook ルートを要するケースは各アダプタの `*.conformance.test.ts` 側で `n/a` として
- * 明示記録する（`docs/concerns/task_019.md`）。task_018 完了後に当該ケースを実行するように
- * なっても、このファイルを書き換える必要は無い — `*.conformance.test.ts` 側が
- * `ConformanceCaseResult` を `"pass"` で積むだけでよい。
+ * ケースが自動で回る……という設計の**土台**。task_018（台帳適用・冪等基盤・Webhook ルート・
+ * fixture_provider 契約テストヘルパー）は 7833726 で完了済み。DB / Webhook ルートを要する
+ * ケースは `tests/conformance/fixture-provider.conformance.test.ts` で実行し、その能力を
+ * 持たないアダプタ（`manual_confirm` など）側では引き続き各 `*.conformance.test.ts` が
+ * `n/a` として理由つきで明示記録する。
  *
  * ★ `registerProvider` は fixture の `captured_from` 欠落を拒否し（`provenance.ts`）、
  *   `synthesized` のみのアダプタが `autoDetect: true` を名乗るのも拒否する

@@ -86,5 +86,239 @@
     "commit": "b782d3d346680fb0603c820d05b14426da5fbb16",
     "ran_at": "2026-09-24T17:29:49Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:conformance",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:conformance\n> TZ=UTC vitest run tests/conformance\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  1 passed (1)\n      Tests  11 passed (11)\n   Start at  17:38:38\n   Duration  501ms (transform 46%, setup 40%, import 9%, tests 4%, worker 1%)",
+    "commit": "9421d14ac3e2833177bb392dadbc0a5ef579eb29",
+    "ran_at": "2026-09-24T17:38:38Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:conformance",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:conformance\n> TZ=UTC vitest run tests/conformance\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  1 passed (1)\n      Tests  11 passed (11)\n   Start at  17:38:47\n   Duration  1.32s (transform 43%, setup 38%, import 8%, tests 5%, environment 3%, worker 3%)",
+    "commit": "9421d14ac3e2833177bb392dadbc0a5ef579eb29",
+    "ran_at": "2026-09-24T17:38:45Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:gate",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:gate\n> npm run test:contract && npm run test:conformance\n\n\n> cashapp@0.1.0 test:contract\n> TZ=UTC vitest run tests/contract --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  3 passed (3)\n      Tests  7 passed (7)\n   Start at  17:38:57\n   Duration  5.12s (import 48%, transform 21%, tests 19%, setup 11%)\n\n\n> cashapp@0.1.0 test:conformance\n> TZ=UTC vitest run tests/conformance\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  1 passed (1)\n      Tests  11 passed (11)\n   Start at  17:39:05\n   Duration  2.24s (transform 51%, setup 43%, import 3%, tests 1%)",
+    "commit": "9421d14ac3e2833177bb392dadbc0a5ef579eb29",
+    "ran_at": "2026-09-24T17:38:55Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 110 file(s) read)\nok    L2 (forbid, 110 file(s) read)\nL3 src/lib/outbox.ts:44 | /** 紛争（チャージバック）が発生した。 */\nok    L8 (forbid, 110 file(s) read)\nok    L12 (forbid, 110 file(s) read)\nok    P1 (forbid, 109 file(s) read)\nok    P2 (forbid, 1 file(s) read)\nok    P9 (forbid, 13 file(s) read)\nok    W3 (forbid, 115 file(s) read)\nok    W4 (forbid, 5 file(s) read)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 107 file(s) read)\nok    N5 (forbid, 110 file(s) read)\nok    N7 (forbid, 110 file(s) read)\nN9 src/components/ShareSheet.tsx:14 | *     2. `docs/constraints.json` N9（`sendMessages(` という並びの文字列を禁止）を\nN9 src/lib/liff/share.ts:11 | * ★ ここで呼ぶのは `liff.shareTargetPicker()` であって **`liff.sendMessages()` ではない**\nN9 src/lib/liff/share.ts:12 | *   （制約 N9。2 つは別の API で、引数の形が似ているだけ）。`sendMessages(` という並びの\nok    N11 (forbid, 110 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 31 file(s) read)\nok    I4 (forbid, 3 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 59 file(s) read)\nok    X-MONEY (forbid, 10 file(s) read)\nGC-XSS src/components/ShareSheet.tsx:302 | dangerouslySetInnerHTML={{ __html: qrSvg }}\nok    GC-ENV-PUBLIC (forbid, 115 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\nok    GC-RANK-NEGATION (forbid, 115 file(s) read)\nok    GC-LIB-CLIENT-DIRECTIVE (forbid, 43 file(s) read)\n\ngate:constraints — scanned 27 grep entr(y|ies), 5 violation(s), 0 empty gate(s)",
+    "commit": "9421d14ac3e2833177bb392dadbc0a5ef579eb29",
+    "ran_at": "2026-09-24T17:39:14Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit\n\ntests/conformance/fixture-provider.conformance.test.ts(378,27): error TS2345: Argument of type '\"refund-partial-1\"' is not assignable to parameter of type 'FixtureName'.\ntests/conformance/fixture-provider.conformance.test.ts(387,27): error TS2345: Argument of type '\"refund-partial-2\"' is not assignable to parameter of type 'FixtureName'.\ntests/conformance/fixture-provider.conformance.test.ts(458,27): error TS2345: Argument of type '\"orphan\"' is not assignable to parameter of type 'FixtureName'.\ntests/conformance/fixture-provider.conformance.test.ts(825,27): error TS2345: Argument of type '\"refund-partial-1\"' is not assignable to parameter of type 'FixtureName'.\ntests/conformance/fixture-provider.conformance.test.ts(864,27): error TS2345: Argument of type '\"underpaid\"' is not assignable to parameter of type 'FixtureName'.\ntests/conformance/fixture-provider.conformance.test.ts(1004,9): error TS2322: Type '{ providerKey: string; providerEventId: string; eventType: string; kind: \"succeeded\"; externalRef: string; businessIdemKey: string; ledgerDedupeKey: undefined; money: { amountMinor: number; currency: \"JPY\"; }; occurredAt: Date; trust: \"verified\"; raw: null; }' is not assignable to type 'NormalizedEvent'.\n  Types of property 'ledgerDedupeKey' are incompatible.\n    Type 'undefined' is not assignable to type 'string'.",
+    "commit": "30ae689abef9ccb88cbd268ec063eec74bbd692b",
+    "ran_at": "2026-09-24T18:23:39Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "30ae689abef9ccb88cbd268ec063eec74bbd692b",
+    "ran_at": "2026-09-24T18:24:51Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run lint:changed",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 lint:changed\n> files=$(git diff --name-only --diff-filter=ACMR HEAD -- \"*.ts\" \"*.tsx\"; git diff --cached --name-only --diff-filter=ACMR -- \"*.ts\" \"*.tsx\"; git ls-files --others --exclude-standard -- \"*.ts\" \"*.tsx\"); files=$(echo \"$files\" | grep -E \"[.]tsx?$\" | sort -u | tr \"\\n\" \" \"); if [ -z \"$files\" ]; then echo \"lint:changed: 対象なし（HEAD との差分・ステージ済み差分・未追跡ファイルに .ts / .tsx がありません）\"; else echo \"lint:changed: $files\"; eslint --max-warnings=0 $files; fi\n\nlint:changed: src/app/(liff)/events/[id]/share/page.tsx src/app/api/cron/apply-pending/route.ts src/app/api/cron/audit-verify/route.ts src/app/api/cron/idempotency-cleanup/route.ts src/app/api/cron/outbox/route.ts src/app/api/cron/reconcile/route.ts src/app/api/cron/retention/route.ts src/components/ShareSheet.tsx src/lib/cron-auth.ts src/lib/reconcile.ts src/lib/retention.ts tests/conformance/fixture-provider.conformance.test.ts tests/conformance/kit.ts tests/conformance/manual-confirm.conformance.test.ts tests/gates/probe.test.ts tests/unit/components/ShareSheet.test.tsx workers/cron/index.ts ",
+    "commit": "30ae689abef9ccb88cbd268ec063eec74bbd692b",
+    "ran_at": "2026-09-24T18:25:04Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run lint:changed",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 lint:changed\n> files=$(git diff --name-only --diff-filter=ACMR HEAD -- \"*.ts\" \"*.tsx\"; git diff --cached --name-only --diff-filter=ACMR -- \"*.ts\" \"*.tsx\"; git ls-files --others --exclude-standard -- \"*.ts\" \"*.tsx\"); files=$(echo \"$files\" | grep -E \"[.]tsx?$\" | sort -u | tr \"\\n\" \" \"); if [ -z \"$files\" ]; then echo \"lint:changed: 対象なし（HEAD との差分・ステージ済み差分・未追跡ファイルに .ts / .tsx がありません）\"; else echo \"lint:changed: $files\"; eslint --max-warnings=0 $files; fi\n\nlint:changed: src/app/(liff)/events/[id]/share/page.tsx src/app/api/cron/apply-pending/route.ts src/app/api/cron/audit-verify/route.ts src/app/api/cron/idempotency-cleanup/route.ts src/app/api/cron/outbox/route.ts src/app/api/cron/reconcile/route.ts src/app/api/cron/retention/route.ts src/components/ShareSheet.tsx src/lib/cron-auth.ts src/lib/reconcile.ts src/lib/retention.ts tests/conformance/fixture-provider.conformance.test.ts tests/conformance/kit.ts tests/conformance/manual-confirm.conformance.test.ts tests/gates/probe.test.ts tests/unit/components/ShareSheet.test.tsx workers/cron/index.ts ",
+    "commit": "30ae689abef9ccb88cbd268ec063eec74bbd692b",
+    "ran_at": "2026-09-24T18:25:13Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:conformance",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 test:conformance\n> TZ=UTC vitest run tests/conformance\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n ❯ tests/conformance/fixture-provider.conformance.test.ts (0 test)\n\n⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  tests/conformance/fixture-provider.conformance.test.ts [ tests/conformance/fixture-provider.conformance.test.ts ]\nFixtureProvenanceError: fixture provenance rejected (succeeded): captured_at が欠落しているか YYYY-MM-DD 形式ではありません\n ❯ Module.assertFixtureProvenance tests/conformance/provenance.ts:78:11\n     76|   }\n     77|   if (typeof record.captured_at !== \"string\" || !DATE_RE.test(record.c…\n     78|     throw new FixtureProvenanceError(\n       |           ^\n     79|       fixtureLabel,\n     80|       \"captured_at が欠落しているか YYYY-MM-DD 形式ではありません\",\n ❯ tests/conformance/fixture-provider.conformance.test.ts:173:3\n ❯ tests/conformance/fixture-provider.conformance.test.ts:172:81\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\n\n\n Test Files  1 failed | 1 passed (2)\n      Tests  11 passed (11)\n   Start at  18:25:21\n   Duration  986ms (setup 49%, transform 35%, import 12%, tests 2%, worker 2%)",
+    "commit": "30ae689abef9ccb88cbd268ec063eec74bbd692b",
+    "ran_at": "2026-09-24T18:25:20Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "30ae689abef9ccb88cbd268ec063eec74bbd692b",
+    "ran_at": "2026-09-24T18:26:38Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:conformance",
+    "exit_code": 1,
+    "stdout_tail": "> cashapp@0.1.0 test:conformance\n> TZ=UTC vitest run tests/conformance\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n ❯ tests/conformance/fixture-provider.conformance.test.ts (25 tests | 1 failed) 278ms\n   ❯ レポート: fixture_provider の32ケース全件をpass/n/aで明示記録する (1)\n     × 22 ケースが pass、9 ケースが能力宣言/設計上の理由で n/a 2ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  tests/conformance/fixture-provider.conformance.test.ts > レポート: fixture_provider の32ケース全件をpass/n/aで明示記録する > 22 ケースが pass、9 ケースが能力宣言/設計上の理由で n/a\nAssertionError: expected [ Array(21) ] to have a length of 22 but got 21\n\n- Expected\n+ Received\n\n- 22\n+ 21\n\n ❯ tests/conformance/fixture-provider.conformance.test.ts:1194:20\n    1192|\n    1193|     const passed = report.results.filter((r) => r.status === \"pass\").m…\n    1194|     expect(passed).toHaveLength(22);\n       |                    ^\n    1195|\n    1196|     const naWithoutReason = report.results.filter(\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\n\n\n Test Files  1 failed | 1 passed (2)\n      Tests  1 failed | 35 passed (36)\n   Start at  18:26:45\n   Duration  652ms (tests 39%, import 26%, transform 24%, setup 11%)",
+    "commit": "30ae689abef9ccb88cbd268ec063eec74bbd692b",
+    "ran_at": "2026-09-24T18:26:45Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:conformance",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:conformance\n> TZ=UTC vitest run tests/conformance\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  2 passed (2)\n      Tests  36 passed (36)\n   Start at  18:27:09\n   Duration  991ms (tests 37%, import 28%, transform 23%, setup 12%)",
+    "commit": "30ae689abef9ccb88cbd268ec063eec74bbd692b",
+    "ran_at": "2026-09-24T18:27:09Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:gate",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:gate\n> npm run test:contract && npm run test:conformance\n\n\n> cashapp@0.1.0 test:contract\n> TZ=UTC vitest run tests/contract --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  3 passed (3)\n      Tests  7 passed (7)\n   Start at  18:27:15\n   Duration  518ms (import 45%, tests 24%, transform 20%, setup 10%)\n\n\n> cashapp@0.1.0 test:conformance\n> TZ=UTC vitest run tests/conformance\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  2 passed (2)\n      Tests  36 passed (36)\n   Start at  18:27:16\n   Duration  816ms (tests 37%, import 27%, transform 25%, setup 11%)",
+    "commit": "30ae689abef9ccb88cbd268ec063eec74bbd692b",
+    "ran_at": "2026-09-24T18:27:15Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 119 file(s) read)\nok    L2 (forbid, 119 file(s) read)\nok    L3 (forbid, 119 file(s) read)\nok    L8 (forbid, 119 file(s) read)\nok    L12 (forbid, 119 file(s) read)\nok    P1 (forbid, 118 file(s) read)\nok    P2 (forbid, 1 file(s) read)\nok    P9 (forbid, 13 file(s) read)\nok    W3 (forbid, 124 file(s) read)\nok    W4 (forbid, 5 file(s) read)\nok    W9 (forbid, 1 file(s) read)\nW11 src/lib/reconcile.ts:1 | required pattern missing (pg_try_advisory(_xact)?_lock)\nok    N2 (forbid, 116 file(s) read)\nok    N5 (forbid, 119 file(s) read)\nok    N7 (forbid, 119 file(s) read)\nok    N9 (forbid, 119 file(s) read)\nok    N11 (forbid, 119 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 31 file(s) read)\nok    I4 (forbid, 3 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 65 file(s) read)\nok    X-MONEY (forbid, 10 file(s) read)\nok    GC-XSS (forbid, 119 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 124 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\nok    GC-RANK-NEGATION (forbid, 124 file(s) read)\nok    GC-LIB-CLIENT-DIRECTIVE (forbid, 46 file(s) read)\n\ngate:constraints — scanned 29 grep entr(y|ies), 1 violation(s), 0 empty gate(s)",
+    "commit": "30ae689abef9ccb88cbd268ec063eec74bbd692b",
+    "ran_at": "2026-09-24T18:27:19Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:conformance",
+    "exit_code": 1,
+    "stdout_tail": "(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n ❯ tests/conformance/fixture-provider.conformance.test.ts (0 test)\n\n⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  tests/conformance/fixture-provider.conformance.test.ts [ tests/conformance/fixture-provider.conformance.test.ts ]\nError: Transform failed with 1 error:\n\n\u001b[31m[PARSE_ERROR] \u001b[0mExpected `}` but found `EOF`\n     \u001b[38;5;246m╭\u001b[0m\u001b[38;5;246m─\u001b[0m\u001b[38;5;246m[\u001b[0m src/app/api/webhooks/[providerKey]/[bindingRef]/route.ts:432:3 \u001b[38;5;246m]\u001b[0m\n     \u001b[38;5;246m│\u001b[0m\n \u001b[38;5;246m186 │\u001b[0m \u001b[38;5;249m)\u001b[0m\u001b[38;5;249m:\u001b[0m\u001b[38;5;249m \u001b[0m\u001b[38;5;249mP\u001b[0m\u001b[38;5;249mr\u001b[0m\u001b[38;5;249mo\u001b[0m\u001b[38;5;249mm\u001b[0m\u001b[38;5;249mi\u001b[0m\u001b[38;5;249ms\u001b[0m\u001b[38;5;249me\u001b[0m\u001b[38;5;249m<\u001b[0m\u001b[38;5;249mR\u001b[0m\u001b[38;5;249me\u001b[0m\u001b[38;5;249ms\u001b[0m\u001b[38;5;249mp\u001b[0m\u001b[38;5;249mo\u001b[0m\u001b[38;5;249mn\u001b[0m\u001b[38;5;249ms\u001b[0m\u001b[38;5;249me\u001b[0m\u001b[38;5;249m>\u001b[0m\u001b[38;5;249m \u001b[0m{\n \u001b[38;5;240m    │\u001b[0m                      ┬  \n \u001b[38;5;240m    │\u001b[0m                      ╰── Opened here\n \u001b[38;5;240m    │\u001b[0m \n \u001b[38;5;246m432 │\u001b[0m \u001b[38;5;249m}\u001b[0m\n \u001b[38;5;240m    │\u001b[0m   │ \n \u001b[38;5;240m    │\u001b[0m   ╰─ `}` expected\n\u001b[38;5;246m─────╯\u001b[0m\n\n  Plugin: vite:oxc\n  File: /Users/noritakasawada/AI_P/cashapp/src/app/api/webhooks/[providerKey]/[bindingRef]/route.ts\n ❯ transformWithOxc node_modules/vite/dist/node/chunks/node.js:7208:19\n ❯ TransformPluginContext.transform node_modules/vite/dist/node/chunks/node.js:7280:26\n ❯ EnvironmentPluginContainer.transform node_modules/vite/dist/node/chunks/node.js:8172:51\n ❯ loadAndTransform node_modules/vite/dist/node/chunks/node.js:19634:26\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\n\n\n Test Files  1 failed | 1 passed (2)\n      Tests  11 passed (11)\n   Start at  18:29:47\n   Duration  310ms (setup 49%, transform 42%, import 4%, tests 2%, worker 2%)",
+    "commit": "30ae689abef9ccb88cbd268ec063eec74bbd692b",
+    "ran_at": "2026-09-24T18:29:47Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:gate",
+    "exit_code": 1,
+    "stdout_tail": " RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n ❯ tests/contract/reorder.test.ts (0 test)\n ❯ tests/contract/duplicate.test.ts (0 test)\n ❯ tests/contract/signature.test.ts (0 test)\n\n⎯⎯⎯⎯⎯⎯ Failed Suites 3 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  tests/contract/duplicate.test.ts [ tests/contract/duplicate.test.ts ]\n FAIL  tests/contract/reorder.test.ts [ tests/contract/reorder.test.ts ]\n FAIL  tests/contract/signature.test.ts [ tests/contract/signature.test.ts ]\nError: Transform failed with 1 error:\n\n\u001b[31m[PARSE_ERROR] \u001b[0mExpected `}` but found `EOF`\n     \u001b[38;5;246m╭\u001b[0m\u001b[38;5;246m─\u001b[0m\u001b[38;5;246m[\u001b[0m src/app/api/webhooks/[providerKey]/[bindingRef]/route.ts:432:3 \u001b[38;5;246m]\u001b[0m\n     \u001b[38;5;246m│\u001b[0m\n \u001b[38;5;246m186 │\u001b[0m \u001b[38;5;249m)\u001b[0m\u001b[38;5;249m:\u001b[0m\u001b[38;5;249m \u001b[0m\u001b[38;5;249mP\u001b[0m\u001b[38;5;249mr\u001b[0m\u001b[38;5;249mo\u001b[0m\u001b[38;5;249mm\u001b[0m\u001b[38;5;249mi\u001b[0m\u001b[38;5;249ms\u001b[0m\u001b[38;5;249me\u001b[0m\u001b[38;5;249m<\u001b[0m\u001b[38;5;249mR\u001b[0m\u001b[38;5;249me\u001b[0m\u001b[38;5;249ms\u001b[0m\u001b[38;5;249mp\u001b[0m\u001b[38;5;249mo\u001b[0m\u001b[38;5;249mn\u001b[0m\u001b[38;5;249ms\u001b[0m\u001b[38;5;249me\u001b[0m\u001b[38;5;249m>\u001b[0m\u001b[38;5;249m \u001b[0m{\n \u001b[38;5;240m    │\u001b[0m                      ┬  \n \u001b[38;5;240m    │\u001b[0m                      ╰── Opened here\n \u001b[38;5;240m    │\u001b[0m \n \u001b[38;5;246m432 │\u001b[0m \u001b[38;5;249m}\u001b[0m\n \u001b[38;5;240m    │\u001b[0m   │ \n \u001b[38;5;240m    │\u001b[0m   ╰─ `}` expected\n\u001b[38;5;246m─────╯\u001b[0m\n\n  Plugin: vite:oxc\n  File: /Users/noritakasawada/AI_P/cashapp/src/app/api/webhooks/[providerKey]/[bindingRef]/route.ts\n ❯ transformWithOxc node_modules/vite/dist/node/chunks/node.js:7208:19\n ❯ TransformPluginContext.transform node_modules/vite/dist/node/chunks/node.js:7280:26\n ❯ EnvironmentPluginContainer.transform node_modules/vite/dist/node/chunks/node.js:8172:51\n ❯ loadAndTransform node_modules/vite/dist/node/chunks/node.js:19634:26\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯\n\n\n Test Files  3 failed (3)\n      Tests  no tests\n   Start at  18:29:49\n   Duration  272ms (setup 82%, transform 14%, worker 3%, environment 1%)",
+    "commit": "30ae689abef9ccb88cbd268ec063eec74bbd692b",
+    "ran_at": "2026-09-24T18:29:48Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:gate",
+    "exit_code": 1,
+    "stdout_tail": "    457|       expect(ledger.slice(1).map((r) => r.amount_minor)).toEqual([1000…\n    458|     });\n ❯ tests/integration/setup.ts:107:27\n ❯ scope node_modules/postgres/src/index.js:260:18\n ❯ Function.begin node_modules/postgres/src/index.js:243:14\n ❯ Module.withRollback tests/integration/setup.ts:106:5\n ❯ tests/conformance/fixture-provider.conformance.test.ts:414:5\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n FAIL  tests/conformance/fixture-provider.conformance.test.ts > C18: 部分返金後に残高が正しくsettlement_statusがrefundedにならない > 部分返金（金額不一致）を受けても settlement_status は paid のまま\nAssertionError: expected 1000 to be +0 // Object.is equality\n\n- Expected\n+ Received\n\n- 0\n+ 1000\n\n ❯ tests/conformance/fixture-provider.conformance.test.ts:898:41\n    896|       `;\n    897|       expect(Number(balance[0]?.credit)).toBe(3000);\n    898|       expect(Number(balance[0]?.debit)).toBe(0);\n       |                                         ^\n    899|     });\n    900|   });\n ❯ tests/integration/setup.ts:107:27\n ❯ scope node_modules/postgres/src/index.js:260:18\n ❯ Function.begin node_modules/postgres/src/index.js:243:14\n ❯ Module.withRollback tests/integration/setup.ts:106:5\n ❯ tests/conformance/fixture-provider.conformance.test.ts:861:5\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯\n\n\n Test Files  1 failed | 1 passed (2)\n      Tests  2 failed | 34 passed (36)\n   Start at  18:30:08\n   Duration  650ms (tests 40%, import 28%, transform 20%, setup 12%)",
+    "commit": "30ae689abef9ccb88cbd268ec063eec74bbd692b",
+    "ran_at": "2026-09-24T18:30:07Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "5c0ca45083e271ebc3b6593a8a7c8822aefd9e0a",
+    "ran_at": "2026-09-24T18:31:17Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:gate",
+    "exit_code": 1,
+    "stdout_tail": "    457|       expect(ledger.slice(1).map((r) => r.amount_minor)).toEqual([1000…\n    458|     });\n ❯ tests/integration/setup.ts:107:27\n ❯ scope node_modules/postgres/src/index.js:260:18\n ❯ Function.begin node_modules/postgres/src/index.js:243:14\n ❯ Module.withRollback tests/integration/setup.ts:106:5\n ❯ tests/conformance/fixture-provider.conformance.test.ts:414:5\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n FAIL  tests/conformance/fixture-provider.conformance.test.ts > C18: 部分返金後に残高が正しくsettlement_statusがrefundedにならない > 部分返金（金額不一致）を受けても settlement_status は paid のまま\nAssertionError: expected 1000 to be +0 // Object.is equality\n\n- Expected\n+ Received\n\n- 0\n+ 1000\n\n ❯ tests/conformance/fixture-provider.conformance.test.ts:898:41\n    896|       `;\n    897|       expect(Number(balance[0]?.credit)).toBe(3000);\n    898|       expect(Number(balance[0]?.debit)).toBe(0);\n       |                                         ^\n    899|     });\n    900|   });\n ❯ tests/integration/setup.ts:107:27\n ❯ scope node_modules/postgres/src/index.js:260:18\n ❯ Function.begin node_modules/postgres/src/index.js:243:14\n ❯ Module.withRollback tests/integration/setup.ts:106:5\n ❯ tests/conformance/fixture-provider.conformance.test.ts:861:5\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯\n\n\n Test Files  1 failed | 1 passed (2)\n      Tests  2 failed | 34 passed (36)\n   Start at  18:31:26\n   Duration  951ms (tests 36%, import 26%, transform 26%, setup 12%)",
+    "commit": "5c0ca45083e271ebc3b6593a8a7c8822aefd9e0a",
+    "ran_at": "2026-09-24T18:31:25Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "82dda923f6d9738ad36b86a00dd2c841fff12d00",
+    "ran_at": "2026-09-24T18:33:06Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:gate",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:gate\n> npm run test:contract && npm run test:conformance\n\n\n> cashapp@0.1.0 test:contract\n> TZ=UTC vitest run tests/contract --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  3 passed (3)\n      Tests  7 passed (7)\n   Start at  18:33:10\n   Duration  903ms (import 49%, tests 20%, transform 20%, setup 10%)\n\n\n> cashapp@0.1.0 test:conformance\n> TZ=UTC vitest run tests/conformance\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  2 passed (2)\n      Tests  36 passed (36)\n   Start at  18:33:12\n   Duration  1.09s (tests 40%, import 27%, transform 21%, setup 11%)",
+    "commit": "82dda923f6d9738ad36b86a00dd2c841fff12d00",
+    "ran_at": "2026-09-24T18:33:10Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 119 file(s) read)\nok    L2 (forbid, 119 file(s) read)\nok    L3 (forbid, 119 file(s) read)\nok    L8 (forbid, 119 file(s) read)\nok    L12 (forbid, 119 file(s) read)\nok    P1 (forbid, 118 file(s) read)\nok    P2 (forbid, 1 file(s) read)\nok    P9 (forbid, 13 file(s) read)\nok    W3 (forbid, 124 file(s) read)\nok    W4 (forbid, 5 file(s) read)\nok    W9 (forbid, 1 file(s) read)\nW11 src/lib/reconcile.ts:1 | required pattern missing (pg_try_advisory(_xact)?_lock)\nok    N2 (forbid, 116 file(s) read)\nok    N5 (forbid, 119 file(s) read)\nok    N7 (forbid, 119 file(s) read)\nok    N9 (forbid, 119 file(s) read)\nok    N11 (forbid, 119 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 31 file(s) read)\nok    I4 (forbid, 3 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 65 file(s) read)\nok    X-MONEY (forbid, 10 file(s) read)\nok    GC-XSS (forbid, 119 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 124 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\nok    GC-RANK-NEGATION (forbid, 124 file(s) read)\nok    GC-LIB-CLIENT-DIRECTIVE (forbid, 46 file(s) read)\n\ngate:constraints — scanned 29 grep entr(y|ies), 1 violation(s), 0 empty gate(s)",
+    "commit": "82dda923f6d9738ad36b86a00dd2c841fff12d00",
+    "ran_at": "2026-09-24T18:33:17Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run lint:changed",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 lint:changed\n> files=$(git diff --name-only --diff-filter=ACMR HEAD -- \"*.ts\" \"*.tsx\"; git diff --cached --name-only --diff-filter=ACMR -- \"*.ts\" \"*.tsx\"; git ls-files --others --exclude-standard -- \"*.ts\" \"*.tsx\"); files=$(echo \"$files\" | grep -E \"[.]tsx?$\" | sort -u | tr \"\\n\" \" \"); if [ -z \"$files\" ]; then echo \"lint:changed: 対象なし（HEAD との差分・ステージ済み差分・未追跡ファイルに .ts / .tsx がありません）\"; else echo \"lint:changed: $files\"; eslint --max-warnings=0 $files; fi\n\nlint:changed: src/app/api/cron/apply-pending/route.ts src/app/api/cron/audit-verify/route.ts src/app/api/cron/idempotency-cleanup/route.ts src/app/api/cron/outbox/route.ts src/app/api/cron/reconcile/route.ts src/app/api/cron/retention/route.ts src/app/api/webhooks/[providerKey]/[bindingRef]/route.ts src/lib/cron-auth.ts src/lib/ledger/apply.ts src/lib/reconcile.ts src/lib/retention.ts src/lib/webhook/ip-allowlist.ts tests/conformance/fixture-provider.conformance.test.ts tests/conformance/kit.ts tests/conformance/manual-confirm.conformance.test.ts tests/contract/signature.test.ts tests/gates/probe.test.ts tests/integration/outbox.test.ts tests/integration/reconcile-load.test.ts tests/integration/reconcile.test.ts tests/unit/cron-auth.test.ts tests/unit/ledger/apply.test.ts workers/cron/index.ts ",
+    "commit": "82dda923f6d9738ad36b86a00dd2c841fff12d00",
+    "ran_at": "2026-09-24T18:33:25Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:conformance",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:conformance\n> TZ=UTC vitest run tests/conformance\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  2 passed (2)\n      Tests  36 passed (36)\n   Start at  18:36:17\n   Duration  1.47s (tests 49%, import 24%, transform 19%, setup 8%)",
+    "commit": "82dda923f6d9738ad36b86a00dd2c841fff12d00",
+    "ran_at": "2026-09-24T18:36:17Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:gate",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:gate\n> npm run test:contract && npm run test:conformance\n\n\n> cashapp@0.1.0 test:contract\n> TZ=UTC vitest run tests/contract --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  3 passed (3)\n      Tests  8 passed (8)\n   Start at  18:36:21\n   Duration  1.50s (import 44%, transform 20%, tests 20%, setup 15%)\n\n\n> cashapp@0.1.0 test:conformance\n> TZ=UTC vitest run tests/conformance\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  2 passed (2)\n      Tests  36 passed (36)\n   Start at  18:36:23\n   Duration  4.13s (tests 71%, transform 12%, import 11%, setup 5%)",
+    "commit": "82dda923f6d9738ad36b86a00dd2c841fff12d00",
+    "ran_at": "2026-09-24T18:36:20Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 119 file(s) read)\nok    L2 (forbid, 119 file(s) read)\nok    L3 (forbid, 119 file(s) read)\nok    L8 (forbid, 119 file(s) read)\nok    L12 (forbid, 119 file(s) read)\nok    P1 (forbid, 118 file(s) read)\nok    P2 (forbid, 1 file(s) read)\nok    P9 (forbid, 13 file(s) read)\nok    W3 (forbid, 124 file(s) read)\nok    W4 (forbid, 5 file(s) read)\nok    W9 (forbid, 1 file(s) read)\nW11 src/lib/reconcile.ts:1 | required pattern missing (pg_try_advisory(_xact)?_lock)\nok    N2 (forbid, 116 file(s) read)\nok    N5 (forbid, 119 file(s) read)\nok    N7 (forbid, 119 file(s) read)\nok    N9 (forbid, 119 file(s) read)\nok    N11 (forbid, 119 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 31 file(s) read)\nok    I4 (forbid, 3 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 65 file(s) read)\nok    X-MONEY (forbid, 10 file(s) read)\nok    GC-XSS (forbid, 119 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 124 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\nok    GC-RANK-NEGATION (forbid, 124 file(s) read)\nok    GC-LIB-CLIENT-DIRECTIVE (forbid, 46 file(s) read)\n\ngate:constraints — scanned 29 grep entr(y|ies), 1 violation(s), 0 empty gate(s)",
+    "commit": "82dda923f6d9738ad36b86a00dd2c841fff12d00",
+    "ran_at": "2026-09-24T18:36:28Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]

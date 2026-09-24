@@ -1,0 +1,17 @@
+{
+  "$comment": "ConformanceKit 用の合成 fixture（task_019）。実在の決済事業者のレスポンスではない。",
+  "captured_from": "synthesized",
+  "captured_at": "2026-09-25",
+  "provenance": {
+    "kind": "synthesized",
+    "authored_by": "model:sonnet (task_019)",
+    "note": "部分返金 2 回目（C4b。refund-partial-1.json と同一 charge への 2 度目の部分返金で、event_id が異なるため provider_event_id の一意制約（W1）をすり抜け、台帳の dedupe_key も 1 回目と異なる。1 回目が落とされていれば 2 回目も同じ理由で落ちるはずで、2 件とも ledger_entry に残ることが『2 回目が捨てられない』ことの証拠になる。"
+  },
+  "event_id": "evt_fixture_refund_partial_2_0001",
+  "type": "payment.refunded",
+  "kind": "refunded",
+  "external_ref": "iv_00000000000000000000000000000000_1",
+  "amount_minor": 500,
+  "currency": "JPY",
+  "occurred_at": "2026-09-25T03:00:00.000Z"
+}

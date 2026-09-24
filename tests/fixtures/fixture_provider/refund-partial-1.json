@@ -1,0 +1,17 @@
+{
+  "$comment": "ConformanceKit 用の合成 fixture（task_019）。実在の決済事業者のレスポンスではない。",
+  "captured_from": "synthesized",
+  "captured_at": "2026-09-25",
+  "provenance": {
+    "kind": "synthesized",
+    "authored_by": "model:sonnet (task_019)",
+    "note": "部分返金 1 回目（C4b・C18 / design-synthesis.md §9-2）。amount_minor は attempt の全額（既定 3000）より少ない 1000。apply.ts の isPartialRefund 分岐（金額 1 以上・attempt 未満・通貨一致）に該当し、ledger_entry.kind='refund' の debit として残高に反映される。残高が 0 を超えて残る間は settlement_status を前進させない（refunded にならない）——これが C18 の満たし方である。refund-partial-2.json（別 event_id）と合わせて『2 回目が落とされず台帳に 2 件目として載る』（C4b）を検査する。"
+  },
+  "event_id": "evt_fixture_refund_partial_1_0001",
+  "type": "payment.refunded",
+  "kind": "refunded",
+  "external_ref": "iv_00000000000000000000000000000000_1",
+  "amount_minor": 1000,
+  "currency": "JPY",
+  "occurred_at": "2026-09-25T02:00:00.000Z"
+}

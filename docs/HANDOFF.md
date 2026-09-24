@@ -2377,6 +2377,27 @@ GPT-6 Astra 7 件のうち重複を除く 7 件を**全件修正**した（詳�
 - `GATE-LEGAL-PII` は `unknown` のまま。`src/content/terms.md` / `privacy.md` は草案 v1（弁護士
   レビュー前提）。
 
+## task_019（再着手: fixture_provider 実装・BLOCKED 解除）
+
+### 決まったこと
+
+- task_018（7833726）完了を受け BLOCKED を解除。fixture-provider.conformance.test.ts と
+  4本の fixture JSON を新規作成し、fixture_provider の C1〜C31 のうち21ケースをpass、
+  11ケースを能力限界/W3/apply.tsの未実装分岐を理由にn/a記録した（全32ケース明示記録）。
+- gate-contract.yml（独立ファイル。gate.ymlは編集しない規約）を新規作成し実Postgres上で
+  test:gateを実行、.claude/settings.jsonのStopフックにtest:gateを登録した。
+- セッション中にapply.ts/route.tsが他エージェント（W8受取先突合・部分返金の正当計上を
+  追加）により並行編集されるのを観測。typecheck/lintは通ったため、その最新挙動に合わせて
+  C4b/C18のアサーションを更新した（apply.tsは自分では変更していない）。
+
+### 未解決
+
+- `docs/concerns/task_019.md` §4〜§8（high 1・medium 2・low 3）。最重要はgate.yml
+  （task_009所有）のacceptanceジョブがtest:contract/test:conformance/test:gateを
+  Postgres無しで再実行しようとする構造的な穴。
+- required_status_checksへの`contract`追加はgit push後にCIで確認するdeferred。
+  task_018の既存5 fixtureがcaptured_atを欠く点はtask_018の次ラウンド待ち。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -2622,3 +2643,7 @@ GPT-6 Astra 7 件のうち重複を除く 7 件を**全件修正**した（詳�
 - 2026-09-24T18:23:10Z HEAD=30ae689 決まったこと: task_018: 敵対レビュー記録（G5） / 未解決: 未コミット 28 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json docs/run-log/task_018.json 
 - 2026-09-24T18:24:11Z HEAD=30ae689 決まったこと: task_018: 敵対レビュー記録（G5） / 未解決: 未コミット 29 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json docs/run-log/task_018.json 
 - 2026-09-24T18:29:15Z HEAD=30ae689 決まったこと: task_018: 敵対レビュー記録（G5） / 未解決: 未コミット 40 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_016.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json 
+- 2026-09-24T18:31:14Z HEAD=5c0ca45 決まったこと: task_016(修正ラウンド): レビュー是正 C-016-6（参加者一覧の100名超ページング欠落）を修正 / 未解決: 未コミット 36 件: .claude/settings.json docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json docs/run-log/task_018.json docs/run-log/task_019.json 
+- 2026-09-24T18:33:14Z HEAD=82dda92 決まったこと: task_021: 敵対レビュー記録（G5） / 未解決: 未コミット 40 件: .claude/settings.json docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json 
+- 2026-09-24T18:34:15Z HEAD=82dda92 決まったこと: task_021: 敵対レビュー記録（G5） / 未解決: 未コミット 43 件: .claude/settings.json docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json 
+- 2026-09-24T18:36:17Z HEAD=82dda92 決まったこと: task_021: 敵対レビュー記録（G5） / 未解決: 未コミット 48 件: .claude/settings.json docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_019.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json 

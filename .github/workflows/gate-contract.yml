@@ -1,0 +1,63 @@
+# 契約テスト（実 Postgres）＋ ProviderConformanceKit ジョブ。
+#
+# ★ 本ファイルは task_019 が単独で所有する。task_009 が作る `.github/workflows/gate.yml` は
+#   編集しない（並行タスクの衝突回避規約。gate.yml 冒頭のコメントと同じ規約）。
+#   `.github/workflows/gate-integration.yml`（task_011 所有）と同じパターンで、実 Postgres を
+#   要する `npm run test:contract`（task_018）と `npm run test:conformance`（task_018 +
+#   task_019。fixture_provider の C1〜C31 は実 Postgres への webhook ルート経由の検査のため）
+#   を1つのジョブにまとめる（`npm run test:gate` がその合成）。
+#
+# required status checks への登録（`gh api` での追加）は task_009 の担当で、このセッションは
+# git push・gh api ともに実行できないため未実施（deferred。docs/concerns/task_019.md 参照）。
+#
+# 一次資料: docs/vendor-docs/supabase/ci-local-testing.md（取得日 2026-09-24）。
+
+name: gate-contract
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate-contract-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    name: contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # .npmrc の ignore-scripts=true をそのまま活かす（サプライチェーン統制、R-SEC-13）。
+      - name: Install dependencies
+        run: npm ci
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.58.5
+
+      # `supabase start` は supabase/migrations/*.sql を適用する。
+      - name: Start local Supabase (Postgres)
+        run: supabase start
+
+      # 冪等。未適用のマイグレーションがあればここで適用され、無ければ何もしない。
+      - name: Apply migrations
+        run: npm run db:migrate
+
+      # test:contract（W1/W2/W3/W6/W8/W12 の契約3本）＋ test:conformance
+      # （ProviderConformanceKit。fixture_provider の C1〜C31、manual_confirm の C9/C10/C12）。
+      - name: Contract + ConformanceKit tests (real Postgres)
+        run: npm run test:gate
+
+      # `supabase stop` は書かない（本リポジトリでは禁止コマンド。ランナーはジョブ終了で破棄される）。

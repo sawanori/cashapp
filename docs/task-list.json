@@ -2178,13 +2178,16 @@
       ],
       "gate_level": "phase1",
       "adversarial_review": "required",
-      "evidence_label": "[設計]",
+      "evidence_label": "[実測]",
       "optional": false,
-      "completion_status": "BLOCKED",
+      "completion_status": "DONE_WITH_CONCERNS",
       "concerns": [
-        "[severity: high] 依存タスク task_018（台帳適用・Webhook ルート・fixture_provider 契約テストヘルパー）が未完了（completion_status:null・コミット0件。本ラウンド終盤には tests/contract/ に実テストが現れ7件中6件 pass まで進んだが、1件が PostgresError: deadlock detected で失敗。実測: docs/run-log/task_019.json）のため、fixture_provider の C1〜C31 pass と test:gate の実 pass が構造的に満たせない。未コミット・不安定な task_018 の上に依存コードを積むリスクを避け、fixture-provider.conformance.test.ts と4本の fixture JSON は今回も作成しなかった。 / 対応案: task_018 がコミットされ安定したら task_019 を再着手し、これらと gate-contract.yml、Stop フック登録を追加する。詳細は docs/concerns/task_019.md §1。",
-        "[severity: medium] done_definition 第4項（PR 1本で contract ジョブが緑・required_status_checks に含まれる）は CI 実走でしか満たせず本セッションでは確認不能（git push 禁止）。加えて contract ジョブ自体が task_018 待ち。 / 対応案: task_018 完了後、メインセッションの push 後に CI で確認する。詳細は docs/concerns/task_019.md §3。",
-        "[severity: low] G5 round1 の指摘どおり、task_018 に依存しない部分（captured_from 欠落 fixture の登録拒否、synthesized のみでの autoDetect 登録拒否、manual_confirm の C9/C10/C12）は本ラウンドで実装し、tests/conformance/{provenance.ts,kit.ts,manual-confirm.conformance.test.ts}、tests/fixtures/README.md を作成、package.json に test:conformance を追加した。npm run test:conformance は実測 exit 0（11/11 pass。scripts/record-run.sh task_019 経由）。/ 対応不要（解消済み）。詳細は docs/concerns/task_019.md §0。"
+        "[severity: high] gate.yml（task_009 所有）の acceptance ジョブが test:contract / test:conformance / test:gate を実 Postgres 無しで再実行しようとする構造的な穴（DB_ONLY_NAMES に未登録）。task_018 完了時から存在し本ラウンドで対象が広がった / 対応案: task_009 が DB_ONLY_NAMES に3件追加。詳細は docs/concerns/task_019.md §5。",
+        "[severity: medium] C1〜C31 のうち21ケースが実Postgres経由でpass、11ケースは fixture_provider の能力限界（createCheckout/refund/statusQuery非対応）・W3（ランク前進のみ）・apply.tsに無い分岐（参加者削除/イベント中止）を理由にn/a。C21/C22はapply.ts（task_018所有）の実装ギャップ / 対応案: apply.ts拡張の担当タスク未定。詳細は docs/concerns/task_019.md §4。",
+        "[severity: medium] gate-contract.yml の実走確認とrequired_status_checksへの追加はgit push後のCI待ちでdeferred / 対応案: メインセッションのpush後にtask_009が確認・登録。詳細は docs/concerns/task_019.md §7。",
+        "[severity: low] task_018の既存5 fixtureがcaptured_atを欠きprovenance検査を通らない（webhookルート経由のC1〜C31検査自体には無影響） / 対応案: task_018の次ラウンドで追記。詳細は docs/concerns/task_019.md §6。",
+        "[severity: low] gate:constraintsが他タスク（未追跡のsrc/lib/reconcile.ts）由来で一時的にexit 1（task_019自身が原因ではない） / 対応不要。詳細は docs/concerns/task_019.md §8。",
+        "[severity: low・解消済み] G5 round1の指摘どおりtask_018に依存しない部分（captured_from検証・manual_confirmのC9/C10/C12）は前ラウンドで実装済み。npm run test:conformance / test:gate / gate:constraints は本ラウンドで実測exit 0（gate:constraintsの1件は上記§8参照）。scripts/record-run.sh task_019経由。詳細は docs/concerns/task_019.md §0・§4。"
       ]
     },
     {

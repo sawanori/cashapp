@@ -662,3 +662,17 @@
   他タスク未コミットの `src/lib/reconcile.ts`（W11）1件のみで exit 1、task_016のソースは
   0 violation）。残懸念は `docs/concerns/task_016.md`（C-016-1〜7。medium 4・low 5、うち
   C-016-6は修正済み）。
+- task_019: DONE_WITH_CONCERNS — task_018（7833726）完了を受け BLOCKED を解除し
+  ProviderConformanceKit を再着手。`tests/conformance/fixture-provider.conformance.test.ts`
+  （新規）と4本の fixture JSON（`refund-partial-1/2.json`・`orphan.json`・`underpaid.json`）
+  を実装。fixture_provider は C1〜C31 のうち21ケースが実Postgres経由のWebhookルート検査で
+  pass、11ケースは能力宣言（createCheckout/refund/statusQuery非対応）・W3（ランク前進のみ）
+  ・apply.tsに無い分岐（参加者削除/イベント中止）を理由にn/a記録。`.github/workflows/
+  gate-contract.yml`（独立ファイル。実Postgres上でtest:gateを実行）を新規作成し、
+  `.claude/settings.json` のStopフックに`test:gate`を登録した。manual-confirm.conformance
+  .test.tsとkit.tsのコメントも「task_018未着手」という陳腐化した記述を修正した。**実測**:
+  `scripts/record-run.sh task_019`経由で`typecheck`exit 0、`test:conformance`36/36 pass、
+  `test:gate`（test:contract 7/7 + test:conformance 36/36）exit 0、`lint:changed`exit 0。
+  `gate:constraints`は他タスク未追跡の`src/lib/reconcile.ts`（W11）1件のみでexit 1
+  （task_019のファイルではない）。required_status_checksへの追加はgit push後にCIで確認する
+  deferred項目。残懸念6件（high 1・medium 2・low 3）は`docs/concerns/task_019.md`。

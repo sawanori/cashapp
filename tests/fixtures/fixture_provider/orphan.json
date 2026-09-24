@@ -1,0 +1,17 @@
+{
+  "$comment": "ConformanceKit 用の合成 fixture（task_019）。実在の決済事業者のレスポンスではない。",
+  "captured_from": "synthesized",
+  "captured_at": "2026-09-25",
+  "provenance": {
+    "kind": "synthesized",
+    "authored_by": "model:sonnet (task_019)",
+    "note": "孤児イベント（C6 / design-synthesis.md §9-2）。tests/contract/helpers/fixture-provider.ts の insertFixtureScenario(..., { withoutAttempt: true }) と組み合わせ、payment_attempt が存在しない external_ref へ succeeded が届いたとき、200 を返しつつ台帳（ledger_entry）を汚さず apply_result='orphan' と outbox の orphan_alert だけが記録されることを固定する。"
+  },
+  "event_id": "evt_fixture_orphan_0001",
+  "type": "payment.succeeded",
+  "kind": "succeeded",
+  "external_ref": "iv_00000000000000000000000000000000_1",
+  "amount_minor": 3000,
+  "currency": "JPY",
+  "occurred_at": "2026-09-25T00:00:00.000Z"
+}

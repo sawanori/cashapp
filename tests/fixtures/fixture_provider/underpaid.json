@@ -1,0 +1,17 @@
+{
+  "$comment": "ConformanceKit 用の合成 fixture（task_019）。実在の決済事業者のレスポンスではない。",
+  "captured_from": "synthesized",
+  "captured_at": "2026-09-25",
+  "provenance": {
+    "kind": "synthesized",
+    "authored_by": "model:sonnet (task_019)",
+    "note": "少額支払い（C20 / premortem-risks.md §3-4）。提示額（payment_attempt.amount_minor、既定 3000）より少ない 100 円の succeeded が届いても settlement_status が paid へ前進しないことを固定する。突合基準は attempt の金額であり invoice ではない（apply.ts の不変条件1）。amount-mismatch.json（task_018・check_023 用）と意図的に別ファイルにしてあるのは、C20 が『少額支払いで paid にならない』という C5 とは別の acceptance_check_id（check_020 系）を持つため。"
+  },
+  "event_id": "evt_fixture_underpaid_0001",
+  "type": "payment.succeeded",
+  "kind": "succeeded",
+  "external_ref": "iv_00000000000000000000000000000000_1",
+  "amount_minor": 100,
+  "currency": "JPY",
+  "occurred_at": "2026-09-25T00:00:00.000Z"
+}

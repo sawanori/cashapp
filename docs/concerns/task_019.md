@@ -81,6 +81,71 @@ ProviderConformanceKit（`docs/implementation-plan.md` §14-4、`docs/research/p
   コミット前に `gate:constraints` を通すことで解消する。
 - **対応予定タスク**: task_018 / task_020（それぞれの担当範囲）
 
+## 4. 再着手ラウンド（task_018 完了後）: fixture_provider の実装結果
+
+- **指摘/記録**: task_018 が 7833726 で完了したため BLOCKED を解除し、
+  `tests/conformance/fixture-provider.conformance.test.ts`（新規）と4本の fixture JSON
+  （`refund-partial-1/2.json`・`orphan.json`・`underpaid.json`）を実装した。C1〜C31 のうち
+  21 ケースが実 Postgres 経由の Webhook ルート検査で pass、11 ケースが能力宣言
+  （`createCheckout`/`refund`/`statusQuery` 非対応）・W3（ランク前進のみ）・
+  `apply.ts` に無い分岐（参加者削除/イベント中止の特別扱い）を理由に n/a（理由つき）。
+  done_definition の文言「C1〜C31 pass」は文字どおりには満たせていない
+  （n/a はテスト対象外という意味で失敗ではないが、pass でもない）。
+- **深刻度**: medium（テスト自体は全て通っているが、網羅性は capability の限界内）
+- **対応案**: n/a の大半は fixture_provider の構造的な限界（webhook のみのテストアダプタ）
+  で解消不要。C21（削除済み参加者）・C22（イベント中止）は `src/lib/ledger/apply.ts`
+  （task_018 所有）に participant.status / event.status を読む分岐が無いための実装ギャップ
+  ——真に対応するなら apply.ts の拡張が要る（担当タスク未定）。
+- **対応予定タスク**: C21/C22 は未定（apply.ts 拡張の担当タスクが決まり次第）
+
+## 5. gate.yml の acceptance ジョブが test:contract / test:conformance / test:gate を
+   Postgres 無しで実行しようとする（task_009 所有・修正不能）
+
+- **指摘**: `.github/workflows/gate.yml` の `acceptance` ジョブは `DONE`/`DONE_WITH_CONCERNS`
+  な全タスクの `verify_commands` を `DB_ONLY_NAMES`（`test:integration|gates:sync|
+  db:migrate|db:diff:drizzle`）でスキップ判定しながら再実行するが、このリストに
+  `test:contract`/`test:conformance`/`test:gate` が入っていない。task_018 の完了時点
+  （`test:contract` を verify_commands に追加）で既に存在した構造的な穴で、本ラウンドの
+  `test:conformance`（実 Postgres 必須化）で対象が広がった。
+- **深刻度**: high（CI の acceptance ジョブが Postgres 無しで落ちる可能性が高い）
+- **対応案**: `gate.yml` の `DB_ONLY_NAMES` に3スクリプトを追加するか、
+  `gate-contract.yml`（本ラウンドで作成）が担保する前提でスキップに含める。
+  `gate.yml` は task_009 が単独所有するため本タスクからは編集していない。
+- **対応予定タスク**: task_009（gate.yml 所有者）
+
+## 6. task_018 の既存5 fixture が captured_at を欠く（provenance スキーマ未整合）
+
+- **指摘**: `tests/fixtures/fixture_provider/{succeeded,expired,tampered,amount-mismatch,
+  disputed}.json`（task_018 所有）は `captured_from: "synthesized"` のみで `captured_at` を
+  持たない。`tests/conformance/provenance.ts`（task_019 が 9421d14 で導入。task_018 の
+  実装コミットより前）の必須スキーマを満たさず、`assertFixtureProvenance()` に通すと拒否
+  される。`fixture-provider.conformance.test.ts` の登録テストで実測・固定した。
+- **深刻度**: low（webhook ルート経由の C1〜C31 検査自体は `loadFixtureBody()` 経由で
+  provenance を経由しないため無影響。ConformanceKit のレポート/登録機能にだけ影響）
+- **対応案**: task_018 の5本に `captured_at: "2026-09-24"` 相当を追記する
+  （task_018 の files_to_create のため本タスクからは変更していない）。
+- **対応予定タスク**: task_018（ファイル所有者）が次の修正ラウンドで対応
+
+## 7. CI ジョブ追加（gate-contract.yml）と Stop フックの test:gate 登録
+
+- **記録**: `.github/workflows/gate-contract.yml`（独立ファイル。実 Postgres 上で
+  `npm run test:gate` を実行。YAML 妥当性と参照スクリプトの実在は静的検証済み）と
+  `.claude/settings.json` の Stop フックへの `npm run --silent test:gate` 登録を実施した。
+- **深刻度**: medium（実走確認とrequired_status_checksへの追加は git push 後のCI待ち）
+- **対応案**: deferred: メインセッションが push した後、Actions での実走と
+  `gh api` による required checks への `contract` 追加を確認する（task_009 の担当領域）。
+- **対応予定タスク**: メインセッションの push 後 → task_009（required checks 設定）
+
+## 8. gate:constraints の一時的な exit 1 は他タスクの未コミット WIP が原因
+
+- **指摘**: `scripts/record-run.sh task_019 npm run gate:constraints` の実行時点で
+  `src/lib/reconcile.ts:1`（W11: pg_try_advisory_lock パターン欠落）が1件出た。
+  `git status` でこのファイルは未追跡（`??`）——他タスク（おそらく task_020）が
+  同一ワークツリーに書いている作業中ファイルで、task_019 の files_to_create ではない。
+- **深刻度**: low（task_019 自身の変更が原因ではない。当該タスクのコミット時に解消見込み）
+- **対応案**: 対応不要（他タスクの範囲）。
+- **対応予定タスク**: task_020（自身のコミット前に gate:constraints を通すことで解消）
+
 ## 3. CI 実走（PR 1本で contract ジョブが緑・required_status_checks）は deferred
 
 - **指摘**: `done_definition` 第4項「PR 1 本で contract ジョブが緑になり
