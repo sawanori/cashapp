@@ -125,5 +125,156 @@
     "task_mismatches": 0,
     "effective_high": 0,
     "exit_code": 0
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_019",
+    "reviewer": "adversarial-reviewer-gemini",
+    "vendor": "gemini",
+    "reviewer_route": "verified",
+    "model_id_requested": "gemini-2.5-pro",
+    "model_id_actual": "gemini-2.5-pro",
+    "model_id_source": "cli_stats",
+    "cli_version": "0.38.1",
+    "backend": "gemini-cli",
+    "ran_at": "2026-09-24T19:57:16Z",
+    "commit": "9c57905be490ada40c5628850e96e4766e7073c9",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "low",
+        "title": "ConformanceKit のレポートと検査範囲の間に不整合: C28（IP 許可リスト）を n/a としているが、同じ層で検査する C3（署名検証）は pass 対象になっている",
+        "detail": "fixture_provider の適合性レポートは C28（IP 許可リスト）を「テスト専用アダプタのため対象外」として `n/a` にしています。しかし、このテストスイートは `handleWebhookRequest`（Webhook ルートハンドラ）を直接呼び出しており、プロバイダが呼び出される前の処理も検査範囲に含まれています。実際、同じくハンドラ層で行われる C3（署名検証）は `pass` の対象として正しく検査されています。IP 許可リストの検査も同じ層の責務であるため、C3 を検査対象とするなら C28 も同様に検査するのが一貫しています。",
+        "file": "tests/conformance/fixture-provider.conformance.test.ts",
+        "line": 1218,
+        "suggested_fix": "C28 を `n/a` ではなく、`pass` 対象のテストとして実装してください。テストヘルパー (`../contract/helpers/fixture-provider`) からインポートされている `CONTRACT_BLOCKED_IP` を使い、許可外 IP を模したリクエストコンテキストで `handleWebhookRequest` を呼び出し、403 応答が返り DB に書き込みが行われないことをアサートします。",
+        "effective_severity": "low"
+      }
+    ],
+    "raw_warnings": [],
+    "packet_bytes": 286920,
+    "validated_at": "2026-09-24T19:59:53Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/review-019-final/gemini.json",
+    "merged_at": "2026-09-24T19:59:53Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gemini-2.5-pro を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 0,
+        "medium": 0,
+        "low": 1,
+        "info": 0,
+        "unknown": 0,
+        "total": 1,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_019",
+    "reviewer": "adversarial-reviewer-gpt",
+    "vendor": "gpt",
+    "reviewer_route": "cli-fallback",
+    "model_id_requested": "gpt-6-astra",
+    "model_id_actual": "gpt-6-astra",
+    "model_id_source": "self_report",
+    "cli_version": "codex-cli 0.154.0",
+    "backend": "codex",
+    "ran_at": "2026-09-24T19:59:26Z",
+    "commit": "9c57905be490ada40c5628850e96e4766e7073c9",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "high",
+        "title": "アダプタを登録しても適合テストが実行されない",
+        "detail": "registerProvider は provenance を検査してオブジェクトを返すだけで、C1〜C31 のテストを登録・実行しない。同梱のテストも特定のアダプタを直接呼んでいるため、新たに登録したアダプタの契約違反を検出できない。",
+        "file": "tests/conformance/kit.ts",
+        "line": 146,
+        "repro": "静的反例（未実行）: テスト内で const bad = { ...manualConfirmProvider, key: 'broken_manual', refund: async () => { throw new Error('wrong error'); } }; registerProvider('broken_manual', bad, []); を実行する。refund='none' なのに NotSupportedError を返さず C9 に違反するが、登録は成功し、bad.refund を検査するテストは生成されない。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-2",
+        "severity": "low",
+        "title": "存在しない取得日でも provenance 検査を通過する",
+        "detail": "captured_at は正規表現による書式検査だけで、実在する日付かを検査しない。このため取得日として成立しない値でも登録でき、自動検知の provenance 判定にも利用される。",
+        "file": "tests/conformance/provenance.ts",
+        "line": 77,
+        "repro": "静的反例（未実行）: registerProvider('hypothetical_auto', { ...manualConfirmProvider, capabilities: { ...MANUAL_CONFIRM_CAPABILITIES, autoDetect: true } }, [{ label: 'invalid-date', captured_from: 'staging', captured_at: '2026-99-99' }]) は例外を投げず登録を返す。",
+        "suggested_fix": "",
+        "effective_severity": "low"
+      }
+    ],
+    "diagnostics": {
+      "exit_code": 0,
+      "event_types": [
+        "thread.started",
+        "turn.started",
+        "item.completed",
+        "item.completed",
+        "turn.completed"
+      ],
+      "cli_errors": [
+        "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+      ],
+      "last_message_bytes": 1102,
+      "stderr_tail": "r: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T19:57:17.305294Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer error=\\\"invalid_request\\\", error_description=\\\"No access token was provided in this request\\\", resource_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n2026-09-24T19:57:17.366904Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T19:57:17.415815Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n"
+    },
+    "packet_bytes": 286920,
+    "validated_at": "2026-09-24T19:59:53Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/review-019-final/gpt.json",
+    "merged_at": "2026-09-24T19:59:53Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gpt-6-astra を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 1,
+        "medium": 0,
+        "low": 1,
+        "info": 0,
+        "unknown": 0,
+        "total": 2,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "type": "summary",
+    "task_id": "task_019",
+    "round": 1,
+    "merged_at": "2026-09-24T19:59:53Z",
+    "decision": "reject",
+    "envelopes": 2,
+    "votes": 2,
+    "vendors": [
+      "gemini",
+      "gpt"
+    ],
+    "author_vendor": "claude",
+    "missing_votes": 0,
+    "invalid_envelopes": 0,
+    "invalid_reviews": 0,
+    "self_reviews": 0,
+    "task_mismatches": 0,
+    "effective_high": 1,
+    "exit_code": 1
   }
 ]

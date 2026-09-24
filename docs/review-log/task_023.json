@@ -126,5 +126,201 @@
     "task_mismatches": 0,
     "effective_high": 1,
     "exit_code": 1
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_023",
+    "reviewer": "adversarial-reviewer-gemini",
+    "vendor": "gemini",
+    "reviewer_route": "verified",
+    "model_id_requested": "gemini-2.5-pro",
+    "model_id_actual": "gemini-2.5-pro",
+    "model_id_source": "cli_stats",
+    "cli_version": "0.38.1",
+    "backend": "gemini-cli",
+    "ran_at": "2026-09-24T19:57:14Z",
+    "commit": "834bf5311157164f6dc0a135074556f35ab3f14e",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "high",
+        "title": "運用アラート機構が設定不備の際に警告なく無効化される",
+        "detail": "運用者への重要通知を行う `ops_alert` transport は、環境変数 `OPS_ALERT_WEBHOOK_URL` が未設定の場合に fail-open（ログ出力のみで通知処理を正常完了扱いにする）で動作します。これは設計上の意図ですが、本タスクではこの新しい必須変数が `.env.example` や `wrangler.toml` などの設定ファイル雛形に一切追加されていません。結果として、このコードをデプロイした運用者が変数の設定漏れに気づけず、決済不整合などの重要アラートが恒久的に無送信になるリスクが極めて高い状態です。これはタスクの目標（R-OPS-01, R-OPS-07）を構造的に損ないます。",
+        "file": "src/lib/outbox-transports.ts",
+        "line": 80,
+        "repro": "1. `OPS_ALERT_WEBHOOK_URL` を設定せずにアプリケーションをデプロイ・起動する。\n2. `mismatch_alert` など `ops_alert` を transport とする outbox タスクを発生させる。\n3. outbox タスクは `done` になるが、Webhook はどこにも送信されない。また、通知機構が無効である旨の持続的な警告も発生しない。",
+        "citation": "一次資料は `src/lib/outbox-transports.ts` の L80-L83: `if (url === undefined || url === \"\") { logEvent(\"info\", \"outbox.ops_alert.skipped\", { reason: \"webhook_not_configured\" }); return; }`。この動作と設定雛形の不備が組み合わさることが問題です。`docs/ops/monitoring.md` には「本タスク（task_023）では未宣言...デプロイ前にこれらへ `OPS_ALERT_WEBHOOK_URL` を追加する作業が別途必要」と記載があり、雛形への追加が行われていないことを作者自身が認識しています。",
+        "suggested_fix": "`.env.example` や `.dev.vars.example` に `OPS_ALERT_WEBHOOK_URL=\"\"` のような形で変数を明示的に追加し、設定が必要であることを運用者に伝わるようにしてください。あるいは、変数が未設定の場合は起動時に警告ログを出すか、ヘルスチェックを `degraded` にすることも考えられます。",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-2",
+        "severity": "medium",
+        "title": "プロジェクトの品質ゲート G4 が恒久的に失敗する状態にある",
+        "detail": "プロジェクトの品質を担保する `gate:check` スクリプトが、`task_016` の `test:unit` が成功した記録 (exit 0) が `run-log` に無いことを理由に `G4` ゲート違反として失敗します。本 diff では `docs/run-log/task_016.json` を追加していますが、その中身は `test:unit` が `exit_code: 1` で失敗した記録のみです。これにより `G4` の違反が恒久化し、プロジェクトの `verify_commands` がパスしない状態になっています。これは過去のタスクの品質問題が未解決のまま後続タスクが進められていることを示しており、プロジェクト全体の信頼性を損ないます。",
+        "file": "docs/run-log/task_016.json",
+        "repro": "`npm run gate:check` を実行すると、`FAIL G4 task_016: run-log に 'npm run test:unit' の exit 0 がありません` というエラーで失敗します。",
+        "citation": "`docs/run-log/task_023.json` に含まれる `gate:check` の実行結果（commit `e8c6395...`）に `FAIL G4 task_016...` のログが記録されています。また、本 diff で追加された `docs/run-log/task_016.json` には `test:unit` の実行結果として `exit_code: 1` の記録しか含まれていません。",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-3",
+        "severity": "medium",
+        "title": "制約 L3 の grep パターンが正当な業務単語を誤って違反と判定している",
+        "detail": "`docs/constraints.json` の制約 `L3`（アプリ内残高・チャージ等の禁止）の `grep_patterns` に `(チャージ)` が含まれています。このパターンは意図しない副作用として、決済の文脈で正当な用語である「チャージバック」(`chargeback`) を含む `src/lib/outbox.ts` のコメント行を違反として検出してしまいます。これにより `gate:constraints` が常に失敗し、開発プロセスに不要な摩擦を生んでいます。制約の意図は前払式支払手段の防止であり、チャージバックの処理とは無関係です。",
+        "file": "src/lib/outbox.ts",
+        "line": 44,
+        "repro": "`npm run gate:constraints` を実行すると、`L3 src/lib/outbox.ts:44 | /** 紛争（チャージバック）が発生した。 */` という違反が報告されます。",
+        "citation": "`docs/constraints.json` の制約 `L3` の `source` は「資金決済法3条1項1号（前払式支払手段）」です。決済の取り消し・返金を意味する「チャージバック」は前払式支払手段には該当しません。`grep_patterns` の `(チャージ)` が過剰に一致しています。",
+        "effective_severity": "medium"
+      }
+    ],
+    "raw_warnings": [],
+    "packet_bytes": 420495,
+    "validated_at": "2026-09-24T20:00:50Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/review-023-final/gemini.json",
+    "merged_at": "2026-09-24T20:00:50Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gemini-2.5-pro を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 1,
+        "medium": 2,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 3,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_023",
+    "reviewer": "adversarial-reviewer-gpt",
+    "vendor": "gpt",
+    "reviewer_route": "cli-fallback",
+    "model_id_requested": "gpt-6-astra",
+    "model_id_actual": "gpt-6-astra",
+    "model_id_source": "self_report",
+    "cli_version": "codex-cli 0.154.0",
+    "backend": "codex",
+    "ran_at": "2026-09-24T20:00:13Z",
+    "commit": "834bf5311157164f6dc0a135074556f35ab3f14e",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "medium",
+        "title": "一度も起動していない reconciliation の停止を検知できない",
+        "detail": "latestReconcile が null の場合、経過時間に関係なく reconcile_stale の判定を省略する。初回から cron が動いていなくても、Webhook が届き続けていれば正常判定が続く。既存テストもこの正常判定を固定しており、初回未起動を検知する担保にはなっていない。",
+        "file": "src/lib/health.ts",
+        "line": 116,
+        "repro": "HealthDbReader の返値を latestReconciliationRunStartedAt=null、oldestPendingOutboxCreatedAt=null、hasOpenPaymentAttempt=true、hasWebhookDeliverySince=true とする。assessDbHealth(reader, new Date('2026-09-25T00:00:00Z')) と、同じ reader に対する翌日の評価を行う。どちらも degraded=false、reasons=[] になる。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-2",
+        "severity": "medium",
+        "title": "未定義の kind「constructor」が配達先検査を通過する",
+        "detail": "OUTBOX_TRANSPORT は通常のオブジェクトで、transportFor は継承プロパティも参照する。constructor は表に定義されていないのに Object コンストラクターが返り、UnknownOutboxKindError にならない。enqueueOutbox の入口を通過する一方、createOutboxDeliver では有効な transport と一致せず失敗する。",
+        "file": "src/lib/outbox.ts",
+        "line": 72,
+        "repro": "transportFor('constructor') を呼ぶと例外にならず関数が返る。続いて createOutboxDeliver()({id:'job-1',kind:'constructor',transport:transportFor('constructor'),attempts:0}) を呼ぶと、unhandled outbox transport の例外になる。constructor は同ファイルに記載された DB の kind 書式にも適合する。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-3",
+        "severity": "medium",
+        "title": "イベント切替後も前のイベントの招待リンクが残る",
+        "detail": "eventId の変更でデータ取得は再実行されるが、joinLink は初期化されない。同じ SharePage インスタンスでイベントを切り替えると、新しいイベントのタイトル・金額と、以前のイベントの招待リンクが組み合わされる。催促文と LINE 共有の両方がこの組み合わせを使う。",
+        "file": "src/app/(liff)/events/[id]/share/page.tsx",
+        "line": 183,
+        "repro": "useParams の id をイベント A として描画し、認証・概要取得を成功させる。「リンクを作る」の応答を {joinToken:'token-A'} にする。次に同一コンポーネントを維持して id をイベント B に変更し、B の概要取得を成功させる。再発行せず催促文をコピーすると、B のタイトル・金額に /e?t=token-A が付く。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-4",
+        "severity": "medium",
+        "title": "名簿取得の失敗を未払い者ゼロとして表示する",
+        "detail": "参加者一覧の HTTP エラーは表示状態に反映されず、初期値の空配列が残ったまま ready になる。ShareSheet はその空配列から「未払いの参加者はいません。」と断定するため、通信障害と未払い者ゼロを区別できない。",
+        "file": "src/app/(liff)/events/[id]/share/page.tsx",
+        "line": 80,
+        "repro": "LIFF 起動、認証、イベント概要取得を成功させ、GET /api/events/{id}/participants?filter=all&limit=100 だけを HTTP 503 にする。その後「リンクを作る」の応答を {joinToken:'token-A'} として成功させる。参加者一覧を取得できていないにもかかわらず、「未払いの参加者はいません。」が表示される。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      }
+    ],
+    "diagnostics": {
+      "exit_code": 0,
+      "event_types": [
+        "thread.started",
+        "turn.started",
+        "item.completed",
+        "item.completed",
+        "turn.completed"
+      ],
+      "cli_errors": [
+        "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+      ],
+      "last_message_bytes": 2188,
+      "stderr_tail": "r: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T19:57:44.929620Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T19:57:45.077449Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T19:57:45.479859Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer error=\\\"invalid_request\\\", error_description=\\\"No access token was provided in this request\\\", resource_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n"
+    },
+    "packet_bytes": 420495,
+    "validated_at": "2026-09-24T20:00:50Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/review-023-final/gpt.json",
+    "merged_at": "2026-09-24T20:00:50Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gpt-6-astra を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 0,
+        "medium": 4,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 4,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "type": "summary",
+    "task_id": "task_023",
+    "round": 1,
+    "merged_at": "2026-09-24T20:00:50Z",
+    "decision": "reject",
+    "envelopes": 2,
+    "votes": 2,
+    "vendors": [
+      "gemini",
+      "gpt"
+    ],
+    "author_vendor": "claude",
+    "missing_votes": 0,
+    "invalid_envelopes": 0,
+    "invalid_reviews": 0,
+    "self_reviews": 0,
+    "task_mismatches": 0,
+    "effective_high": 1,
+    "exit_code": 1
   }
 ]
