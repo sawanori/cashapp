@@ -396,5 +396,163 @@
     "commit": "913a45bca47873bdfd36dc801788d3d5cb8efc1a",
     "ran_at": "2026-09-24T04:46:26Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "0e805dc0850f5506732ce2eb4e27cb5d4f956ff5",
+    "ran_at": "2026-09-24T04:48:16Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:integration\n> TZ=UTC vitest run tests/integration --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  1 passed (1)\n      Tests  36 passed (36)\n   Start at  04:48:21\n   Duration  13.18s (tests 98%, import 1%)",
+    "commit": "0e805dc0850f5506732ce2eb4e27cb5d4f956ff5",
+    "ran_at": "2026-09-24T04:48:21Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gates:sync",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gates:sync\n> node scripts/gates-sync.mjs\n\ngates:sync OK — 10 gate(s) in docs/gates/compliance-gates.json match compliance_gate",
+    "commit": "0e805dc0850f5506732ce2eb4e27cb5d4f956ff5",
+    "ran_at": "2026-09-24T04:48:37Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 5 file(s))\nok    L2 (forbid, 5 file(s))\nok    L3 (forbid, 5 file(s))\nok    L8 (forbid, 5 file(s))\nok    L12 (forbid, 5 file(s))\nok    P1 (forbid, 5 file(s))\ndefer P2 (0 targets; waiting on task_018)\ndefer P9 (0 targets; waiting on task_017)\nok    W3 (forbid, 9 file(s))\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 5 file(s))\nok    N5 (forbid, 5 file(s))\nok    N7 (forbid, 5 file(s))\nok    N9 (forbid, 5 file(s))\nok    N11 (forbid, 5 file(s))\nok    I1 (require, 1 file(s))\nok    I2 (require, 1 file(s))\nok    I3 (forbid, 2 file(s))\nok    I4 (forbid, 2 file(s))\nok    X-TIME (forbid, 5 file(s))\nok    X-ID (forbid, 3 file(s))\ndefer X-MONEY (0 targets; waiting on task_017)\nok    GC-XSS (forbid, 5 file(s))\nok    GC-ENV-PUBLIC (forbid, 10 file(s))\nok    GC-SERVER-ONLY (require, 1 file(s))\n\ngate:constraints — scanned 21 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "0e805dc0850f5506732ce2eb4e27cb5d4f956ff5",
+    "ran_at": "2026-09-24T04:48:39Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run db:migrate",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 db:migrate\n> supabase migration up --local\n\nConnecting to local database...\nApplying migration 0005_default_privileges_revoke.sql...\nApplying migration 0006_payment_event_attempt_scope_fk.sql...\nLocal database is up to date.\nA new version of Supabase CLI is available: v2.117.0 (currently installed v2.58.5)\nWe recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli",
+    "commit": "ea63ab3756c80076fc461ba1b42fb6f1d71204b2",
+    "ran_at": "2026-09-24T05:34:05Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  7 passed (7)\n      Tests  192 passed (192)\n   Start at  05:36:06\n   Duration  7.54s (tests 92%, setup 4%, import 2%, transform 2%)",
+    "commit": "ea63ab3756c80076fc461ba1b42fb6f1d71204b2",
+    "ran_at": "2026-09-24T05:36:06Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "ea63ab3756c80076fc461ba1b42fb6f1d71204b2",
+    "ran_at": "2026-09-24T05:37:56Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:integration\n> TZ=UTC vitest run tests/integration --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  2 passed (2)\n      Tests  47 passed (47)\n   Start at  05:37:59\n   Duration  13.27s (tests 97%, import 1%, setup 1%, transform 1%)",
+    "commit": "ea63ab3756c80076fc461ba1b42fb6f1d71204b2",
+    "ran_at": "2026-09-24T05:37:58Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gates:sync",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gates:sync\n> node scripts/gates-sync.mjs\n\ngates:sync OK — 10 gate(s) in docs/gates/compliance-gates.json match compliance_gate",
+    "commit": "ea63ab3756c80076fc461ba1b42fb6f1d71204b2",
+    "ran_at": "2026-09-24T05:38:16Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 5 file(s))\nok    L2 (forbid, 5 file(s))\nok    L3 (forbid, 5 file(s))\nok    L8 (forbid, 5 file(s))\nok    L12 (forbid, 5 file(s))\nok    P1 (forbid, 5 file(s))\ndefer P2 (0 targets; waiting on task_018)\ndefer P9 (0 targets; waiting on task_017)\nok    W3 (forbid, 11 file(s))\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 5 file(s))\nok    N5 (forbid, 5 file(s))\nok    N7 (forbid, 5 file(s))\nok    N9 (forbid, 5 file(s))\nok    N11 (forbid, 5 file(s))\nok    I1 (require, 1 file(s))\nok    I2 (require, 1 file(s))\nok    I3 (forbid, 2 file(s))\nok    I4 (forbid, 2 file(s))\nok    X-TIME (forbid, 7 file(s))\nok    X-ID (forbid, 3 file(s))\ndefer X-MONEY (0 targets; waiting on task_017)\nok    GC-XSS (forbid, 5 file(s))\nok    GC-ENV-PUBLIC (forbid, 10 file(s))\nok    GC-SERVER-ONLY (require, 1 file(s))\n\ngate:constraints — scanned 21 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "ea63ab3756c80076fc461ba1b42fb6f1d71204b2",
+    "ran_at": "2026-09-24T05:38:18Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run db:diff:drizzle",
+    "exit_code": 0,
+    "stdout_tail": "[✓] 39  foreign keys fetched\n[✓] 0   policies fetched\n[✓] 92  check constraints fetched\n[✓] 0   views fetched\n\n[✓] Your SQL migration file ➜ node_modules/.cache/drizzle-diff/run-1790228302/0000_smart_gorilla_man.sql 🚀\n[✓] Your schema file is ready ➜ node_modules/.cache/drizzle-diff/run-1790228302/schema.ts 🚀\n[✓] Your relations file is ready ➜ node_modules/.cache/drizzle-diff/run-1790228302/relations.ts 🚀\nNo config path provided, using default 'drizzle.config.ts'\nReading config file '/Users/noritakasawada/AI_P/cashapp/drizzle.config.ts'\n23 tables\nabuse_report 5 columns 0 indexes 0 fks\napp_user 12 columns 0 indexes 0 fks\naudit_log 17 columns 0 indexes 0 fks\ncompliance_gate 18 columns 0 indexes 0 fks\nconsent_log 5 columns 0 indexes 0 fks\nevent 21 columns 0 indexes 0 fks\nfeature_flag 4 columns 0 indexes 0 fks\nidempotency_key 10 columns 0 indexes 0 fks\ninvoice 16 columns 0 indexes 0 fks\nledger_entry 13 columns 0 indexes 0 fks\nmanual_attestation 7 columns 0 indexes 0 fks\noutbox 11 columns 0 indexes 0 fks\nparticipant 10 columns 0 indexes 0 fks\nparticipant_claim 8 columns 0 indexes 0 fks\npayment_attempt 18 columns 0 indexes 0 fks\npayment_event 18 columns 0 indexes 0 fks\npayment_self_report 6 columns 0 indexes 0 fks\npayout 8 columns 0 indexes 0 fks\nprovider_binding 13 columns 0 indexes 0 fks\nreconciliation_run 10 columns 0 indexes 0 fks\nreminder_log 5 columns 0 indexes 0 fks\nused_id_token 3 columns 0 indexes 0 fks\nwebhook_delivery 10 columns 0 indexes 0 fks\n\n[✓] Your SQL migration file ➜ node_modules/.cache/drizzle-diff/run-1790228302/0001_graceful_sharon_carter.sql 🚀\ndb:diff:drizzle: 170 statement(s) in 1 file(s) under node_modules/.cache/drizzle-diff/run-1790228302\ndb:diff:drizzle: ignored by design — constraint/index statements (schema.ts declares columns only, §7-2)\ndb:diff:drizzle: ignored drop+add pairs (drizzle-kit re-emits GENERATED columns): invoice.settlement_rank, payment_attempt.is_open\ndb:diff:drizzle: OK — no table/column drift",
+    "commit": "ea63ab3756c80076fc461ba1b42fb6f1d71204b2",
+    "ran_at": "2026-09-24T05:38:21Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:wording",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:wording\n> node scripts/wording-lint.mjs\n\nok    W-AUTO (5 file(s))\nok    W-DONATION (5 file(s))\nok    W-SUPPORT (5 file(s))\nok    W-RECEIPT (5 file(s))\ndefer W-MERCHANT-GUIDE (0 targets; waiting on task_025)\nok    W-FEE-FIXED (5 file(s))\n\ngate:wording — scanned 5 pattern group(s), 0 violation(s), 0 empty gate(s)",
+    "commit": "ea63ab3756c80076fc461ba1b42fb6f1d71204b2",
+    "ran_at": "2026-09-24T05:42:05Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "ea63ab3756c80076fc461ba1b42fb6f1d71204b2",
+    "ran_at": "2026-09-24T05:42:08Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:integration\n> TZ=UTC vitest run tests/integration --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  2 passed (2)\n      Tests  47 passed (47)\n   Start at  05:42:11\n   Duration  13.25s (tests 97%, import 1%, setup 1%, transform 1%)",
+    "commit": "ea63ab3756c80076fc461ba1b42fb6f1d71204b2",
+    "ran_at": "2026-09-24T05:42:11Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gates:sync",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gates:sync\n> node scripts/gates-sync.mjs\n\ngates:sync OK — 10 gate(s) in docs/gates/compliance-gates.json match compliance_gate",
+    "commit": "ea63ab3756c80076fc461ba1b42fb6f1d71204b2",
+    "ran_at": "2026-09-24T05:42:27Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 5 file(s))\nok    L2 (forbid, 5 file(s))\nok    L3 (forbid, 5 file(s))\nok    L8 (forbid, 5 file(s))\nok    L12 (forbid, 5 file(s))\nok    P1 (forbid, 5 file(s))\ndefer P2 (0 targets; waiting on task_018)\ndefer P9 (0 targets; waiting on task_017)\nok    W3 (forbid, 11 file(s))\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 5 file(s))\nok    N5 (forbid, 5 file(s))\nok    N7 (forbid, 5 file(s))\nok    N9 (forbid, 5 file(s))\nok    N11 (forbid, 5 file(s))\nok    I1 (require, 1 file(s))\nok    I2 (require, 1 file(s))\nok    I3 (forbid, 2 file(s))\nok    I4 (forbid, 2 file(s))\nok    X-TIME (forbid, 7 file(s))\nok    X-ID (forbid, 3 file(s))\ndefer X-MONEY (0 targets; waiting on task_017)\nok    GC-XSS (forbid, 5 file(s))\nok    GC-ENV-PUBLIC (forbid, 10 file(s))\nok    GC-SERVER-ONLY (require, 1 file(s))\n\ngate:constraints — scanned 21 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "ea63ab3756c80076fc461ba1b42fb6f1d71204b2",
+    "ran_at": "2026-09-24T05:42:28Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "hardening 指摘1（既定権限）: 0005 適用前に psql の BEGIN; CREATE TABLE zz_probe_defacl(i integer); ROLLBACK; を実行し、information_schema.role_table_grants で anon / authenticated に DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE の 7 権限が自動付与されることを実測。0005 適用後に同じ probe を実行すると grantee は postgres と service_role の 2 行のみ。pg_default_acl の grantor=postgres / nspname=public の 3 行（r/S/f）から anon と authenticated が消えたことも実測。supabase_admin 由来の 3 行は postgres が supabase_admin のメンバーでないため変更不能（pg_auth_members で確認）。",
+    "commit": "ea63ab3756c80076fc461ba1b42fb6f1d71204b2",
+    "ran_at": "2026-09-24T05:42:42Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "hardening 指摘2（payment_event の invoice/attempt 食い違い）: 0006 適用前に psql の BEGIN 内で、invoice I1 の payment_attempt A を作り payment_event(attempt_id=A, invoice_id=I2) を INSERT すると INSERT 0 1 で受理され、mismatched_rows=1 を実測。0006 適用後は同じ INSERT が ERROR: insert or update on table \"payment_event\" violates foreign key constraint \"payment_event_attempt_invoice_fk\" で拒否され、一致行（invoice_id=I1）と attempt_id NULL 行はいずれも INSERT 0 1 で通ることを実測。",
+    "commit": "ea63ab3756c80076fc461ba1b42fb6f1d71204b2",
+    "ran_at": "2026-09-24T05:42:42Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]

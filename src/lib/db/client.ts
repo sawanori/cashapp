@@ -13,6 +13,17 @@
  *   `resolveDbConnection()` は既定でロールを検査し、`app_rw` 以外なら失敗する。
  *   マイグレーションツール（gates-sync 等）だけが `allowPrivilegedRole` で明示的に外す。
  *
+ * ★ ローカル開発の抜け道は 1 つだけ、しかも三重に締める（`ALLOW_PRIVILEGED_DB_ROLE`）。
+ *   `wrangler.toml` の `[[hyperdrive]] localConnectionString` はロール `postgres` を指しており
+ *   （このファイルの所有は task_003 / task_035）、そのままでは `wrangler dev` / `npm run cf:dev` が
+ *   ここで必ず落ちる。開発者が明示的に opt-in できるよう、次の 3 条件が**すべて**成立する
+ *   ときに限り特権ロールを通す:
+ *     1. `ALLOW_PRIVILEGED_DB_ROLE` が厳密に文字列 `"1"`
+ *     2. `APP_ENV` が厳密に `"development"`（staging / production の [vars] は別値なので届かない）
+ *     3. 接続先ホストがループバック（127.0.0.1 / localhost / ::1）
+ *   このフラグは `.dev.vars.example` にだけ書く。`.env.example` のランタイム欄には置かない
+ *   （統合テスト check_069 が両方を機械検査する）。
+ *
  * ★ advisory lock は**トランザクションスコープの `pg_try_advisory_xact_lock` のみ**使う。
  *   セッションスコープの `pg_advisory_lock` / `pg_try_advisory_lock` は、接続プーラ
  *   （Hyperdrive / Supavisor）を挟むと「ロックを取った接続」と「解放する接続」が
@@ -33,7 +44,22 @@ import * as schema from "./schema";
 /** ランタイムが使ってよい唯一の DB ロール。 */
 export const RUNTIME_DB_ROLE = "app_rw";
 
+/**
+ * ローカル開発でだけ特権ロール接続を許す明示フラグの名前。
+ * 値は厳密に `"1"` のときだけ有効。`.dev.vars.example` にのみ記載する。
+ */
+export const PRIVILEGED_ROLE_DEV_FLAG = "ALLOW_PRIVILEGED_DB_ROLE";
+
+/** 上のフラグが効く唯一の `APP_ENV`。 */
+export const PRIVILEGED_ROLE_DEV_APP_ENV = "development";
+
+/** 上のフラグが効く唯一の接続先。`URL.hostname` は `::1` を `[::1]` にする。 */
+const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+
 export type DbRoute = "hyperdrive" | "direct";
+
+/** 特権ロールが通った理由。通常は `"none"`（= ロールが `app_rw`）。 */
+export type PrivilegedRoleGrant = "none" | "option" | "local-dev-flag";
 
 /** Workers の Hyperdrive バインディングのうち、本モジュールが使う部分だけを写した型。 */
 export interface HyperdriveBindingLike {
@@ -45,6 +71,10 @@ export interface DbEnv {
   readonly HYPERDRIVE?: HyperdriveBindingLike | undefined;
   /** ローカル / CI / マイグレーション用の直接接続。 */
   readonly DATABASE_URL?: string | undefined;
+  /** `wrangler.toml` の `[vars]`。development / staging / production。 */
+  readonly APP_ENV?: string | undefined;
+  /** ローカル開発専用の opt-in フラグ。`.dev.vars` にだけ置く。 */
+  readonly ALLOW_PRIVILEGED_DB_ROLE?: string | undefined;
 }
 
 export interface ResolvedDbConnection {
@@ -54,6 +84,8 @@ export interface ResolvedDbConnection {
   readonly role: string;
   /** ホスト名（ログ・診断用。パスワードは含まない）。 */
   readonly host: string;
+  /** `app_rw` 以外のロールが通った場合、その理由。`app_rw` なら `"none"`。 */
+  readonly privilegedRoleGrant: PrivilegedRoleGrant;
 }
 
 export interface ResolveDbConnectionOptions {
@@ -128,13 +160,30 @@ export function resolveDbConnection(
 
   const { role, host } = parseConnection(connectionString, route);
 
-  if (!options.allowPrivilegedRole && role !== RUNTIME_DB_ROLE) {
-    throw new DbConfigError(
-      `runtime database role must be '${RUNTIME_DB_ROLE}', got '${role}' on route '${route}'`,
-    );
+  let privilegedRoleGrant: PrivilegedRoleGrant = "none";
+  if (role !== RUNTIME_DB_ROLE) {
+    if (options.allowPrivilegedRole === true) {
+      privilegedRoleGrant = "option";
+    } else if (isLocalDevPrivilegedOverride(env, host)) {
+      privilegedRoleGrant = "local-dev-flag";
+    } else {
+      throw new DbConfigError(
+        `runtime database role must be '${RUNTIME_DB_ROLE}', got '${role}' on route '${route}'`,
+      );
+    }
   }
 
-  return { route, connectionString, role, host };
+  return { route, connectionString, role, host, privilegedRoleGrant };
+}
+
+/**
+ * ローカル開発の opt-in。3 条件すべてが成立したときだけ true。
+ * 1 つでも欠ければ false を返し、呼び出し側は通常どおり `DbConfigError` を投げる。
+ */
+function isLocalDevPrivilegedOverride(env: DbEnv, host: string): boolean {
+  if (env.ALLOW_PRIVILEGED_DB_ROLE !== "1") return false;
+  if (env.APP_ENV !== PRIVILEGED_ROLE_DEV_APP_ENV) return false;
+  return LOOPBACK_HOSTS.has(host.toLowerCase());
 }
 
 export interface DbHandle {

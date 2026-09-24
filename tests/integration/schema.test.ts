@@ -255,6 +255,48 @@ describe("check_069: ランタイムロールと権限", () => {
     expect(actual).toEqual(grantsBaseline.grants.app_rw);
   });
 
+  // ★ 0001 の `REVOKE ALL ON ALL TABLES` は「その時点で存在するテーブル」にしか効かない。
+  //   既定権限（pg_default_acl）を剥がしていないと、task_012 以降が public に
+  //   テーブルを 1 つ足すたび anon / authenticated に全権が付いた状態で生まれる。
+  //   0005_default_privileges_revoke.sql がそれを塞ぐ（I3 / R-SEC-03）。
+  it("pg_default_acl に anon / authenticated 向けの既定権限が残っていない（マイグレーション実行ロール由来）", async () => {
+    const rows = await migrator<{ grantor: string; objtype: string; acl: string }[]>`
+      SELECT pg_get_userbyid(d.defaclrole) AS grantor,
+             d.defaclobjtype::text          AS objtype,
+             COALESCE(array_to_string(d.defaclacl, ','), '') AS acl
+      FROM pg_default_acl d
+      JOIN pg_namespace n ON n.oid = d.defaclnamespace
+      WHERE n.nspname = 'public'
+        AND pg_get_userbyid(d.defaclrole) = 'postgres'
+    `;
+    // 3 種（r = テーブル / S = シーケンス / f = 関数）ぶん存在し、そのどれにも
+    // anon / authenticated が現れないこと。行ごと消えていても合格。
+    for (const row of rows) {
+      for (const role of grantsBaseline.roles_with_no_grants) {
+        expect(row.acl, `${row.grantor}/${row.objtype} の既定権限に ${role} が残っている`).not.toContain(
+          `${role}=`,
+        );
+      }
+    }
+  });
+
+  it("public に新しく作られたテーブルに anon / authenticated の権限が付かない", async () => {
+    const probeTable = `zz_defacl_probe_${uniq().replace(/-/g, "_")}`;
+    await withRollback(migrator, async (tx) => {
+      await tx.unsafe(`CREATE TABLE ${probeTable} (i integer)`);
+      const rows = await tx<{ grantee: string; privilege_type: string }[]>`
+        SELECT grantee, privilege_type
+        FROM information_schema.role_table_grants
+        WHERE table_schema = 'public' AND table_name = ${probeTable}
+          AND grantee = ANY(${grantsBaseline.roles_with_no_grants as string[]})
+      `;
+      expect(
+        rows,
+        `新規テーブルに ${grantsBaseline.roles_with_no_grants.join(" / ")} の権限が自動で付いた`,
+      ).toEqual([]);
+    });
+  });
+
   it("anon / authenticated は public スキーマに一切の権限を持たない", async () => {
     for (const role of grantsBaseline.roles_with_no_grants) {
       const exists = await migrator<{ n: string }[]>`
@@ -290,6 +332,28 @@ describe("check_069: ランタイムロールと権限", () => {
       const match = /postgres(?:ql)?:\/\/([^:@/]+)/.exec(line);
       if (match) expect(match[1]).toBe("app_rw");
     }
+  });
+
+  // ★ ローカル開発の抜け道（ALLOW_PRIVILEGED_DB_ROLE）は .dev.vars.example にだけ書く。
+  //   .env.example のランタイム欄に漏れると、そこから本番の環境変数へ写される。
+  it("ALLOW_PRIVILEGED_DB_ROLE は .dev.vars.example にのみ記載され .env.example には無い", async () => {
+    const envExample = await readFile(path.join(REPO_ROOT, ".env.example"), "utf8");
+    expect(envExample).not.toContain("ALLOW_PRIVILEGED_DB_ROLE");
+
+    const devVarsExample = await readFile(path.join(REPO_ROOT, ".dev.vars.example"), "utf8");
+    expect(devVarsExample).toContain("ALLOW_PRIVILEGED_DB_ROLE");
+    // 雛形では既定で無効（有効行はコメントアウトされている）。
+    const enabled = devVarsExample
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => !line.startsWith("#") && line.startsWith("ALLOW_PRIVILEGED_DB_ROLE"));
+    expect(enabled, ".dev.vars.example では既定で無効（コメントアウト）であること").toEqual([]);
+  });
+
+  // ランタイム（Workers）に渡る設定にこのフラグを置かない。
+  it("wrangler.toml の [vars] に ALLOW_PRIVILEGED_DB_ROLE が無い", async () => {
+    const wranglerToml = await readFile(path.join(REPO_ROOT, "wrangler.toml"), "utf8");
+    expect(wranglerToml).not.toContain("ALLOW_PRIVILEGED_DB_ROLE");
   });
 });
 
@@ -617,6 +681,111 @@ describe("check_070: DB 制約の追加分", () => {
       expect(asPgError(error).code).toBe("23503");
     });
   });
+
+  // -------------------------------------------------------------------------
+  // payment_event の invoice_id と attempt_id の食い違い（0006 の複合 FK）。
+  // 照合と記帳は payment_event.invoice_id を基準に請求を引くため、
+  // attempt の invoice と名乗る invoice がずれた 1 行で別の請求に入金が立つ。
+  // -------------------------------------------------------------------------
+  describe("payment_event の invoice_id は attempt の invoice_id と一致する", () => {
+    /** 同一イベント内に 2 人目の参加者と 2 枚目の請求を作り、1 枚目に試行を 1 本立てる。 */
+    async function setupTwoInvoicesWithAttempt(
+      tx: postgres.TransactionSql,
+    ): Promise<{ invoice1: string; invoice2: string; attemptId: string }> {
+      const suffix = uniq();
+      const f = await insertBaseFixture(tx, suffix);
+      const [participant2] = await tx<{ id: string }[]>`
+        INSERT INTO participant (event_id, display_label)
+        VALUES (${f.eventId}, ${`p2-${suffix}`})
+        RETURNING id
+      `;
+      const [invoice2] = await tx<{ id: string }[]>`
+        INSERT INTO invoice (event_id, participant_id, amount_minor)
+        VALUES (${f.eventId}, ${participant2!.id}, 4000)
+        RETURNING id
+      `;
+      const [attempt] = await tx<{ id: string }[]>`
+        INSERT INTO payment_attempt
+          (invoice_id, provider_key, provider_binding_id, external_ref, amount_minor)
+        VALUES (${f.invoiceId}, 'manual_confirm', ${f.bindingId},
+                ${`iv_${suffix.replace(/-/g, "")}`.slice(0, 64)}, 3000)
+        RETURNING id
+      `;
+      return { invoice1: f.invoiceId, invoice2: invoice2!.id, attemptId: attempt!.id };
+    }
+
+    async function insertPaymentEvent(
+      tx: postgres.TransactionSql,
+      invoiceId: string | null,
+      attemptId: string | null,
+    ): Promise<unknown> {
+      const suffix = uniq();
+      return tx`
+        INSERT INTO payment_event
+          (provider_key, provider_event_id, event_type, kind, external_ref,
+           business_idem_key, invoice_id, attempt_id, ingestion_source, trust)
+        VALUES ('manual_confirm', ${`evt_${suffix}`}, 'payment.succeeded', 'succeeded',
+                ${`iv_${suffix}`}, ${`bik_${suffix}`}, ${invoiceId}, ${attemptId},
+                'webhook', 'verified')
+      `;
+    }
+
+    it("attempt が別請求のものなら拒否される（食い違い行は作れない）", async () => {
+      await withRollback(migrator, async (tx) => {
+        const s = await setupTwoInvoicesWithAttempt(tx);
+
+        const error = await expectFailure(tx, (sp) =>
+          insertPaymentEvent(sp, s.invoice2, s.attemptId),
+        );
+        expect(error).toBeDefined();
+        // 23503 = foreign_key_violation（payment_event_attempt_invoice_fk）
+        expect(asPgError(error).code).toBe("23503");
+
+        const rows = await tx<{ n: number }[]>`
+          SELECT count(*)::int AS n
+          FROM payment_event pe JOIN payment_attempt pa ON pa.id = pe.attempt_id
+          WHERE pe.invoice_id IS DISTINCT FROM pa.invoice_id
+        `;
+        expect(rows[0]?.n).toBe(0);
+      });
+    });
+
+    it("attempt と invoice_id が一致していれば通る", async () => {
+      await withRollback(migrator, async (tx) => {
+        const s = await setupTwoInvoicesWithAttempt(tx);
+        await insertPaymentEvent(tx, s.invoice1, s.attemptId);
+        const rows = await tx<{ n: number }[]>`
+          SELECT count(*)::int AS n FROM payment_event WHERE attempt_id = ${s.attemptId}
+        `;
+        expect(rows[0]?.n).toBe(1);
+      });
+    });
+
+    it("attempt_id が NULL の行は単独 FK のまま通る（試行に紐づく前の着信・orphan）", async () => {
+      await withRollback(migrator, async (tx) => {
+        const s = await setupTwoInvoicesWithAttempt(tx);
+        await insertPaymentEvent(tx, s.invoice2, null);
+        const rows = await tx<{ n: number }[]>`
+          SELECT count(*)::int AS n
+          FROM payment_event WHERE invoice_id = ${s.invoice2} AND attempt_id IS NULL
+        `;
+        expect(rows[0]?.n).toBe(1);
+      });
+    });
+
+    it("複合 UNIQUE と複合 FK が実在する", async () => {
+      const rows = await migrator<{ conname: string; contype: string }[]>`
+        SELECT conname, contype::text AS contype
+        FROM pg_constraint
+        WHERE conname IN ('payment_attempt_invoice_scope_uk', 'payment_event_attempt_invoice_fk')
+        ORDER BY conname
+      `;
+      expect(rows).toEqual([
+        { conname: "payment_attempt_invoice_scope_uk", contype: "u" },
+        { conname: "payment_event_attempt_invoice_fk", contype: "f" },
+      ]);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -694,6 +863,8 @@ describe("check_071: マイグレーションの正本", () => {
       "0002_seed_gates",
       "0003_event_scope_fk",
       "0004_ledger_event_scope_fk",
+      "0005_default_privileges_revoke",
+      "0006_payment_event_attempt_scope_fk",
     ]);
   });
 

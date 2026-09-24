@@ -1008,7 +1008,7 @@
     {
       "id": "check_071",
       "target": "マイグレーションの正本",
-      "rule": "supabase db diff と drizzle-kit の差分",
+      "rule": "supabase db diff の差分 0、drizzle は scripts/db-diff-drizzle.mjs によるテーブル／列の層の差分 0（制約・索引の DROP は設計どおり無視）",
       "expected_result": "差分 0。正本が supabase/migrations/*.sql であることが docs に明記",
       "manual_or_automated": "automated",
       "verification_method": "npm run test:integration（setup で db diff）",

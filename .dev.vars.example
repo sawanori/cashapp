@@ -9,3 +9,21 @@
 #
 # task_003 時点で必須の秘密値はまだ無い（LINE_ENV_PROFILE・PEPPER・セッション鍵・
 # CRON_SECRETS 等は task_011/012 以降で追記される）。
+
+# --- ローカル開発専用: 特権 DB ロールの明示的な許可（task_011 レビュー修正）---
+#
+# src/lib/db/client.ts の resolveDbConnection() は、ランタイムの DB ロールが
+# 最小権限の app_rw でなければ DbConfigError で落とす（R-SEC-03）。
+# 一方 wrangler.toml の [[hyperdrive]] localConnectionString はロール postgres を
+# 指しているため（このファイルの所有は task_003 / task_035）、そのままでは
+# `wrangler dev` / `npm run cf:dev` が Hyperdrive 経路で必ず失敗する。
+#
+# 下の行のコメントを外すと、次の 3 条件が**すべて**成立するときに限り
+# 特権ロール接続が通る:
+#   1. ALLOW_PRIVILEGED_DB_ROLE が厳密に "1"
+#   2. APP_ENV が厳密に "development"（staging / production の [vars] は別値）
+#   3. 接続先ホストがループバック（127.0.0.1 / localhost / ::1）
+#
+# ★ このフラグを .env.example のランタイム欄や wrangler.toml の [vars] に書かない。
+#   統合テスト（check_069）が .env.example に無いこと・本ファイルにあることを検査する。
+# ALLOW_PRIVILEGED_DB_ROLE=1

@@ -2,18 +2,21 @@
 
 ## ⚠ 既知の壊れている経路（着手前に必ず読む）
 
-- **`npm run cf:dev` / `wrangler dev` は Hyperdrive 経路で失敗する（task_035 で直す）**。
-  `wrangler.toml` の `[[hyperdrive]] localConnectionString` がロール `postgres`
-  （`postgres://postgres:postgres@127.0.0.1:54322/postgres`）のままなのに対し、
-  task_011 が入れた `src/lib/db/client.ts` の `resolveDbConnection()` は
-  ランタイムロールが `app_rw` でなければ `DbConfigError` を投げる
-  （`tests/unit/db-client.test.ts` がその拒否を検査している）。
-  直し方は `localConnectionString` を
+- **`npm run cf:dev` / `wrangler dev` は `.dev.vars` に 1 行足さないと Hyperdrive 経路で失敗する**
+  （task_011 hardening 周で opt-in の抜け道を用意した。恒久策は task_035）。
+  `wrangler.toml` の `[[hyperdrive]] localConnectionString` はロール `postgres`
+  （`postgres://postgres:postgres@127.0.0.1:54322/postgres`）のままで、
+  `src/lib/db/client.ts` の `resolveDbConnection()` はランタイムロールが `app_rw` で
+  なければ `DbConfigError` を投げる（`tests/unit/db-client.test.ts` が拒否を検査している）。
+  **いま動かす方法**: `cp .dev.vars.example .dev.vars` して
+  `ALLOW_PRIVILEGED_DB_ROLE=1` の行のコメントを外す。このフラグは
+  (1) 値が厳密に `"1"` (2) `APP_ENV` が厳密に `"development"` (3) 接続先がループバック、
+  の 3 条件がすべて成立するときだけ効く（否定ケース 6 件を単体テストで検査）。
+  **恒久策（task_035）**: `localConnectionString` を
   `postgres://app_rw:app_rw_local_dev_only@127.0.0.1:54322/postgres` に変え、
-  `wrangler dev` を 1 度実走して Hyperdrive 経路が通ることを確認する。
-  `wrangler.toml` は task_003 の `files_to_create` / task_035 の `files_to_modify` であり
-  task_011 の担当範囲外のため、task_011 では直していない（`docs/task-list.json` の
-  task_035 scope と task_011 concerns に記録済み）。
+  `wrangler dev` を 1 度実走して Hyperdrive 経路が通ることを確認する。それが済めば
+  フラグは不要になる。`wrangler.toml` は task_003 の `files_to_create` /
+  task_035 の `files_to_modify` であり task_011 の担当範囲外のため触っていない。
   ローカル DB に直接つなぐ経路（`npm run db:migrate` / `npm run test:integration` /
   `npm run gates:sync` / `npm run db:diff:drizzle`）はこの影響を受けない。
 
@@ -275,6 +278,56 @@
 - task_006: 違反フィクスチャに「`rm` でガード本体を消す」「`chmod -x` で実行権を落とす」「`git checkout -- ` でテストを戻す」を追加する。
 - task_006 / task_018 / task_019: `.claude/settings.json` への**追加**は通る（ガード参照を減らす編集だけが遮断される）。
 
+## task_011（hardening 周）
+
+### 決まったこと
+
+- **`anon` / `authenticated` の既定権限を剥がした**（`supabase/migrations/0005_default_privileges_revoke.sql`）。
+  `0001_init.sql` の `REVOKE ALL ON ALL TABLES` はその時点のテーブルにしか効かず、
+  Supabase 既定の `ALTER DEFAULT PRIVILEGES` が残っていたため、**public に新しく作る
+  テーブルは anon / authenticated に全権が付いた状態で生まれていた**（修正前に psql の
+  `BEGIN; CREATE TABLE …; ROLLBACK;` で実測。`anon` と `authenticated` に
+  `DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE` が自動で付いた）。
+  TABLES / SEQUENCES / FUNCTIONS の 3 種を剥がし、修正後は同じ probe で
+  `postgres` と `service_role` の 2 行だけになることを実測した。
+  以後 task_012 以降がテーブルを足しても穴は開かない。
+- **`payment_event` の invoice と attempt の食い違いを DB で塞いだ**
+  （`supabase/migrations/0006_payment_event_attempt_scope_fk.sql`）。
+  `payment_attempt` に `UNIQUE (id, invoice_id)`、`payment_event` に複合 FK
+  `(attempt_id, invoice_id) REFERENCES payment_attempt (id, invoice_id)`。
+  修正前は「試行 A は請求 I1 のものなのに `invoice_id` に I2 を名乗る」行を
+  INSERT でき（実測 `mismatched_rows=1`）、照合と記帳が別の請求に入金を立てられた。
+  修正後は同じ INSERT が `23503` で落ちる。既定の MATCH SIMPLE なので
+  `attempt_id` が NULL の行は単独 FK のままで、これは設計どおり（通ることをテストで確認）。
+- **`wrangler dev` のロール不一致は案 B（明示フラグ）で処置した**。
+  `src/lib/db/client.ts` に `ALLOW_PRIVILEGED_DB_ROLE` を足し、
+  (1) 値が厳密に `"1"` (2) `APP_ENV` が厳密に `"development"` (3) 接続先がループバック、
+  の 3 条件がすべて成立するときだけ `app_rw` 以外を通す。記載は `.dev.vars.example` のみ。
+  案 A（`localConnectionString` を `app_rw` に変える）を採らなかった理由は
+  `docs/concerns/task_011.md` の C-011-4 に書いた（`wrangler.toml` が担当範囲外・
+  パスワードをマイグレーションに書かない方針・`supabase db reset` が禁止コマンド）。
+- **`check_071` の rule 文言を実判定に合わせた**（`docs/acceptance-checks.json`）。
+  新文言は「supabase db diff の差分 0、drizzle は scripts/db-diff-drizzle.mjs による
+  テーブル／列の層の差分 0（制約・索引の DROP は設計どおり無視）」。
+- テストは統合 36 → 47 ケース、単体 185 → 192 ケースに増えた。
+  `typecheck` / `test:integration` / `gates:sync` / `gate:constraints` は
+  `scripts/record-run.sh task_011` 経由で全て exit 0。
+
+### 未解決
+
+- **CI の実走は deferred**。GitHub リモートが未作成で `git push` が禁止コマンドのため、
+  「PR で緑」「required status checks に含まれる」は証明できない。
+  `.github/workflows/gate-integration.yml` の静的検証（YAML 妥当・`jobs` が
+  `integration` ちょうど 1 つ・`run:` が呼ぶ npm スクリプトが `package.json` に実在・
+  禁止コマンド不使用）だけを `tests/integration/ci-workflow.test.ts` で機械化した。
+  `gate.yml` の作成と required 登録は task_009。
+- `supabase_admin` 由来の既定権限（`pg_default_acl`）は `postgres` が
+  `supabase_admin` のメンバーでないため剥がせない。accepted-risk として
+  `docs/concerns/task_011.md` の C-011-2 に記録し、判断は task_024 へ。
+- `check_071` の `verification_method` は据え置いた（許可されたのは rule 文言のみ）。task_038。
+- `docs/task-list.json` の `task_011.concerns` は書き換えていない（並行タスクとの
+  書き込み衝突を避けるため）。最新の懸念状態は `docs/concerns/task_011.md` が正本。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -298,3 +351,8 @@
 - 2026-09-24T05:09:35Z HEAD=0e805dc 決まったこと: task_005: 修正後の verify_commands 再実行ログと HANDOFF の陳腐化記述の訂正 / 未解決: 未コミット 7 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json scripts/deny-dangerous-bash.sh tests/unit/hooks/deny-dangerous-bash.test.ts 
 - 2026-09-24T05:09:39Z HEAD=0e805dc 決まったこと: task_005: 修正後の verify_commands 再実行ログと HANDOFF の陳腐化記述の訂正 / 未解決: 未コミット 7 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json scripts/deny-dangerous-bash.sh tests/unit/hooks/deny-dangerous-bash.test.ts 
 - 2026-09-24T05:14:54Z HEAD=0e805dc 決まったこと: task_005: 修正後の verify_commands 再実行ログと HANDOFF の陳腐化記述の訂正 / 未解決: 未コミット 8 件: docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json scripts/deny-dangerous-bash.sh tests/unit/hooks/deny-dangerous-bash.test.ts 
+- 2026-09-24T05:16:53Z HEAD=ea63ab3 決まったこと: task_005: 実環境での削除遮断の実測記録 / 未解決: 未コミット 3 件: docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_011.json 
+- 2026-09-24T05:18:52Z HEAD=ea63ab3 決まったこと: task_005: 実環境での削除遮断の実測記録 / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json 
+- 2026-09-24T05:20:27Z HEAD=ea63ab3 決まったこと: task_005: 実環境での削除遮断の実測記録 / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json 
+- 2026-09-24T05:29:33Z HEAD=ea63ab3 決まったこと: task_005: 実環境での削除遮断の実測記録 / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json 
+- 2026-09-24T05:29:36Z HEAD=ea63ab3 決まったこと: task_005: 実環境での削除遮断の実測記録 / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json 
