@@ -174,6 +174,49 @@ if jq -e '.global_exclude_globs | length > 0' "$CONSTRAINTS" >/dev/null 2>&1; th
   }
 fi
 
+# --------------------------------------------------- comment / string removal
+# A required pattern is a promise that a statement RUNS. A line-anchored grep
+# could be satisfied by text that never executes: a `//` or `--` or `#` comment,
+# a line inside a /* ... */ block, or a line inside a `backtick` template
+# string (GPT rounds 2-4: F-6 / F-2 / F-2 / F-4). Strip those before matching.
+#
+# The stripper is deliberately unaware of ordinary quoted strings: the worst it
+# can do is cut too much, which makes a required pattern go missing — a
+# violation, not a pass. Fail-closed in both directions.
+#
+# Comment syntax is chosen per extension so that stripping `#` in TOML does not
+# also cut `#private` fields out of TypeScript.
+comment_flags_for() {
+  case "$1" in
+    *.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs)   printf '%s' "-v block=1 -v tpl=1 -v slash=1 -v dash=0 -v hash=0" ;;
+    *.sql)                               printf '%s' "-v block=1 -v tpl=0 -v slash=0 -v dash=1 -v hash=0" ;;
+    *.toml|*.yml|*.yaml|*.sh|*.bash|*.ini|*.conf|*.env) printf '%s' "-v block=0 -v tpl=0 -v slash=0 -v dash=0 -v hash=1" ;;
+    # Unknown type: strip every syntax we know. Over-stripping fails closed.
+    *)                                   printf '%s' "-v block=1 -v tpl=1 -v slash=1 -v dash=1 -v hash=1" ;;
+  esac
+}
+
+STRIP_AWK='
+  BEGIN { inblk = 0; intpl = 0 }
+  {
+    line = $0; out = ""; i = 1; n = length(line)
+    while (i <= n) {
+      two = substr(line, i, 2); one = substr(line, i, 1)
+      if (inblk) {
+        if (two == "*/") { inblk = 0; i += 2 } else { i += 1 }
+      } else if (intpl) {
+        if (one == "`") { intpl = 0; i += 1 } else { i += 1 }
+      } else if (block == 1 && two == "/*") { inblk = 1; i += 2 }
+      else if (tpl == 1 && one == "`") { intpl = 1; i += 1 }
+      else if (slash == 1 && two == "//") { break }
+      else if (dash == 1 && two == "--") { break }
+      else if (hash == 1 && one == "#") { break }
+      else { out = out one; i += 1 }
+    }
+    print out
+  }
+'
+
 # ---------------------------------------------------------------- DONE lookup
 # A task counts as DONE only when BOTH signals agree: task-list.json says
 # DONE / DONE_WITH_CONCERNS, and docs/run-log/<task_id>.json exists.
@@ -369,8 +412,17 @@ while IFS= read -r entry; do
         rest="${hit#*:}"
         line="${rest%%:*}"
         content="${rest#*:}"
-        if [ -n "$allow_re" ] && printf '%s' "$content" | grep -qE -- "$allow_re"; then
-          continue
+        if [ -n "$allow_re" ]; then
+          # The exemption must come from code, not from a comment on the same
+          # line: `... status = 'paid' ... ; -- and status_rank < 2` used to
+          # exempt itself (gemini rounds 3 and 4, F-1). Only the exemption test
+          # sees the stripped line — the violation itself is still reported from
+          # the raw line, so stripping can only ADD violations, never hide one.
+          # shellcheck disable=SC2046  # the flags are a deliberate word list
+          code="$(printf '%s\n' "$content" | awk $(comment_flags_for "$file") "$STRIP_AWK")"
+          if printf '%s' "$code" | grep -qE -- "$allow_re"; then
+            continue
+          fi
         fi
         printf '%s %s:%s | %s\n' "$id" "$file" "$line" "$(printf '%s' "$content" | sed 's/^[[:space:]]*//' | cut -c1-120)"
         entry_hits=$((entry_hits + 1))
@@ -378,32 +430,14 @@ while IFS= read -r entry; do
     done < <(printf '%s' "$entry" | jq -r '.grep_patterns[]')
   else
     # require: every target file must contain at least one of the patterns,
-    # in code that actually runs. A required pattern is a promise that a
-    # statement exists; `// import "server-only";` and a line sitting inside a
-    # /* ... */ block satisfied a line-anchored grep without any such statement
-    # (GPT rounds 2 and 3, F-6 / F-2). Comments are therefore removed before
-    # the match. The stripper is deliberately string-literal-unaware: the worst
-    # it can do is cut too much, which fails the required check — fail-closed.
+    # in code that actually runs (see comment_flags_for / STRIP_AWK above).
     pats_file="$TMPDIR_GATE/pats.txt"
     stripped="$TMPDIR_GATE/stripped.txt"
     printf '%s' "$entry" | jq -r '.grep_patterns[]' > "$pats_file"
     while IFS= read -r f; do
       [ -n "$f" ] || continue
-      awk '
-        BEGIN { inblk = 0 }
-        {
-          line = $0; out = ""; i = 1; n = length(line)
-          while (i <= n) {
-            two = substr(line, i, 2)
-            if (inblk) {
-              if (two == "*/") { inblk = 0; i += 2 } else { i += 1 }
-            } else if (two == "/*") { inblk = 1; i += 2 }
-            else if (two == "//" || two == "--") { break }
-            else { out = out substr(line, i, 1); i += 1 }
-          }
-          print out
-        }
-      ' "$ROOT/$f" > "$stripped" 2>/dev/null
+      # shellcheck disable=SC2046  # the flags are a deliberate word list
+      awk $(comment_flags_for "$f") "$STRIP_AWK" "$ROOT/$f" > "$stripped" 2>/dev/null
       found=0
       while IFS= read -r pat; do
         [ -n "$pat" ] || continue

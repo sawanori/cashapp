@@ -248,6 +248,69 @@ SQL コメント中の英文（`-- the due date column`）を違反にしない�
 
 ---
 
+## 5 周目（3 回目の G5 で出た high 1 / medium 4）
+
+3 回目の G5（view commit `1936950`）も `merge-review.sh` が **reject**（有効票 2 / 欠票 0 /
+**実効 high 1**）。5 件すべてを再現してから直した。今回は 2 件を新しい gate_only_check として
+足している（1 行の ERE では表現できない条件を、別ゲートの禁止パターンに置き換えた）。
+
+### GPT F-1 [high・解消済み] 否定されたランク比較でも W3 が免除される
+
+**再現**: `UPDATE payments SET status = 'paid', status_rank = 2 WHERE NOT (status_rank < 2);`
+で W3 は報告されず **exit 0**。許可パターンは「前進方向の比較が同一行にあること」しか見られず、
+その比較が `NOT` で否定されているかは判定できない（ERE に後読みが無い）。
+
+**修正**: 否定つきのランク比較そのものを禁じる gate_only_check `GC-RANK-NEGATION` を追加した
+（`NOT (`・`!(` の後に `)` を挟まずランク名が来る形と、`NOT status_rank`）。W3 と同じ globs /
+exclude_globs を使う。**実測（修正後）**: `GC-RANK-NEGATION supabase/migrations/006.sql:1` /
+exit 1。実リポジトリでは対象 53 ファイルで違反 0（`NOT NULL` は当たらない）。
+
+### GPT F-2 [medium・解消済み] テンプレート文字列内の import が server-only 義務を満たす
+
+**再現**: `src/lib/db/client.ts` を `` export const example = `\nimport "server-only";\n`; `` に
+すると、4 周目のコメント除去を通り抜けて必須パターンが成立し **exit 0**。
+
+**修正**: 除去処理にバックティックのテンプレート文字列の状態も持たせた（`` ` `` で開閉し、
+その内側は出力しない）。**実測（修正後）**: `GC-SERVER-ONLY src/lib/db/client.ts:1 | required
+pattern missing` / exit 1。実リポジトリの `src/lib/db/client.ts` / `src/lib/config/env.ts` は
+`npm run gate:constraints` / `gate:server-only` とも exit 0。
+
+### GPT F-3 [medium・解消済み] src/lib 配下のクライアント用 .ts が I3 から外れる
+
+**再現**: `src/lib/client-db.ts` に `'use client'` ＋ `import postgres` を置くと **exit 0**。
+I3 は `src/lib/**/*.ts` を除外している（そこは Route Handler から呼ばれるサーバーコードで、
+`postgres` / `drizzle-orm` を正当に import する）ので、この除外自体は外せない。
+
+**修正**: 除外が成り立つ前提そのものをゲートにした。gate_only_check
+`GC-LIB-CLIENT-DIRECTIVE` が `src/lib/**` の `.ts` / `.tsx` に単独行の `'use client'` を
+禁止する。クライアントモジュールは `src/components/` か `src/hooks/`（どちらも I3 の対象）に
+置くほかなくなる。**実測（修正後）**: `GC-LIB-CLIENT-DIRECTIVE src/lib/client-db.ts:1` / exit 1。
+実リポジトリでは対象 21 ファイルで違反 0。
+
+### GPT F-4 [medium・解消済み] コメントアウトした Cloudflare 設定で I1 / I2 が合格する
+
+**再現**: `wrangler.toml` を `# [placement]` / `# mode = "smart"` にしても I1 / I2 とも
+違反にならず **exit 0**。4 周目の除去処理が `/* */`・`//`・`--` しか扱わず、TOML の `#` を
+残していた。
+
+**修正**: 除去処理を**拡張子ごと**に切り替えた（`.ts/.tsx/.js…` は `//` と `/* */` と
+テンプレート文字列、`.sql` は `--` と `/* */`、`.toml/.yml/.sh/.ini/.conf/.env` は `#`、
+未知の拡張子は全部）。TypeScript の `#private` を TOML 用の規則で切ってしまう事故を避ける。
+**実測（修正後）**: `I1 wrangler.toml:1` / `I2 workers/cron/wrangler.toml:1` / exit 1。
+
+### gemini F-1 [medium・解消済み] コメント内のランクガードで W3 の免除が成立する
+
+3 周目・4 周目に C-004-6 として残していた項目。**再現**:
+`UPDATE payments SET status = 'paid' WHERE id = 1; -- and status_rank < 2` で **exit 0**。
+
+**修正**: `allow_if_line_matches` の判定だけを、コメントを除去した行に対して行うようにした。
+**違反の検出は生の行のまま**なので、除去が行を切りすぎても違反が増えるだけで、隠れることはない
+（4 周目に「偽陽性になる」と書いて見送った懸念は、この非対称性で解消した）。
+**実測（修正後）**: `W3 supabase/migrations/000_bypass.sql:1` / exit 1。
+`WHERE status_rank < $2` のような本物のガードは引き続き exit 0。
+
+---
+
 ## 残懸念
 
 ### C-004-1 [medium] I3 は「クライアントかどうか」をディレクトリで近似している
@@ -280,27 +343,24 @@ F-2 の修正で、対象にマッチしたパスが 1 つでも読めないと�
 **exit 2**（設定エラー）で止める形にした。そのようなパスを実際に扱う必要が出たら、
 一覧全体を NUL 指向に作り直す必要がある。
 
-### C-004-6 [medium] forbid 側はコメント内のランクガードを今も免除する
+### C-004-6 [medium] コメント除去は字句解析ではない（`assert-server-only.mjs` 側は未対応）
 
-3 周目に挙げた 2 件のうち、**require 側（GC-SERVER-ONLY のブロックコメント）は 4 周目に
-直した**（コメント除去。GPT 4 周目 F-2）。残るのは forbid 側:
+3 周目に「行単位 grep の限界」として挙げた 2 件は 4 周目・5 周目に閉じたが、
+**除去処理は本物の字句解析ではない**ので、次の性質が残る。
 
-- **gemini 3 周目 F-1**: `UPDATE payments SET status = 'paid' WHERE id = 1; -- and status_rank < 2`
-  は、rank ガードが SQL コメントの中にあるだけで W3 の免除条件を満たす（実測 exit 0）。
+- 通常の引用符（`"` / `'`）の中身は解釈しない。文字列リテラル中の `//` や `--` や `#` で
+  行が途中で切れる。`require` 側は「必須が見つからない＝違反」、`forbid` の免除判定側は
+  「免除が効かない＝違反」に倒れるので、**どちらも fail-closed** である（違反が隠れる方向には
+  倒れない）。代わりに偽陽性が出うる。
+- 対の合わない `` ` `` や `/*` があると、そこから先が全部落ちる。これも fail-closed。
 
-**なぜ forbid 側だけ残すか**: require 側の誤切り落としは「必須が見つからない＝違反」に倒れる
-（fail-closed）が、forbid 側で `allow_if_line_matches` の判定にコメント除去を掛けると、
-文字列リテラル中の `//`（例: `"postgres://…"`）で行が途中で切れたときに**正当なランクガードを
-見落として違反にする**（偽陽性）か、逆に切り方次第で免除を広げる。どちらも他タスクの
-ファイルを巻き込む。
-
-**同じ穴は `scripts/assert-server-only.mjs`（task_011 所有・`npm run gate:server-only`）にも残る**:
-必須検査は `/^\s*import\s+["']server-only["'];?\s*$/m` で、ブロックコメント内の行に一致する。
-`gate:constraints` 側は塞いだので、いまリポジトリで「コメントアウトされた `server-only`」を
-落とせるのは GC-SERVER-ONLY だけである。
+**同じ穴は `scripts/assert-server-only.mjs`（task_011 所有・`npm run gate:server-only`）に残る**:
+必須検査は `/^\s*import\s+["']server-only["'];?\s*$/m` で、ブロックコメント内の行にもテンプレート
+文字列内の行にも一致する。`gate:constraints` 側は塞いだので、いまリポジトリで
+「コメントアウトされた `server-only`」を落とせるのは GC-SERVER-ONLY だけである。
 
 **対応案**: TypeScript 側は `assert-server-only.mjs` に AST ベース（`typescript` の
-`createSourceFile` → `statements[0]`）の検査を入れる。SQL 側（W3）は行 grep ではなく
+`createSourceFile` → `statements[0]`）の検査を入れる（task_011）。SQL 側（W3）は行 grep ではなく
 task_018 の台帳テスト（`src/lib/ledger/apply.ts` 経由でしか状態遷移できないこと）で担保する。
 
 ### C-004-5 [medium] `npm run test:unit` が exit 1（本タスク起因 0 件）
@@ -326,6 +386,14 @@ task_018 の台帳テスト（`src/lib/ledger/apply.ts` 経由でしか状態遷
 `typecheck` / `lint` / `gate:constraints` / `gate:wording` / `gate:server-only` も exit 0、
 task_004 所有の 2 ファイルは 58/58 緑。3 周目の赤が負荷由来だったことの裏づけになるが、
 他タスクのテストが既定 5000ms で書かれている限り再発しうる（C-004-7）。
+
+**5 周目の実測**: `gate:constraints` / `gate:wording` / `gate:server-only` / `lint` は exit 0、
+task_004 所有の 2 ファイルは **63/63 緑**。`npm run typecheck` は **exit 2**
+（`src/lib/liff/client.ts(421,20) / (433,20): Cannot find name 'callSdk'` — task_013 が編集中の
+未コミットファイル）。`npm run test:unit` は **exit 1** で、赤は
+`tests/unit/ci/web-only-workflow.test.ts`（task_013 所有・同じく未コミットで編集中）の
+アサーション 1 件（`パイプ左側だけの代入は落ちる` が `expected +0 to be 1`）。どちらも
+task_004 の所有ファイルを 1 つも参照していない（grep 0 件）。
 
 ### C-004-7 [low] 本タスクのテストがスイート全体の実行時間を押し上げている
 

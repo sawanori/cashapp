@@ -625,5 +625,179 @@
     "task_mismatches": 0,
     "effective_high": 2,
     "exit_code": 1
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_004",
+    "reviewer": "adversarial-reviewer-gemini",
+    "vendor": "gemini",
+    "reviewer_route": "verified",
+    "model_id_requested": "gemini-2.5-pro",
+    "model_id_actual": "gemini-2.5-pro",
+    "model_id_source": "cli_stats",
+    "cli_version": "0.38.1",
+    "backend": "gemini-cli",
+    "ran_at": "2026-09-24T14:22:43Z",
+    "commit": "1936950939d18af70340f08318dcffbf1380271b",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "medium",
+        "title": "`allow_if_line_matches` の免除条件がコメント内で成立し、制約をバイパスできる",
+        "detail": "`scripts/gate-constraints.sh` の `forbid` モードは、禁止パターンに一致した行全体（コメントを含む）に対して `allow_if_line_matches` の免除パターンを照合します。`require` モードの検査ではコメントを除去する修正が加えられましたが、`forbid` モードの免除ロジックには適用されていません。これにより、開発者は免除パターンをコメント内に記述することで、本来違反となるべきコードをゲートに合格させることができます。",
+        "file": "scripts/gate-constraints.sh",
+        "line": 371,
+        "repro": "1. `supabase/migrations/000_bypass.sql` を作成する。\n2. 内容を `UPDATE payments SET status = 'paid' WHERE id = 1; -- and status_rank < 2` とする。\n3. `npm run gate:constraints` を実行する。\n4. ゲートは exit 0 で通過する。制約 W3 の禁止パターン `status = 'paid'` には一致するが、免除パターン `status_rank < ...` が SQL コメント内で一致するため、違反として報告されない。",
+        "citation": "「W3 の rank ガード例外ルールがコメントでバイパス可能」 (Source: docs/review-log/task_004.json, finding F-1, commit 387af66f)。「status を 'paid' に直接代入するコードを rank ガードの外に書かない。」 (Source: docs/constraints.json, id: W3, field: text)",
+        "effective_severity": "medium"
+      }
+    ],
+    "raw_warnings": [],
+    "packet_bytes": 252324,
+    "validated_at": "2026-09-24T14:25:44Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/review-004-r3/gemini.json",
+    "merged_at": "2026-09-24T14:25:44Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gemini-2.5-pro を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 0,
+        "medium": 1,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 1,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_004",
+    "reviewer": "adversarial-reviewer-gpt",
+    "vendor": "gpt",
+    "reviewer_route": "cli-fallback",
+    "model_id_requested": "gpt-6-astra",
+    "model_id_actual": "gpt-6-astra",
+    "model_id_source": "self_report",
+    "cli_version": "codex-cli 0.154.0",
+    "backend": "codex",
+    "ran_at": "2026-09-24T14:25:36Z",
+    "commit": "1936950939d18af70340f08318dcffbf1380271b",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "high",
+        "title": "否定されたランク比較でも W3 の違反が免除される",
+        "detail": "許可パターンは比較式を否定する NOT を確認しない。NOT (status_rank < 2) にも一致するため、返金済みを支払済みに戻す更新が免除される。コメント除去も forbid 側には適用されない。以下は同梱コードの静的追跡による反例であり、実行は未検証。",
+        "file": "docs/constraints.json",
+        "line": 429,
+        "repro": "同梱テストの makeTempRepo() と seedCleanTree(root) で fixture を作る。supabase/migrations/006.sql に「UPDATE payments SET status = 'paid', status_rank = 2 WHERE NOT (status_rank < 2);」を保存し、runRealGate(root) を呼ぶ。禁止パターンに一致するが、許可パターンも一致して W3 は報告されず、静的追跡では exit 0 になる。この UPDATE に status='refunded', status_rank=3 の行を入力すると、WHERE 条件が成立して paid、ランク2へ後退する。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-2",
+        "severity": "medium",
+        "title": "テンプレート文字列内の import が server-only 義務を満たす",
+        "detail": "追加されたコメント除去処理はテンプレート文字列の内部を区別しない。文字列中の単独行にある import が必須パターンに一致し、実際の import が存在しなくても GC-SERVER-ONLY が合格する。静的追跡による指摘であり、実行は未検証。",
+        "file": "scripts/gate-constraints.sh",
+        "line": 392,
+        "repro": "seedCleanTree(root) の後、src/lib/db/client.ts を「export const example = `\nimport \"server-only\";\n`;\nexport const db = null;\n」とする。runRealGate(root) を呼ぶ。コメント除去後にも2行目が残り、必須パターンが成立するため、静的追跡では exit 0 になる。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-3",
+        "severity": "medium",
+        "title": "src/lib 配下のクライアント用 .ts が I3 の検査から外れる",
+        "detail": "除外を .ts に限定しても、クライアント用の .ts は存在できる。src/lib/**/*.ts は 'use client' の有無にかかわらず除外されるため、DB ライブラリの直接 import を見逃す。同梱の必須 import 検査も、この反例のファイルを対象にしていない。実行は未検証。",
+        "file": "docs/constraints.json",
+        "line": 828,
+        "repro": "seedCleanTree(root) の後、src/lib/client-db.ts に「'use client';\nimport postgres from 'postgres';\nexport const connect = postgres;\n」を保存し、runRealGate(root) を呼ぶ。src/lib/**/*.ts の除外が適用され、静的追跡では I3 の報告がなく exit 0 になる。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-4",
+        "severity": "medium",
+        "title": "コメントアウトした Cloudflare 設定で I1 と I2 が合格する",
+        "detail": "require モードのコメント除去は /* */、//、-- だけを扱い、対象の TOML が使う # コメントを残す。そのため、無効化された設定が必須パターンを満たす。静的追跡による指摘であり、実行は未検証。",
+        "file": "scripts/gate-constraints.sh",
+        "line": 401,
+        "repro": "seedCleanTree(root) の後、wrangler.toml を「name = \"cashapp\"\n# [placement]\n# mode = \"smart\"\n」、workers/cron/wrangler.toml を「name = \"cashapp-cron\"\n# [triggers]\n# crons = [\"*/5 * * * *\"]\n」に置き換える。runRealGate(root) を呼ぶ。コメント内の mode と [triggers] が一致し、静的追跡では I1・I2 とも違反にならず exit 0 になる。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      }
+    ],
+    "diagnostics": {
+      "exit_code": 0,
+      "event_types": [
+        "thread.started",
+        "turn.started",
+        "item.completed",
+        "item.completed",
+        "turn.completed"
+      ],
+      "cli_errors": [
+        "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+      ],
+      "last_message_bytes": 2579,
+      "stderr_tail": "source_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n2026-09-24T14:22:56.267605Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T14:22:56.329400Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T14:22:56.707215Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer error=\\\"invalid_request\\\", error_description=\\\"No access token was provided in this request\\\", resource_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n"
+    },
+    "packet_bytes": 252324,
+    "validated_at": "2026-09-24T14:25:44Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/review-004-r3/gpt.json",
+    "merged_at": "2026-09-24T14:25:44Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gpt-6-astra を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 1,
+        "medium": 3,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 4,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "type": "summary",
+    "task_id": "task_004",
+    "round": 1,
+    "merged_at": "2026-09-24T14:25:44Z",
+    "decision": "reject",
+    "envelopes": 2,
+    "votes": 2,
+    "vendors": [
+      "gemini",
+      "gpt"
+    ],
+    "author_vendor": "claude",
+    "missing_votes": 0,
+    "invalid_envelopes": 0,
+    "invalid_reviews": 0,
+    "self_reviews": 0,
+    "task_mismatches": 0,
+    "effective_high": 1,
+    "exit_code": 1
   }
 ]
