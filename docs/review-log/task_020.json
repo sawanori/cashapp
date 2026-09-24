@@ -1,0 +1,197 @@
+[
+  {
+    "schema_version": 1,
+    "task_id": "task_020",
+    "reviewer": "adversarial-reviewer-gemini",
+    "vendor": "gemini",
+    "reviewer_route": "verified",
+    "model_id_requested": "gemini-2.5-pro",
+    "model_id_actual": "gemini-2.5-pro",
+    "model_id_source": "cli_stats",
+    "cli_version": "0.38.1",
+    "backend": "gemini-cli",
+    "ran_at": "2026-09-24T18:53:55Z",
+    "commit": "f4e3dba4450dde726f0d2bc07f5d969183980380",
+    "verdict": "PASS",
+    "findings": [],
+    "raw_warnings": [],
+    "packet_bytes": 345372,
+    "validated_at": "2026-09-24T19:00:20Z",
+    "classification": "vote",
+    "source_file": "/var/folders/h6/2q0crwpx3zx94d5zxclh_f5c0000gn/T//cashapp-review/task_020/gemini.json",
+    "merged_at": "2026-09-24T19:00:20Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gemini-2.5-pro を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 0,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_020",
+    "reviewer": "adversarial-reviewer-gpt",
+    "vendor": "gpt",
+    "reviewer_route": "cli-fallback",
+    "model_id_requested": "gpt-6-astra",
+    "model_id_actual": "gpt-6-astra",
+    "model_id_source": "self_report",
+    "cli_version": "codex-cli 0.154.0",
+    "backend": "codex",
+    "ran_at": "2026-09-24T19:00:13Z",
+    "commit": "f4e3dba4450dde726f0d2bc07f5d969183980380",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "high",
+        "title": "Webhookで計上済みの入金をpaid再照会が二重計上する",
+        "detail": "snapshotToEventはpoll専用のproviderEventIdからledgerDedupeKeyを生成するため、同じ入金のWebhookとは別の台帳キーになる。同梱のapplyToLedgerはランク判定より先に台帳へ追記するため、既にpaidでも二重のcreditが入り、残高と過払い判定が壊れる。businessIdemKeyには重複を拒否する処理がない。",
+        "file": "src/lib/reconcile.ts",
+        "line": 271,
+        "repro": "未実行の再現手順: ① provider_key='fixture_provider'、external_ref='iv_review_1'、請求額と試行額が各3000円の請求を用意する。② providerEventId='evt_paid_1'、kind='succeeded'、money=yen(3000)、trust='verified'、ledgerDedupeKey='fixture_provider:succeeded:evt_paid_1'のイベントをinsertPaymentEventとapplyToLedgerでWebhookとして適用する。残高は3000円でpaidになる。③ forcePaidRescan=trueでrunReconcileInTransactionを実行し、同じ試行についてkind='succeeded'、money=yen(3000)のPaymentSnapshotを返す。④ 別キー'fixture_provider:succeeded:poll:fixture_provider:iv_review_1:succeeded'で3000円が追加され、残高が6000円になりneeds_attentionが立つ。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-2",
+        "severity": "high",
+        "title": "保留Webhookの再適用では受信先bindingの照合が失われる",
+        "detail": "Webhookの通常適用ではexpectedBindingIdに受信URLのbindingを渡して他人の請求への適用を拒否する。一方、保留行にはそのbindingが保存されず、runApplyPendingはexternal_refから対象試行のbindingを取得し、expectedBindingIdを渡さずに適用する。ゲートの再確認は受信先と試行の一致を保証しないため、保留経由で受取先の防御を迂回できる。",
+        "file": "src/app/api/cron/apply-pending/route.ts",
+        "line": 162,
+        "repro": "未実行の再現手順: ① 同じprovider_keyのbinding AとBを作り、Bにexternal_ref='iv_review_b'、金額3000円の未払い試行を用意する。② handleWebhookRequestをproduction・許可IPの条件でbindingRef=Aとして呼ぶ。差し込みアダプタのparseWebhookはproviderEventId='evt_wrong_binding_1'、externalRef='iv_review_b'、kind='succeeded'、money=yen(3000)、trust='verified'のイベントを返し、applyGateは'PAYMENTS_ENABLED'を返す。イベントは保留保存される。③ runApplyPendingをapplyGate=()=>Promise.resolve(null)で実行する。④ A宛てに受信したイベントがBの請求をpaidにして3000円を計上する。同じイベントを保留せず通常適用した場合はexpectedBindingId=Aによってmismatchになる。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-3",
+        "severity": "high",
+        "title": "照会に失敗する先頭100件が後続の未払い請求を塞ぎ続ける",
+        "detail": "未払い走査は毎回invoice.updated_atの古い100件を取得する。照会失敗・タイムアウト・nullの対象には更新がなく、次回も同じ100件になる。truncatedを記録しても走査位置は進まない。同梱の300件テストは全件がsucceededになって対象から抜ける条件だけなので、この反例を防いでいない。",
+        "file": "src/lib/reconcile.ts",
+        "line": 214,
+        "repro": "未実行の再現手順: ① activeかつsettlement_rank<40で、各1件の開いた試行を持つ請求を101件用意する。先頭100件のinvoice.updated_atを2026-09-24T00:00:00Z、101件目を2026-09-24T01:00:00Zにする。② querierは先頭100件についてPromise.reject(new Error('unavailable'))を返し、101件目についてsucceeded・請求額と同額のスナップショットを返す設定にする。③ forcePaidRescan=false、既定batchLimit=100でrunReconcileInTransactionを複数回実行する。④ 毎回同じ100件だけが照会され、101件目は一度も照会されず未払いのまま残る。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-4",
+        "severity": "high",
+        "title": "paid再照会は先頭100件だけで日次実行済みになり後続を巡回しない",
+        "detail": "支払済み走査はpaid_at昇順の100件に固定され、処理後もpaid_atによる順序と対象条件が変わらない。さらにpaid_rescanned>0の記録が全対象の再照会を24時間抑止する。翌日も同じ先頭100件が選ばれるため、後続の返金・紛争は先頭が30日窓から外れるまで見つからない。truncatedも未払い走査だけで決まり、この打ち切りを報告しない。",
+        "file": "src/lib/reconcile.ts",
+        "line": 241,
+        "repro": "未実行の再現手順: ① 各1試行を持つpaid請求を101件作り、先頭100件のpaid_atを2026-09-23T00:00:00Z、最後の1件を2026-09-24T00:00:00Zにする。未払い請求と直近のreconciliation_runは置かない。② 先頭100件は保存済みpollイベントと同じsucceededを返し、101件目は全額refundedを返すquerierを用意する。③ now=2026-09-25T00:00:00Zで通常実行するとpaidRescanned=100、truncated=falseとなり101件目は呼ばれない。④ 5分後はpaid走査自体が省略され、24時間後も同じ100件だけが選ばれる。101件目の返金は反映されない。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-5",
+        "severity": "high",
+        "title": "適用保留の先頭100件が別事業者の適用可能なイベントを塞ぐ",
+        "detail": "runApplyPendingは未処理行をid昇順で100件取得し、ゲートが閉じた行を変更せずcontinueする。特定事業者の保留が100件あると、別事業者のゲートが開いていても後続イベントに到達しない。FOR UPDATE SKIP LOCKEDは同時実行中の競合を避けるだけで、逐次実行での停滞は解消しない。",
+        "file": "src/app/api/cron/apply-pending/route.ts",
+        "line": 122,
+        "repro": "未実行の再現手順: ① 試行に対応する未処理payment_eventを101件、順番に保存する。全件apply_result=NULL、processed_at=NULLとし、先頭100件はbinding A、101件目はbinding Bのsucceeded・3000円のイベントにする。② applyGateはAに対して'PROVIDER_A_MODE'、Bに対してnullを返す。③ 既定limit=100でrunApplyPendingを完了させてから再実行する。④ 毎回picked=100、stillHeld=100、applied=0となり、Bのイベントは未処理のまま残る。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-6",
+        "severity": "high",
+        "title": "同じ試行の追加返金がpollイベントの重複として捨てられる",
+        "detail": "pollのproviderEventIdは事業者・externalRef・kindだけで固定され、返金額が変わっても同一になる。最初のrefundedを保存した後はinsertPaymentEventがnullを返し、追加返金をapplyToLedgerへ渡さない。同梱の台帳処理は複数の部分返金を扱えるが、この入口で後続の返金が失われる。",
+        "file": "src/lib/reconcile.ts",
+        "line": 330,
+        "repro": "未実行の再現手順: ① external_ref='iv_refund_1'、請求額と試行額が3000円、台帳creditが3000円のpaid請求を用意する。② forcePaidRescan=trueで、同試行への1000円の部分返金を表すkind='refunded'、money=yen(1000)のスナップショットを返す。台帳残高は2000円になる。③ 翌日、残額2000円の追加返金を表すkind='refunded'、money=yen(2000)のスナップショットを返して再実行する。④ 両方のproviderEventIdが'poll:fixture_provider:iv_refund_1:refunded'になるため2回目は破棄され、全額返金された入力列でも残高2000円・paidのままになる。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-7",
+        "severity": "medium",
+        "title": "タイムアウト後も照会が継続するため実際の並列数が5を超える",
+        "detail": "withTimeoutはPromise.raceで待機を終えるだけで、元の照会を中断しない。mapWithConcurrencyはタイムアウトした枠で次の照会を開始するため、未完了の外部照会が累積する。並列5という制限は待機処理にしか掛かっていない。",
+        "file": "src/lib/reconcile.ts",
+        "line": 157,
+        "repro": "未実行の再現手順: 照会対象を10件用意し、querier.queryは呼び出し時にinFlightを増やし、6000ミリ秒後に減らして解決するPromiseを返す。既定のconcurrency=5、timeoutMs=3000で実行する。最初の5件が未完了の3000ミリ秒後に次の5件が開始され、実際のinFlightは10になる。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      }
+    ],
+    "diagnostics": {
+      "exit_code": 0,
+      "event_types": [
+        "thread.started",
+        "turn.started",
+        "item.completed",
+        "item.completed",
+        "turn.completed"
+      ],
+      "cli_errors": [
+        "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+      ],
+      "last_message_bytes": 5455,
+      "stderr_tail": "source_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n2026-09-24T18:54:14.699954Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T18:54:14.846064Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T18:54:15.235679Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer error=\\\"invalid_request\\\", error_description=\\\"No access token was provided in this request\\\", resource_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n"
+    },
+    "packet_bytes": 345372,
+    "validated_at": "2026-09-24T19:00:20Z",
+    "classification": "vote",
+    "source_file": "/var/folders/h6/2q0crwpx3zx94d5zxclh_f5c0000gn/T//cashapp-review/task_020/gpt.json",
+    "merged_at": "2026-09-24T19:00:20Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gpt-6-astra を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 6,
+        "medium": 1,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 7,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "type": "summary",
+    "task_id": "task_020",
+    "round": 1,
+    "merged_at": "2026-09-24T19:00:20Z",
+    "decision": "reject",
+    "envelopes": 2,
+    "votes": 2,
+    "vendors": [
+      "gemini",
+      "gpt"
+    ],
+    "author_vendor": "claude",
+    "missing_votes": 0,
+    "invalid_envelopes": 0,
+    "invalid_reviews": 0,
+    "self_reviews": 0,
+    "task_mismatches": 0,
+    "effective_high": 6,
+    "exit_code": 1
+  }
+]
