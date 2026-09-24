@@ -108,6 +108,13 @@ ALLOW  git reset HEAD~1
 
 - `check_053`（新規セッションでの SessionStart 注入の目視）は 3 周目で
   `claude` CLI のヘッドレス新規セッションにより実測済み。本ラウンドでは再実行していない。
+- 本ラウンドの検証中、作業ツリーの `npm run test:unit` が 1 件落ちた
+  （`tests/unit/db-client.test.ts` の `ALLOW_PRIVILEGED_DB_ROLE` の 3 条件ケース）。
+  原因は並行タスクが未コミットで編集中の `src/lib/db/client.ts`（Hyperdrive 経路では
+  特権ロールを常に拒否する変更）で、`tests/unit/db-client.test.ts` の期待値がまだ追随していない。
+  どちらも task_005 の担当範囲外。本タスクのコミット `136be6d` を分離ワークツリーに
+  チェックアウトして実行した `npm run test:unit` は 259 件全 pass（`docs/run-log/task_005.json` に記録）。
+  **対応予定タスク**: 当該並行タスク（task_011 / task_035 系）。**deferred**。
 - GitHub リモートが未作成のため、CI（GitHub Actions）での実走検証は行えない。
   task_005 は `.github/workflows/**` を作らないため本ラウンドの done_definition には影響しない。
   **deferred: GitHub リモート作成後に実施**。
