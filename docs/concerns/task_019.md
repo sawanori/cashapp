@@ -4,6 +4,47 @@ ProviderConformanceKit（`docs/implementation-plan.md` §14-4、`docs/research/p
 
 書式は「指摘 / 深刻度 / 対応案 / 対応予定タスク」。
 
+## -1. 修正ラウンド（レビューのギャップ対応。§0〜§8 は前ラウンドの記録のまま保持）
+
+前ラウンドの `docs/run-log/task_019.json` 実測失敗（G4: 本ファイルと台帳の状態トークン食い違い）と、
+検証者が転記したレビューのギャップ（high 1・medium 6）を修正した。
+
+- **G4（検証失敗）**: `docs/PROGRESS.md` 482 行目の状態トークンを `BLOCKED` → `DONE_WITH_CONCERNS`
+  に訂正した（task_013 の 4 周目と同じ扱い。本文は当時のまま）。
+- **[high→修正] done_definition 第1項の pass 主張と実行実態の乖離**: `tests/conformance/kit.ts` に
+  `assertCatalogComplete`/`buildReport` の第3引数 `executedCaseIds`（`describe()` 見出しから
+  `afterEach` フックで拾う、実際に `it()` が走ったケース id の集合）を追加し、`status: "pass"` な
+  のに対応する `it()` がファイル内に無いケースを例外で検出するようにした。C27（許可外ホストの
+  deepLink 拒否）は `manual-confirm.conformance.test.ts` に `buildReceivingLink` を直接呼ぶ実テスト
+  を新設し pass へ格上げ。C12/C23/C25/C30 は n/a のまま据え置いたが、理由文言を「実際にどこで
+  検証済みか」（C12→manual-confirm 側の実テスト／C23→`tests/integration/checkout.test.ts` の
+  check_093 実測／C25→C15 が検査する webhook-side の帰結と同一）、または「Phase 1 に外部 API を
+  呼ぶアダプタが 1 つも無い構造的な理由」（C30）へ書き換えた。C21/C22 は §4 のとおり `blocked` に
+  分離した。
+- **[medium→修正] C21/C22 の n/a 埋没**: `ConformanceCaseStatus` に `"blocked"` を追加し、
+  fixture_provider の C21/C22 を n/a から blocked（apply.ts 拡張の担当タスク未定という実装ギャップ
+  である旨を型で区別）に変更した。詳細は §4 を更新。
+- **[medium→修正] C29 の空虚な pass**: fixture_provider の C29 は「invoiceId 文字列を変えただけで
+  期限判定を検査していない」のに pass と記録していた。`capabilities.refundWindowDays` が null
+  （期限概念自体が無い）ことを根拠に n/a へ訂正した（テストは削除せず、主張を実態に合わせた）。
+- **[medium→修正] C5 の mismatch_alert 未検証**: `fixture-provider.conformance.test.ts` の C5 に
+  outbox の `mismatch_alert` 検査を追加した。
+- **[medium→修正] C14 の「復帰後に台帳へ載る」が未実行**: `runApplyPending`（task_020 所有・
+  変更しない。`applyGate` を開けた状態で呼ぶ）を使い、ゲート off で保留された行が復帰後に実際に
+  台帳へ載ることを検査する 2 段目を追加した（done_definition の文言をそのまま実行）。
+- **[medium→修正] C13 の credential_fp 未検証**: 2 つの binding に 16 進 16 桁の `credential_fp`
+  を明示的に書き分け、適用後の `payment_attempt.provider_binding_id` と
+  `provider_binding.credential_fp` を突き合わせる assertion を追加した。
+- **[medium] 敵対レビュー記録（G5）の対象コミットが古い**: `docs/review-log/task_019.json` の
+  round1 は BLOCKED 宣言のみのコミット（`47608da`）に対するもので、9421d14 以降の実装（fixture
+  provider 実装・本ラウンドの修正）を一度も審査していない。ハーネス規則（既に review-log がある
+  タスクは再作成不要。reject でも再レビューしない）に従い、本ラウンドでは
+  review-drive.sh/merge-review.sh を実行せず、この食い違いを記録するに留める。
+- **verify_commands 3 本すべて `scripts/with-lock.sh db scripts/record-run.sh task_019` 経由で
+  実測 exit 0**: `test:conformance`（2 ファイル 38/38 pass）／`test:gate`（test:contract 8/8 +
+  test:conformance 38/38）／`gate:constraints`（29 grep entry 0 violation。§8 の W11 違反は
+  task_020 の着地で解消済み）。`typecheck` / `lint:changed` も exit 0。
+
 ---
 
 ## 0. 敵対レビュー（G5 round1・`docs/review-log/task_019.json`）指摘の反映（本ラウンドで対応済み）
@@ -81,22 +122,30 @@ ProviderConformanceKit（`docs/implementation-plan.md` §14-4、`docs/research/p
   コミット前に `gate:constraints` を通すことで解消する。
 - **対応予定タスク**: task_018 / task_020（それぞれの担当範囲）
 
-## 4. 再着手ラウンド（task_018 完了後）: fixture_provider の実装結果
+## 4. 再着手ラウンド（task_018 完了後）: fixture_provider の実装結果（本ラウンドで更新）
 
 - **指摘/記録**: task_018 が 7833726 で完了したため BLOCKED を解除し、
   `tests/conformance/fixture-provider.conformance.test.ts`（新規）と4本の fixture JSON
-  （`refund-partial-1/2.json`・`orphan.json`・`underpaid.json`）を実装した。C1〜C31 のうち
-  21 ケースが実 Postgres 経由の Webhook ルート検査で pass、11 ケースが能力宣言
-  （`createCheckout`/`refund`/`statusQuery` 非対応）・W3（ランク前進のみ）・
-  `apply.ts` に無い分岐（参加者削除/イベント中止の特別扱い）を理由に n/a（理由つき）。
-  done_definition の文言「C1〜C31 pass」は文字どおりには満たせていない
-  （n/a はテスト対象外という意味で失敗ではないが、pass でもない）。
-- **深刻度**: medium（テスト自体は全て通っているが、網羅性は capability の限界内）
-- **対応案**: n/a の大半は fixture_provider の構造的な限界（webhook のみのテストアダプタ）
-  で解消不要。C21（削除済み参加者）・C22（イベント中止）は `src/lib/ledger/apply.ts`
-  （task_018 所有）に participant.status / event.status を読む分岐が無いための実装ギャップ
-  ——真に対応するなら apply.ts の拡張が要る（担当タスク未定）。
-- **対応予定タスク**: C21/C22 は未定（apply.ts 拡張の担当タスクが決まり次第）
+  （`refund-partial-1/2.json`・`orphan.json`・`underpaid.json`）を実装した。修正ラウンドの結果、
+  C1〜C31（+C4b）の32ケースは **fixture_provider が pass 20／n/a 10／blocked 2**、
+  **manual_confirm が pass 4（C9/C10/C12/C27）／n/a 28**。n/a は能力宣言
+  （`createCheckout`/`refund`/`statusQuery` 非対応）・W3（ランク前進のみ）・Phase 1 に外部 API
+  呼び出しアダプタが無い構造的制約のいずれかを理由に持つ（`ConformanceCaseStatus` の型で
+  n/a と区別した `reason` 必須）。C21/C22 は「対象外」ではなく実装ギャップのため `blocked` に
+  分離した（下記）。done_definition の文言「C1〜C31 pass」は文字どおりには満たせていない
+  （n/a/blocked はテスト対象外・実装待ちという意味で失敗ではないが、pass でもない）。
+- **深刻度**: medium（テスト自体は全て通っており、pass 主張は `executedCaseIds` で実行実態と
+  機械的に一致する。残るのは capability の限界と apply.ts の実装ギャップ）
+- **対応案**: n/a の大半は fixture_provider / manual_confirm の構造的な限界（webhook のみの
+  テストアダプタ、または Phase 1 に外部 API 呼び出しアダプタが無い）で解消不要。C21（削除済み
+  参加者）・C22（イベント中止）は `src/lib/ledger/apply.ts`（task_018 所有）に
+  participant.status / event.status を読む分岐が無いための実装ギャップ——真に対応するなら
+  apply.ts の拡張が要る（担当タスク未定）。C23（同時 checkout）・C25（checkout タイムアウト）は
+  実際の挙動が他ファイル（`tests/integration/checkout.test.ts`／同ファイルの C15）で検証済みだが
+  ConformanceKit の case id とは未結線。C30（金額同値）は Phase 2 で実アダプタが載るまで
+  検証対象を持たない。
+- **対応予定タスク**: C21/C22 は未定（apply.ts 拡張の担当タスクが決まり次第）。C23/C25/C30 は
+  対応不要（構造的、または他ファイルで検証済み）。
 
 ## 5. gate.yml の acceptance ジョブが test:contract / test:conformance / test:gate を
    Postgres 無しで実行しようとする（task_009 所有・修正不能）
@@ -136,7 +185,7 @@ ProviderConformanceKit（`docs/implementation-plan.md` §14-4、`docs/research/p
   `gh api` による required checks への `contract` 追加を確認する（task_009 の担当領域）。
 - **対応予定タスク**: メインセッションの push 後 → task_009（required checks 設定）
 
-## 8. gate:constraints の一時的な exit 1 は他タスクの未コミット WIP が原因
+## 8. gate:constraints の一時的な exit 1 は他タスクの未コミット WIP が原因（本ラウンドで解消確認）
 
 - **指摘**: `scripts/record-run.sh task_019 npm run gate:constraints` の実行時点で
   `src/lib/reconcile.ts:1`（W11: pg_try_advisory_lock パターン欠落）が1件出た。
@@ -145,6 +194,9 @@ ProviderConformanceKit（`docs/implementation-plan.md` §14-4、`docs/research/p
 - **深刻度**: low（task_019 自身の変更が原因ではない。当該タスクのコミット時に解消見込み）
 - **対応案**: 対応不要（他タスクの範囲）。
 - **対応予定タスク**: task_020（自身のコミット前に gate:constraints を通すことで解消）
+- **解消確認（本ラウンド）**: task_020 が `pg_try_advisory_xact_lock` を実装してコミット
+  （`9dcab77`）したのを受け、本ラウンドの `gate:constraints` 実測は 29 grep entry
+  **0 violation**。W11 の指摘は消えている。
 
 ## 3. CI 実走（PR 1本で contract ジョブが緑・required_status_checks）は deferred
 

@@ -320,5 +320,95 @@
     "commit": "82dda923f6d9738ad36b86a00dd2c841fff12d00",
     "ran_at": "2026-09-24T18:36:28Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:conformance",
+    "exit_code": 127,
+    "stdout_tail": "scripts/record-run.sh: line 120: npm run test:conformance: command not found",
+    "commit": "9d5b11c310faf978a9884282b8cba13da74767c8",
+    "ran_at": "2026-09-24T18:38:17Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:conformance",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:conformance\n> TZ=UTC vitest run tests/conformance\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  2 passed (2)\n      Tests  36 passed (36)\n   Start at  18:39:57\n   Duration  1.37s (tests 38%, import 27%, transform 24%, setup 11%)",
+    "commit": "9d5b11c310faf978a9884282b8cba13da74767c8",
+    "ran_at": "2026-09-24T18:39:57Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:gate",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:gate\n> npm run test:contract && npm run test:conformance\n\n\n> cashapp@0.1.0 test:contract\n> TZ=UTC vitest run tests/contract --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  3 passed (3)\n      Tests  8 passed (8)\n   Start at  18:40:20\n   Duration  811ms (import 42%, transform 28%, tests 22%, setup 9%)\n\n\n> cashapp@0.1.0 test:conformance\n> TZ=UTC vitest run tests/conformance\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  2 passed (2)\n      Tests  36 passed (36)\n   Start at  18:40:21\n   Duration  1.14s (transform 33%, tests 31%, import 25%, setup 11%)",
+    "commit": "9d5b11c310faf978a9884282b8cba13da74767c8",
+    "ran_at": "2026-09-24T18:40:20Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 119 file(s) read)\nok    L2 (forbid, 119 file(s) read)\nok    L3 (forbid, 119 file(s) read)\nok    L8 (forbid, 119 file(s) read)\nok    L12 (forbid, 119 file(s) read)\nok    P1 (forbid, 118 file(s) read)\nok    P2 (forbid, 1 file(s) read)\nok    P9 (forbid, 13 file(s) read)\nok    W3 (forbid, 124 file(s) read)\nok    W4 (forbid, 5 file(s) read)\nok    W9 (forbid, 1 file(s) read)\nW11 src/lib/reconcile.ts:1 | required pattern missing (pg_try_advisory(_xact)?_lock)\nok    N2 (forbid, 116 file(s) read)\nok    N5 (forbid, 119 file(s) read)\nok    N7 (forbid, 119 file(s) read)\nok    N9 (forbid, 119 file(s) read)\nok    N11 (forbid, 119 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 31 file(s) read)\nok    I4 (forbid, 3 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 65 file(s) read)\nok    X-MONEY (forbid, 10 file(s) read)\nok    GC-XSS (forbid, 119 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 124 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\nok    GC-RANK-NEGATION (forbid, 124 file(s) read)\nok    GC-LIB-CLIENT-DIRECTIVE (forbid, 46 file(s) read)\n\ngate:constraints — scanned 29 grep entr(y|ies), 1 violation(s), 0 empty gate(s)",
+    "commit": "9d5b11c310faf978a9884282b8cba13da74767c8",
+    "ran_at": "2026-09-24T18:40:24Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:conformance",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:conformance\n> TZ=UTC vitest run tests/conformance\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  2 passed (2)\n      Tests  38 passed (38)\n   Start at  19:04:32\n   Duration  1.07s (tests 60%, import 17%, transform 16%, setup 7%)",
+    "commit": "e8c63955eefae63a38d9d759571f7048c5bc714b",
+    "ran_at": "2026-09-24T19:04:32Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:gate",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:gate\n> npm run test:contract && npm run test:conformance\n\n\n> cashapp@0.1.0 test:contract\n> TZ=UTC vitest run tests/contract --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  3 passed (3)\n      Tests  8 passed (8)\n   Start at  19:04:36\n   Duration  515ms (import 45%, tests 25%, transform 19%, setup 10%)\n\n\n> cashapp@0.1.0 test:conformance\n> TZ=UTC vitest run tests/conformance\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  2 passed (2)\n      Tests  38 passed (38)\n   Start at  19:04:37\n   Duration  665ms (tests 39%, import 26%, transform 24%, setup 11%)",
+    "commit": "e8c63955eefae63a38d9d759571f7048c5bc714b",
+    "ran_at": "2026-09-24T19:04:36Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 123 file(s) read)\nok    L2 (forbid, 123 file(s) read)\nok    L3 (forbid, 123 file(s) read)\nok    L8 (forbid, 123 file(s) read)\nok    L12 (forbid, 123 file(s) read)\nok    P1 (forbid, 122 file(s) read)\nok    P2 (forbid, 1 file(s) read)\nok    P9 (forbid, 13 file(s) read)\nok    W3 (forbid, 128 file(s) read)\nok    W4 (forbid, 5 file(s) read)\nok    W9 (forbid, 1 file(s) read)\nok    W11 (require, 1 file(s) read)\nok    N2 (forbid, 120 file(s) read)\nok    N5 (forbid, 123 file(s) read)\nok    N7 (forbid, 123 file(s) read)\nok    N9 (forbid, 123 file(s) read)\nok    N11 (forbid, 123 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 31 file(s) read)\nok    I4 (forbid, 10 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 65 file(s) read)\nok    X-MONEY (forbid, 10 file(s) read)\nok    GC-XSS (forbid, 123 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 128 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\nok    GC-RANK-NEGATION (forbid, 128 file(s) read)\nok    GC-LIB-CLIENT-DIRECTIVE (forbid, 50 file(s) read)\n\ngate:constraints — scanned 29 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "e8c63955eefae63a38d9d759571f7048c5bc714b",
+    "ran_at": "2026-09-24T19:04:40Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:conformance",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:conformance\n> TZ=UTC vitest run tests/conformance\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  2 passed (2)\n      Tests  38 passed (38)\n   Start at  19:08:49\n   Duration  651ms (tests 39%, import 27%, transform 23%, setup 11%)",
+    "commit": "001224328ff544376dddac2e6b0215207319e20a",
+    "ran_at": "2026-09-24T19:08:49Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:gate",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:gate\n> npm run test:contract && npm run test:conformance\n\n\n> cashapp@0.1.0 test:contract\n> TZ=UTC vitest run tests/contract --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  3 passed (3)\n      Tests  8 passed (8)\n   Start at  19:08:52\n   Duration  489ms (import 45%, tests 24%, transform 20%, setup 11%)\n\n\n> cashapp@0.1.0 test:conformance\n> TZ=UTC vitest run tests/conformance\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  2 passed (2)\n      Tests  38 passed (38)\n   Start at  19:08:53\n   Duration  1.48s (tests 52%, transform 20%, import 17%, setup 10%)",
+    "commit": "001224328ff544376dddac2e6b0215207319e20a",
+    "ran_at": "2026-09-24T19:08:52Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 123 file(s) read)\nok    L2 (forbid, 123 file(s) read)\nok    L3 (forbid, 123 file(s) read)\nok    L8 (forbid, 123 file(s) read)\nok    L12 (forbid, 123 file(s) read)\nok    P1 (forbid, 122 file(s) read)\nok    P2 (forbid, 1 file(s) read)\nok    P9 (forbid, 13 file(s) read)\nok    W3 (forbid, 128 file(s) read)\nok    W4 (forbid, 5 file(s) read)\nok    W9 (forbid, 1 file(s) read)\nok    W11 (require, 1 file(s) read)\nok    N2 (forbid, 120 file(s) read)\nok    N5 (forbid, 123 file(s) read)\nok    N7 (forbid, 123 file(s) read)\nok    N9 (forbid, 123 file(s) read)\nok    N11 (forbid, 123 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 31 file(s) read)\nok    I4 (forbid, 11 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 65 file(s) read)\nok    X-MONEY (forbid, 10 file(s) read)\nok    GC-XSS (forbid, 123 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 128 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\nok    GC-RANK-NEGATION (forbid, 128 file(s) read)\nok    GC-LIB-CLIENT-DIRECTIVE (forbid, 50 file(s) read)\n\ngate:constraints — scanned 29 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "001224328ff544376dddac2e6b0215207319e20a",
+    "ran_at": "2026-09-24T19:08:57Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]

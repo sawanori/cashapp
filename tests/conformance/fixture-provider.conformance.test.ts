@@ -27,7 +27,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import postgres from "postgres";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@opennextjs/cloudflare", () => ({
@@ -54,6 +54,7 @@ const { businessIdemKey } = await import("@/lib/ledger/dedupe");
 const { SETTLEMENT_STATUSES } = await import("@/lib/ledger/rank");
 const { NotSupportedError } = await import("@/lib/payments/types");
 const { yen } = await import("@/lib/payments/money");
+const { runApplyPending } = await import("@/app/api/cron/apply-pending/route");
 
 /**
  * `tests/contract/helpers/fixture-provider.ts`（task_018 所有・変更しない）の `FixtureName` は
@@ -81,6 +82,7 @@ import {
   buildReport,
   ConformanceRegistrationError,
   registerProvider,
+  type ConformanceCaseId,
   type ConformanceCaseResult,
   type ConformanceEntry,
 } from "./kit";
@@ -91,6 +93,18 @@ import {
 } from "./provenance";
 
 import type { ProviderBinding } from "@/lib/payments/types";
+
+// ============================================================================
+// 実行済みケース id の収集（レポートの pass 主張と実行実態を一致させる。
+// tests/conformance/manual-confirm.conformance.test.ts と同じ仕組み）
+// ============================================================================
+
+const executedCaseIds = new Set<ConformanceCaseId>();
+afterEach((context) => {
+  for (const m of context.task.fullName.match(/C\d+b?/g) ?? []) {
+    executedCaseIds.add(m as ConformanceCaseId);
+  }
+});
 
 let migrator: postgres.Sql;
 let appRw: postgres.Sql;
@@ -490,6 +504,11 @@ describe("C5: 金額不一致で adjustment 1件・rank不変・needs_attention"
       `;
       expect(invoice[0]?.settlement_status).toBe("unpaid");
       expect(invoice[0]?.needs_attention).toBe(true);
+
+      const outbox = await tx<{ kind: string }[]>`
+        SELECT kind FROM outbox WHERE payload->>'invoiceId' = ${scenario.invoiceId}
+      `;
+      expect(outbox.map((r) => r.kind)).toContain("mismatch_alert");
     });
   });
 });
@@ -534,10 +553,10 @@ describe("C6: 未知のexternalRef（孤児イベント）で200を返しつつ�
 });
 
 // ============================================================================
-// C9 能力宣言の遵守 / C29 返金可能期間を過ぎた返金
+// C9 能力宣言の遵守
 // ============================================================================
 
-describe("C9 / C29: capabilities.refund='none' の遵守（返金は常に NotSupportedError）", () => {
+describe("C9: capabilities.refund='none' の遵守（返金は常に NotSupportedError）", () => {
   it("refund は常に NotSupportedError（C9: 能力宣言の遵守）", async () => {
     expect(fixtureProvider.capabilities.refund).toBe("none");
     await expect(
@@ -545,10 +564,14 @@ describe("C9 / C29: capabilities.refund='none' の遵守（返金は常に NotSu
     ).rejects.toBeInstanceOf(NotSupportedError);
   });
 
-  it("返金可能期間を過ぎた返金要求も同じ経路で NotSupportedError（C29）", async () => {
-    // fixture_provider は返金 API を一切持たないため、期限内外を区別する分岐自体が無い。
-    // 「期限切れ」を模す代わりに、時間が経過していることを想定した呼び出しでも
-    // 常に同じ NotSupportedError になることを固定する（常に非対応、が正しい挙動）。
+  it("capabilities.refundWindowDays も null（期限という概念自体が無い。C29 が n/a である根拠）", async () => {
+    // C29「返金可能期間を過ぎた返金が NotSupportedError になる」は期限内外の分岐を要求するが、
+    // fixture_provider の refund は capabilities.refund='none' で常に無条件拒否のため、
+    // 「期限を過ぎた」を模した呼び出し（invoiceId を変えるだけ）をしても同じ例外にしかならず、
+    // 期限判定そのものを検査したことにはならない（レビュー指摘: 以前はこれを C29 の pass 証跡と
+    // 誤って記録していた）。期限という概念自体が存在しないことを capabilities で固定し、
+    // C29 は n/a として記録する（FIXTURE_PROVIDER_RESULTS 参照）。
+    expect(fixtureProvider.capabilities.refundWindowDays).toBeNull();
     await expect(
       fixtureProvider.refund(fixtureBinding(), "iv_x_1_very_old_charge"),
     ).rejects.toBeInstanceOf(NotSupportedError);
@@ -598,14 +621,22 @@ describe("C11: 取消（void）後の入金でpaidへ前進・void維持・needs
 // ============================================================================
 
 describe("C13: 2 binding 同時決済でそれぞれ正しい binding に適用される", () => {
-  it("2 つの binding への succeeded がそれぞれ自分の invoice にだけ適用される", async () => {
-    // fixture_provider は binding ごとに異なる資格情報を持たないテスト専用アダプタなので、
-    // ここで検査できるのは「binding 解決が取り違えられないこと」＝資格情報分離の土台となる
-    // ルーティングの正しさである。本番アダプタの資格情報分離そのものは binding.credentialRef
-    // の型（R-PAY-01）で担保する。
+  it("2 つの binding への succeeded がそれぞれ自分の invoice にだけ、自分の credential_fp で適用される", async () => {
+    // fixture_provider の parseWebhook は binding を読まない（テスト専用アダプタのため）ので、
+    // ここで検査できるのは (1) binding 解決が取り違えられないこと（ルーティングの正しさ）と
+    // (2) 各 binding に紐づく credential_fp が別のリクエストの試行に紛れ込まないこと、の 2 点。
+    // credential_fp を実際に読んで事業者 API 呼び出しに使う経路（本番アダプタ）そのものは
+    // binding.credentialFp の型（必須フィールド。R-PAY-01・npm run typecheck）で担保する。
     await withRollback(appRw, async (tx) => {
       const a = await insertFixtureScenario(tx, "c13a");
       const b = await insertFixtureScenario(tx, "c13b");
+      // insertFixtureScenario（task_018 所有）は credential_fp を書かないため、
+      // binding ごとに異なる値をここで明示的に与える（check_097「credential_fp が
+      // リクエストごとに異なる」）。DB の CHECK 制約（16 桁 16 進）に合わせる。
+      const fpA = "a".repeat(16);
+      const fpB = "b".repeat(16);
+      await tx`UPDATE provider_binding SET credential_fp = ${fpA} WHERE id = ${a.bindingId}`;
+      await tx`UPDATE provider_binding SET credential_fp = ${fpB} WHERE id = ${b.bindingId}`;
       const ctx = await makeContractContext(tx);
 
       const [ra, rb] = await Promise.all([
@@ -642,6 +673,24 @@ describe("C13: 2 binding 同時決済でそれぞれ正しい binding に適用�
       `;
       expect(ledgerA[0]?.count).toBe("1");
       expect(ledgerB[0]?.count).toBe("1");
+
+      // 各請求の試行が自分の binding（＝自分の credential_fp）に紐づいたまま
+      // 入れ替わっていないこと。
+      const attempts = await tx<{ invoice_id: string; provider_binding_id: string }[]>`
+        SELECT invoice_id, provider_binding_id FROM payment_attempt
+        WHERE invoice_id IN (${a.invoiceId}, ${b.invoiceId})
+      `;
+      const bindingOf = new Map(attempts.map((r) => [r.invoice_id, r.provider_binding_id]));
+      expect(bindingOf.get(a.invoiceId)).toBe(a.bindingId);
+      expect(bindingOf.get(b.invoiceId)).toBe(b.bindingId);
+
+      const bindings = await tx<{ id: string; credential_fp: string | null }[]>`
+        SELECT id, credential_fp FROM provider_binding WHERE id IN (${a.bindingId}, ${b.bindingId})
+      `;
+      const fpOf = new Map(bindings.map((r) => [r.id, r.credential_fp]));
+      expect(fpOf.get(a.bindingId)).toBe(fpA);
+      expect(fpOf.get(b.bindingId)).toBe(fpB);
+      expect(fpOf.get(a.bindingId)).not.toBe(fpOf.get(b.bindingId));
     });
   });
 });
@@ -651,7 +700,7 @@ describe("C13: 2 binding 同時決済でそれぞれ正しい binding に適用�
 // ============================================================================
 
 describe("C14: ゲートoffでも既存external_refのsucceededが保存される", () => {
-  it("holdReason があるとき保存だけされ、適用は保留（apply_result/processed_atがNULL）", async () => {
+  it("holdReason があるとき保存だけされ適用は保留、ゲート復帰後は apply-pending で台帳へ載る", async () => {
     await withRollback(appRw, async (tx) => {
       const scenario = await insertFixtureScenario(tx, "c14");
       const ctx = await makeContractContext(tx, { holdReason: "PAYMENTS_ENABLED" });
@@ -669,11 +718,35 @@ describe("C14: ゲートoffでも既存external_refのsucceededが保存され�
       const body = (await response.json()) as { held: number };
       expect(body.held).toBe(1);
 
-      const events = await tx<{ apply_result: string | null; processed_at: Date | null }[]>`
+      const held = await tx<{ apply_result: string | null; processed_at: Date | null }[]>`
         SELECT apply_result, processed_at FROM payment_event WHERE external_ref = ${scenario.externalRef}
       `;
-      expect(events[0]?.apply_result).toBeNull();
-      expect(events[0]?.processed_at).toBeNull();
+      expect(held[0]?.apply_result).toBeNull();
+      expect(held[0]?.processed_at).toBeNull();
+
+      // MODE=off → MODE=live: ゲートが開いた後の `/api/cron/apply-pending` 相当
+      // （`runApplyPending`。task_020 所有・変更しない）を呼び直すと保留分が台帳へ載る
+      // （done_definition「off 中に保存され、復帰後に台帳へ載る」）。
+      const resumeResult = await runApplyPending(tx, {
+        appEnv: "production",
+        requestId: "req-c14-resume",
+        applyGate: () => Promise.resolve(null), // ゲートが開いた状態を模す
+      });
+      expect(resumeResult.applied).toBeGreaterThanOrEqual(1);
+
+      const resumed = await tx<{ apply_result: string | null }[]>`
+        SELECT apply_result FROM payment_event WHERE external_ref = ${scenario.externalRef}
+      `;
+      expect(resumed[0]?.apply_result).toBe("applied");
+
+      const invoice = await tx<{ settlement_status: string }[]>`
+        SELECT settlement_status FROM invoice WHERE id = ${scenario.invoiceId}
+      `;
+      expect(invoice[0]?.settlement_status).toBe("paid");
+      const ledger = await tx<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM ledger_entry WHERE invoice_id = ${scenario.invoiceId}
+      `;
+      expect(ledger[0]?.count).toBe("1");
     });
   });
 });
@@ -1133,21 +1206,43 @@ const NO_AUTO_LABEL_TARGET =
   "capabilities.autoDetect === true のため非自動ラベルの検査対象外（manual_confirm 側で pass 済み）";
 const NOT_IN_REGISTRY =
   "fixture_provider は REGISTRY に登録しない（テスト専用アダプタ）ため resolveProvider の経路に" +
-  "乗らない。ゲート未通過の検査は manual-confirm.conformance.test.ts の汎用フェイクで実施済み";
+  "乗らない。ゲート未通過そのものの検査（resolveProvider が ProviderNotEnabledError を投げる）は" +
+  "tests/conformance/manual-confirm.conformance.test.ts の C12（同ファイル内で実行・pass 記録）で" +
+  "実施済み。本ファイルの C14 が検査する『ゲート off 中でも Webhook 受信・保存は動く』側の半分は" +
+  "fixture_provider 自身で pass している";
 const NO_CHECKOUT =
-  "fixture_provider は createCheckout 未対応（webhook のみを検査するテスト専用アダプタ）のため対象外";
+  "fixture_provider は createCheckout 未対応（webhook のみを検査するテスト専用アダプタ。呼ぶと" +
+  "常に NotSupportedError）のため、createCheckout を要する契約（金額の同値確認・タイムアウト" +
+  "処理・同時要求の一意性）はこのアダプタでは検証できない";
+const CONCURRENT_CHECKOUT_COVERED_ELSEWHERE =
+  `${NO_CHECKOUT}。同時 checkout で生きた試行が 1 つになること自体（DB の ` +
+  "UNIQUE (invoice_id) WHERE is_open 制約 ＋ FOR UPDATE 行ロック）は " +
+  "tests/integration/checkout.test.ts の『同一請求へ同時 2 回 checkout（check_093）』で" +
+  "実コミットを使って検証済み（task_017 所有ファイル。ConformanceKit の case id とは未結線）";
+const CHECKOUT_TIMEOUT_OVERLAPS_C15 =
+  `${NO_CHECKOUT}。createCheckout がタイムアウトした後に succeeded が届く、という契機の違いは` +
+  "台帳適用の観点では『expired 状態の attempt に succeeded が届く』C15 と区別できない" +
+  "（fixture_provider は expired を明示 Webhook でしか作れず、checkout 呼び出し自体のタイムアウトを" +
+  "模せない）。C15 が同じ webhook-side の帰結（orphan にならず paid になる）を実際に検査している";
+const NO_REAL_ADAPTER_CALLS_EXTERNAL_API =
+  "Phase 1 に外部決済 API を実際に呼び出すアダプタが存在しない（manual_confirm は API 呼び出し" +
+  "を一切行わず、fixture_provider も createCheckout 未対応の webhook 専用テストダブル）ため、" +
+  "『createCheckout の入力金額と事業者 API への送信金額が同値』という契約そのものが Phase 1 では" +
+  "検証対象を持たない。実アダプタが載る Phase 2 まで構造的に n/a";
 const RANK_FORWARD_ONLY =
   "settlement_rank は前進のみ（W3）。返金（rank 70）後の再入金（succeeded は rank 40）は rank を" +
   "後退させられないため、台帳には反映されても表示（settlement_status）まではPhase 1の設計では" +
   "反映できない。docs/concerns/task_019.md に記録";
 const NO_PARTICIPANT_LIFECYCLE_BRANCH =
   "src/lib/ledger/apply.ts（task_018 所有）は participant.status を読まず、削除済み参加者への" +
-  "入金を他の succeeded と区別しない。要対応記録の専用分岐が無いため実装ギャップとして" +
-  "docs/concerns/task_019.md に記録（apply.ts の変更は task_019 の scope 外）";
+  "入金を他の succeeded と区別しない。webhook 受信自体は他の succeeded と同様に届き台帳へ" +
+  "適用されてしまう（拒否や保留はされない）ため n/a ではなく blocked: apply.ts に" +
+  "participant.status を読む分岐を追加する担当タスクが未定（docs/concerns/task_019.md §4）";
 const NO_EVENT_LIFECYCLE_BRANCH =
   "src/lib/ledger/apply.ts（task_018 所有）は event.status を読まず、イベント中止後の入金を" +
-  "他の succeeded と区別しない。返金タスクの outbox 積み込みが無いため実装ギャップとして" +
-  "docs/concerns/task_019.md に記録（apply.ts の変更は task_019 の scope 外）";
+  "他の succeeded と区別しない。返金タスクの outbox 積み込みも無い（拒否や保留はされない）ため" +
+  "n/a ではなく blocked: apply.ts に event.status を読む分岐を追加する担当タスクが未定" +
+  "（docs/concerns/task_019.md §4）";
 
 const FIXTURE_PROVIDER_RESULTS: readonly ConformanceCaseResult[] = [
   { id: "C1", status: "pass" },
@@ -1171,34 +1266,44 @@ const FIXTURE_PROVIDER_RESULTS: readonly ConformanceCaseResult[] = [
   { id: "C18", status: "pass" },
   { id: "C19", status: "n/a", reason: RANK_FORWARD_ONLY },
   { id: "C20", status: "pass" },
-  { id: "C21", status: "n/a", reason: NO_PARTICIPANT_LIFECYCLE_BRANCH },
-  { id: "C22", status: "n/a", reason: NO_EVENT_LIFECYCLE_BRANCH },
-  { id: "C23", status: "n/a", reason: NO_CHECKOUT },
+  { id: "C21", status: "blocked", reason: NO_PARTICIPANT_LIFECYCLE_BRANCH },
+  { id: "C22", status: "blocked", reason: NO_EVENT_LIFECYCLE_BRANCH },
+  { id: "C23", status: "n/a", reason: CONCURRENT_CHECKOUT_COVERED_ELSEWHERE },
   { id: "C24", status: "pass" },
-  { id: "C25", status: "n/a", reason: NO_CHECKOUT },
+  { id: "C25", status: "n/a", reason: CHECKOUT_TIMEOUT_OVERLAPS_C15 },
   { id: "C26", status: "pass" },
   { id: "C27", status: "n/a", reason: NO_CHECKOUT },
   { id: "C28", status: "pass" },
-  { id: "C29", status: "pass" },
-  { id: "C30", status: "n/a", reason: NO_CHECKOUT },
+  { id: "C29", status: "n/a", reason: "capabilities.refund === 'none' のため対象外（期限という概念自体が無い。C9 のテストで固定）" },
+  { id: "C30", status: "n/a", reason: NO_REAL_ADAPTER_CALLS_EXTERNAL_API },
   { id: "C31", status: "pass" },
 ];
 
-describe("レポート: fixture_provider の32ケース全件をpass/n/aで明示記録する", () => {
-  it("21 ケースが pass、11 ケースが能力宣言/設計上の理由で n/a", () => {
-    const report = buildReport(FIXTURE_ENTRY, FIXTURE_PROVIDER_RESULTS);
+describe("レポート: fixture_provider の32ケース全件をpass/n/a/blockedで明示記録する", () => {
+  it("20 ケースが pass、10 ケースが能力宣言/設計上の理由で n/a、2 ケースが実装ギャップで blocked", () => {
+    const report = buildReport(FIXTURE_ENTRY, FIXTURE_PROVIDER_RESULTS, executedCaseIds);
 
     expect(report.providerKey).toBe(FIXTURE_PROVIDER_KEY);
     expect(report.fixtureProvenance.total).toBe(4);
     expect(report.fixtureProvenance.byCapturedFrom.synthesized).toBe(4);
 
     const passed = report.results.filter((r) => r.status === "pass").map((r) => r.id);
-    expect(passed).toHaveLength(21);
+    expect(passed).toHaveLength(20);
 
-    const naWithoutReason = report.results.filter(
-      (r) => r.status === "n/a" && (r.reason === undefined || r.reason.trim() === ""),
+    const naResults = report.results.filter((r) => r.status === "n/a");
+    expect(naResults).toHaveLength(10);
+    const naWithoutReason = naResults.filter(
+      (r) => r.reason === undefined || r.reason.trim() === "",
     );
     expect(naWithoutReason).toEqual([]);
+
+    const blockedResults = report.results.filter((r) => r.status === "blocked");
+    expect(blockedResults.map((r) => r.id).sort()).toEqual(["C21", "C22"]);
+    const blockedWithoutReason = blockedResults.filter(
+      (r) => r.reason === undefined || r.reason.trim() === "",
+    );
+    expect(blockedWithoutReason).toEqual([]);
+
     expect(report.results).toHaveLength(32);
   });
 });

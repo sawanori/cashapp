@@ -165,12 +165,18 @@ export function registerProvider(
 // レポート
 // ============================================================================
 
-export type ConformanceCaseStatus = "pass" | "n/a";
+/**
+ * `pass` = 実際に検証できた。`n/a` = capabilities/設計上の理由で対象外（構造的に検証不能）。
+ * `blocked` = 対象ではあるが、他タスク所有のコードに分岐が無いなど実装ギャップにより
+ * 現時点では検証できない（n/a と違い「対象外」ではなく「まだ塞げる」の意味。G5 round1 以降の
+ * 指摘 — n/a への埋没で実装ギャップが見えなくなる — を受けて区別した）。
+ */
+export type ConformanceCaseStatus = "pass" | "n/a" | "blocked";
 
 export interface ConformanceCaseResult {
   readonly id: ConformanceCaseId;
   readonly status: ConformanceCaseStatus;
-  /** `status === "n/a"` のときは必須（capabilities に応じた n/a の理由を明示記録する）。 */
+  /** `status !== "pass"` のときは必須（n/a・blocked いずれも理由を明示記録する）。 */
   readonly reason?: string;
 }
 
@@ -183,8 +189,21 @@ export interface ConformanceReport {
   readonly results: readonly ConformanceCaseResult[];
 }
 
-/** 32 ケースすべてが `results` に含まれていることを検査する（記録漏れの防止）。 */
-export function assertCatalogComplete(results: readonly ConformanceCaseResult[]): void {
+/** `*.conformance.test.ts` が実際に実行した（＝ `it()` の本体を走らせた）ケース id の集合。 */
+export type ExecutedCaseIds = ReadonlySet<ConformanceCaseId>;
+
+/**
+ * 32 ケースすべてが `results` に含まれていることを検査する（記録漏れの防止）。
+ *
+ * `executedCaseIds` を渡すと、`status: "pass"` と記録したのに対応する `it()` が
+ * 1 件もこのテストファイル内で実行されていないケースを検出する（レポートの pass 主張と
+ * 実行実態が乖離する問題 — G5 round1 以降の指摘 — への対応。各 `*.conformance.test.ts` は
+ * `describe()` の見出しからケース id を機械的に拾う `afterEach` フックでこの集合を作る）。
+ */
+export function assertCatalogComplete(
+  results: readonly ConformanceCaseResult[],
+  executedCaseIds?: ExecutedCaseIds,
+): void {
   const seen = new Set(results.map((r) => r.id));
   const missing = CASE_CATALOG.filter((c) => !seen.has(c.id)).map((c) => c.id);
   if (missing.length > 0) {
@@ -195,8 +214,19 @@ export function assertCatalogComplete(results: readonly ConformanceCaseResult[])
     throw new Error(`ConformanceKit: 同じケースが複数回記録されています: ${duplicated.join(", ")}`);
   }
   for (const r of results) {
-    if (r.status === "n/a" && (r.reason === undefined || r.reason.trim().length === 0)) {
-      throw new Error(`ConformanceKit: ${r.id} は n/a ですが reason がありません`);
+    if (r.status !== "pass" && (r.reason === undefined || r.reason.trim().length === 0)) {
+      throw new Error(`ConformanceKit: ${r.id} は ${r.status} ですが reason がありません`);
+    }
+  }
+  if (executedCaseIds !== undefined) {
+    const passedButNotExecuted = results
+      .filter((r) => r.status === "pass" && !executedCaseIds.has(r.id))
+      .map((r) => r.id);
+    if (passedButNotExecuted.length > 0) {
+      throw new Error(
+        "ConformanceKit: pass と記録されていますが、このファイル内で実行された it() が" +
+          ` 見つかりません: ${passedButNotExecuted.join(", ")}`,
+      );
     }
   }
 }
@@ -205,8 +235,9 @@ export function assertCatalogComplete(results: readonly ConformanceCaseResult[])
 export function buildReport(
   entry: ConformanceEntry,
   results: readonly ConformanceCaseResult[],
+  executedCaseIds?: ExecutedCaseIds,
 ): ConformanceReport {
-  assertCatalogComplete(results);
+  assertCatalogComplete(results, executedCaseIds);
   const byCapturedFrom: Record<FixtureCapturedFrom, number> = {
     staging: 0,
     production: 0,

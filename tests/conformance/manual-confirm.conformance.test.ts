@@ -24,7 +24,7 @@
  *   - `synthesized` のみの fixture で `autoDetect: true` の登録を拒否すること
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 // `src/lib/payments/registry.ts` が `src/lib/db/repositories/gates.ts`（`import "server-only"`）
 // を経由するため（GC-SERVER-ONLY / tests/unit/payments/registry.test.ts と同じ理由）。
@@ -34,6 +34,8 @@ import { CANONICAL_GATES } from "@/lib/payments/gates";
 import {
   MANUAL_CONFIRM_CAPABILITIES,
   manualConfirmProvider,
+  buildReceivingLink,
+  type ReceivingLinkTemplate,
 } from "@/lib/payments/providers/manual-confirm";
 import { yen } from "@/lib/payments/money";
 import {
@@ -55,9 +57,26 @@ import {
   buildReport,
   registerProvider,
   ConformanceRegistrationError,
+  type ConformanceCaseId,
   type ConformanceCaseResult,
 } from "./kit";
 import { FixtureProvenanceError } from "./provenance";
+
+// ============================================================================
+// 実行済みケース id の収集（レポートの pass 主張と実行実態を一致させる）
+// ============================================================================
+
+/**
+ * `describe()` の見出し（"C9: ..." 等）から、実際に走った `it()` の親ケース id を拾う。
+ * `buildReport` に渡すと、`MANUAL_CONFIRM_RESULTS` が `pass` と記録したのに対応する `it()` が
+ * このファイルに無いケースを検出できる（`tests/conformance/kit.ts` の `assertCatalogComplete`）。
+ */
+const executedCaseIds = new Set<ConformanceCaseId>();
+afterEach((context) => {
+  for (const m of context.task.fullName.match(/C\d+b?/g) ?? []) {
+    executedCaseIds.add(m as ConformanceCaseId);
+  }
+});
 
 // ============================================================================
 // テスト用フィクスチャ
@@ -254,6 +273,36 @@ describe("C12: ゲート未通過で ProviderNotEnabledError（→ 409。汎用�
 });
 
 // ============================================================================
+// C27: 許可外ホストの deepLink が拒否される（manual_confirm 固有の deepLink 生成を直接検査）
+// ============================================================================
+
+describe("C27: 許可外ホストの deepLink が拒否される", () => {
+  it("テンプレートが ALLOWED_DEEPLINK_HOSTS 外のホストを返すと buildReceivingLink は null", () => {
+    const rogue: ReceivingLinkTemplate = {
+      channel: "paypay_p2p",
+      host: "evil.example.com",
+      identifierPattern: /^[A-Za-z0-9_-]{1,64}$/,
+      build: (identifier) => `https://evil.example.com/${identifier}`,
+      verified: true,
+      sourceRef: "conformance test double（許可外ホストの固定値）",
+    };
+    expect(buildReceivingLink("paypay_p2p", "organizer-handle", [rogue])).toBeNull();
+  });
+
+  it("https 以外のスキームで組み立てるテンプレートも拒否される", () => {
+    const insecure: ReceivingLinkTemplate = {
+      channel: "paypay_p2p",
+      host: "qr.paypay.ne.jp",
+      identifierPattern: /^[A-Za-z0-9_-]{1,64}$/,
+      build: (identifier) => `http://qr.paypay.ne.jp/${identifier}`,
+      verified: true,
+      sourceRef: "conformance test double（http 固定値）",
+    };
+    expect(buildReceivingLink("paypay_p2p", "organizer-handle", [insecure])).toBeNull();
+  });
+});
+
+// ============================================================================
 // レポート: 32 ケース全件（pass / n/a）を明示記録する
 // ============================================================================
 
@@ -269,9 +318,6 @@ const REFUND_NOT_SUPPORTED = "capabilities.refund === 'none' のため対象外"
 const DISPUTE_NOT_SUPPORTED = "capabilities.dispute === 'none' のため対象外";
 const NO_WEBHOOK = "capabilities.webhook === false のため届く Webhook が無い";
 const NO_EXTERNAL_API_CALL = "外部 API 呼び出しを行わないアダプタのため対象外（決済を作らない）";
-const NO_DEEPLINK_HOOK =
-  "deepLink 検証はアダプタ固有ロジック（buildReceivingLink）であり ConformanceKit の汎用 IF がまだ無い。" +
-  "別途 tests/unit/payments/manual-confirm.test.ts で担保";
 
 const MANUAL_CONFIRM_RESULTS: readonly ConformanceCaseResult[] = [
   { id: "C1", status: "n/a", reason: NOT_YET_LEDGER },
@@ -301,7 +347,7 @@ const MANUAL_CONFIRM_RESULTS: readonly ConformanceCaseResult[] = [
   { id: "C24", status: "n/a", reason: NOT_YET_LEDGER },
   { id: "C25", status: "n/a", reason: NOT_YET_LEDGER },
   { id: "C26", status: "n/a", reason: NOT_YET_LEDGER },
-  { id: "C27", status: "n/a", reason: NO_DEEPLINK_HOOK },
+  { id: "C27", status: "pass" },
   { id: "C28", status: "n/a", reason: NOT_YET_WEBHOOK_ROUTE },
   { id: "C29", status: "n/a", reason: REFUND_NOT_SUPPORTED },
   { id: "C30", status: "n/a", reason: NO_EXTERNAL_API_CALL },
@@ -309,15 +355,15 @@ const MANUAL_CONFIRM_RESULTS: readonly ConformanceCaseResult[] = [
 ];
 
 describe("レポート: 32 ケース全件を pass / n/a で明示記録する", () => {
-  it("C9・C10・C12 が pass、他は capabilities / task_018 依存を理由に n/a", () => {
+  it("C9・C10・C12・C27 が pass、他は capabilities / task_018 依存を理由に n/a", () => {
     const entry = registerProvider("manual_confirm", manualConfirmProvider, []);
-    const report = buildReport(entry, MANUAL_CONFIRM_RESULTS);
+    const report = buildReport(entry, MANUAL_CONFIRM_RESULTS, executedCaseIds);
 
     expect(report.providerKey).toBe("manual_confirm");
     expect(report.fixtureProvenance.total).toBe(0);
 
     const passed = report.results.filter((r) => r.status === "pass").map((r) => r.id);
-    expect(passed.sort()).toEqual(["C10", "C12", "C9"]);
+    expect(passed.sort()).toEqual(["C10", "C12", "C27", "C9"]);
 
     const naWithoutReason = report.results.filter(
       (r) => r.status === "n/a" && (r.reason === undefined || r.reason.trim() === ""),
