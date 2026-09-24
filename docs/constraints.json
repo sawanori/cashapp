@@ -1,0 +1,1004 @@
+{
+  "feature": "kanji-kaihi-line-miniapp",
+  "version": 1,
+  "generated_at": "2026-09-24",
+  "generated_by": "task_004",
+  "source_of_truth": [
+    "docs/research/consolidated.md §6（L1-L12 / P1-P9 / W1-W12 / N1-N12 / I1-I6 の 51 件）",
+    "docs/implementation-plan.md §7-8（横断規約 X-TIME / X-ID / X-MONEY の 3 件）",
+    "docs/research/premortem-risks.md（gate_only_checks。§6 の 51 件には含めない）"
+  ],
+  "notes": [
+    "constraints は 54 件（51 ＋ 横断 3）。gate_only_checks は premortem 由来の grep 検査であり、この 54 件には数えない。",
+    "enforcement: grep = scripts/gate-constraints.sh が機械検査する / test = 指定のテストが検証する / manual = 人の目視レビューでのみ確認できる（grep で検出できない制約）。",
+    "match_mode: forbid = grep_patterns に一致した行が違反 / require = 対象ファイルに grep_patterns がひとつも現れなければ違反。",
+    "expect_targets: now = 本ファイル作成時点（task_004）で globs に一致するファイルが 1 件以上必須。0 件なら exit 1（空振りゲートの禁止。R-TH-01）。from_task_XXX = 当該タスクが DONE になるまで対象 0 件を許容し、DONE 以降は 0 件を exit 1 とする。DONE 判定は docs/task-list.json の completion_status（DONE / DONE_WITH_CONCERNS）と docs/run-log/<task_id>.json の両方が揃っていること。",
+    "enforcement が grep 以外の項目にも expect_targets を置く（その制約が検証可能になる時点の宣言）。対象件数の強制は enforcement=grep の項目にのみ適用される。",
+    "grep_patterns は POSIX 拡張正規表現（grep -E）で書く。\\b / \\s / \\d / 先読みは BSD grep と GNU grep で挙動が割れるため使わない。",
+    "globs は限定サブセットのみ: `**/`（0 個以上のディレクトリ）、`**`（末尾の任意深さ）、`*`（スラッシュを跨がない）、`?`、`{a,b}`。",
+    "I1 / I2 は調査時点の Vercel 前提を Cloudflare Workers 版に読み替えて登録した。原文は superseded フィールドに保持する（ADR-012）。"
+  ],
+  "global_exclude_globs": [
+    "node_modules/**",
+    ".next/**",
+    ".open-next/**",
+    ".wrangler/**",
+    "docs/constraints.json",
+    "docs/wording-policy.md",
+    "scripts/gate-constraints.sh",
+    "scripts/wording-lint.mjs",
+    "tests/gates/fixtures/**",
+    "tests/unit/gate-constraints.test.ts",
+    "tests/unit/wording-lint.test.ts"
+  ],
+  "constraints": [
+    {
+      "id": "L1",
+      "text": "運営者の口座・決済アカウントを資金が経由しない。参加者→決済事業者→幹事で完結させ、アプリは照会と名簿反映のみを行う。",
+      "confidence": "高",
+      "source": "資金決済法2条の2柱書 / docs/research/consolidated.md §6-1",
+      "enforcement": "grep",
+      "match_mode": "forbid",
+      "grep_patterns": [
+        "(エスクロー|収納代行|預り金|預かり金|運営者(の)?(銀行)?口座|運営会社(の)?口座)",
+        "(escrow|custodyOfFunds|custody_of_funds|platformAccount|platform_account|operatorAccount|operator_account|payoutToOperator)"
+      ],
+      "globs": [
+        "src/**/*.ts",
+        "src/**/*.tsx"
+      ],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "now",
+      "notes": "資金が運営者を経由する設計を示す語彙をコードから締め出す。アダプタ境界で幹事の加盟店アカウントへ直接着金する構成のみを許す。"
+    },
+    {
+      "id": "L2",
+      "text": "前払い専用にする。幹事が立て替えた後に回収する運用（立替精算モード）を実装しない。",
+      "confidence": "中",
+      "source": "内閣府令1条の2第2号（信用供与による債権の回収） / docs/research/consolidated.md §6-1",
+      "enforcement": "grep",
+      "match_mode": "forbid",
+      "grep_patterns": [
+        "(立替精算|立替払い|後払い|あと払い|ツケ払い)",
+        "(reimbursementMode|reimbursement_mode|advanceSettlement|advance_settlement|payLater|pay_later|postPay|post_pay)"
+      ],
+      "globs": [
+        "src/**/*.ts",
+        "src/**/*.tsx"
+      ],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "now"
+    },
+    {
+      "id": "L3",
+      "text": "アプリ内残高・チャージ・ポイント・ウォレットを作らない。",
+      "confidence": "中",
+      "source": "資金決済法3条1項1号（前払式支払手段）・20条5項 / docs/research/consolidated.md §6-1",
+      "enforcement": "grep",
+      "match_mode": "forbid",
+      "grep_patterns": [
+        "(アプリ内残高|チャージ|ウォレット|前払式|ポイント残高|投げ銭)",
+        "(^|[^A-Za-z_])(wallet|storedValue|stored_value|prepaid|topUp|top_up|pointBalance|point_balance|userBalance|user_balance)([^A-Za-z_]|$)"
+      ],
+      "globs": [
+        "src/**/*.ts",
+        "src/**/*.tsx"
+      ],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "now",
+      "notes": "`balance` 単体は禁止しない（`src/lib/ledger/balance.ts` の請求残高は正当）。禁止するのは利用者に帰属する滞留価値を示す語彙のみ。"
+    },
+    {
+      "id": "L4",
+      "text": "返金原資を運営者が保持しない。返金は決済事業者の返金機能を通す。",
+      "confidence": "中",
+      "source": "L1 と同根 / docs/research/consolidated.md §6-1",
+      "enforcement": "manual",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_017",
+      "verified_by": "ADR レビュー（PaymentProvider.refund が事業者 API のみを呼ぶことの目視確認）",
+      "notes": "「運営者が原資を持たない」は構造の不在であり grep で検出できない。task_017 のアダプタ実装レビューで確認する。"
+    },
+    {
+      "id": "L5",
+      "text": "利用規約に「参加者が決済事業者に支払いを完了した時点で、参加者の幹事に対する参加費支払債務は消滅する」旨を明記する。ただしこれだけでは内閣府令1条の2第3号を外せないため、L1 または第3号ロ／ニのいずれかで重ねて外す。",
+      "confidence": "中",
+      "source": "内閣府令1条の2第1号／第3号、金融庁パブコメ回答No.59 / docs/research/consolidated.md §6-1",
+      "enforcement": "manual",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_021",
+      "verified_by": "npm run gate:terms（task_021）",
+      "notes": "規約本文の法的十分性は grep では判定できない。gate:terms は必須条項の存在のみを見る。"
+    },
+    {
+      "id": "L6",
+      "text": "参加者の支払状況を幹事に開示することへの同意取得フローを初回導線に入れる。",
+      "confidence": "高",
+      "source": "個人情報保護法27条1項 / docs/research/consolidated.md §6-1",
+      "enforcement": "test",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_015",
+      "verified_by": "npm run test:e2e（同意前 preview / 同意後 claim）"
+    },
+    {
+      "id": "L7",
+      "text": "プライバシーポリシーに事業者名・住所・利用目的・開示等請求手続を掲載する。",
+      "confidence": "高",
+      "source": "個人情報保護法32条1項 / docs/research/consolidated.md §6-1",
+      "enforcement": "manual",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_021",
+      "verified_by": "npm run gate:privacy-policy（task_021）"
+    },
+    {
+      "id": "L8",
+      "text": "カード番号をアプリのサーバが受け取らない。決済事業者ホストの画面へ遷移させる。",
+      "confidence": "中",
+      "source": "割賦販売法35条の16 / docs/research/consolidated.md §6-1",
+      "enforcement": "grep",
+      "match_mode": "forbid",
+      "grep_patterns": [
+        "(cardNumber|card_number|cardNo|card_no|securityCode|security_code|expiryMonth|expiry_month|expiryYear|expiry_year)",
+        "(^|[^A-Za-z_])(cvc|cvv|pan)([^A-Za-z_]|$)",
+        "(カード番号|セキュリティコード|有効期限.*カード)"
+      ],
+      "globs": [
+        "src/**/*.ts",
+        "src/**/*.tsx"
+      ],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "now"
+    },
+    {
+      "id": "L9",
+      "text": "運営者が幹事をサブ加盟店として自ら審査・契約する PayFac 型を採らない。",
+      "confidence": "中",
+      "source": "割賦販売法35条の17の2 / docs/research/consolidated.md §6-1",
+      "enforcement": "manual",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_028",
+      "verified_by": "ADR レビュー（provider_binding が幹事自身の加盟店契約を指すことの確認）"
+    },
+    {
+      "id": "L10",
+      "text": "有料化する場合、特商法11条・施行規則23条の広告表示と法12条の6の最終確認画面表示を実装する。",
+      "confidence": "中",
+      "source": "特定商取引法 / docs/research/consolidated.md §6-1",
+      "enforcement": "manual",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_021",
+      "notes": "Phase 1 はアプリ自体が無料のため未適用。有料化時に再評価する。"
+    },
+    {
+      "id": "L11",
+      "text": "本番決済を有効化する前に弁護士確認またはグレーゾーン解消制度の照会結果を得る。",
+      "confidence": "高",
+      "source": "事務ガイドラインⅠ－２－１、銀行法61条1号 / docs/research/consolidated.md §6-1",
+      "enforcement": "manual",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_029",
+      "verified_by": "docs/gates/compliance-gates.json の GATE-LEGAL-* が passed かつ valid_until 内であること（scripts/deny-dangerous-bash.sh が legal-clearance.json.cleared を参照）"
+    },
+    {
+      "id": "L12",
+      "text": "初期スコープを国内に限定する（国外の参加者・幹事は資金決済法2条の2第2号クロスボーダーの適用対象）。",
+      "confidence": "中",
+      "source": "法2条の2第2号、内閣府令1条の3 / docs/research/consolidated.md §6-1",
+      "enforcement": "grep",
+      "match_mode": "forbid",
+      "grep_patterns": [
+        "[\"'](USD|EUR|GBP|CNY|KRW|usd|eur|gbp)[\"']",
+        "(multiCurrency|multi_currency|currencyList|supportedCurrencies)"
+      ],
+      "globs": [
+        "src/**/*.ts",
+        "src/**/*.tsx"
+      ],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "now",
+      "notes": "通貨は JPY 固定。他通貨のリテラルが現れた時点で国内限定の前提が崩れている。"
+    },
+    {
+      "id": "P1",
+      "text": "決済事業者を決め打ちせず、PaymentProvider アダプタ層を最初から入れる。決済事業者 SDK の import は src/lib/payments/providers/ の中だけに閉じる。",
+      "confidence": "高",
+      "source": "Stripe・PayPay 双方の規約／対応が未確定（docs/research/consolidated.md §5） / §6-2",
+      "enforcement": "grep",
+      "match_mode": "forbid",
+      "grep_patterns": [
+        "from[[:space:]]*[\"'](@paypayopa/|paypayopa|stripe|@stripe/|payjp|@payjp/)",
+        "require\\([[:space:]]*[\"'](@paypayopa/|paypayopa|stripe|@stripe/|payjp|@payjp/)"
+      ],
+      "globs": [
+        "src/**/*.ts",
+        "src/**/*.tsx"
+      ],
+      "exclude_globs": [
+        "src/lib/payments/providers/**"
+      ],
+      "allow_if_line_matches": [],
+      "expect_targets": "now"
+    },
+    {
+      "id": "P2",
+      "text": "parseWebhook は raw 文字列と Headers を受け取る。アダプタの外で JSON.parse しない。Webhook ルートで req.json() を呼ばない。",
+      "confidence": "高",
+      "source": "Stripe「未加工のリクエスト本文に何らかの変更が行われた場合、検証は失敗します」 / docs/research/consolidated.md §6-2",
+      "enforcement": "grep",
+      "match_mode": "forbid",
+      "grep_patterns": [
+        "(req|request)\\.json\\(",
+        "JSON\\.parse\\("
+      ],
+      "globs": [
+        "src/app/api/webhooks/**/*.ts"
+      ],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_018",
+      "notes": "Webhook ルートは request.text() で raw を取り、アダプタの parseWebhook にそのまま渡す。"
+    },
+    {
+      "id": "P3",
+      "text": "リダイレクト到達を支払い確定の根拠にしない。戻り先ページで getPaymentStatus を1回叩いて確定させ、以後は Webhook と reconciliation に委ねる。",
+      "confidence": "高",
+      "source": "PayPay / Stripe 公式 / docs/research/consolidated.md §6-2",
+      "enforcement": "test",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_019",
+      "verified_by": "npm run test:conformance"
+    },
+    {
+      "id": "P4",
+      "text": "createCheckout の returnUrl を必須項目にし、LINEミニアプリのパーマネントリンクへ戻す。",
+      "confidence": "高",
+      "source": "LINE 公式 / docs/research/consolidated.md §6-2",
+      "enforcement": "test",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_019",
+      "verified_by": "npm run typecheck（returnUrl が省略可なら型エラー）＋ npm run test:conformance"
+    },
+    {
+      "id": "P5",
+      "text": "手数料は参加者に上乗せ請求しない。幹事負担または会費内包で設計する。",
+      "confidence": "低",
+      "source": "PayPay加盟店規約（オンライン）第4条第3項（未検証） / docs/research/consolidated.md §6-2",
+      "enforcement": "manual",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_017",
+      "notes": "未検証。Q-PP 系の回答で確度を上げるまでは設計上の前提としてのみ扱う。"
+    },
+    {
+      "id": "P6",
+      "text": "幹事画面で「支払済み（決済完了）」と「幹事への入金予定」を別ステータスとして表示する。",
+      "confidence": "中",
+      "source": "日次入金不可（Stripe）／月末入金月1回（PayPay直接契約） / docs/research/consolidated.md §6-2",
+      "enforcement": "test",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_022",
+      "verified_by": "npm run test:e2e"
+    },
+    {
+      "id": "P7",
+      "text": "返金は「1注文1回のみ」等の実装差を NotSupportedError で上位へ伝える。",
+      "confidence": "高",
+      "source": "PayPay Node SDK \"Currently we only support 1 refund per order.\" / docs/research/consolidated.md §6-2",
+      "enforcement": "test",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_019",
+      "verified_by": "npm run test:conformance"
+    },
+    {
+      "id": "P8",
+      "text": "PayPay を使う場合、事前登録して後から追加徴収する設計（二次会分など）は作れない前提にする。",
+      "confidence": "低",
+      "source": "Stripe経由PayPayは SetupIntents / 手動キャプチャー 非対応（未検証） / docs/research/consolidated.md §6-2",
+      "enforcement": "manual",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_026"
+    },
+    {
+      "id": "P9",
+      "text": "決済事業者APIが「誰が支払ったか」を返さない前提で設計する。参加者ごとに個別の決済リクエストを発行し、代理払いは幹事が手動でマークする。自動検知の有無を表す autoDetected / confirmationMethod を省略可能な型にしない。",
+      "confidence": "高",
+      "source": "PayPay決済詳細レスポンスに支払者識別フィールドなし / docs/research/consolidated.md §6-2、docs/implementation-plan.md §7-6",
+      "enforcement": "grep",
+      "match_mode": "forbid",
+      "grep_patterns": [
+        "autoDetected[[:space:]]*\\?[[:space:]]*:",
+        "confirmationMethod[[:space:]]*\\?[[:space:]]*:",
+        "payerIdentity[[:space:]]*:[[:space:]]*true"
+      ],
+      "globs": [
+        "src/lib/payments/**/*.ts",
+        "src/components/**/*.tsx"
+      ],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_017",
+      "notes": "非自動ラベルの8層のうち①（API 型必須）。省略可能（`?:`）にした瞬間、手動確認が自動照合として表示されうる。"
+    },
+    {
+      "id": "W1",
+      "text": "webhook_events (provider, event_id) を主キーにした受信ログを作り、insert ... on conflict do nothing returning で既処理を弾く。",
+      "confidence": "高",
+      "source": "Stripe 公式 / docs/research/consolidated.md §6-3",
+      "enforcement": "test",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_018",
+      "verified_by": "npm run test:contract（重複再送で二重加算しない）"
+    },
+    {
+      "id": "W2",
+      "text": "加えて (data.object のID, event.type) を鍵にした業務レベルの冪等キーを併用する。event_id だけでは不十分。",
+      "confidence": "高",
+      "source": "Stripe「2つの Event オブジェクトが個別に生成・送信されます」 / docs/research/consolidated.md §6-3",
+      "enforcement": "test",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_018",
+      "verified_by": "npm run test:contract"
+    },
+    {
+      "id": "W3",
+      "text": "支払状態は unpaid → pending → paid → refunded の単調な状態ランクでのみ前進させる。status を 'paid' に直接代入するコードを rank ガードの外に書かない。",
+      "confidence": "高",
+      "source": "Stripe「イベントが生成された順序で配信されることを保証しません」 / docs/research/consolidated.md §6-3",
+      "enforcement": "grep",
+      "match_mode": "forbid",
+      "grep_patterns": [
+        "status[[:space:]]*=[[:space:]]*[\"']paid[\"']",
+        "status:[[:space:]]*[\"']paid[\"']"
+      ],
+      "globs": [
+        "src/**/*.ts",
+        "src/**/*.tsx",
+        "supabase/migrations/**/*.sql"
+      ],
+      "exclude_globs": [
+        "src/lib/ledger/rank.ts",
+        "src/lib/ledger/apply.ts"
+      ],
+      "allow_if_line_matches": [
+        "(status_rank|statusRank)"
+      ],
+      "expect_targets": "now",
+      "notes": "rank ガード（status_rank < $new_rank）と同一行に無い 'paid' 代入を違反とみなす。状態遷移は src/lib/ledger/apply.ts 経由のみ。"
+    },
+    {
+      "id": "W4",
+      "text": "created を順序判定・処理済み判定に使わない。",
+      "confidence": "高",
+      "source": "Stripe が明示的に禁止 / docs/research/consolidated.md §6-3",
+      "enforcement": "grep",
+      "match_mode": "forbid",
+      "grep_patterns": [
+        "event\\.created",
+        "(payload|body|data)\\.created[[:space:]]*[<>]"
+      ],
+      "globs": [
+        "src/lib/ledger/**/*.ts",
+        "src/app/api/webhooks/**/*.ts"
+      ],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_018"
+    },
+    {
+      "id": "W5",
+      "text": "署名検証 → 重複排除 → 状態更新 までを同期で済ませ、2xx を素早く返す。LINE通知など重い処理は outbox テーブルに積んで cron で流す。",
+      "confidence": "高",
+      "source": "Stripe 公式 / docs/research/consolidated.md §6-3",
+      "enforcement": "test",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_018",
+      "verified_by": "npm run test:contract"
+    },
+    {
+      "id": "W6",
+      "text": "Webhook ルートを CSRF保護から除外し、ボディパーサを通さない。",
+      "confidence": "高",
+      "source": "Stripe 公式 / docs/research/consolidated.md §6-3",
+      "enforcement": "test",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_022",
+      "verified_by": "npm run test:security"
+    },
+    {
+      "id": "W7",
+      "text": "署名検証がない事業者（PayPay）では IP許可リスト＋merchantPaymentIdの照合で正当性を担保し、Webhook を信用せず必ず getPaymentStatus で再照会する。",
+      "confidence": "中",
+      "source": "PayPayドキュメントに署名検証の記載なし / docs/research/consolidated.md §6-3",
+      "enforcement": "test",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_027",
+      "verified_by": "npm run test:security（許可外IPからの Webhook）"
+    },
+    {
+      "id": "W8",
+      "text": "Webhook の amount / currency / 受取先を自前の請求レコードと突き合わせてから更新する。不一致ならアラート。",
+      "confidence": "高",
+      "source": "引継ぎ書§7 / docs/research/consolidated.md §6-3",
+      "enforcement": "test",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_018",
+      "verified_by": "npm run test:contract"
+    },
+    {
+      "id": "W9",
+      "text": "reconciliation は時刻カーソルではなく状態（status = pending）で走査する。1回飛んでも次回で拾える。",
+      "confidence": "高",
+      "source": "Vercel「前回成功以降の未処理をすべて処理して取りこぼしを取り戻せ」 / docs/research/consolidated.md §6-3",
+      "enforcement": "grep",
+      "match_mode": "forbid",
+      "grep_patterns": [
+        "(lastRunAt|last_run_at|lastSuccessAt|last_success_at|sinceCursor|since_cursor|cursorAt|cursor_at)"
+      ],
+      "globs": [
+        "src/lib/reconcile.ts"
+      ],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_020",
+      "notes": "時刻カーソルを持たせた時点で「1回飛んだら取りこぼす」設計に退行する。"
+    },
+    {
+      "id": "W10",
+      "text": "pending の保持期間は最低4日（Stripeの再送が最長3日＋余裕）。",
+      "confidence": "高",
+      "source": "Stripe 公式 / docs/research/consolidated.md §6-3",
+      "enforcement": "test",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_020",
+      "verified_by": "npm run test:integration"
+    },
+    {
+      "id": "W11",
+      "text": "cron の多重起動防止に pg_try_advisory_lock、同一請求への同時更新に行ロック（select ... for update）を使う。",
+      "confidence": "中",
+      "source": "Vercel「locks と idempotent reconciliation の両方を使え」 / docs/research/consolidated.md §6-3",
+      "enforcement": "grep",
+      "match_mode": "require",
+      "grep_patterns": [
+        "pg_try_advisory(_xact)?_lock"
+      ],
+      "globs": [
+        "src/lib/reconcile.ts"
+      ],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_020",
+      "notes": "require モード: 対象ファイルにパターンが1つも無ければ違反。"
+    },
+    {
+      "id": "W12",
+      "text": "署名シークレットのローテーションに備え、複数シークレットで検証を試行する実装にしておく。",
+      "confidence": "高",
+      "source": "Stripe（旧シークレットが最大24時間併存） / docs/research/consolidated.md §6-3",
+      "enforcement": "test",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_018",
+      "verified_by": "npm run test:conformance"
+    },
+    {
+      "id": "N1",
+      "text": "プロバイダー設計を最初に確定する。LINEミニアプリチャネルと Messaging API チャネルは同一プロバイダー配下に置く（後から移せない）。",
+      "confidence": "高",
+      "source": "userId はプロバイダー単位 / docs/research/consolidated.md §6-4",
+      "enforcement": "manual",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_025",
+      "verified_by": "docs/decisions/ADR（チャネル構成）の記録と実機確認"
+    },
+    {
+      "id": "N2",
+      "text": "参加者の本人識別はサーバー側のトークン検証を必ず経由する。liff.getDecodedIDToken() / liff.getProfile() の結果をサーバーへ送らない。",
+      "confidence": "高",
+      "source": "LINE公式 / docs/research/consolidated.md §6-4、docs/implementation-plan.md §7-4",
+      "enforcement": "grep",
+      "match_mode": "forbid",
+      "grep_patterns": [
+        "getDecodedIDToken",
+        "getProfile[[:space:]]*\\("
+      ],
+      "globs": [
+        "src/**/*.ts",
+        "src/**/*.tsx"
+      ],
+      "exclude_globs": [
+        "src/lib/liff/**"
+      ],
+      "allow_if_line_matches": [],
+      "expect_targets": "now",
+      "notes": "src/lib/liff/** だけを例外とし、そこから外へ値を渡さないことはレビューで見る。"
+    },
+    {
+      "id": "N3",
+      "text": "client_id には LINE Login チャネルID を使う（LIFF ID や Messaging API チャネルIDではない）。",
+      "confidence": "高",
+      "source": "LINE公式 / docs/research/consolidated.md §6-4",
+      "enforcement": "test",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_012",
+      "verified_by": "npm run test:unit（LINE_ENV_PROFILE の整合アサート）"
+    },
+    {
+      "id": "N4",
+      "text": "名簿管理・支払状況表示・イベント管理はミニアプリのエンドポイントドメイン内で完結させ、外部ドメインへ出るのは決済画面だけにする。",
+      "confidence": "高",
+      "source": "ポリシー「主な機能はLINEミニアプリ内で提供される必要があります」 / docs/research/consolidated.md §6-4",
+      "enforcement": "manual",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_013",
+      "verified_by": "ルートグループ (liff)/(web) の目視レビュー＋実機確認"
+    },
+    {
+      "id": "N5",
+      "text": "SPA は History API ベースのルーティングにする。エンドポイントURLは https のみ、URLフラグメント不可。",
+      "confidence": "高",
+      "source": "LINE公式 / docs/research/consolidated.md §6-4",
+      "enforcement": "grep",
+      "match_mode": "forbid",
+      "grep_patterns": [
+        "(HashRouter|createHashHistory|createHashRouter)",
+        "location\\.hash[[:space:]]*="
+      ],
+      "globs": [
+        "src/**/*.ts",
+        "src/**/*.tsx"
+      ],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "now"
+    },
+    {
+      "id": "N6",
+      "text": "LIFF_ID を開発用・審査用・本番用の3環境で切り替える。Scope と友だち追加オプションは3環境共通になるので権限設計は最初に一度で決める。",
+      "confidence": "高",
+      "source": "内部チャネル機構 / docs/research/consolidated.md §6-4",
+      "enforcement": "manual",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_025"
+    },
+    {
+      "id": "N7",
+      "text": "支払状態・認証状態を cookie/localStorage に依存させない。毎回サーバーの真実を取得する。",
+      "confidence": "中",
+      "source": "LINE「OSの仕様変更によって将来的に利用が制限される可能性」 / docs/research/consolidated.md §6-4",
+      "enforcement": "grep",
+      "match_mode": "forbid",
+      "grep_patterns": [
+        "localStorage"
+      ],
+      "globs": [
+        "src/**/*.ts",
+        "src/**/*.tsx"
+      ],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "now",
+      "notes": "sessionStorage は LIFF ログイン試行回数の打ち切り（docs/implementation-plan.md §7-3）にのみ使うため禁止しない。"
+    },
+    {
+      "id": "N8",
+      "text": "参加者への配布は liff.shareTargetPicker() を主導線にせず、QRコードとURLコピーのフォールバックを必ず併設する。利用可否は liff.isApiAvailable() で実行時判定する。",
+      "confidence": "高",
+      "source": "友だちのプライバシー設定 / docs/research/consolidated.md §6-4、docs/implementation-plan.md §7-3",
+      "enforcement": "test",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_022",
+      "verified_by": "npm run test:e2e"
+    },
+    {
+      "id": "N9",
+      "text": "liff.sendMessages() は集金導線で使えない前提にする（トークルームから起動されたLIFFアプリでのみ動作、それ以外は403）。",
+      "confidence": "高",
+      "source": "LINE公式 / docs/research/consolidated.md §6-4",
+      "enforcement": "grep",
+      "match_mode": "forbid",
+      "grep_patterns": [
+        "sendMessages[[:space:]]*\\("
+      ],
+      "globs": [
+        "src/**/*.ts",
+        "src/**/*.tsx"
+      ],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "now"
+    },
+    {
+      "id": "N10",
+      "text": "幹事から未払い者への催促はサービスメッセージで送れない前提で設計する。幹事の手動シェア、またはLINE公式アカウント（Messaging API）を代替とする。",
+      "confidence": "中",
+      "source": "サービスメッセージは「ユーザーの操作に対する確認や応答としてのみ」 / docs/research/consolidated.md §6-4",
+      "enforcement": "manual",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_032"
+    },
+    {
+      "id": "N11",
+      "text": "サービス定義を「幹事が管理する精算・集金の台帳」に統一し、寄付・募金・クラウドファンディングの文脈を完全に排する。",
+      "confidence": "高",
+      "source": "LINEミニアプリポリシー禁止業種 / docs/research/consolidated.md §6-4",
+      "enforcement": "grep",
+      "match_mode": "forbid",
+      "grep_patterns": [
+        "(寄付|募金|投げ銭|カンパ|クラウドファンディング|チャリティ|ドネーション)",
+        "(donation|crowdfunding|crowd_funding|tipJar|tip_jar)"
+      ],
+      "globs": [
+        "src/**/*.ts",
+        "src/**/*.tsx"
+      ],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "now",
+      "notes": "UI 文言・規約草案・配布テンプレ・docs/pilot を含む全面的な禁止語検査は docs/wording-policy.md と npm run gate:wording が担当する。本制約はコード識別子側の重複防御。"
+    },
+    {
+      "id": "N12",
+      "text": "参加者の表示名を IDトークンから取れる前提で作らない。幹事が入力した名前を正とする設計も用意する。",
+      "confidence": "中",
+      "source": "LINE公式（チャネル同意の簡略化） / docs/research/consolidated.md §6-4",
+      "enforcement": "manual",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_014",
+      "verified_by": "participant.display_label を正とするスキーマレビュー（task_011 / 014）"
+    },
+    {
+      "id": "I1",
+      "text": "リージョンを東京に寄せる。Supabase プロジェクトを Tokyo（ap-northeast-1）に作り、Cloudflare Workers 側は Smart Placement（[placement] mode = \"smart\"）を有効にして DB 近接に寄せる。",
+      "confidence": "高",
+      "source": "docs/decisions/ADR-012-hosting-cloudflare.md（PO 決定）＋ docs/vendor-docs/cloudflare/*.md / 原文は docs/research/consolidated.md §6-5",
+      "enforcement": "grep",
+      "match_mode": "require",
+      "grep_patterns": [
+        "mode[[:space:]]*=[[:space:]]*\"smart\""
+      ],
+      "globs": [
+        "wrangler.toml"
+      ],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "now",
+      "superseded": {
+        "original_text": "`vercel.json` に `\"regions\": [\"hnd1\"]` を最初から明記し、Supabase も Tokyo で作る",
+        "reason": "ホスティングは Cloudflare Workers（OpenNext for Cloudflare）に確定（ADR-012）。Vercel の `regions` 指定は存在しないため、同じ目的（東京近接）を Supabase の Tokyo リージョンと Smart Placement で満たす。",
+        "superseded_at": "2026-09-24"
+      }
+    },
+    {
+      "id": "I2",
+      "text": "reconciliation の遅延許容度に見合った実行間隔を確保する。Cloudflare Cron Triggers 専用 Worker（workers/cron/、[triggers] crons）で分単位のスケジュールを定義する。",
+      "confidence": "高",
+      "source": "docs/decisions/ADR-012-hosting-cloudflare.md ＋ docs/vendor-docs/cloudflare/*.md / 原文は docs/research/consolidated.md §6-5",
+      "enforcement": "grep",
+      "match_mode": "require",
+      "grep_patterns": [
+        "\\[triggers\\]"
+      ],
+      "globs": [
+        "workers/cron/wrangler.toml"
+      ],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "now",
+      "superseded": {
+        "original_text": "reconciliation の遅延許容度が24時間で足りるか判断する。分単位が必要なら Vercel Pro が前提（Hobby は cron が1日1回・±59分）",
+        "reason": "ホスティングは Cloudflare Workers に確定（ADR-012）。Vercel のプラン制約は適用されず、Cron Triggers 専用 Worker で分単位の実行間隔を定義する（docs/implementation-plan.md §7-7）。",
+        "superseded_at": "2026-09-24"
+      }
+    },
+    {
+      "id": "I3",
+      "text": "MVPでは RLS を使わず、全DBアクセスをサーバー側（Route Handler）で行う。クライアントコンポーネントから DB クライアント・drizzle-orm・postgres を import しない。",
+      "confidence": "中",
+      "source": "引継ぎ書§7の要件を最短で満たす / docs/research/consolidated.md §6-5",
+      "enforcement": "grep",
+      "match_mode": "forbid",
+      "grep_patterns": [
+        "from[[:space:]]*[\"'](@/lib/db|drizzle-orm|postgres)",
+        "require\\([[:space:]]*[\"'](@/lib/db|drizzle-orm|postgres)"
+      ],
+      "globs": [
+        "src/**/*.tsx",
+        "src/components/**/*.ts"
+      ],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "now",
+      "notes": "サーバーコンポーネント（.tsx）からの DB 直アクセスも禁止する。DB は Route Handler 経由のみ。"
+    },
+    {
+      "id": "I4",
+      "text": "E2E は @line/liff-mock を環境変数で切り替える。vi.mock は実ブラウザで効かない。モック版は動的importで本番バンドルに入れない。",
+      "confidence": "高",
+      "source": "Playwright の性質＋LINE公式プラグイン / docs/research/consolidated.md §6-5",
+      "enforcement": "grep",
+      "match_mode": "forbid",
+      "grep_patterns": [
+        "vi\\.mock\\([[:space:]]*[\"']@line/liff"
+      ],
+      "globs": [
+        "tests/e2e/**/*.ts",
+        "tests/a11y/**/*.ts"
+      ],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "now"
+    },
+    {
+      "id": "I5",
+      "text": "最初に書くテストは「重複・逆順・署名不一致」の3本。stripe trigger と保存済み fixture で再現する。",
+      "confidence": "高",
+      "source": "引継ぎ書§7 / docs/research/consolidated.md §6-5",
+      "enforcement": "test",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_018",
+      "verified_by": "npm run test:contract"
+    },
+    {
+      "id": "I6",
+      "text": "PayPay は env: \"STAGING\" のサンドボックスで加盟店審査前から実装検証を始められる。",
+      "confidence": "中",
+      "source": "PayPay Node SDK / docs/research/consolidated.md §6-5",
+      "enforcement": "manual",
+      "match_mode": "forbid",
+      "grep_patterns": [],
+      "globs": [],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_026"
+    },
+    {
+      "id": "X-TIME",
+      "text": "保存はすべて timestamptz（UTC）。業務上の日付境界は AT TIME ZONE 'Asia/Tokyo' で評価する。date 型・タイムゾーンなし timestamp を使わない。",
+      "confidence": "高",
+      "source": "docs/implementation-plan.md §7-8、docs/research/premortem-risks.md R-DATA-02",
+      "enforcement": "grep",
+      "match_mode": "forbid",
+      "grep_patterns": [
+        "^[[:space:]]*[\"']?[a-z_][a-z0-9_]*[\"']?[[:space:]]+date([[:space:]]|,|\\)|$)",
+        "timestamp[[:space:]]+without[[:space:]]+time[[:space:]]+zone",
+        "(^|[^A-Za-z_])date\\([\"']",
+        "(^|[^A-Za-z_])timestamp\\([\"'][^\"']*[\"'][[:space:]]*\\)"
+      ],
+      "globs": [
+        "supabase/migrations/**/*.sql",
+        "src/lib/db/schema.ts"
+      ],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_011",
+      "notes": "drizzle では timestamp(..., { withTimezone: true }) を必須とする。date() は使わない。"
+    },
+    {
+      "id": "X-ID",
+      "text": "長寿命の識別子（joinToken 等）を URL パスに置かない。ヘッダまたは POST ボディで運ぶ。短命（15分）・単一リソース・読み取り専用の return_token のみパス配置を許す。",
+      "confidence": "高",
+      "source": "docs/implementation-plan.md §7-4「識別子規約」、docs/research/premortem-risks.md R-SEC-02",
+      "enforcement": "grep",
+      "match_mode": "forbid",
+      "grep_patterns": [
+        "\\[(joinToken|join_token)\\]",
+        "/\\$\\{(joinToken|joinTokenValue)\\}",
+        ":(joinToken|join_token)([^A-Za-z_]|$)"
+      ],
+      "globs": [
+        "src/app/**/*.ts",
+        "src/app/**/*.tsx"
+      ],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "now",
+      "notes": "Next.js の動的セグメントディレクトリ名（[joinToken]）自体はパス上の存在であり、本ゲートは内容側の参照（リンク組み立て・型注釈）を検出する。ディレクトリ名の検査は task_006 の gate-check に委ねる。"
+    },
+    {
+      "id": "X-MONEY",
+      "text": "金額は Money ブランド型（yen(5000) 以外のコンストラクタ禁止）で扱う。JPY はゼロデシマルなので minor == major。決済・台帳のコードで浮動小数演算・丸め・100倍/100分の1の換算を書かない。",
+      "confidence": "高",
+      "source": "docs/implementation-plan.md §7-6 / §7-8、docs/research/premortem-risks.md R-PAY-10",
+      "enforcement": "grep",
+      "match_mode": "forbid",
+      "grep_patterns": [
+        "Math\\.round\\(",
+        "(Number\\.)?parseFloat\\(",
+        "\\*[[:space:]]*100([^0-9]|$)",
+        "/[[:space:]]*100([^0-9]|$)"
+      ],
+      "globs": [
+        "src/lib/payments/**/*.ts",
+        "src/lib/ledger/**/*.ts"
+      ],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_017",
+      "notes": "均等割りの最大剰余法は整数演算（Math.floor と剰余）で書く。Math.round は禁止。"
+    }
+  ],
+  "gate_only_checks": [
+    {
+      "id": "GC-XSS",
+      "text": "dangerouslySetInnerHTML / eval / new Function を使わない。イベント名・参加者ラベル・手動確認の理由は人が自由入力し他人の画面に出るため、1件の XSS で CSRF トークンが読まれる。",
+      "confidence": "高",
+      "source": "docs/research/premortem-risks.md R-SEC-12（§8-4 フックの書き換え）",
+      "enforcement": "grep",
+      "match_mode": "forbid",
+      "grep_patterns": [
+        "dangerouslySetInnerHTML",
+        "(^|[^.A-Za-z_])eval[[:space:]]*\\(",
+        "new[[:space:]]+Function[[:space:]]*\\(",
+        "\\.innerHTML[[:space:]]*="
+      ],
+      "globs": [
+        "src/**/*.ts",
+        "src/**/*.tsx"
+      ],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "now"
+    },
+    {
+      "id": "GC-ENV-PUBLIC",
+      "text": "秘密値の環境変数名に NEXT_PUBLIC_ を付けない（denylist）。NEXT_PUBLIC_ はクライアントバンドルに焼き込まれ、LIFF のバンドルは実質公開物である。",
+      "confidence": "高",
+      "source": "docs/research/premortem-risks.md R-SEC-04",
+      "enforcement": "grep",
+      "match_mode": "forbid",
+      "grep_patterns": [
+        "NEXT_PUBLIC_[A-Z0-9_]*(PEPPER|SECRET|SESSION|SERVICE_ROLE|SERVICE_KEY|DATABASE|DB_URL|CRON|CREDENTIAL|PRIVATE|SIGNING|WEBHOOK|API_KEY|APIKEY|TOKEN|PASSWORD)"
+      ],
+      "globs": [
+        "src/**/*.ts",
+        "src/**/*.tsx",
+        ".env.example",
+        ".dev.vars.example",
+        "next.config.ts",
+        "wrangler.toml",
+        "open-next.config.ts"
+      ],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "now"
+    },
+    {
+      "id": "GC-SERVER-ONLY",
+      "text": "DB クライアントとシークレット取得モジュールの先頭に import 'server-only' を置き、クライアントから import された瞬間にビルドを失敗させる。",
+      "confidence": "高",
+      "source": "docs/research/premortem-risks.md R-SEC-04、docs/implementation-plan.md §7-7",
+      "enforcement": "grep",
+      "match_mode": "require",
+      "grep_patterns": [
+        "import[[:space:]]+[\"']server-only[\"']"
+      ],
+      "globs": [
+        "src/lib/db/client.ts",
+        "src/lib/secrets.ts"
+      ],
+      "exclude_globs": [],
+      "allow_if_line_matches": [],
+      "expect_targets": "from_task_011"
+    }
+  ]
+}

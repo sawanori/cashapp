@@ -51,3 +51,34 @@
 - task_011/035: A21（Hyperdrive 経由の実 Postgres 接続）の実測。
 - task_012: スパイク④（静的アセットへのセキュリティヘッダ付与）の代替方式の設計。
 - task_022: `tests/e2e/smoke.spec.ts` / `tests/a11y/smoke.spec.ts` / `tests/security/smoke.test.ts` を実体に差し替え。Playwright ブラウザインストール手順もここで確立すること。
+
+## task_004（制約・禁止語の機械可読化と grep ゲート）
+
+### 決まったこと
+
+- `docs/constraints.json` は 2 本の配列を持つ。`constraints`（**54 件**: `consolidated.md` §6 の 51 件 ＋ `implementation-plan.md` §7-8 の横断 3 件 X-TIME / X-ID / X-MONEY）と `gate_only_checks`（**3 件**: GC-XSS / GC-ENV-PUBLIC / GC-SERVER-ONLY）。後者はプレモータム（R-SEC-12 / R-SEC-04）由来で §6 に番号を持たないため、54 件には数えない。gate-constraints.sh は両方を同じ規則で走査する。
+- エントリのスキーマは `{ id, text, confidence, source, enforcement, match_mode, grep_patterns[], globs[], exclude_globs[], allow_if_line_matches[], expect_targets }`。タスク指定の必須フィールドに加えて 3 つ拡張した: `match_mode`（`forbid` / `require`。server-only 義務や Smart Placement のような「無ければ違反」を表現するのに必要）、`exclude_globs`（「providers/ の外で決済 SDK を import しない」P1 のように除外が本質の制約に必要）、`allow_if_line_matches`（W3 の「rank ガードと同一行なら正当」を表現するのに必要）。いずれも省略可で、既定は forbid / 空。
+- `enforcement` は `grep`（21 件が機械検査）/ `test`（14 件。`verified_by` に検証コマンドを書いた）/ `manual`（19 件。grep で検出できないと明記）。**全 57 エントリに `expect_targets` がある**（`enforcement` が grep 以外でも「その制約が検証可能になる時点」の宣言として置いた。対象件数の強制は grep のみ）。
+- `expect_targets` の DONE 判定は **`docs/task-list.json` の `completion_status`（DONE / DONE_WITH_CONCERNS）と `docs/run-log/<task_id>.json` の両方が揃ったときだけ DONE** とする（片方だけでは DONE にしない）。現時点で `completion_status` は全タスク `null` のため、`from_task_XXX` の 6 件（P2 / P9 / W4 / W9 / W11 / X-MONEY）はすべて「defer」として exit 0 で通る。
+- **I1 / I2 は Cloudflare 版に読み替えて登録した**（ADR-012）。I1 = Supabase Tokyo ＋ `wrangler.toml` の `[placement] mode = "smart"`（require モード）、I2 = `workers/cron/wrangler.toml` の `[triggers]`（require モード）。Vercel 前提の原文は各エントリの `superseded.original_text` に取得理由つきで保持し、削除していない。
+- glob は限定サブセット（`**/` / `**` / `*` / `?` / `{a,b}`）のみ対応。bash 3.2（macOS 標準）で動くよう globstar・mapfile・連想配列を使わず、`git ls-files -co --exclude-standard` をファイル集合の正本にした（`node_modules` / `.next` / `.open-next` を `.gitignore` 経由で自動的に除外できるため）。`--root` を渡すと非 git ディレクトリでも `find` で走る（テストが実物のゲートを一時ツリーに対して回すため）。
+- `grep_patterns` は **POSIX 拡張正規表現**（`grep -E`）で書く規約にした。`\b` / `\s` / `\d` / 先読みは BSD grep（macOS）と GNU grep（CI）で挙動が割れるため使わない。`docs/wording-policy.md` の機械可読ブロックだけは JavaScript の `RegExp`（wording-lint.mjs が Node のため）。
+- `docs/wording-policy.md` は人間向けの本文と機械可読ブロック（`<!-- machine-readable:begin -->` 〜 `<!-- machine-readable:end -->` の ```json フェンス）を同居させた。wording-lint.mjs はこのブロックだけを読む。禁止語は 6 群（W-AUTO / W-DONATION / W-SUPPORT / W-RECEIPT / W-MERCHANT-GUIDE / W-FEE-FIXED）。W-MERCHANT-GUIDE（記入例・審査の通し方）は配布テンプレとパイロット資料だけが対象なので `expect_targets: from_task_025`。
+- 許可文言（`allowed_phrases`）は**行内の位置で免除する**実装にした。禁止語「自動照合」の一致が許可文言「自動照合ではありません」の範囲に収まっていれば違反として数えない。計画 §7-6 のバッジ文言「幹事が手動で確認（自動照合ではありません）」がそのまま書けることをテストで確認済み。
+- 検査対象: `wording-lint.mjs` は `docs/research/**` と `docs/inquiries/**` を `global_exclude_globs` で明示的に除外する（一次資料と照会文は原文のまま保持する必要があるため）。`gate-constraints.sh` は `tests/gates/fixtures/**`（task_006 の違反フィクスチャ置き場）と両ゲート自身・そのテストを除外する。
+- 両ゲートの終了コード規約を揃えた: `0` 合格 / `1` 違反または空振りゲート / `2` 設定・引数エラー。違反行の出力は指定どおり `<id> <file>:<line>`（後ろに ` | 一致語 | 行の抜粋` を付ける）。
+
+### 未解決 / concerns
+
+- **[severity: medium] `npm run typecheck` が現在 exit 2** — `src/lib/db/client.ts(192)` の 2 件（`await` の対象が promise でない / `bigint` を `ParameterOrFragment` に渡している）。これは task_011 が本タスクと並行編集中のファイルで、task_004 の成果物（`docs/**`・`scripts/**`・`tests/unit/gate-constraints.test.ts`・`tests/unit/wording-lint.test.ts`）とは無関係。本タスクの 4 ファイルだけを `npx eslint` / `npx tsc` にかけると 0 件。対応は task_011 の担当。
+- **[severity: medium] `enforcement: manual` が 19 件ある** — L4 / L5 / L7 / L9 / L10 / L11 / P5 / P8 / N1 / N4 / N6 / N10 / N12 / I6 など。これらは grep で検出できない（構造の不在・規約文の十分性・外部手続の完了）ため、ゲートは通っても制約が守られている証拠にはならない。`verified_by` に確認手段を書いたが、実際の確認は各タスクのレビューと `docs/gates/*.json` に委ねている。
+- **[severity: low] W3（rank ガード無しの `='paid'`）は行単位の近似** — `status = 'paid'` と `status_rank` が同一行にあれば正当とみなす。複数行に分かれた正当な更新は誤検知になりうる。その場合は `src/lib/ledger/apply.ts` / `rank.ts`（`exclude_globs` 済み）に寄せるのが正しい対処で、`allow_if_line_matches` を広げないこと。
+- **[severity: low] X-ID はディレクトリ名を見ない** — Next.js の動的セグメント `src/app/.../[joinToken]/` のようなパス自体の検査は grep（内容検査）では届かない。内容側の参照（`[joinToken]` の型注釈・`${joinToken}` を含む URL 組み立て）だけを検出している。パス名の検査は task_006 の `gate-check.mjs`（G 系）で拾うこと。
+- **[severity: low] `git add -A` を使わずファイル指定でコミットした** — 共通ルールは `git add -A` を指示しているが、コミット時点で task_011 の作業中ファイル（`src/lib/**`・`supabase/**`・`tests/integration/**`・`.env.example`・`scripts/gates-sync.mjs`）が未コミットで、しかも `typecheck` を落とす状態だった。他タスクの未完成物を巻き込まないため、task_004 の成果物のみをステージした。
+
+### 次のアクション
+
+- task_005: `.claude/settings.json` の PreToolUse / Stop から `npm run gate:constraints` と `npm run gate:wording` を呼べる（両方とも引数なしでリポジトリルートから実行する前提。終了コードは 0/1/2）。
+- task_006: `tests/gates/fixtures/violations/**` に違反フィクスチャを置くとき、`docs/constraints.json` の `global_exclude_globs` に `tests/gates/fixtures/**` が入っているため通常のゲート実行では拾われない。メタゲート（`test:gate-meta`）からは `scripts/gate-constraints.sh --root <fixture-root> --constraints docs/constraints.json` の形で対象ツリーを差し替えて回すこと（`tests/unit/gate-constraints.test.ts` の「real docs/constraints.json against a fixture tree」が同じ形の実例）。
+- task_009: CI に `gate:constraints` / `gate:wording` ジョブを追加する場合、`.github/workflows/gate.yml` を直接編集せず独立ファイルで追加する規約（並行タスクの衝突回避）。必要な外部ツールは `jq` / `git` / `grep` / `sed` / `awk` / `xargs` / `node` のみ。
+- task_011 / 017 / 018 / 020: 各タスクが対象ファイルを作った時点で `from_task_XXX` のゲートが自動的に有効化される（P2 → Webhook ルート、P9 / X-MONEY → `src/lib/payments/**`、W4 → 台帳と Webhook、W9 / W11 → `src/lib/reconcile.ts`、X-TIME / GC-SERVER-ONLY → `src/lib/db/**` と `supabase/migrations/**`）。`completion_status` を DONE にしたあとで対象が 0 件のままだとゲートが exit 1 になる。
