@@ -968,6 +968,40 @@ describe("scripts/gate-constraints.sh (real docs/constraints.json against a fixt
     expect(res.stdout).toContain("X-TIME supabase/migrations/007.sql:2");
   });
 
+  it("flags a 'use client' directive that carries a trailing comment (GC-LIB-CLIENT-DIRECTIVE)", () => {
+    const root = makeTempRepo();
+    seedCleanTree(root);
+    writeFile(
+      root,
+      "src/lib/client-db.ts",
+      "'use client'; // client module\nimport postgres from 'postgres';\nexport const connect = postgres;\n",
+    );
+
+    const res = runRealGate(root);
+
+    expect(res.status).toBe(1);
+    expect(res.stdout).toContain("GC-LIB-CLIENT-DIRECTIVE src/lib/client-db.ts:1");
+  });
+
+  it("does not strip template strings for require entries that did not opt in (W11)", () => {
+    const root = makeTempRepo();
+    seedCleanTree(root);
+    writeFile(
+      root,
+      "src/lib/reconcile.ts",
+      [
+        "export function acquireLock(sql: (parts: TemplateStringsArray) => unknown) {",
+        "  return sql`SELECT pg_try_advisory_lock(42)`;",
+        "}",
+      ].join("\n") + "\n",
+    );
+
+    const res = runRealGate(root);
+
+    expect(`${res.stdout}${res.stderr}`).not.toContain("W11 ");
+    expect(res.status).toBe(0);
+  });
+
   it("fails an I1 / I2 tree whose required Cloudflare settings are missing", () => {
     const root = makeTempRepo();
     seedCleanTree(root);

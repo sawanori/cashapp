@@ -186,13 +186,20 @@ fi
 #
 # Comment syntax is chosen per extension so that stripping `#` in TOML does not
 # also cut `#private` fields out of TypeScript.
+# $1 = path, $2 = 1 to also drop `backtick` template-string bodies.
+# Template stripping is OPT-IN per entry (`strip_template_strings: true`),
+# because a required pattern may legitimately live inside a tagged template —
+# W11 requires `pg_try_advisory_lock` in src/lib/reconcile.ts, which is written
+# as sql`SELECT pg_try_advisory_lock(...)` (GPT round 6, F-5). Only entries that
+# require an executable *statement* (GC-SERVER-ONLY) ask for it.
 comment_flags_for() {
+  local tpl="${2:-0}"
   case "$1" in
-    *.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs)   printf '%s' "-v block=1 -v tpl=1 -v slash=1 -v dash=0 -v hash=0" ;;
+    *.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs)   printf '%s' "-v block=1 -v tpl=$tpl -v slash=1 -v dash=0 -v hash=0" ;;
     *.sql)                               printf '%s' "-v block=1 -v tpl=0 -v slash=0 -v dash=1 -v hash=0" ;;
     *.toml|*.yml|*.yaml|*.sh|*.bash|*.ini|*.conf|*.env) printf '%s' "-v block=0 -v tpl=0 -v slash=0 -v dash=0 -v hash=1" ;;
-    # Unknown type: strip every syntax we know. Over-stripping fails closed.
-    *)                                   printf '%s' "-v block=1 -v tpl=1 -v slash=1 -v dash=1 -v hash=1" ;;
+    # Unknown type: strip every comment syntax we know. Over-stripping fails closed.
+    *)                                   printf '%s' "-v block=1 -v tpl=$tpl -v slash=1 -v dash=1 -v hash=1" ;;
   esac
 }
 
@@ -433,11 +440,15 @@ while IFS= read -r entry; do
     # in code that actually runs (see comment_flags_for / STRIP_AWK above).
     pats_file="$TMPDIR_GATE/pats.txt"
     stripped="$TMPDIR_GATE/stripped.txt"
+    strip_tpl=0
+    if printf '%s' "$entry" | jq -e '.strip_template_strings == true' >/dev/null 2>&1; then
+      strip_tpl=1
+    fi
     printf '%s' "$entry" | jq -r '.grep_patterns[]' > "$pats_file"
     while IFS= read -r f; do
       [ -n "$f" ] || continue
       # shellcheck disable=SC2046  # the flags are a deliberate word list
-      awk $(comment_flags_for "$f") "$STRIP_AWK" "$ROOT/$f" > "$stripped" 2>/dev/null
+      awk $(comment_flags_for "$f" "$strip_tpl") "$STRIP_AWK" "$ROOT/$f" > "$stripped" 2>/dev/null
       found=0
       while IFS= read -r pat; do
         [ -n "$pat" ] || continue

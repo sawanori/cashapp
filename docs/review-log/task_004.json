@@ -1066,5 +1066,178 @@
     "task_mismatches": 0,
     "effective_high": 1,
     "exit_code": 1
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_004",
+    "reviewer": "adversarial-reviewer-gemini",
+    "vendor": "gemini",
+    "reviewer_route": "verified",
+    "model_id_requested": "gemini-2.5-pro",
+    "model_id_actual": "gemini-2.5-pro",
+    "model_id_source": "cli_stats",
+    "cli_version": "0.38.1",
+    "backend": "gemini-cli",
+    "ran_at": "2026-09-24T14:58:00Z",
+    "commit": "99da9bd02fa9aba2025c48014bbb036f4a5fba40",
+    "verdict": "PASS",
+    "findings": [],
+    "raw_warnings": [],
+    "packet_bytes": 268760,
+    "validated_at": "2026-09-24T15:01:57Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/review-004-r6/gemini.json",
+    "merged_at": "2026-09-24T15:01:57Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gemini-2.5-pro を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 0,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_004",
+    "reviewer": "adversarial-reviewer-gpt",
+    "vendor": "gpt",
+    "reviewer_route": "cli-fallback",
+    "model_id_requested": "gpt-6-astra",
+    "model_id_actual": "gpt-6-astra",
+    "model_id_source": "self_report",
+    "cli_version": "codex-cli 0.154.0",
+    "backend": "codex",
+    "ran_at": "2026-09-24T15:01:51Z",
+    "commit": "99da9bd02fa9aba2025c48014bbb036f4a5fba40",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "high",
+        "title": "改行した OR 条件でランク後退を許す更新が通過する",
+        "detail": "W3 は代入行にある比較だけで免除し、GC-RANK-NEGATION も行単位で検索するため、別行の OR 条件を検出できません。返金済みを支払済みに戻す更新が両検査を通過します。静的追跡による指摘で、実行は未検証です。",
+        "file": "docs/constraints.json",
+        "line": 429,
+        "repro": "同梱テストの seedCleanTree(root) の後、supabase/migrations/008.sql に次の2行を保存する。\nUPDATE payments SET status = 'paid', status_rank = 2 WHERE status_rank < 2\nOR id = 1;\nrunRealGate(root) を呼ぶと、W3 の免除条件が成立し、GC-RANK-NEGATION の全パターンも不一致になる。この SQL に id=1、status='refunded'、status_rank=3 の行を入力すると、OR 条件が成立して status='paid'、status_rank=2 に後退する。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-2",
+        "severity": "medium",
+        "title": "エスケープしたバッククォートで server-only 必須検査を回避できる",
+        "detail": "STRIP_AWK はテンプレート文字列内のバッククォートがエスケープされているかを判定しません。文字列が終了したと誤認し、その後の文字列内容を実際の import として認めます。既存テストの通常のテンプレート文字列とは異なる入力です。実行は未検証です。",
+        "file": "scripts/gate-constraints.sh",
+        "line": 207,
+        "repro": "seedCleanTree(root) の後、src/lib/db/client.ts を次の内容にする。\nexport const example = `\\`\nimport \"server-only\";\n`;\nexport const db = null;\nrunRealGate(root) を呼ぶ。実際には import はテンプレート文字列の内容だが、除去処理は1行目のエスケープされたバッククォートで文字列が終了したと判断し、2行目によって GC-SERVER-ONLY を満たす。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-3",
+        "severity": "medium",
+        "title": "use client の行末コメントで src/lib の DB import 禁止を回避できる",
+        "detail": "I3 は src/lib/**/*.ts を除外しています。その前提を担保する GC-LIB-CLIENT-DIRECTIVE は行末まで一致するパターンなので、ディレクティブに行末コメントがあると一致しません。forbid 経路では禁止パターンの検索前にコメントを除去しないため、両検査から漏れます。実行は未検証です。",
+        "file": "docs/constraints.json",
+        "line": 830,
+        "repro": "seedCleanTree(root) の後、src/lib/client-db.ts に次の3行を保存する。\n'use client'; // client module\nimport postgres from 'postgres';\nexport const connect = postgres;\nrunRealGate(root) を呼ぶ。I3 はファイルを除外し、GC-LIB-CLIENT-DIRECTIVE は1行目のコメントによって不一致となる。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-4",
+        "severity": "medium",
+        "title": "複数行の動的 import が決済 SDK の配置制約を通過する",
+        "detail": "追加された P1 の動的 import パターンは、import とモジュール名が同一行にあることを要求します。grep は行単位なので、引数を改行した通常の動的 import を検出できません。実行は未検証です。",
+        "file": "docs/constraints.json",
+        "line": 244,
+        "repro": "seedCleanTree(root) の後、src/lib/load-payment.ts に次の内容を保存する。\nexport async function loadPayment() {\n  return import(\n    \"stripe\"\n  );\n}\nrunRealGate(root) を呼ぶ。providers/ 外で stripe を読み込むコードだが、各行とも P1 の全パターンに一致せず、P1 違反が出力されない。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-5",
+        "severity": "medium",
+        "title": "テンプレート文字列の一律除去で W11 のロック SQL を見失う",
+        "detail": "require 経路は全制約に対してテンプレート文字列を除去します。このため、W11 が要求する pg_try_advisory_lock をタグ付きテンプレートで渡すコードも、必須パターンが存在しないと判定されます。server-only 用の除去処理が SQL の存在検査にも適用されています。実行は未検証です。",
+        "file": "scripts/gate-constraints.sh",
+        "line": 439,
+        "repro": "seedCleanTree(root) の後、src/lib/reconcile.ts に次の内容を保存する。\nexport function acquireLock(sql: (parts: TemplateStringsArray) => unknown) {\n  return sql`SELECT pg_try_advisory_lock(42)`;\n}\nrunRealGate(root) を呼ぶ。対象ファイルは存在するため W11 が検査されるが、SQL 全体が除去され、W11 の required pattern missing が出力される。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      }
+    ],
+    "diagnostics": {
+      "exit_code": 0,
+      "event_types": [
+        "thread.started",
+        "turn.started",
+        "item.completed",
+        "item.completed",
+        "turn.completed"
+      ],
+      "cli_errors": [
+        "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+      ],
+      "last_message_bytes": 2883,
+      "stderr_tail": ": \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T14:58:01.221520Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T14:58:01.312144Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer error=\\\"invalid_request\\\", error_description=\\\"No access token was provided in this request\\\", resource_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n2026-09-24T14:58:01.407855Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n"
+    },
+    "packet_bytes": 268760,
+    "validated_at": "2026-09-24T15:01:57Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/review-004-r6/gpt.json",
+    "merged_at": "2026-09-24T15:01:57Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gpt-6-astra を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 1,
+        "medium": 4,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 5,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "type": "summary",
+    "task_id": "task_004",
+    "round": 1,
+    "merged_at": "2026-09-24T15:01:57Z",
+    "decision": "reject",
+    "envelopes": 2,
+    "votes": 2,
+    "vendors": [
+      "gemini",
+      "gpt"
+    ],
+    "author_vendor": "claude",
+    "missing_votes": 0,
+    "invalid_envelopes": 0,
+    "invalid_reviews": 0,
+    "self_reviews": 0,
+    "task_mismatches": 0,
+    "effective_high": 1,
+    "exit_code": 1
   }
 ]

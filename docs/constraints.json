@@ -1006,6 +1006,7 @@
       "grep_patterns": [
         "^[[:space:]]*import[[:space:]]+[\"']server-only[\"'][[:space:]]*;?[[:space:]]*$"
       ],
+      "strip_template_strings": true,
       "globs": [
         "src/lib/db/client.ts",
         "src/lib/config/env.ts",
@@ -1052,7 +1053,7 @@
       "enforcement": "grep",
       "match_mode": "forbid",
       "grep_patterns": [
-        "^[[:space:]]*[\"']use client[\"'][[:space:]]*;?[[:space:]]*$"
+        "^[[:space:]]*[\"']use client[\"'][[:space:]]*;?"
       ],
       "globs": [
         "src/lib/**/*.ts",
