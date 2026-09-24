@@ -503,3 +503,24 @@
   `test:integration` 11 ファイル **193/193** / `gate:constraints` 25 grep 0 violation /
   `gate:wording` 0 violation）。ソースの追加変更は無し。残懸念は `docs/concerns/task_015.md`
   の C-015-1〜7（medium 5・low 2）のままで、増減なし。
+- task_023: BLOCKED — 依存タスク task_020（cron: 照合バッチ・outbox 配達）が完全に未着手
+  （`files_to_create` 16 本が `find` で 0 件、`docs/PROGRESS.md` に完了宣言なし、
+  `gate:constraints` が `defer W9`/`defer W11 waiting on task_020` と独立に裏付ける）。
+  さらに本セッション中に task_020 の依存元 task_018 の `src/lib/outbox.ts` /
+  `src/lib/ledger/**` が同一ワークツリーで未コミットのまま並行ドラフトされているのを実測し、
+  その `OUTBOX_TRANSPORT`（`organizer_notify`/`ops_alert` の 2 段抽象、
+  「`organizer_notify` は Phase 1 は画面内の要対応・Messaging API は Phase 3」という docstring）
+  が task_023 の前提（Phase 1 で LINE Messaging API 配達）と食い違うことを確認した
+  （§2。他タスクのファイルは変更していない）。加えて `docs/decisions/ADR-007-raw-userid-
+  consent.md`（幹事の生 LINE userId 保持の同意設計。premortem P-12・S2×high）が未作成で、
+  PII の新規保存可否は PO 判断が前提のため実装しなかった（§3）。`check_115`
+  （`attention_unseen_hours`）は §17-6 が定める週次ログ集計パイプラインを前提にしており、
+  これを所有するタスクが台帳上見当たらない（§4）。`verify_commands` 4 本を
+  `scripts/record-run.sh task_023` 経由で HEAD `427010a` にて実行し、`typecheck` /
+  `test:unit`（43 ファイル **1099/1099**）/ `test:integration`（11 ファイル **193/193**）は
+  exit 0 だが、**`gate:constraints` は exit 1**（L3 違反 1 件、`src/lib/outbox.ts:44`
+  「紛争（チャージバック）が発生した。」を「チャージ」の誤検知。2 回連続で再現を確認）。
+  当該ファイルは task_018 が本セッション中に同一ワークツリーで未コミットのまま書いている
+  途中の他タスクファイルであり、規約（他タスクのファイルを変更しない）に従い対応していない。
+  実装コミットは 0 件（BLOCKED のため）。残懸念は `docs/concerns/task_023.md`
+  （high 3・medium 1・low 1）。

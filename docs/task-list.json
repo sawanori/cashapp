@@ -2578,9 +2578,13 @@
       "adversarial_review": "required",
       "evidence_label": "[設計]",
       "optional": false,
-      "completion_status": null,
+      "completion_status": "BLOCKED",
       "concerns": [
-        "Messaging API の通数課金と幹事の友だち追加率は未検証"
+        "[severity: high] 依存タスク task_020（cron: 照合バッチ・outbox 配達）が完全に未着手（files_to_create 16 本が find で 0 件、docs/PROGRESS.md に完了宣言なし、gate:constraints が defer W9/W11 waiting on task_020 と独立に裏付ける）。health.ts の degraded 判定 4 条件が参照する producer 側（reconcile / outbox 投入 / webhook 受信）が存在しないため check_113 / check_115 が構造的に満たせない／対応案: docs/concerns/task_023.md §1。task_018 → task_020 完了後に再着手",
+        "[severity: high] task_018（task_020 の依存元）の outbox 基盤が本セッション中に同一ワークツリーで未コミットのまま並行ドラフトされており、src/lib/outbox.ts の OUTBOX_TRANSPORT（organizer_notify/ops_alert の2段抽象）が task_023 の前提語彙（line_messaging/internal_webhook/none）と食い違い、かつ organizer_notify のdocstringは「Phase 1 は画面内の要対応・Messaging API はPhase 3」としており task_023 のPhase 1 LINE配達という目標と Phase 帰属が矛盾する／対応案: docs/concerns/task_023.md §2。task_018 のコミット確定後、その正本を受けて scope を絞り直す",
+        "[severity: high] ADR-007（幹事の生 LINE userId 保持の同意設計）が未作成。premortem P-12（S2×high）は §7-5（生値非保存）との衝突を指摘し、保存する/しないの二択をPO判断としている。PIIの新規保存可否は実装者の裁量を超えるため未決定のまま実装しなかった／対応案: docs/concerns/task_023.md §3。PO判断（ADR-007）後に再着手",
+        "[severity: medium] check_115（attention_unseen_hours）は§17-6が定める週次ログ集計＋docs/metrics/パイプラインを前提にしており、これを files_to_create に持つタスクが台帳上見当たらない。tests/e2e/organizer-flow.spec.tsも未存在／対応案: docs/concerns/task_023.md §4。週次集計を専任タスクへ切り出すPO判断が必要",
+        "[severity: low] Messaging API の通数課金と幹事の友だち追加率は未検証（設計時からの既存懸念、本セッションでは未着手のため検証していない）"
       ]
     },
     {

@@ -1,0 +1,47 @@
+[
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "427010a9b14c3183d2e67b2a5a351587991b470e",
+    "ran_at": "2026-09-24T17:07:37Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  43 passed (43)\n      Tests  1099 passed (1099)\n   Start at  17:07:43\n   Duration  91.66s (tests 94%, environment 3%, setup 2%, import 1%, transform 1%)",
+    "commit": "427010a9b14c3183d2e67b2a5a351587991b470e",
+    "ran_at": "2026-09-24T17:07:42Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:integration\n> TZ=UTC vitest run tests/integration --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  11 passed (11)\n      Tests  193 passed (193)\n   Start at  17:09:20\n   Duration  13.96s (tests 84%, import 10%, setup 4%, transform 3%)",
+    "commit": "427010a9b14c3183d2e67b2a5a351587991b470e",
+    "ran_at": "2026-09-24T17:09:20Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 87 file(s) read)\nok    L2 (forbid, 87 file(s) read)\nL3 src/lib/outbox.ts:44 | /** 紛争（チャージバック）が発生した。 */\nok    L8 (forbid, 87 file(s) read)\nok    L12 (forbid, 87 file(s) read)\nok    P1 (forbid, 86 file(s) read)\ndefer P2 (0 targets; waiting on task_018)\nok    P9 (forbid, 12 file(s) read)\nok    W3 (forbid, 93 file(s) read)\nok    W4 (forbid, 3 file(s) read)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 85 file(s) read)\nok    N5 (forbid, 87 file(s) read)\nok    N7 (forbid, 87 file(s) read)\nok    N9 (forbid, 87 file(s) read)\nok    N11 (forbid, 87 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 24 file(s) read)\nok    I4 (forbid, 2 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 43 file(s) read)\nok    X-MONEY (forbid, 9 file(s) read)\nok    GC-XSS (forbid, 87 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 92 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\nok    GC-RANK-NEGATION (forbid, 93 file(s) read)\nok    GC-LIB-CLIENT-DIRECTIVE (forbid, 37 file(s) read)\n\ngate:constraints — scanned 26 grep entr(y|ies), 1 violation(s), 0 empty gate(s)",
+    "commit": "427010a9b14c3183d2e67b2a5a351587991b470e",
+    "ran_at": "2026-09-24T17:09:36Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 91 file(s) read)\nok    L2 (forbid, 91 file(s) read)\nL3 src/lib/outbox.ts:44 | /** 紛争（チャージバック）が発生した。 */\nok    L8 (forbid, 91 file(s) read)\nok    L12 (forbid, 91 file(s) read)\nok    P1 (forbid, 90 file(s) read)\nok    P2 (forbid, 1 file(s) read)\nok    P9 (forbid, 12 file(s) read)\nok    W3 (forbid, 96 file(s) read)\nok    W4 (forbid, 5 file(s) read)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 89 file(s) read)\nok    N5 (forbid, 91 file(s) read)\nok    N7 (forbid, 91 file(s) read)\nok    N9 (forbid, 91 file(s) read)\nok    N11 (forbid, 91 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 24 file(s) read)\nok    I4 (forbid, 2 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 44 file(s) read)\nok    X-MONEY (forbid, 10 file(s) read)\nok    GC-XSS (forbid, 91 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 96 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\nok    GC-RANK-NEGATION (forbid, 96 file(s) read)\nok    GC-LIB-CLIENT-DIRECTIVE (forbid, 40 file(s) read)\n\ngate:constraints — scanned 27 grep entr(y|ies), 1 violation(s), 0 empty gate(s)",
+    "commit": "427010a9b14c3183d2e67b2a5a351587991b470e",
+    "ran_at": "2026-09-24T17:13:05Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  }
+]
