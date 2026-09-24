@@ -1,0 +1,9 @@
+[
+  {
+    "type": "manual",
+    "observation": "python3 -c \"import json; d=json.load(open('docs/external-inquiries.json')); assert all(i['status']=='draft' and i['default_decision_on_timeout'] for i in d['inquiries']); assert len(d['inquiries'])==6\" -> exit 0, no exception. docs/inquiries/{lawyer-q-lg1,lawyer,paypay,payjp,line,stripe}.md 全6ファイル存在、質問はすべて### Q-<ID>見出しでID付与（lawyer-q-lg1:2件, lawyer:15件, paypay:12件, payjp:7件, line:7件, stripe:6件、計49件）。docs/decisions/ADR-010-q-lg1-negative-branch.md 存在、ステータス行が'proposed'。external-inquiries.json の6件は id=lawyer-q-lg1/lawyer/paypay/payjp/line/stripe、全件status='draft'、sent_at/no_response_deadline/decision_on_timeout_taken/evidence_uriは全てnull、default_decision_on_timeoutは全件非空の確定文言、gate_keysはdocs/gates/compliance-gates.jsonの実在gate_keyのみを使用（未知キー0件）。",
+    "commit": "7f258ac043c5939d4bec4e0c918b08fdeb92331b",
+    "ran_at": "2026-09-24T03:17:07Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  }
+]

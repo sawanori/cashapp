@@ -13,5 +13,86 @@
     "evidence_uri": "string | null — 回答書面・メールの保管先",
     "gate_keys": "string[] — この照会の回答が動かす docs/gates/compliance-gates.json の gate_key 群"
   },
-  "inquiries": []
+  "inquiries": [
+    {
+      "id": "lawyer-q-lg1",
+      "to": "lawyer",
+      "status": "draft",
+      "sent_at": null,
+      "no_response_deadline": null,
+      "default_decision_on_timeout": "21日以内に回答が得られない場合、決済導線は resolveProvider を全 provider で強制 off にしたまま manual_confirm 縮退構成のみで運用を継続し、Phase 2（自動決済アダプタ）への移行は行わない。並行して別の弁護士へのセカンドオピニオン照会または金融庁グレーゾーン解消制度の利用可否を検討し、いずれを取るかを PO が判断して ADR-010 を更新する。",
+      "decision_on_timeout_taken": null,
+      "evidence_uri": null,
+      "gate_keys": [
+        "GATE-LEGAL-FUNDS"
+      ]
+    },
+    {
+      "id": "lawyer",
+      "to": "lawyer",
+      "status": "draft",
+      "sent_at": null,
+      "no_response_deadline": null,
+      "default_decision_on_timeout": "21日以内に回答が得られない場合、Phase 1 のリリースは docs/implementation-plan.md §18-2 のクローズドβ免除規定（招待した幹事3〜5名・参加者は同意済みに限定）を適用し、GATE-LEGAL-PII を Phase 1 の必須条件から一時的に外す。一般公開および GATE-CRED-CUSTODY が絡む Phase 2 の判断は、再送後さらに21日待っても無回答なら別の弁護士へ照会先を切り替えることを PO が検討する。",
+      "decision_on_timeout_taken": null,
+      "evidence_uri": null,
+      "gate_keys": [
+        "GATE-LEGAL-PII",
+        "GATE-CRED-CUSTODY"
+      ]
+    },
+    {
+      "id": "paypay",
+      "to": "paypay",
+      "status": "draft",
+      "sent_at": null,
+      "no_response_deadline": null,
+      "default_decision_on_timeout": "21日以内に回答が得られない場合、docs/implementation-plan.md §18-2 の既定方針に従い PAY.JP を決済事業者の第一候補に繰り上げ、PayPay は第二候補として並行照会を継続する。GATE-PP-* 系ゲートは status='unknown' のまま維持し、Phase 2 の PayPayOnlineAdapter 有効化は行わない。",
+      "decision_on_timeout_taken": null,
+      "evidence_uri": null,
+      "gate_keys": [
+        "GATE-PP-MERCHANDISE",
+        "GATE-PP-ONBOARD",
+        "GATE-PP-WEBHOOK",
+        "GATE-CRED-CUSTODY",
+        "GATE-PP-IP-RANGE"
+      ]
+    },
+    {
+      "id": "payjp",
+      "to": "payjp",
+      "status": "draft",
+      "sent_at": null,
+      "no_response_deadline": null,
+      "default_decision_on_timeout": "21日以内に回答が得られない場合、決済事業者の優先順位（PayPay の回答状況に応じた第一候補・第二候補）は変更せず、Phase 2 の PayjpAdapter 有効化を保留する。再送を1回行い、それでも無回答なら PAY.JP を候補から一時的に外し、manual_confirm 縮退構成のみで運用を継続する。",
+      "decision_on_timeout_taken": null,
+      "evidence_uri": null,
+      "gate_keys": []
+    },
+    {
+      "id": "line",
+      "to": "line",
+      "status": "draft",
+      "sent_at": null,
+      "no_response_deadline": null,
+      "default_decision_on_timeout": "21日以内に回答が得られない場合、GATE-LINE-POLICY の免除規定（docs/implementation-plan.md §18-2）に従い、未認証ミニアプリでクローズドβ（招待した幹事3〜5名・参加者は同意済み）に限定して出荷し一般公開しない。(web) ルートグループへの退避は ADR-013 により Phase 1 では選択できないため対象外とする。Q-LN5（利用者数上限）が未回答のままクローズドβの利用者数が上限に近づいた場合は、招待の新規発行を停止する縮退モードへ切り替える。",
+      "decision_on_timeout_taken": null,
+      "evidence_uri": null,
+      "gate_keys": [
+        "GATE-LINE-POLICY",
+        "GATE-LINE-SHARE"
+      ]
+    },
+    {
+      "id": "stripe",
+      "to": "stripe",
+      "status": "draft",
+      "sent_at": null,
+      "no_response_deadline": null,
+      "default_decision_on_timeout": "21日以内に回答が得られない場合でも Phase 1 / Phase 2 いずれの計画にも影響しない（Stripe は docs/implementation-plan.md §18-1 優先6の保留候補であり Phase 3 対象）。回答が得られるまで Stripe アダプタの実装・検証には着手しない。",
+      "decision_on_timeout_taken": null,
+      "evidence_uri": null,
+      "gate_keys": []
+    }
+  ]
 }
