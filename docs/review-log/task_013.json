@@ -637,5 +637,156 @@
     "task_mismatches": 0,
     "effective_high": 1,
     "exit_code": 1
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_013",
+    "reviewer": "adversarial-reviewer-gemini",
+    "vendor": "gemini",
+    "reviewer_route": "verified",
+    "model_id_requested": "gemini-2.5-pro",
+    "model_id_actual": "gemini-2.5-pro",
+    "model_id_source": "cli_stats",
+    "cli_version": "0.38.1",
+    "backend": "gemini-cli",
+    "ran_at": "2026-09-24T13:58:42Z",
+    "commit": "0ee25732dde83aae2be215b3bb3b5899cf234b8e",
+    "verdict": "PASS",
+    "findings": [],
+    "raw_warnings": [],
+    "packet_bytes": 574447,
+    "validated_at": "2026-09-24T14:02:14Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/review-013-final/gemini.json",
+    "merged_at": "2026-09-24T14:02:14Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gemini-2.5-pro を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 0,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_013",
+    "reviewer": "adversarial-reviewer-gpt",
+    "vendor": "gpt",
+    "reviewer_route": "cli-fallback",
+    "model_id_requested": "gpt-6-astra",
+    "model_id_actual": "gpt-6-astra",
+    "model_id_source": "self_report",
+    "cli_version": "codex-cli 0.154.0",
+    "backend": "codex",
+    "ran_at": "2026-09-24T14:01:38Z",
+    "commit": "0ee25732dde83aae2be215b3bb3b5899cf234b8e",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "high",
+        "title": "保存済みの上限を読み取った後でも、ストレージ障害で3回目のログインが許可される",
+        "detail": "readAttempts は保存値を退避カウンタへ反映しない。新しいモジュールで保存値2を読み、auth_unavailable を返した場合、メモリ側は0のままである。その後、同じページ内で sessionStorage の取得が失敗すると、スコープが共通でも試行回数が0に戻る。既定スコープを固定する今回の担保では、この経路を防げない。",
+        "file": "src/lib/liff/client.ts",
+        "line": 272,
+        "repro": "新しいモジュール実体を用意する。sessionStorage の getter は available=true なら、cashapp.liff.loginAttempts='2' を保持するストレージSを返し、falseならSecurityErrorを投げる。SDKはinitが即時成功、isInClient=true、isLoggedIn=false、loginは呼出回数を記録するものとする。storageを指定せず、loadLiff:async()=>sdk、report:()=>{}でbootLiffを呼ぶとauth_unavailableになる。モジュールを再読み込みせずavailable=falseにして再度呼ぶと、redirecting_to_login、loginAttempts:1となってloginが呼ばれる。保存済みの2回に追加の1回が許可される。静的追跡による反例で、実行は未実施。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-2",
+        "severity": "medium",
+        "title": "loginの例外が状態返却とテレメトリを迂回する",
+        "detail": "SDK読込とinitには例外処理があるが、loginの呼出しは保護されていない。ここで例外が発生すると、bootLiffは「例外を投げず必ずstateを返す」という契約に反してrejectし、失敗コードの送信にも到達しない。",
+        "file": "src/lib/liff/client.ts",
+        "line": 422,
+        "repro": "空のAttemptStorageと、init:async()=>undefined、isInClient:()=>true、isLoggedIn:()=>false、login:()=>{throw new Error('login failed')}、getIDToken:()=>nullを持つSDKを渡す。reportの呼出しを記録してbootLiffを実行すると、戻り値のPromiseはrejectし、reportは呼ばれない。静的追跡による反例で、実行は未実施。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-3",
+        "severity": "medium",
+        "title": "ビルドに適用されない環境変数代入でも固定値検査を通過する",
+        "detail": "checkProductionBuildEnvはスクリプト内の代入文字列だけを検査し、その代入がビルドコマンドに適用されるかを見ない。別コマンドにだけNEXT_PUBLIC_LIFF_MOCK=0を付けても合格する。web-only自身は環境変数を0にして直接ビルドするため、本番ビルド経路との食い違いを検出できない。",
+        "file": "scripts/build-web-only.mjs",
+        "line": 326,
+        "repro": "同梱テストのmakeFixtureへ'NEXT_PUBLIC_LIFF_MOCK=0 echo prepare && next build'を渡してrunGateを呼ぶ。抽出される代入値は0なので、コード上はexit 0になる。一方、このnpmスクリプトをNEXT_PUBLIC_LIFF_MOCK=1の環境で実行すると、0が適用されるのはechoだけで、next buildは1を継承する。静的追跡による反例で、実行は未実施。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      }
+    ],
+    "diagnostics": {
+      "exit_code": 0,
+      "event_types": [
+        "thread.started",
+        "turn.started",
+        "item.completed",
+        "item.completed",
+        "turn.completed"
+      ],
+      "cli_errors": [
+        "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+      ],
+      "last_message_bytes": 1841,
+      "stderr_tail": "r: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T13:58:44.605212Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer error=\\\"invalid_request\\\", error_description=\\\"No access token was provided in this request\\\", resource_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n2026-09-24T13:58:44.605738Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T13:58:44.606458Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n"
+    },
+    "packet_bytes": 574447,
+    "validated_at": "2026-09-24T14:02:14Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/review-013-final/gpt.json",
+    "merged_at": "2026-09-24T14:02:14Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gpt-6-astra を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 1,
+        "medium": 2,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 3,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "type": "summary",
+    "task_id": "task_013",
+    "round": 1,
+    "merged_at": "2026-09-24T14:02:14Z",
+    "decision": "reject",
+    "envelopes": 2,
+    "votes": 2,
+    "vendors": [
+      "gemini",
+      "gpt"
+    ],
+    "author_vendor": "claude",
+    "missing_votes": 0,
+    "invalid_envelopes": 0,
+    "invalid_reviews": 0,
+    "self_reviews": 0,
+    "task_mismatches": 0,
+    "effective_high": 1,
+    "exit_code": 1
   }
 ]
