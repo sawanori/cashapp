@@ -104,7 +104,8 @@ describe("record-evidence.mjs — evidence は実行結果から機械的に書�
     const fx = fixture();
     const counter = path.join(fx.dir, "count.txt");
     const pkg = JSON.parse(readFileSync(fx.pkg, "utf8"));
-    pkg.scripts["fx:count"] = `node -e "require('fs').appendFileSync(${JSON.stringify(counter)}, 'x')"`;
+    // パスは引数で渡す（-e の文字列に二重引用符を埋め込むとシェルの引用が壊れる）。
+    pkg.scripts["fx:count"] = `node -e "require('fs').appendFileSync(process.argv[1], 'x')" ${counter}`;
     writeFileSync(fx.pkg, JSON.stringify(pkg));
     const doc = JSON.parse(readFileSync(fx.checks, "utf8"));
     doc.checks.push(
