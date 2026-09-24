@@ -376,5 +376,12 @@
     "commit": "0d499ba91912a235cec0d5a9c4ebdbdfc9212be0",
     "ran_at": "2026-09-24T05:15:30Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "修正の実環境確認: 登録済み PreToolUse フック経由で削除が遮断されることを実測した。Bash ツールで保護パス配下の存在しないファイルに対する削除コマンドを発行したところ、PreToolUse:Bash hook error として deny-dangerous-bash.sh が『削除・復元の対象 docs/run-log/__probe_does_not_exist__.json』で BLOCKED を返し、コマンドは実行されなかった。修正前は同形のコマンドが probe で exit 0 だった（レビュー指摘の high 2 件目）。probe スクリプト側の全数実測は直前の python3 probe3.py の記録（must-block 31 形式・must-allow 22 形式・秘密値マスク 3 形式ですべて期待どおり、failures 0）を参照。",
+    "commit": "b6a75fa23e88b335412d74c929d41d77d1a651b7",
+    "ran_at": "2026-09-24T05:16:02Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]
