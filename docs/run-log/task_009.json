@@ -480,5 +480,12 @@
     "commit": "ddc291ae7e3cf24150ea13236944a8a1b5ac91a9",
     "ran_at": "2026-09-24T10:30:02Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "verify_commands ではない npm run test:unit を最終確認として走らせたところ exit 1（720 件中 717 pass / 3 fail）。落ちたのは tests/unit/gate-constraints.test.ts の 3 件（passes on a clean tree 5552ms / catches the real forbidden patterns 6057ms / fails an I1 I2 tree … 6141ms）で、いずれも Test timed out in 5000ms。同ファイル単独実行でも 3 件落ちる（21.05 秒）。当該ファイルは task_004 の所有で本タスクは触っていない。同じテストは GitHub Actions の static / acceptance ジョブ（run 35985828343 / ubuntu ランナー）では 7007ms で 17 件すべて pass しており、ローカルの並行実行下でのみ 5000ms を超える。task_007 も 62e31be で、task_013 も f004da2 で同じ観測を記録している。恒久対処は testTimeout の引き上げで、判断は所有タスク（task_004 / task_006）に委ねる。",
+    "commit": "c1cd588faa25c4108e8f3bab7998b6312e48799c",
+    "ran_at": "2026-09-24T10:32:46Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]
