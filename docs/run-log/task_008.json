@@ -616,5 +616,39 @@
     "commit": "2b44ea3ae5820843973c4b2b78c5cee8e60ecdad",
     "ran_at": "2026-09-24T13:57:58Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 46 file(s) read)\nok    L2 (forbid, 46 file(s) read)\nok    L3 (forbid, 46 file(s) read)\nok    L8 (forbid, 46 file(s) read)\nok    L12 (forbid, 46 file(s) read)\nok    P1 (forbid, 46 file(s) read)\ndefer P2 (0 targets; waiting on task_018)\nok    P9 (forbid, 7 file(s) read)\nok    W3 (forbid, 53 file(s) read)\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 44 file(s) read)\nok    N5 (forbid, 46 file(s) read)\nok    N7 (forbid, 46 file(s) read)\nok    N9 (forbid, 46 file(s) read)\nok    N11 (forbid, 46 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 15 file(s) read)\nok    I4 (forbid, 2 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 18 file(s) read)\nok    X-MONEY (forbid, 1 file(s) read)\nok    GC-XSS (forbid, 46 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 51 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\n\ngate:constraints — scanned 23 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "3323c11e4b75e93acca283e9d886ae7d128aa431",
+    "ran_at": "2026-09-24T14:00:19Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx vitest run tests/unit/workflows",
+    "exit_code": 0,
+    "stdout_tail": "(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  1 passed (1)\n      Tests  50 passed (50)\n   Start at  23:00:22\n   Duration  162ms (setup 49%, transform 31%, tests 14%, import 4%, worker 2%)",
+    "commit": "3323c11e4b75e93acca283e9d886ae7d128aa431",
+    "ran_at": "2026-09-24T14:00:21Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:integrity",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:integrity\n> node scripts/gate-integrity.mjs\n\n      ハッシュ対象 43 ファイル（sha256）\nG13 不一致: scripts/gate-constraints.sh（基準値 a227c2a5166b… / 実測 f259b51315bf…）\nG13 不一致: scripts/gate-env-scope.mjs（基準値 8b885a53c39b… / 実測 d0827280c9e6…）\n\ngate:integrity — 43 ファイルを照合、2 件の不一致",
+    "commit": "3323c11e4b75e93acca283e9d886ae7d128aa431",
+    "ran_at": "2026-09-24T14:00:25Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "最終 HEAD 3323c11 の npm run gate:integrity は exit 1（不一致 2 件: scripts/gate-constraints.sh / scripts/gate-env-scope.mjs）。両方とも他タスクが未コミットで作業ツリーに持っている差分で、git status --porcelain -- scripts が当該 2 件を M として出す。task_008 の所有ファイル .claude/workflows/release-audit.ts のハッシュは基準値と一致（6c19447209a6…）。基準値再生成時（13:53）は G13 対象領域の他タスク差分が 0 件で、baseline の scripts/gate-env-scope.mjs は HEAD 内容のハッシュ 8b885a53c39b… と一致することを shasum で確認済み（他タスクのハッシュを巻き戻していない）。",
+    "commit": "3323c11e4b75e93acca283e9d886ae7d128aa431",
+    "ran_at": "2026-09-24T14:00:44Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]
