@@ -1,0 +1,117 @@
+{
+  "$comment": "正本はこのファイル。DB の compliance_gate はデプロイ時にこの JSON から同期される射影であり、直接編集しない（同期は task_011 の scripts/gates-sync.mjs）。フィールドの意味は docs/gates/README.md を参照。変更は PO（noritaka）のみ。",
+  "schema_version": 1,
+  "generated_at": "2026-09-24",
+  "gate_schema": {
+    "gate_key": "string — 一意識別子。DB compliance_gate.gate_key (PK) と一致させる",
+    "description": "string — このゲートが何を確認するものか",
+    "required_for": "string[] — 'phase1' | 'phase2'（ブロックする対象フェーズ。両方をブロックする場合は両方を含む）",
+    "status": "enum — 'unknown' | 'inquired' | 'passed' | 'failed' | 'n/a'（初期値は全件 'unknown'）",
+    "valid_until": "string(ISO 8601) | null — 有効期限。null は未設定（R-LAW-14 のゲート陳腐化対策。値の運用は task_037 以降）",
+    "evidence_uri": "string | null — 回答書面・メールの保管先。status='passed' への遷移には必須（DB 側 CHECK 制約に対応）",
+    "approved_by": "string | null — 承認者（申請者と別人。docs/implementation-plan.md §16-6 の CHECK に対応）",
+    "source": "string — この初期エントリの根拠となった一次資料の節（監査用。空 [不明] は書かない）"
+  },
+  "gates": [
+    {
+      "gate_key": "G0-USER",
+      "description": "受取先変更（幹事名義の加盟店アカウント経由の銀行口座になること）と、それに伴う幹事への加盟店審査発生について、PO の明示同意があること",
+      "required_for": ["phase1", "phase2"],
+      "status": "unknown",
+      "valid_until": null,
+      "evidence_uri": null,
+      "approved_by": null,
+      "source": "implementation-plan.md §4-1, §6 A1; docs/research/design-synthesis.md §7 ゲート一覧"
+    },
+    {
+      "gate_key": "GATE-LINE-POLICY",
+      "description": "「幹事が管理する精算・集金の台帳」というサービス定義が、LINEミニアプリポリシーの禁止業種（募金・寄附・クラウドファンディング等）および有料サービス販売条項（アプリ内課金必須）のいずれにも該当しないこと",
+      "required_for": ["phase1"],
+      "status": "unknown",
+      "valid_until": null,
+      "evidence_uri": null,
+      "approved_by": null,
+      "source": "implementation-plan.md §6 A7, §18-1 (Q-LN1/Q-LN2); docs/research/design-synthesis.md §7 ゲート一覧"
+    },
+    {
+      "gate_key": "GATE-LINE-SHARE",
+      "description": "ミニアプリチャネルで shareTargetPicker が配布の補助導線として利用可能であること（利用可否・申請要否）",
+      "required_for": ["phase1"],
+      "status": "unknown",
+      "valid_until": null,
+      "evidence_uri": null,
+      "approved_by": null,
+      "source": "implementation-plan.md §6 A9, §7-3, §18-1 (Q-LN7)"
+    },
+    {
+      "gate_key": "GATE-LEGAL-PII",
+      "description": "幹事への支払状況開示（名簿・請求状況の表示、参加者の個人情報の取扱い）に関する法的整理と同意文言が確定していること",
+      "required_for": ["phase1"],
+      "status": "unknown",
+      "valid_until": null,
+      "evidence_uri": null,
+      "approved_by": null,
+      "source": "docs/research/design-synthesis.md §7 ゲート一覧; implementation-plan.md §18-1 (Q-LG9, Q-LG12〜16)"
+    },
+    {
+      "gate_key": "GATE-LEGAL-FUNDS",
+      "description": "幹事が受取先と金額を指定し参加者に支払わせる本資金フローが、資金決済法上の為替取引（資金移動業登録)を要しないとの弁護士見解が得られていること（Q-LG1）",
+      "required_for": ["phase2"],
+      "status": "unknown",
+      "valid_until": null,
+      "evidence_uri": null,
+      "approved_by": null,
+      "source": "implementation-plan.md §18-1 (Q-LG1); docs/research/design-synthesis.md §7 ゲート一覧"
+    },
+    {
+      "gate_key": "GATE-PP-MERCHANDISE",
+      "description": "会費徴収が PayPay オンライン決済の取扱可能商材であり、寄付・募金・投げ銭に該当しないこと（Q-PP1, Q-PP2）",
+      "required_for": ["phase2"],
+      "status": "unknown",
+      "valid_until": null,
+      "evidence_uri": null,
+      "approved_by": null,
+      "source": "docs/research/design-synthesis.md §7 ゲート一覧; implementation-plan.md §18-1 (Q-PP1/Q-PP2)"
+    },
+    {
+      "gate_key": "GATE-PP-ONBOARD",
+      "description": "幹事が PayPay 加盟店申込を行えること（実店舗を持たない個人事業主の申込条件・必要書類が確定していること）（Q-PP3）",
+      "required_for": ["phase2"],
+      "status": "unknown",
+      "valid_until": null,
+      "evidence_uri": null,
+      "approved_by": null,
+      "source": "docs/research/design-synthesis.md §7 ゲート一覧; implementation-plan.md §18-1 (Q-PP3)"
+    },
+    {
+      "gate_key": "GATE-PP-WEBHOOK",
+      "description": "Webhook の署名有無・登録手順・リトライ仕様・ペイロード定義が確定していること（Q-PP5）",
+      "required_for": ["phase2"],
+      "status": "unknown",
+      "valid_until": null,
+      "evidence_uri": null,
+      "approved_by": null,
+      "source": "docs/research/design-synthesis.md §7 ゲート一覧; implementation-plan.md §18-1 (Q-PP5)"
+    },
+    {
+      "gate_key": "GATE-CRED-CUSTODY",
+      "description": "幹事の加盟店 API クレデンシャルを運営者（委託先）が保管して API を呼ぶことが、「資金の受入れへの関与」と評価されず、加盟店規約の認証情報第三者預託禁止にも抵触しないこと（Q-LG7 / Q-PP9）",
+      "required_for": ["phase2"],
+      "status": "unknown",
+      "valid_until": null,
+      "evidence_uri": null,
+      "approved_by": null,
+      "source": "implementation-plan.md §6 A6, §9 (/api/providers/bind), §18-1 (Q-LG7/Q-PP9); docs/research/design-synthesis.md §7 ゲート一覧"
+    },
+    {
+      "gate_key": "GATE-PP-IP-RANGE",
+      "description": "Webhook 送信元 IP の公式レンジが一次資料で確定しており、受信時の IP 許可リストを構成できること（Q-PP11）",
+      "required_for": ["phase2"],
+      "status": "unknown",
+      "valid_until": null,
+      "evidence_uri": null,
+      "approved_by": null,
+      "source": "implementation-plan.md §18-1 (Q-PP11), §4-4, §17-3 (R-SEC-11 IP 許可リスト)"
+    }
+  ]
+}

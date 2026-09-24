@@ -1,0 +1,9 @@
+[
+  {
+    "type": "manual",
+    "observation": "python3 -c \"import json;json.load(open('docs/gates/compliance-gates.json'));json.load(open('docs/external-inquiries.json'))\" -> exit 0, no exception. compliance-gates.json has exactly 10 gates (G0-USER, GATE-LINE-POLICY, GATE-LINE-SHARE, GATE-LEGAL-PII, GATE-LEGAL-FUNDS, GATE-PP-MERCHANDISE, GATE-PP-ONBOARD, GATE-PP-WEBHOOK, GATE-CRED-CUSTODY, GATE-PP-IP-RANGE), all status=unknown, valid_until/evidence_uri/approved_by all null. external-inquiries.json has inquiries=[] and inquiry_schema with all 8 required keys (id,to,status,sent_at,no_response_deadline,default_decision_on_timeout,evidence_uri,gate_keys).",
+    "commit": "d2674a63bc184a9593d89e6f77af65311ec86018",
+    "ran_at": "2026-09-24T03:04:32Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  }
+]

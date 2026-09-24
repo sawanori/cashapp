@@ -1,0 +1,17 @@
+{
+  "$comment": "正本はこのファイル（DB は持たない）。task_002 が各照会を status='draft' で inquiries に登録し、task_037（PO）が送付・回答・期限超過時の採否判断を追記する。SessionStart フック（scripts/session-brief.mjs、task_005）が毎セッション未回答・期限超過を注入する。変更は起票・送付・回答反映のいずれも人間（PO）の確認を経る。",
+  "schema_version": 1,
+  "generated_at": "2026-09-24",
+  "inquiry_schema": {
+    "id": "string — 照会の一意 ID（例: 'q-lg1', 'paypay-merchandise'）",
+    "to": "string — 宛先（例: 'lawyer', 'paypay', 'payjp', 'line', 'stripe'）",
+    "status": "enum — 'draft' | 'sent' | 'answered' | 'superseded'",
+    "sent_at": "string(ISO 8601) | null — 送付日時。status='sent' 以降で必須",
+    "no_response_deadline": "string(ISO 8601) | null — sent_at + 21日で算出。status='sent' になった時点で算出して埋める",
+    "default_decision_on_timeout": "string — no_response_deadline を過ぎても無回答の場合に PO が採る既定判断（確定文言）。draft 登録時点で必須",
+    "decision_on_timeout_taken": "string | null — 実際に期限超過時点で PO が下した採否判断の記録（task_037）。未発生なら null",
+    "evidence_uri": "string | null — 回答書面・メールの保管先",
+    "gate_keys": "string[] — この照会の回答が動かす docs/gates/compliance-gates.json の gate_key 群"
+  },
+  "inquiries": []
+}
