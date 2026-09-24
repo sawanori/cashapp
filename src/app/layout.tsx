@@ -39,6 +39,13 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <body>
+        {/*
+          どちらの案内も「もう一度読み込む」を必ず出す（`StaticFallback` の既定が
+          `href=""` ＝ 現在のページで、JS 無しでも押せる）。ルートレイアウトは現在のパスを
+          取れないので、絶対 URL を組み立てて渡すことはしない。
+          「LINE アプリで開く」はここでは出せない（LIFF ID は `(liff)` グループより下でしか
+          解決しない。docs/concerns/task_013.md C-013-9）。
+        */}
         {/* ① サポート下限未満（CSS だけで判定する。JS 不要）。 */}
         <div className="legacy-browser-notice">
           <StaticFallback reason="legacy" />

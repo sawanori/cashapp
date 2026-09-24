@@ -38,12 +38,25 @@
    - 管理者画面（別 IdP・lookup・anonymize/export。task_021）
 3. **幹事・参加者の集金導線の LINE 非依存版を Phase 1 では作らない。**
    名簿・請求・手動確認・配布・支払いの各画面は `(liff)` にのみ存在する。
-4. `npm run build:web-only`（`scripts/build-web-only.mjs`）が担保するのは次の 3 点に限る。
-   - `(web)` と共有ルートレイアウトから `@line/liff` / `@line/liff-mock` / `src/lib/liff/**`
-     へ到達しないこと（import グラフの静的走査）
+4. `npm run build:web-only`（`scripts/build-web-only.mjs`）が担保するのは次の 4 点に限る。
+   - `package.json` の `build` / `build:cf` が `NEXT_PUBLIC_LIFF_MOCK` を定義していること
+     （下の「畳み込みの条件」。未定義だとモックが本番バンドルに載る）
+   - `src/lib/liff/**` と `src/app/(liff)/**` **以外の** `src/` 配下のどのファイルも
+     `@line/liff` / `@line/liff-mock` / `src/lib/liff/**` を参照しないこと
+     （`src/` の全走査 ＋ `src/app/**` の `(liff)` 以外と `src/middleware.ts` を起点とする
+     import グラフの走査。決定 1 を機械的に強制する）
    - `next build` が成功すること
    - `.next/static/**` に `@line/liff-mock` 由来の識別子と dev / review の LIFF ID が無いこと
      （R-LINE-04 / 制約 I4 / check_079）
+
+   **畳み込みの条件（2026-09-24 実測で確定）**: モックの動的 import が落ちるのは
+   `NEXT_PUBLIC_LIFF_MOCK` が **`"1"` 以外の値で設定されている**ときであって、
+   「未設定」ではない。Next.js の `getNextPublicEnvironmentVariables()`
+   （`node_modules/next/dist/lib/static-env.js`）が `for (const key in process.env)` で
+   **存在するキーだけ**を define にするため、未設定だと実行時判定が残り
+   `@line/liff-mock` がクライアントチャンクに出力される。
+   複製リポジトリに `bootLiff()` を呼ぶ page を置いた実測で、未設定なら 2 ファイル、
+   `NEXT_PUBLIC_LIFF_MOCK=0` なら 0 ファイルになることを確認した。
 5. したがって **`build:web-only` の緑は「LINE を外しても集金が回る」ことの証明ではない。**
    `GATE-LINE-POLICY` が否定側に倒れた場合の退避には、画面層とセッション層の作り直し
    （所要は Phase 1 相当）という別計画が要る。この事実を A7 の退避欄と本 ADR の両方に置く。
@@ -66,8 +79,11 @@
   リリース判定・PO への報告・`docs/PROGRESS.md` の記述でこの言い換えをしないこと。
 - Phase 1 時点の `(web)` には実ページが 1 つも無い（レイアウトのみ）。法務ページと管理者画面は
   task_021 が足し、それが LINE SDK 無しで描画されることの E2E は task_022
-  （`tests/e2e/web-only.spec.ts`）が確かめる。それまで `build:web-only` の
-  import グラフ検査の起点は `(web)` のレイアウトと共有ルートレイアウトだけである。
+  （`tests/e2e/web-only.spec.ts`）が確かめる。
+  ただし決定 1 の強制は `(web)` の到達範囲に依存させない。`(web)` に実ページが無くても、
+  `src/app/page.tsx` や `src/middleware.ts` のようなルートグループ外の共有ファイルは
+  毎ビルドに載るため、`build:web-only` は `src/` を全走査して「許した 2 か所以外から
+  LIFF を参照していないこと」を直接確かめる。
 
 ## 未解決
 

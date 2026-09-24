@@ -4,9 +4,15 @@
  * ★ **このファイルは本番バンドルに入れてはいけない。**
  *   到達経路は `src/lib/liff/client.ts` の
  *   `if (process.env.NEXT_PUBLIC_LIFF_MOCK === "1") { await import("./mock") }` 1 か所だけである。
- *   本番ビルドではこの環境変数が未定義なので、条件式が定数 `false` に畳まれ、
- *   動的 import ごと到達不能になる。その結果を `npm run build:web-only` が
- *   `.next` の grep で毎回確かめる（check_079）。
+ *
+ *   条件式が定数 `false` に畳まれるのは、**`NEXT_PUBLIC_LIFF_MOCK` が `"1"` 以外の値で
+ *   設定されているとき**である。未設定だと Next.js は define を作らない
+ *   （`node_modules/next/dist/lib/static-env.js` の `getNextPublicEnvironmentVariables()` が
+ *   `for (const key in process.env)` で存在するキーだけを変換する）ため、
+ *   実行時判定が残り、**このファイルと `@line/liff-mock` がクライアントチャンクに載る**（実測）。
+ *   そのため本番ビルド経路（`package.json` の `build` / `build:cf`）と
+ *   `scripts/build-web-only.mjs` は `NEXT_PUBLIC_LIFF_MOCK=0` を明示的に渡し、
+ *   `npm run build:web-only` がその定義の有無と `.next` の grep を毎回確かめる（check_079）。
  *
  * ★ E2E（Playwright）は実ブラウザで動くので `vi.mock` が効かない（制約 I4）。
  *   モックの切り替えは**環境変数**でしか行わない。テストコードから直接この関数を呼ばないこと。

@@ -8,11 +8,12 @@ LIFF 外殻・起動順序・ループ防止・テレメトリ・静的フォー
 ## C-013-1 [high] `build:web-only` は「SDK を物理的に外したビルド」ではない
 
 **指摘**: 計画 §7-3 は `build:web-only` を「LINE SDK 無しでビルドが通ることの担保」と書いている。
-実装した `scripts/build-web-only.mjs` が実際にやっているのは次の 3 つであり、
+実装した `scripts/build-web-only.mjs` が実際にやっているのは次の 4 つであり、
 **`node_modules` から `@line/liff` を取り除いた状態でのビルドは行っていない**。
 
-1. `src/app/(web)/**` と共有ルートレイアウトから始まる import グラフの静的走査で、
-   `@line/liff` / `@line/liff-mock` / `src/lib/liff/**` に到達しないことを確かめる
+0. `package.json` の `build` / `build:cf` が `NEXT_PUBLIC_LIFF_MOCK` を定義していることの検査
+1. `src/lib/liff/**` と `src/app/(liff)/**` 以外の `src/` 全ファイルが LIFF を参照しないことの走査
+   （＋ `src/app/**` の `(liff)` 以外と `src/middleware.ts` を起点とする import グラフの走査）
 2. `next build` の成功
 3. `.next/static/**` のマーカー grep
 
@@ -30,31 +31,78 @@ LIFF 外殻・起動順序・ループ防止・テレメトリ・静的フォー
 
 ---
 
-## C-013-2 [high] 現時点でモック混入 grep は空振りに近い
+## C-013-2 [high → 解消] 畳み込みの前提が偽だった（実測で判明・修正済み）
 
-**指摘**: `.next/static` に LIFF 由来の文字列が **1 バイトも無い**（実測: `grep -rl "liff" .next/static`
-が 0 件）。これは「モックが除去された」からではなく、**まだどのページも `bootLiff()` を
-呼んでいない**ため SDK ごとクライアントバンドルに載っていないからである。
-したがって check_079 の「`.next/static` に `@line/liff-mock` が含まれない」は、
-いまは真だが**証明力がほとんど無い**。
+**当初の指摘（2026-09-24 1 周目）**: `.next/static` に LIFF 由来の文字列が 1 バイトも無く、
+`process.env.NEXT_PUBLIC_LIFF_MOCK === "1"` のガードが本番ビルドで定数畳み込みされるかは未実測だった。
 
-`process.env.NEXT_PUBLIC_LIFF_MOCK === "1"` のガードが Turbopack の本番ビルドで
-実際に定数畳み込みされ、`await import("./mock")` のチャンクごと落ちるかは **未実測**である。
+**実測の結果（2 周目）**: 前提は **偽**だった。`scripts/build-web-only.mjs` は `next build` の前に
+`delete env["NEXT_PUBLIC_LIFF_MOCK"]` していたが、Next.js がクライアント側の
+`process.env.NEXT_PUBLIC_*` を定数へ置換するのは
+`node_modules/next/dist/lib/static-env.js` の `getNextPublicEnvironmentVariables()` で、
+実装は `for (const key in process.env)` ＝ **存在するキーだけ** define にする。
+未設定にすると define が 1 つも作られず、実行時判定が残って
+`await import("./mock")` が到達可能なままチャンク化される。
 
-**対応案**: `(liff)` のページが `bootLiff()` を呼ぶようになった直後（task_014 の最初のコミット）に
-`npm run build:web-only` を走らせ、`.next/static` に `@line/liff` が載り、かつ
-`@line/liff-mock` / `LiffMockPlugin` が載らないことを run-log つきで実測する。
-畳み込みが効いていなければ、`next.config.ts` の webpack/turbopack 設定で
-`@line/liff-mock` を本番ビルドから除外する明示的な分岐を入れる。
-`scripts/build-web-only.mjs` は、この空振り状態のときに注意行を必ず出力するようにしてある。
+リポジトリの複製（`src` ＋ `node_modules` のハードリンク）に `bootLiff()` を呼ぶ
+`src/app/page.tsx` を置いて測った結果:
 
-**対応予定タスク**: task_014（最初の `(liff)` ページ）/ task_022
+| ビルド時の `NEXT_PUBLIC_LIFF_MOCK` | `.next/static` の `liff-mock` / `LiffMockPlugin` | `isInClient` |
+|---|---|---|
+| 未設定（旧実装） | **2 ファイル**（うち 1 つは `@line/liff-mock` 本体 18KB） | 2 ファイル |
+| `0`（修正後） | **0 ファイル** | 2 ファイル |
+
+`isInClient` が両方で載っているので、後者の 0 件は「SDK ごと無い」のではなく
+**モックだけが落ちている**ことを意味する。
+
+**対応（実施済み）**:
+
+- `scripts/build-web-only.mjs` は `delete` をやめ、`NEXT_PUBLIC_LIFF_MOCK=0` を明示的に設定して
+  `next build` を起動する。
+- `package.json` の `build` / `build:cf` も `NEXT_PUBLIC_LIFF_MOCK=${NEXT_PUBLIC_LIFF_MOCK:-0}` を前置し、
+  **配信される成果物を作る経路**でも define が必ず作られるようにした。
+- `npm run build:web-only` に検査 (0) を足し、この 2 つのスクリプトが変数を定義していなければ
+  違反にする。`tests/unit/ci/web-only-workflow.test.ts` も同じことを毎回確かめ、
+  「`delete env[...]` に戻したら落ちる」形にした。Next 側の前提
+  （`for (const key in process.env)`）自体もテストが毎回読み直す。
+- `src/lib/liff/client.ts` / `src/lib/liff/mock.ts` / `.env.example` / ADR-013 の
+  「未設定なら畳み込まれる」という説明を「**`"1"` 以外の値が設定されていることが条件**」に直した。
+
+**残っていること**: 本リポジトリの `.next/static` はまだ LIFF 由来の文字列を 1 つも含まない
+（どのページも `bootLiff()` を呼んでいないため）。`build:web-only` はその状態のとき注意行を必ず出す。
+最初の `(liff)` ページが入った直後に、本リポジトリ自身で同じ grep を実測し直すこと。
+
+**対応予定タスク**: task_014（最初の `(liff)` ページでの再実測）
 
 ---
 
-## C-013-3 [medium] CI の実走が未実施（GitHub リモート未作成）
+## C-013-3 [medium] CI の実走は一部だけ実施（push では緑 / PR と修正版は未実走）
 
-**指摘**: done_definition 第 5 項「gate.yml に web-only ジョブが追加され緑」のうち、
+**2 周目の更新（2026-09-24）**: 作業中に **GitHub リモートが作成された**
+（`origin git@github.com:sawanori/cashapp.git`）。`gate-web-only` ワークフローは実際に 2 回走り、
+**どちらも緑**である（`gh run list --workflow gate-web-only.yml`。`scripts/record-run.sh task_013` 経由で記録）。
+
+| run id | head | event | 結論 | 時刻 |
+|---|---|---|---|---|
+| 35985828331 | b1bc328 | push (main) | success | 2026-09-24T10:12:31Z |
+| 35984699932 | 62e31be | push (main) | success | 2026-09-24T10:00:40Z |
+
+ジョブ名は `web-only` で、required status check として指定する文字列は
+`gate-web-only / web-only` である（run の `jobs[].name` で確認）。
+
+**それでも残っていること（deferred のまま）**:
+
+1. **`pull_request` イベントでの緑はまだ無い。** 上の 2 回はどちらも `push` である。
+   done_definition の文言は「PR で緑」。
+2. **2 周目の修正版はまだ CI を通っていない。** 上の 2 回が走ったのは、
+   `delete env["NEXT_PUBLIC_LIFF_MOCK"]` のままの 1 周目のスクリプトである
+   （＝ **モックが落ちない前提のまま緑になっていた**）。本タスクの修正コミットは未 push で、
+   `git push` は本プロジェクトの禁止コマンドなので、このエージェントからは実走させられない。
+3. **ブランチ保護が未設定。** `gh api repos/.../branches/main/protection` は
+   `404 Branch not protected` を返す。required status checks への
+   `gate-web-only / web-only` の登録は task_009 の担当で、未実施である。
+
+**当初の指摘（1 周目）**: done_definition 第 5 項「gate.yml に web-only ジョブが追加され緑」のうち、
 **実 PR での緑は未実施**である。GitHub リモートが未作成（PO 判断待ち）で、`git push` も
 本プロジェクトの禁止コマンドであるため、ワークフローを 1 度も実走させていない。
 
@@ -67,8 +115,14 @@ LIFF 外殻・起動順序・ループ防止・テレメトリ・静的フォー
 （CI ジョブの追加は `gate-<job>.yml` の独立ファイルで行う規約）。
 required status checks への `gate-web-only / web-only` の登録は task_009 の担当である。
 
-**対応案**: deferred: GitHub リモート作成後に実施。リモート作成後、最初の PR で
-`gate-web-only` ジョブが緑であることを run-log に記録する。
+**対応案**: deferred: (a) 2 周目の修正を push したうえで PR を立て、`pull_request` イベントでの
+`gate-web-only` の緑を run-log に記録する。(b) task_009 側で branch protection を有効にし、
+required status checks に `gate-web-only / web-only` を登録する。
+
+**この項目が残っている限り task_013 を「完全達成」として扱わない**（`completion_status` は
+deferred を含む扱いにする。台帳 `docs/task-list.json` の書き換えは台帳所有タスクの判断に委ねるため、
+本タスクは台帳を編集せず、ここと `docs/PROGRESS.md` / `docs/HANDOFF.md` に残す）。
+なお共通ルールどおり、これは BLOCKED の理由にはしない。
 
 **対応予定タスク**: task_009（ブランチ保護・required status checks）/ PO（リモート作成の判断）
 
@@ -89,6 +143,11 @@ required status checks への `gate-web-only / web-only` の登録は task_009 �
 **対応案**: 最初の `(liff)` ページ（O-1 起動・同意）が入る task_014 / task_015 で、
 `next dev` または `wrangler dev` に対する実測を run-log に残す。E2E（`tests/e2e/outside-line.spec.ts`）
 は task_022 の担当で、そこで `liff-mock` 経由の実ブラウザ検証が入る。
+
+**その実測が済むまで check_079 と R-LINE-04 を「達成」として扱わない。**
+いま機械的に言えるのは「`src/` の全走査で LIFF 参照が 2 か所に閉じている」ことと
+「複製リポジトリでの実測でモックだけがバンドルから落ちる」ことであって、
+本リポジトリのバンドルに実際に LIFF SDK が載った状態での grep はまだ 1 度も走っていない。
 
 **対応予定タスク**: task_014 / task_015 / task_022
 
@@ -150,14 +209,17 @@ WebView / WKWebView のエンジンバージョンで判定機能を選び直す
 
 ## C-013-8 [low] files_to_create に無いファイルを 2 つ足した
 
-**指摘**: 台帳の files_to_create に無い次の 2 ファイルを追加した。
+**指摘**: 台帳の files_to_create に無い次の 3 ファイルを追加した。
 
 - `scripts/build-web-only.mjs` — `package.json` の `build:web-only` が呼ぶ実体。
   scope の「package.json scripts に build:web-only」を成立させるために必要で、
   他タスクの files_to_create にも `docs/task-list.json` 全体にも同名の記載は無い。
-- `tests/unit/ci/web-only-workflow.test.ts` — done_definition 第 5 項の静的検証。
+- `tests/unit/ci/web-only-workflow.test.ts` — done_definition 第 5 項の静的検証と、
+  C-013-2 の畳み込み条件の回帰テスト。
   共通ルールが「ワークフロー YAML の静的検証まで行う」と定めているため、
   その検証を毎回 `npm run test:unit` で走る形に残した。
+- `tests/unit/components/StaticFallback.test.tsx`（2 周目に追加）— check_078 の
+  「再試行・LINE で開く・幹事への連絡」が実際に描画されることの固定（C-013-9）。
 
 また、CI ジョブは規約どおり `.github/workflows/gate-web-only.yml` として独立ファイルで追加し、
 files_to_modify に挙がっていた `.github/workflows/gate.yml` は **編集していない**
@@ -167,3 +229,52 @@ files_to_modify に挙がっていた `.github/workflows/gate.yml` は **編集�
 台帳の書き換え権限を持つタスク（task_006 / 検証エージェント）の判断に委ねる。
 
 **対応予定タスク**: task_006（gate-check・台帳同期）
+
+---
+
+## C-013-9 [medium] 静的フォールバックの「LINE アプリで開く」が出せない場面がある
+
+**指摘（2 周目のレビューで発覚。一部修正済み）**: check_078 の期待は
+「静的フォールバックに **再試行・LINE アプリで開く・幹事への連絡** が出て白画面にならない」だが、
+1 周目の実装では `StaticFallback` を描く 3 か所（`src/app/layout.tsx` の `legacy` / `no_script`、
+`src/app/(liff)/layout.tsx` の `sdk_unavailable`）が `retryHref` も `permanentLink` も渡しておらず、
+**実際に出るのは「幹事への連絡」の固定文だけ**だった。
+
+**修正済み**:
+
+- 再試行の導線を `StaticFallback` の既定に格上げし、props を渡さなくても必ず出るようにした。
+  既定の遷移先は**アプリの入口 `/`**（ラベルは「アプリを開き直す」）。
+  現在の URL（`href=""`）にしなかったのは、`a[href]` を link ロールへ対応づける規則が
+  href の非空を条件にしている実装があり（`aria-query` の `{name:"href", constraints:["set"]}`）、
+  空文字だとスクリーンリーダーにリンクとして届かない恐れがあるためである。`#` は押しても何も起きないので使わない。
+  `retryHref` を明示すればその URL を使う（クライアント側は `window.location.href` を渡せる）。
+- 「LINE アプリで開く」に必要なパーマネントリンクを LIFF ID だけから組み立てる
+  `liffPermanentLink()` を `src/lib/liff/client.ts` に足した。URL 形式は推測ではなく
+  インストール済み `@line/liff` 2.31.0 の同梱物が一次資料である
+  （`docs/vendor-docs/line/liff-sdk.md` §4。`@liff/consts` の `PERMANENT_LINK_ORIGIN` が
+  `"https://liff.line.me/"`）。SDK の `liff.permanentLink.createUrl()` は `init` 成功後にしか
+  使えないため、**SDK が落ちたときの導線には使えない**。そのための別経路である。
+
+**残っている指摘**:
+
+1. `src/app/(liff)/layout.tsx` の `sdk_unavailable` 分岐では「LINE アプリで開く」を**出せない**。
+   この分岐が出るのは `resolveLiffId()` が `null` を返したとき ＝ **LIFF ID そのものが解決できない**
+   ときなので、パーマネントリンクを組み立てる材料が無い。壊れたリンクを出すより無いほうがよい、
+   と判断して出していない。
+2. `src/app/layout.tsx` の `legacy` / `no_script` も同様に出せない
+   （LIFF ID は `(liff)` グループより下でしか解決しない）。
+3. 3 つ揃うのは「起動後に SDK 読み込みが 3 秒で間に合わなかった／`init` が失敗した」場面、
+   すなわち `bootLiff()` の結果を画面が受けて `StaticFallback` を描くときである。
+   その画面は **task_014 までまだ存在しない**。
+4. `StateView` の `outside_line` / `auth_unavailable` も `permanentLink` 未指定では
+   ①「LINE で開く」②「URL」が消え、③ QR の注記だけが残る（§7-3 のフォールバック優先順の ①② が欠ける）。
+   props を必須にする（型を state で分岐させる）案は、既存テスト
+   「パーマネントリンクが無ければリンクを出さない」の契約を変えることになるため 2 周目では採っていない。
+
+**対応案**: task_014 の起動画面で `bootLiff()` の結果を受ける際に、
+`liffPermanentLink(readLiffIdFromDocument())` を `StaticFallback` / `StateView` の
+`permanentLink` に、現在の URL を `retryHref` に渡す。そこで初めて check_078 の 3 導線が実画面で揃う。
+`(liff)/layout.tsx` の `sdk_unavailable`（設定不正）については、
+`StateView` の `gate_blocked` 相当に寄せるか専用の理由コードを足すかを task_014 で決める。
+
+**対応予定タスク**: task_014（最初の `(liff)` 画面）/ task_015

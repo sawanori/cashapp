@@ -15,6 +15,7 @@ import {
   MAX_LOGIN_ATTEMPTS,
   SDK_LOAD_TIMEOUT_MS,
   bootLiff,
+  liffPermanentLink,
   readLiffIdFromDocument,
   type AttemptStorage,
   type LiffLike,
@@ -228,5 +229,28 @@ describe("readLiffIdFromDocument", () => {
 
   it("meta が無ければ null（呼び出し側は静的フォールバックへ落とす）", () => {
     expect(readLiffIdFromDocument({ querySelector: () => null })).toBeNull();
+  });
+});
+
+/**
+ * `liffPermanentLink`（check_078 の「LINE アプリで開く」導線）。
+ *
+ * URL の形は `@line/liff` 2.31.0 の同梱物が一次資料である
+ * （`docs/vendor-docs/line/liff-sdk.md` §4。`@liff/consts` の `PERMANENT_LINK_ORIGIN` が
+ * `"https://liff.line.me/"`）。SDK の `liff.permanentLink.createUrl()` は `init` 成功後にしか
+ * 使えないので、**SDK が落ちたときの導線**にはこちらを使う。
+ */
+describe("liffPermanentLink", () => {
+  it("LIFF ID から https://liff.line.me/{liffId} を組み立てる", () => {
+    expect(liffPermanentLink(LIFF_ID)).toBe(`https://liff.line.me/${LIFF_ID}`);
+  });
+
+  it("前後の空白は落とす", () => {
+    expect(liffPermanentLink(`  ${LIFF_ID}\n`)).toBe(`https://liff.line.me/${LIFF_ID}`);
+  });
+
+  it("空の LIFF ID には null を返す（壊れたリンクを出さない）", () => {
+    expect(liffPermanentLink("")).toBeNull();
+    expect(liffPermanentLink("   ")).toBeNull();
   });
 });

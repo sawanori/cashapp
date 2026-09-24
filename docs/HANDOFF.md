@@ -1229,9 +1229,13 @@ task_006 側は「自分のファイルは既にコミット済み」として�
   この分岐が出るのは LIFF ID そのものが解決できないときなので、リンクの材料が無い。
   check_078 の 3 導線が実画面で揃うのは、`bootLiff()` の結果を画面が受ける task_014 以降。
   そこで `liffPermanentLink()` と現在の URL を渡すこと（C-013-9）。
-- **[severity: medium] `gate-web-only` は 1 度も実走していない**（GitHub リモート未作成）。
+- **[severity: medium] `gate-web-only` は push では緑だが、PR と 2 周目修正版はまだ通っていない。**
+  作業中に GitHub リモートが作成され、`gate-web-only / web-only` は 2 回とも success
+  （run 35985828331 / b1bc328、35984699932 / 62e31be。どちらも `push` イベント）。
+  ただし**走ったのは `delete env[...]` のままの 1 周目のスクリプト**であり、
+  2 周目の修正コミットは未 push（`git push` は禁止コマンド）。`pull_request` での緑も無い。
+  branch protection は `404 Branch not protected` で、required status checks も未登録（task_009）。
   この項目が残る限り task_013 を「完全達成」として扱わない（C-013-3）。
-  required status checks への `gate-web-only / web-only` 登録は task_009 側。
 - **[severity: medium] check_079 と R-LINE-04 はまだ「達成」ではない。**
   本リポジトリの `.next/static` には LIFF 由来の文字列が 1 つも無く、
   SDK が載った状態での grep は 1 度も走っていない（C-013-4）。→ task_014 で再実測。
@@ -1322,3 +1326,4 @@ task_006 側は「自分のファイルは既にコミット済み」として�
 - 2026-09-24T09:56:06Z HEAD=62e31be 決まったこと: task_007(2周目): 封筒の制約絞り込みを完全一致にし、レビュー封筒テストをリポジトリ状態から切り離す / 未解決: 未コミット 7 件: docs/HANDOFF.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json docs/run-log/task_012.json docs/run-log/task_013.json tests/gates/probe.test.ts 
 - 2026-09-24T09:58:33Z HEAD=62e31be 決まったこと: task_007(2周目): 封筒の制約絞り込みを完全一致にし、レビュー封筒テストをリポジトリ状態から切り離す / 未解決: 未コミット 7 件: docs/HANDOFF.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json docs/run-log/task_012.json docs/run-log/task_013.json tests/gates/probe.test.ts 
 - 2026-09-24T10:01:19Z HEAD=62e31be 決まったこと: task_007(2周目): 封筒の制約絞り込みを完全一致にし、レビュー封筒テストをリポジトリ状態から切り離す / 未解決: 未コミット 13 件: docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json docs/run-log/task_012.json docs/run-log/task_013.json docs/task-list.json 
+- 2026-09-24T10:24:52Z HEAD=48f3061 決まったこと: task_009(3周目): HANDOFF に 3 周目の直したこと・実測・残件を記録 / 未解決: 未コミット 25 件: .env.example .github/workflows/gate-web-only.yml docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_013.md docs/decisions/ADR-013-web-route-group.md docs/run-log/task_006.json docs/run-log/task_007.json 

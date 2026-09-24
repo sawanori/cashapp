@@ -98,7 +98,49 @@ liff.init({
   import は `src/lib/liff/mock.ts` の中だけに置き、`src/lib/liff/client.ts` からは
   `process.env.NEXT_PUBLIC_LIFF_MOCK === "1"` のガード内の動的 import でしか到達しない。
 
-## 4. ここに書いていないこと（未取得）
+## 4. パーマネントリンクの URL 形式（`liff.permanentLink`）
+
+`node_modules/@liff/permanent-link/lib/index.d.ts`:
+
+```ts
+export interface PermanentLinkModuleAPI {
+    createUrl: () => string;
+    createUrlBy: (url: string) => Promise<string>;
+    setExtraQueryParam: (paramsToAdd: string) => void;
+}
+```
+
+`node_modules/@liff/permanent-link/lib/index.es.js` の `createUrl` の末尾（minify 済み。原文ママ）:
+
+```js
+return "".concat(f).concat(m().liffId).concat(P);
+```
+
+`f` は `@liff/consts` の `PERMANENT_LINK_ORIGIN`、`m()` は `@liff/store` の `getConfig()`、
+`P` はエンドポイント URL からの相対パス（＋ query ＋ hash）である。
+`createUrlBy` 側は `r.miniDomainAllowed ? PERMANENT_LINK_ORIGIN_MINI : PERMANENT_LINK_ORIGIN` を使う。
+
+定数の実値（インストール済み配布物から直接読み出した。2026-09-24 実行）:
+
+```console
+$ node -e 'const c=require("./node_modules/@liff/consts/lib/index.cjs.js");
+           console.log(JSON.stringify({o:c.PERMANENT_LINK_ORIGIN,m:c.PERMANENT_LINK_ORIGIN_MINI}))'
+{"o":"https://liff.line.me/","m":"https://miniapp.line.me/"}
+```
+
+読み取れる事実:
+
+- LIFF アプリのパーマネントリンクは **`https://liff.line.me/{liffId}`**（＋ 相対パス）である。
+- ミニアプリのドメインが許可されている場合は `https://miniapp.line.me/{miniAppId}` になる。
+  `miniAppId` は `liff.init()` 後にサーバーから届く context の値で、**`liffId` からは導けない**。
+  したがって `src/lib/liff/client.ts` の `liffPermanentLink()` は `liff.line.me` 側だけを組み立てる。
+- `createUrl()` は `getAndValidateContext()` を通るので **`init` 成功後にしか使えない**。
+  SDK 読み込み失敗・`init` 失敗時の「LINE アプリで開く」導線には使えないため、
+  本リポジトリは LIFF ID だけから URL を組み立てる関数を別に持つ。
+
+---
+
+## 5. ここに書いていないこと（未取得）
 
 - LINE アプリが要求する OS 最小バージョン（`docs/supported-browsers.md` の [不明] 項目。T-P1-23）。
 - `shareTargetPicker` の最低 LINE バージョン（`docs/research/research-line-miniapp.md` §未解決 4。

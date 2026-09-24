@@ -114,3 +114,53 @@ describe("gate-web-only.yml の静的検証（実 PR での緑は deferred）", 
     expect(pkg.scripts?.["build:web-only"]).toContain("scripts/build-web-only.mjs");
   });
 });
+
+/**
+ * モックの定数畳み込みが成立する条件の回帰テスト（制約 I4 / check_079）。
+ *
+ * ★ 事実: Next.js がクライアント側の `process.env.NEXT_PUBLIC_*` を定数へ置換するのは
+ *   `node_modules/next/dist/lib/static-env.js` の `getNextPublicEnvironmentVariables()` で、
+ *   実装は `for (const key in process.env)` ＝ **存在するキーだけ** define にする。
+ *   したがって `NEXT_PUBLIC_LIFF_MOCK` を **未設定**にすると畳み込みが起きず、
+ *   `src/lib/liff/client.ts` の `await import("./mock")` が到達可能なまま残り、
+ *   `@line/liff-mock` がクライアントチャンクとして `.next/static` に出力される（実測で確認済み）。
+ *
+ * ★ したがって「未設定にする」実装（`delete env[...]`）に戻したら **落ちなければならない**。
+ */
+describe("NEXT_PUBLIC_LIFF_MOCK の定数畳み込み条件（制約 I4）", () => {
+  it("本番ビルド経路（build / build:cf）が NEXT_PUBLIC_LIFF_MOCK を定義している", async () => {
+    const pkg = JSON.parse(await readFile(path.join(REPO_ROOT, "package.json"), "utf8")) as {
+      scripts?: Record<string, string>;
+    };
+    const scripts = pkg.scripts ?? {};
+    for (const name of ["build", "build:cf"]) {
+      const script = scripts[name];
+      expect(script, `package.json に scripts.${name} が無い`).toBeTypeOf("string");
+      expect(
+        script,
+        `scripts.${name} が NEXT_PUBLIC_LIFF_MOCK を定義していない（未定義だと畳み込まれず` +
+          `@line/liff-mock が本番バンドルに載る）`,
+      ).toContain("NEXT_PUBLIC_LIFF_MOCK=");
+    }
+  });
+
+  it("build-web-only.mjs は NEXT_PUBLIC_LIFF_MOCK を削除せず、値を設定してビルドする", async () => {
+    const source = await readFile(path.join(REPO_ROOT, "scripts", "build-web-only.mjs"), "utf8");
+    expect(source, "delete で未設定にすると畳み込みが起きない").not.toMatch(
+      /delete\s+env\[["']NEXT_PUBLIC_LIFF_MOCK["']\]/,
+    );
+    expect(source).toContain("NEXT_PUBLIC_LIFF_MOCK: MOCK_DISABLED_VALUE");
+    expect(source).toMatch(/const MOCK_DISABLED_VALUE = "0"/);
+  });
+
+  it("Next.js の実装が『存在するキーだけを define にする』ままである", async () => {
+    // 前提が変わったら（Next の更新で未設定キーも define されるようになったら）
+    // 上の 2 つの縛りは不要になる。前提そのものを毎回確かめる。
+    const staticEnv = await readFile(
+      path.join(REPO_ROOT, "node_modules", "next", "dist", "lib", "static-env.js"),
+      "utf8",
+    );
+    expect(staticEnv).toContain("function getNextPublicEnvironmentVariables()");
+    expect(staticEnv).toMatch(/for\s*\(const key in process\.env\)/);
+  });
+});

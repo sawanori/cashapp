@@ -63,6 +63,13 @@ export default async function LiffLayout({
   const liffId = await resolveLiffId();
 
   if (liffId === null) {
+    // ★ ここでは「LINE アプリで開く」を出せない。**出せない理由は LIFF ID そのものが
+    //   解決できていないこと**で、パーマネントリンク（`https://liff.line.me/{liffId}`）を
+    //   組み立てる材料が無い。壊れたリンクを出すより無いほうがよいので、出さない。
+    //   出せるのは「もう一度読み込む」（`StaticFallback` の既定で常に出る）と幹事への連絡である。
+    //   起動後に SDK が落ちた場合（`bootLiff()` の `sdk_unavailable` / `init_failed`）は
+    //   LIFF ID が手元にあるので、画面側が `liffPermanentLink(liffId)` を渡して 3 つ揃える
+    //   （task_014 / check_078。docs/concerns/task_013.md C-013-9）。
     return (
       <div className="app-shell" data-route-group="liff">
         <StaticFallback reason="sdk_unavailable" />

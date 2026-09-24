@@ -19,8 +19,16 @@
  *
  * ★ SDK は npm 依存として固定したものを **動的 import** で読む（R-LINE-03、制約 I4）。
  *   CDN の直リンクは使わない。モック（`@line/liff-mock`）へ到達する経路は
- *   `process.env.NEXT_PUBLIC_LIFF_MOCK === "1"` のガードの内側だけにあり、
- *   本番ビルドではこの分岐ごと落ちる（`npm run build:web-only` が `.next` を grep して確かめる）。
+ *   `process.env.NEXT_PUBLIC_LIFF_MOCK === "1"` のガードの内側だけにある。
+ *
+ *   **この分岐が落ちる条件は「変数が未設定であること」ではない。`"1"` 以外の値が
+ *   設定されていることである。** Next.js がクライアント側の `process.env.NEXT_PUBLIC_*` を
+ *   定数へ置換するのは `node_modules/next/dist/lib/static-env.js` の
+ *   `getNextPublicEnvironmentVariables()` で、実装が `for (const key in process.env)` ＝
+ *   **存在するキーだけ**を define にするため、未設定だと置換自体が起きず、
+ *   `await import("./mock")` が到達可能なまま `@line/liff-mock` ごとチャンク化される（実測）。
+ *   そのため `package.json` の `build` / `build:cf` と `scripts/build-web-only.mjs` は
+ *   `NEXT_PUBLIC_LIFF_MOCK=0` を明示的に渡す。`npm run build:web-only` はその定義の有無自体も検査する。
  *
  * ★ 失敗は**必ず**機械可読なコードに分類して `POST /api/telemetry/client-error` へ 1 回だけ送る。
  *   例外メッセージ・スタック・URL は送らない（`src/lib/telemetry.ts`）。
@@ -119,7 +127,12 @@ export interface BootLiffDeps {
   readonly timeoutMs?: number;
 }
 
-/** モックを使うかどうか。ビルド時に定数へ畳まれる（本番では `false` になり分岐ごと消える）。 */
+/**
+ * モックを使うかどうか。
+ *
+ * ビルド時に定数へ畳まれるのは **`NEXT_PUBLIC_LIFF_MOCK` が `"1"` 以外の値で設定されている**
+ * ときだけである（未設定だと define が作られず、実行時判定のまま残る。冒頭の注記を参照）。
+ */
 function isMockEnabled(): boolean {
   return process.env["NEXT_PUBLIC_LIFF_MOCK"] === "1";
 }
@@ -127,9 +140,9 @@ function isMockEnabled(): boolean {
 /**
  * SDK を読む既定の実装。
  *
- * モックへ到達する経路は `isMockEnabled()` の内側にしか無い。本番ビルドでは
- * `process.env.NEXT_PUBLIC_LIFF_MOCK` が未定義として畳まれるため、`./mock` を指す
- * 動的 import ごと到達不能になる（制約 I4 / check_079）。
+ * モックへ到達する経路は `isMockEnabled()` の内側にしか無い。本番ビルドは
+ * `NEXT_PUBLIC_LIFF_MOCK=0` を明示的に渡すので `process.env.NEXT_PUBLIC_LIFF_MOCK` が
+ * `"0"` に畳まれ、`./mock` を指す動的 import ごと到達不能になる（制約 I4 / check_079）。
  */
 async function defaultLoadLiff(): Promise<LiffLike> {
   if (isMockEnabled()) {
@@ -209,6 +222,29 @@ export function readLiffIdFromDocument(doc?: Pick<Document, "querySelector">): s
   if (element === null) return null;
   const content = element.getAttribute("content");
   return content !== null && content.length > 0 ? content : null;
+}
+
+/**
+ * LIFF ID から「LINE アプリで開く」ためのパーマネントリンクを組み立てる。
+ *
+ * ★ 出どころは推測ではない。`@line/liff` 2.31.0 の同梱物がそのまま一次資料である
+ *   （`docs/vendor-docs/line/liff-sdk.md` §4、取得日 2026-09-24）。
+ *   `node_modules/@liff/permanent-link/lib/index.es.js` の `createUrl` は
+ *   `PERMANENT_LINK_ORIGIN + getConfig().liffId + パス` を返し、
+ *   `@liff/consts` の `PERMANENT_LINK_ORIGIN` は `"https://liff.line.me/"` である。
+ *
+ * ★ SDK の `liff.permanentLink.createUrl()` は `liff.init()` の成功後にしか使えない
+ *   （サーバーから取った context が要る）。**SDK が落ちたときの導線**にはそれでは間に合わないので、
+ *   ここでは LIFF ID だけから組み立てる。したがって `StaticFallback` / `StateView` の
+ *   「LINE アプリで開く」は `init` が失敗していても出せる（check_078）。
+ *
+ * @param liffId `(liff)` レイアウトが実行時に渡した LIFF ID。
+ * @returns 空文字の `liffId` を渡されたときは `null`（壊れたリンクを出さない）。
+ */
+export function liffPermanentLink(liffId: string): string | null {
+  const trimmed = liffId.trim();
+  if (trimmed.length === 0) return null;
+  return `https://liff.line.me/${encodeURIComponent(trimmed)}`;
 }
 
 /**

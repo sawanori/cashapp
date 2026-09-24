@@ -6,8 +6,10 @@
 #   （docs/implementation-plan.md §16-6 の表で `web-only` は ✔（task_013 以降））。
 #
 # ★ このジョブが確かめること（scripts/build-web-only.mjs のコメントと同じ 3 点）
-#   1. `src/app/(web)/**` と共有ルートレイアウトから `@line/liff` / `@line/liff-mock` /
-#      `src/lib/liff/**` へ到達しない（import グラフの静的走査）
+#   0. `package.json` の `build` / `build:cf` が `NEXT_PUBLIC_LIFF_MOCK` を定義している
+#      （未定義だと Next が define を作らず、モックの分岐が畳み込まれない）
+#   1. `src/lib/liff/**` と `src/app/(liff)/**` 以外のどのファイルも `@line/liff` /
+#      `@line/liff-mock` / `src/lib/liff/**` を参照しない（src/ 全走査 ＋ import グラフ）
 #   2. `next build` が成功する
 #   3. `.next/static/**` に `@line/liff-mock` 由来の識別子と dev / review の LIFF ID が無い
 #      （R-LINE-04 の「production バンドルへの dev LIFF ID 混入 grep」/ check_079）
@@ -49,6 +51,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # NEXT_PUBLIC_LIFF_MOCK はスクリプト側でも削除するが、CI 環境にも置かない。
+      # NEXT_PUBLIC_LIFF_MOCK はスクリプト側が `0` を明示的に設定してから next build を起動する
+      # （未設定にすると Next が define を作らず、モックの分岐が畳み込まれない）。
+      # CI 環境変数としてここに `1` を置かないこと。
       - name: LINE 非依存ビルドとバンドル検査
         run: npm run build:web-only
