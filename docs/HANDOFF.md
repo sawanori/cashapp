@@ -672,6 +672,57 @@ task_006 側は「自分のファイルは既にコミット済み」として�
   落とせない）。`meta.test.ts` が「`blocked_on` の task がまだ未完であること」を検査しているので、
   task_018 が完了した時点でテストが赤くなり、埋め忘れを検知する。
 
+## task_012（レビュー修正・2 周目）
+
+### 決まったこと
+
+- **CSP はレスポンスとリクエストの両方に載せる**。`src/middleware.ts` は CSP をレスポンスに
+  載せるだけで、nonce は独自ヘッダ `x-csp-nonce` でリクエストへ渡していた。ところが Next.js が
+  自前の `<script>`（ブートストラップと `self.__next_f` のインラインデータ）へ nonce を付ける経路は
+  **リクエストヘッダの `Content-Security-Policy` を読む 1 本だけ**で、独自ヘッダは見ない
+  （`node_modules/next/dist/server/app-render/app-render.js:209-210` が
+  `headers['content-security-policy']` から `getScriptNonceFromHeader()` を呼ぶ。Next 16.3.6 で確認）。
+  配信 CSP は `script-src 'nonce-…' 'strict-dynamic'`（`'self'` も `'unsafe-inline'` も無い）なので、
+  この状態で LIFF フロントを載せると**アプリの JS が全部ブロックされて画面が hydration しない**。
+  `requestHeaders.set(CSP_HEADER, buildContentSecurityPolicy(nonce))` を追加して塞いだ。
+  → **task_013 へ**: この 1 行を「重複だから」と消さないこと。理由は C-012-16 と当該コードの doc コメント。
+- **再発検出はヘッダ文字列の自前比較では作れない**。`tests/unit/security-headers.test.ts` に
+  **Next.js 自身の抽出関数**（`next/dist/server/app-render/get-script-nonce-from-header`）を直接呼ぶ
+  検査を 7 ケース足した。`NextResponse.next({ request: { headers } })` が上書きヘッダを畳む
+  `x-middleware-override-headers` / `x-middleware-request-*` を解いて、レンダラが受け取る
+  リクエストヘッダを実際に検査している。修正行を外すと 6 ケースが落ちることを実測した（負の対照）。
+  この deep import が壊れたら、それ自体が Next 側の nonce 伝播経路が変わった合図である。
+- **`gate:env` の「本番値の混入」検出には 2 つの形があり、片側だけ実装されていた**。
+  衝突型（staging と production に同じリテラル）は検査 (3) が捕まえるが、
+  片側混入型（本番の ref を **staging だけ**に書く）は素通りしていた。実リポジトリでは
+  `SUPABASE_PROJECT_REF` も LIFF ID も `wrangler.toml` に現れず secret 側にあるため、
+  混入が起きるならまさに片側混入型になる。検査 (7) を追加し、
+  `src/lib/config/env.ts` の `EXPECTED_SUPABASE_PROJECT_REF`（起動時アサートが使う**同じ正本**。
+  値を書き写さず `.mjs` から読む）と突き合わせる形にした。実 ref が入った瞬間に自動で実効化する。
+- **pending の文言は「検査していない範囲」を隠さない**。修正前の
+  `(the runtime/staging/production leak checks above still ran)` は実際より広い範囲を検査したように
+  読めたので、実走した 3 項目を列挙し「片側混入は (3) では検出できない」と明記する文言に置き換えた。
+
+### 未解決
+
+- **（deferred）`.dev.vars.example` に起動時必須の 4 変数（`LINE_ENV_PROFILE` / `PEPPER` /
+  `SESSION_KEYS` / `CRON_SECRETS`）が無い**。`wrangler dev` と `next dev` の platform proxy が読むのは
+  `.dev.vars` であって `.env` / `.env.local` ではないため、雛形どおりコピーした開発者は
+  `/api/auth/line`・`/api/me`・`/api/consent` が 500、`/api/health` が 503 になる。
+  `.dev.vars.example` は **task_003 の所有ファイル**なので追記していない。
+  代わりに `gate:env` が毎回 pending で名指しするようにし、テストでその出力を固定した（C-012-14）。
+  → **task_003 / task_035 へ**: 4 変数のローカル用ダミーを追記すれば pending は自動で消える。
+- **（deferred）本番 LIFF ID / 本番 Hyperdrive id の片側混入は今も検出できない**。
+  ソース固定の宣言が無いため。`docs/ops/env-baseline.json` の `production_only_values`
+  （`checkBaseline()` が既に読む形）待ち（C-012-15）。→ **task_035 / task_024 へ**。
+- **（deferred）レート制限のバインディングが `wrangler.toml` に無い**ままで、
+  デプロイ環境では `/api/auth/line` が常に 503（C-012-2）。`wrangler.toml` は担当範囲外。
+  → **task_024 / task_035 へ**。
+- **（deferred）CI 実走は未実施**（GitHub リモート未作成）。→ **task_009 / task_024 へ**（C-012-12）。
+- **（未対応・他タスク）** `docs/acceptance-checks.json` の check_058 / 072 / 075 が名指しする
+  `tests/security/{csrf,xss-csp,id-token-replay}.test.ts` は task_022 の `files_to_create` なので
+  作っていない。実際の検査場所の対応表は C-012-7 にある。→ **task_022 へ**。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -724,3 +775,9 @@ task_006 側は「自分のファイルは既にコミット済み」として�
 - 2026-09-24T06:59:43Z HEAD=c053281 決まったこと: chore: 検証エージェントが残した run-log / HANDOFF の追記をコミット（hardening 完了時点） / 未解決: 未コミット 3 件: docs/HANDOFF.md docs/run-log/task_012.json tests/gates/ 
 - 2026-09-24T07:41:49Z HEAD=c053281 決まったこと: chore: 検証エージェントが残した run-log / HANDOFF の追記をコミット（hardening 完了時点） / 未解決: 未コミット 41 件: .claude/settings.json .env.example docs/HANDOFF.md docs/PROGRESS.md package.json src/app/api/health/route.ts tests/unit/health.test.ts vitest.config.ts 
 - 2026-09-24T07:43:56Z HEAD=3cc3a19 決まったこと: task_006: gate-check（G0〜G14）・違反フィクスチャ 23 本・メタゲート・フック実在マトリクスの実測 / 未解決: 未コミット 1 件: tests/gates/probe.test.ts 
+- 2026-09-24T07:44:36Z HEAD=597123e 決まったこと: task_012: コミット 20f379f に task_006 の成果物が巻き込まれた経緯を HANDOFF に記録（履歴は書き換えない） / 未解決: 未コミット 3 件: docs/run-log/task_006.json docs/run-log/task_012.json tests/gates/probe.test.ts 
+- 2026-09-24T07:47:37Z HEAD=17edb6e 決まったこと: task_006: 最終 HEAD での verify_commands 再実行ログ（全 exit 0） / 未解決: 未コミット 3 件: docs/HANDOFF.md docs/run-log/task_012.json tests/gates/probe.test.ts 
+- 2026-09-24T07:50:36Z HEAD=17edb6e 決まったこと: task_006: 最終 HEAD での verify_commands 再実行ログ（全 exit 0） / 未解決: 未コミット 4 件: docs/HANDOFF.md docs/run-log/task_006.json docs/run-log/task_012.json tests/gates/probe.test.ts 
+- 2026-09-24T07:59:45Z HEAD=17edb6e 決まったこと: task_006: 最終 HEAD での verify_commands 再実行ログ（全 exit 0） / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_006.json docs/run-log/task_012.json src/middleware.ts tests/gates/probe.test.ts 
+- 2026-09-24T07:59:49Z HEAD=17edb6e 決まったこと: task_006: 最終 HEAD での verify_commands 再実行ログ（全 exit 0） / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_006.json docs/run-log/task_012.json src/middleware.ts tests/gates/probe.test.ts 
+- 2026-09-24T08:03:42Z HEAD=17edb6e 決まったこと: task_006: 最終 HEAD での verify_commands 再実行ログ（全 exit 0） / 未解決: 未コミット 7 件: docs/HANDOFF.md docs/run-log/task_006.json docs/run-log/task_012.json scripts/gate-env-scope.mjs src/middleware.ts tests/unit/security-headers.test.ts tests/gates/probe.test.ts 

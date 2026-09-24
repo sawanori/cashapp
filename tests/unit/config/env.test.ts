@@ -321,4 +321,49 @@ describe("npm run gate:env（scripts/gate-env-scope.mjs）", () => {
     expect(result.exitCode).toBe(0);
     expect(result.output).toContain("0 violation(s)");
   });
+
+  /**
+   * 片側混入型（本番の値を staging **だけ**に書く）の検出。
+   *
+   * staging と production の「値の衝突」検査は、production 側に同じリテラルが無い形を
+   * 素通りさせる。実リポジトリでは `SUPABASE_PROJECT_REF` も LIFF ID も wrangler.toml に
+   * 現れず secret 側にあるため、混入が起きるならまさにこの形になる。
+   * ソース固定の宣言（`EXPECTED_SUPABASE_PROJECT_REF`）と突き合わせる検査だけがこれを捕まえる。
+   */
+  it("本番 ref を staging にだけ書いた fixture では非 0（衝突しないので値比較では捕まらない形）", () => {
+    const result = runGateEnv(path.join(FIXTURES, "one-sided-leak"));
+    expect(result.exitCode).not.toBe(0);
+    expect(result.output).toContain("production Supabase project ref appears outside [env.production]");
+    expect(result.output).toContain("SUPABASE_PROJECT_REF");
+    // 値の衝突検査の方は（正しく）通っている＝この違反は検査 (7) だけが出したものである。
+    expect(result.output).toContain("staging and production share no non-trivial value");
+  });
+
+  it("実 ref が正しい environment に置かれた fixture では exit 0（誤検知しない）", () => {
+    const result = runGateEnv(path.join(FIXTURES, "pinned-ok"));
+    expect(result.exitCode).toBe(0);
+    expect(result.output).toContain("production Supabase project ref does not appear outside [env.production]");
+    expect(result.output).toContain("staging Supabase project ref does not appear outside [env.staging]");
+  });
+
+  /**
+   * 実リポジトリでは ref がまだプレースホルダなので片側混入は**検出できない**。
+   * 出力がそれを隠していないこと（「検査した」と誤読させないこと）を検査する。
+   */
+  it("ref が未採番のあいだ、片側混入を検出できない旨が pending に出る", () => {
+    const result = runGateEnv(REPO_ROOT);
+    expect(result.output).toContain("one-sided injection of the production Supabase project ref is NOT checked");
+    expect(result.output).toContain("片側混入を検出できない本番資源が残っている");
+  });
+
+  /**
+   * `.dev.vars.example` は `wrangler dev` / `next dev` の platform proxy が読む
+   * **ランタイム経路の**雛形である。`.env.example` にしか名前が無い必須秘密値は
+   * 「雛形どおりコピーしたのにローカルで 500 / 503 になる」を生むので、pending に出す。
+   */
+  it("必須秘密値が .dev.vars.example に無いことを pending として出す", () => {
+    const result = runGateEnv(REPO_ROOT);
+    expect(result.output).toContain(".dev.vars.example に無い必須秘密値");
+    expect(result.output).toContain("LINE_ENV_PROFILE");
+  });
 });

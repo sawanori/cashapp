@@ -7,7 +7,8 @@
  * 対応リスク: R-SEC-12 / R-SEC-05。
  */
 
-import { NextRequest } from "next/server";
+import { getScriptNonceFromHeader } from "next/dist/server/app-render/get-script-nonce-from-header";
+import { NextRequest, type NextResponse } from "next/server";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -178,5 +179,118 @@ describe("middleware", () => {
     setAppEnv("production");
     expect(middleware(requestFor("/api/webhooks/paypay/binding-1")).status).toBe(200);
     expect(middleware(requestFor("/api/cron/reconcile")).status).toBe(200);
+  });
+});
+
+/**
+ * nonce CSP が**実際に機能する**ことの検査（レビュー指摘 high の再発防止）。
+ *
+ * ヘッダ文字列の比較だけでは足りない。Next.js が自前の `<script>`
+ * （ブートストラップと `self.__next_f` のインラインデータ）へ nonce を付ける経路は
+ * **リクエストヘッダの `Content-Security-Policy` を読む 1 本だけ**で、
+ * `x-csp-nonce` のような独自ヘッダは見ない。
+ * レスポンスにだけ CSP を載せると、配信される CSP は nonce を要求するのに
+ * script に nonce が付かず、ブラウザがアプリの JS を全部ブロックする。
+ *
+ * ここでは Next.js 自身の抽出関数（`getScriptNonceFromHeader`）に、middleware が
+ * リクエスト側へ載せた CSP をそのまま食わせて、nonce が取り出せることを確かめる。
+ * 自前の再実装で照合すると Next の実装が変わったときに気づけないので、
+ * わざと Next の関数を直接呼ぶ（import が壊れたら、それ自体が伝播経路の変更の合図になる）。
+ */
+describe("middleware の nonce が Next.js のレンダリング経路へ届く", () => {
+  /**
+   * `NextResponse.next({ request: { headers } })` は上書きしたリクエストヘッダを
+   * `x-middleware-request-<name>` と `x-middleware-override-headers` に畳んで返す
+   * （node_modules/next/dist/server/web/spec-extension/response.js の handleMiddlewareField）。
+   * Next のサーバはこれを解いてから app-render に渡すため、ここを読めば
+   * 「レンダラが受け取るリクエストヘッダ」を検査できる。
+   */
+  function overriddenRequestHeaders(response: NextResponse): Map<string, string> {
+    const keys = response.headers.get("x-middleware-override-headers");
+    const out = new Map<string, string>();
+    if (keys === null) return out;
+    for (const key of keys.split(",")) {
+      const value = response.headers.get(`x-middleware-request-${key}`);
+      if (value !== null) out.set(key, value);
+    }
+    return out;
+  }
+
+  /** リクエスト側へ載った CSP。無ければ（＝伝播経路が壊れていれば）その場で落とす。 */
+  function requestCspOf(response: NextResponse): string {
+    const csp = overriddenRequestHeaders(response).get(CSP_HEADER.toLowerCase());
+    if (csp === undefined) {
+      throw new Error(
+        "middleware did not put Content-Security-Policy on the request headers — " +
+          "Next.js cannot attach a nonce to its own <script> tags without it",
+      );
+    }
+    return csp;
+  }
+
+  /** Next.js 自身の抽出関数で nonce を取り出す。取れなければ落とす。 */
+  function nonceOf(csp: string): string {
+    const nonce = getScriptNonceFromHeader(csp);
+    if (nonce === undefined) {
+      throw new Error(`Next.js could not extract a nonce from: ${csp}`);
+    }
+    return nonce;
+  }
+
+  it("リクエストヘッダにも CSP が載る（Next の nonce 伝播の唯一の入口）", () => {
+    setAppEnv("production");
+    const requestCsp = requestCspOf(middleware(requestFor("/")));
+    expect(requestCsp).toContain("script-src 'nonce-");
+    expect(requestCsp).toContain("'strict-dynamic'");
+  });
+
+  it("Next.js 自身の抽出関数がリクエスト側 CSP から nonce を取り出せる", () => {
+    setAppEnv("production");
+    const nonce = nonceOf(requestCspOf(middleware(requestFor("/"))));
+    expect(nonce.length).toBeGreaterThan(0);
+  });
+
+  it("リクエスト側の CSP と、配信される CSP が同一である", () => {
+    setAppEnv("production");
+    const response = middleware(requestFor("/"));
+    const requestCsp = requestCspOf(response);
+    const responseCsp = response.headers.get(CSP_HEADER);
+    expect(requestCsp).toBe(responseCsp);
+    expect(responseCsp).not.toBeNull();
+    expect(nonceOf(requestCsp)).toBe(nonceOf(responseCsp ?? ""));
+  });
+
+  it("クライアントが送りつけた CSP ヘッダは上書きされる", () => {
+    setAppEnv("production");
+    const request = new NextRequest(
+      new Request("https://example.test/", {
+        headers: { [CSP_HEADER]: "script-src 'nonce-attackerchosen'" },
+      }),
+    );
+    const requestCsp = requestCspOf(middleware(request));
+    expect(requestCsp).not.toContain("attackerchosen");
+    expect(nonceOf(requestCsp)).not.toBe("attackerchosen");
+  });
+
+  it("nonce はリクエストごとに変わる（リクエスト側でも）", () => {
+    setAppEnv("production");
+    const first = nonceOf(requestCspOf(middleware(requestFor("/"))));
+    const second = nonceOf(requestCspOf(middleware(requestFor("/"))));
+    expect(first).not.toBe(second);
+  });
+
+  it("nonce は Next の CSP_NONCE_SOURCE_REGEX に通る 128 ビット base64 である", () => {
+    setAppEnv("production");
+    const nonce = nonceOf(requestCspOf(middleware(requestFor("/"))));
+    // Next の CSP_NONCE_SOURCE_REGEX は [A-Za-z0-9+/_-]+={0,2} しか受け付けない。
+    expect(nonce).toMatch(/^[A-Za-z0-9+/_-]+={0,2}$/);
+    expect(Buffer.from(nonce, "base64").length).toBe(16);
+  });
+
+  it("404 側（非 production の webhook / cron）はレンダリングしないので CSP はレスポンスだけでよい", () => {
+    setAppEnv("staging");
+    const response = middleware(requestFor("/api/cron/reconcile"));
+    expect(response.status).toBe(404);
+    expect(response.headers.get(CSP_HEADER)).toContain("script-src 'nonce-");
   });
 });

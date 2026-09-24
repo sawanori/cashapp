@@ -171,7 +171,8 @@ LIFF アプリが iframe に置かれる要件があるか、LIFF SDK が他の�
 **指摘**: `docs/ops/env-baseline.json` は **task_035 の `files_to_create`** なので本タスクでは作っていない。
 無い間、`scripts/gate-env-scope.mjs` はその節を `pending` として出力し exit 0 のままにする。
 いま実走しているのは「staging と production が値を共有していないこと」「秘密値が `[vars]` に無いこと」
-「service role キーがランタイムに無いこと」「必須の秘密値の名前が雛形にあること」の 4 つである。
+「service role キーがランタイムに無いこと」「必須の秘密値の名前が雛形にあること」
+「ソース固定の Supabase project ref が自分の environment の外に出ていないこと（検査 (7)）」の 5 つである。
 
 **対応案**: task_035 が `env-baseline.json` を作る際、`runtimes` と `production_only_values` を
 `scripts/gate-env-scope.mjs` の `checkBaseline()` が読む形（同ファイルの doc コメントに記載）で書く。
@@ -203,3 +204,94 @@ task_012 の done_definition に CI 項目は無い。
 `docs/vendor-docs/line/verify.md` を取り直す。
 
 **対応予定タスク**: なし（記録のみ）
+
+---
+
+## C-012-14 [medium, deferred] `.dev.vars.example` に起動時必須の 4 変数が無い
+
+**指摘**: `LINE_ENV_PROFILE` / `PEPPER` / `SESSION_KEYS` / `CRON_SECRETS` の雛形は
+`.env.example` にしか書いていない。しかし `wrangler dev`（`npm run cf:dev`）と
+`next dev`（`initOpenNextCloudflareForDev` の platform proxy）が読むのは **`.dev.vars`** であって
+`.env` / `.env.local` ではない。ルートハンドラは `getCloudflareContext().env` から
+`loadAppConfig()` を呼ぶため、`.dev.vars.example` をコピーしただけの開発者は
+`/api/auth/line`・`/api/me`・`/api/consent` が 500、`/api/health` が 503 になる。
+
+`.dev.vars.example` は **task_003 の所有ファイル**で task_012 の `files_to_modify` に無いため、
+本タスクでは追記していない（他タスクの成果物を書き換えない規約）。
+
+**いま打った手**: `scripts/gate-env-scope.mjs` の検査 (5) を分けて、
+「名前がどこかの雛形にある」（従来どおり violation 判定）と
+「ランタイム経路の雛形＝`.dev.vars.example` にある」（**pending** として毎回出力）を別々に報告するようにした。
+`npm run gate:env` の出力に
+`.dev.vars.example に無い必須秘密値: LINE_ENV_PROFILE, PEPPER, SESSION_KEYS, CRON_SECRETS` が毎回出る。
+`tests/unit/config/env.test.ts` がこの pending 行の存在を検査している。
+
+**対応案**: **deferred: task_003 / task_035 の担当範囲で `.dev.vars.example` に
+ローカル用ダミー値を追記する**。追記されれば gate:env の pending は自動で消え、
+`ok .dev.vars.example carries every startup-required secret name` に変わる。
+
+**対応予定タスク**: task_003 / task_035
+
+---
+
+## C-012-15 [medium] `gate:env` の片側混入検出は Supabase project ref だけで、LIFF ID / Hyperdrive id は未カバー
+
+**指摘**: 「本番の値が staging に混入していないこと」の検出には 2 つの形がある。
+
+| 形 | 例 | 捕まえる検査 |
+|---|---|---|
+| 衝突型 | staging と production に同じリテラル | 検査 (3)（値の共有） |
+| 片側混入型 | 本番の ref を **staging だけ**に書く | 「その値が本番専用だ」という環境から独立した宣言が要る |
+
+修正前は検査 (3) しか無く、片側混入型を素通りさせていた（レビュー指摘 medium）。
+実リポジトリでは `SUPABASE_PROJECT_REF` も LIFF ID も `wrangler.toml` に現れず secret 側にあるため、
+混入が起きるならまさに片側混入型になる。
+
+**いま打った手**: 検査 (7) を追加し、`src/lib/config/env.ts` の
+`EXPECTED_SUPABASE_PROJECT_REF`（起動時アサートが使う**同じ正本**。値を書き写さず読む）と
+`wrangler.toml` を突き合わせて、ref が自分の environment の外に現れたら violation にした。
+フィクスチャ 2 本（`one-sided-leak` = 非 0 / `pinned-ok` = 0）で機械検査している。
+ref がプレースホルダのあいだは検出できないので、その旨を pending として必ず出力する
+（修正前の `(the runtime/staging/production leak checks above still ran)` は実際より広い範囲を
+検査したように読めたので、実走した 3 項目を列挙する文言に置き換えた）。
+
+**残る穴**: 本番 LIFF ID と本番 Hyperdrive id にはソース固定の宣言が無いので、
+片側混入を検出できない。gate:env は
+`片側混入を検出できない本番資源が残っている: production LIFF ID / production Hyperdrive id`
+を pending として毎回出力する。
+
+**対応案**: task_035 が `docs/ops/env-baseline.json` の `production_only_values` に
+本番 LIFF ID / Hyperdrive id を入れる（`checkBaseline()` が既に読む形）。
+入った時点でこの pending 行は自動で消える。
+
+**対応予定タスク**: task_035 / task_024
+
+---
+
+## C-012-16 [記録] CSP はレスポンスとリクエストの**両方**に載せる必要がある（消さないこと）
+
+**指摘**: `src/middleware.ts` は CSP をレスポンスヘッダと**リクエストヘッダの両方**に設定する。
+一見すると重複だが、リクエスト側は削れない。
+Next.js が自前の `<script>`（ブートストラップと `self.__next_f` のインラインデータ）に nonce を付ける経路は
+**リクエストヘッダの `Content-Security-Policy` を読む 1 本だけ**で、
+`x-csp-nonce` のような独自ヘッダは見ない
+（`node_modules/next/dist/server/app-render/app-render.js:209-210` が
+`headers['content-security-policy']` から `getScriptNonceFromHeader()` を呼ぶ。Next 16.3.6 で確認）。
+
+リクエスト側を落とすと、配信される CSP は `script-src 'nonce-…' 'strict-dynamic'`
+（`'self'` も `'unsafe-inline'` も無い）なのに出力される script に nonce が付かず、
+ブラウザがアプリの JS を**全部**ブロックする。プレースホルダの `page.tsx` しか無いうちは無症状で、
+task_013 が LIFF フロントを載せた瞬間に画面が hydration しない形で出る。
+
+**いま打った手**: `requestHeaders.set(CSP_HEADER, buildContentSecurityPolicy(nonce))` を追加し、
+`tests/unit/security-headers.test.ts` に検査を 7 ケース足した。
+ヘッダ文字列の自前比較では再発を検出できないので、**Next.js 自身の抽出関数**
+（`next/dist/server/app-render/get-script-nonce-from-header`）を直接呼び、
+middleware がリクエスト側へ載せた CSP から nonce が取り出せること・
+レスポンス側の CSP と一致することを検査する。
+修正行を外すと 6 ケースが落ちることを実測で確認した（負の対照）。
+
+**対応案**: 触らない。`next/dist/...` への deep import が壊れたら、それ自体が
+Next 側の nonce 伝播経路が変わった合図なので、伝播を取り直してからテストを直すこと。
+
+**対応予定タスク**: なし（記録のみ。実機での CSP 実測は C-012-3 のとおり task_013 / task_022）

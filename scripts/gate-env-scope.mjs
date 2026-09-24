@@ -8,6 +8,15 @@
  *   「必須の秘密値の名前が、どこかに書かれている（雛形として辿れる）」
  *   の 3 点を、**デプロイせずにリポジトリの中身だけで**確かめる。
  *
+ * ★ 「本番の値が staging に混入していない」の検出には**二重の経路**が要る。
+ *   (a) staging と production が同じ値を書いている（衝突型）→ 検査 (3)。
+ *   (b) 本番の値を staging **だけ**に書いた（片側混入型）→ 衝突しないので (3) では捕まらない。
+ *       これを捕まえるには「その値が本番専用である」という宣言が要る。宣言の出どころは 2 つ:
+ *       - `src/lib/config/env.ts` の `EXPECTED_SUPABASE_PROJECT_REF`（ソース固定。検査 (7)）
+ *       - `docs/ops/env-baseline.json` の `production_only_values`（task_035 が作る。検査 (4)）
+ *       どちらも未投入（プレースホルダ／ファイル不在）の間は**片側混入を検出できない**。
+ *       その事実は pending として必ず出力する（「検査した」と誤読させない）。
+ *
  * 見るファイル:
  *   - wrangler.toml                     … メインアプリ Worker
  *   - workers/cron/wrangler.toml        … cron 専用 Worker
@@ -77,6 +86,25 @@ const ENV_APP_ENV = {
   staging: "staging",
   production: "production",
 };
+
+/**
+ * ソース固定の「環境専用値」宣言の出どころ（`src/lib/config/env.ts`）。
+ *
+ * ここを読むのは、片側混入（本番の ref を staging **だけ**に書く）を捕まえるためである。
+ * 値をこのゲートに書き写すと更新箇所が 2 つに増えて必ずずれるので、**写さずに読む**。
+ * `EXPECTED_SUPABASE_PROJECT_REF` は起動時アサートが使う正本でもあるため、
+ * task_035 / task_024 が実 ref を入れた瞬間に、この検査も自動で実効化する。
+ */
+const PINNED_REF_SOURCE = "src/lib/config/env.ts";
+const PINNED_REF_CONST = "EXPECTED_SUPABASE_PROJECT_REF";
+/** 実値が未採番のあいだ置かれているプレースホルダの接頭辞。 */
+const PLACEHOLDER_PREFIX = "REPLACE_WITH_";
+
+/**
+ * 実値が入っても（形の上では）ソース固定の宣言を持たない本番資源。
+ * 片側混入を検出できないことを pending で明示するために名前だけ持つ。
+ */
+const UNPINNED_PRODUCTION_RESOURCES = ["production LIFF ID", "production Hyperdrive id"];
 
 function parseArgs(argv) {
   const args = { root: REPO_ROOT, live: true };
@@ -190,6 +218,91 @@ function readEnvNames(text) {
   return { names, commented };
 }
 
+/**
+ * `src/lib/config/env.ts` の `EXPECTED_SUPABASE_PROJECT_REF` を**ソースのまま読む**。
+ *
+ * .mjs から .ts を import できないので、対象の object literal だけを正規表現で切り出す。
+ * 形が変わって読めなくなったときは `null` を返し、呼び出し側が pending を出す
+ * （黙って「検査した」ことにしない）。
+ *
+ * @returns {{ staging: string | null, production: string | null } | null}
+ */
+function readPinnedProjectRefs(repoRoot) {
+  const file = path.join(repoRoot, PINNED_REF_SOURCE);
+  if (!existsSync(file)) return null;
+  const text = readFileSync(file, "utf8");
+  const start = text.indexOf(PINNED_REF_CONST);
+  if (start < 0) return null;
+  const open = text.indexOf("{", start);
+  const close = text.indexOf("};", open);
+  if (open < 0 || close < 0) return null;
+  const block = text.slice(open, close);
+  const pick = (key) => {
+    const match = new RegExp(`\\b${key}\\s*:\\s*"([^"]*)"`).exec(block);
+    return match === null ? null : match[1];
+  };
+  return { staging: pick("staging"), production: pick("production") };
+}
+
+/** プレースホルダ（実値が未採番）なら true。 */
+function isPlaceholderRef(value) {
+  return value === null || value.length === 0 || value.startsWith(PLACEHOLDER_PREFIX);
+}
+
+/**
+ * 検査 (7): ソース固定の環境専用値が、その環境の外に書かれていないこと（片側混入型）。
+ *
+ * 検査 (3)（staging と production の値の衝突）は、本番の値を **staging だけ**に書いた場合を
+ * 素通りさせる。ここはその穴を、環境から独立した宣言（ソース固定の ref）で塞ぐ。
+ */
+function checkPinnedRefs(pinned, byRuntime, sink) {
+  if (pinned === null) {
+    sink.pending.push(
+      `${PINNED_REF_SOURCE} の ${PINNED_REF_CONST} を読めなかった — ` +
+        "one-sided injection of the production Supabase project ref is NOT checked",
+    );
+    return;
+  }
+
+  /** @type {{ ref: string, ownerEnv: string, label: string }[]} */
+  const pins = [];
+  if (isPlaceholderRef(pinned.production)) {
+    sink.pending.push(
+      `${PINNED_REF_CONST}.production is still a placeholder — ` +
+        "one-sided injection of the production Supabase project ref is NOT checked (task_024)",
+    );
+  } else {
+    pins.push({ ref: pinned.production, ownerEnv: "production", label: "production Supabase project ref" });
+  }
+  if (isPlaceholderRef(pinned.staging)) {
+    sink.pending.push(
+      `${PINNED_REF_CONST}.staging is still a placeholder — ` +
+        "one-sided injection of the staging Supabase project ref is NOT checked (task_035)",
+    );
+  } else {
+    pins.push({ ref: pinned.staging, ownerEnv: "staging", label: "staging Supabase project ref" });
+  }
+
+  for (const pin of pins) {
+    let leaked = false;
+    for (const [label, assignments] of byRuntime.entries()) {
+      for (const assignment of assignments) {
+        if (assignment.env === pin.ownerEnv) continue;
+        if (!assignment.value.includes(pin.ref)) continue;
+        leaked = true;
+        sink.violations.push(
+          `${label}: ${pin.label} appears outside [env.${pin.ownerEnv}] ` +
+            `([${assignment.path}] ${assignment.key}) — pinned in ${PINNED_REF_SOURCE}`,
+        );
+      }
+    }
+    // 違反を出したうえで ok も出すと出力が自己矛盾する。通ったときだけ ok を出す。
+    if (!leaked) {
+      sink.ok.push(`${pin.label} does not appear outside [env.${pin.ownerEnv}]`);
+    }
+  }
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const violations = [];
@@ -291,6 +404,8 @@ function main() {
 
   // (4) docs/ops/env-baseline.json（期待名の正本。task_035 が作る）。
   const baselinePath = path.join(args.root, "docs/ops/env-baseline.json");
+  /** baseline が `production_only_values` を実際に供給したか（pending の文言を変える）。 */
+  let baselineCoversProductionOnlyValues = false;
   if (existsSync(baselinePath)) {
     let baseline;
     try {
@@ -301,11 +416,26 @@ function main() {
     }
     if (baseline !== undefined) {
       checkBaseline(baseline, byRuntime, { violations, pending, ok, root: args.root });
+      baselineCoversProductionOnlyValues = (baseline.production_only_values ?? []).length > 0;
     }
   } else {
     pending.push(
-      "docs/ops/env-baseline.json not found — expected-name comparison is deferred to task_035 " +
-        "(the runtime/staging/production leak checks above still ran)",
+      "docs/ops/env-baseline.json not found — expected-name comparison is deferred to task_035. " +
+        "実走したのは (1) 禁止名がランタイム var に無い / (2) APP_ENV が environment 名と一致 / " +
+        "(3) staging と production が同じ値を共有していない、の 3 つだけである。" +
+        "本番の値を staging **だけ**に書いた片側混入は (3) では検出できない",
+    );
+  }
+
+  // (7) ソース固定の環境専用値（片側混入型の検出）。baseline の有無に関わらず走る。
+  //     宣言は「検査対象のツリー」に属するので args.root を先に見る。フィクスチャが
+  //     自前の src/lib/config/env.ts を置けるようにするためで、無ければ実リポジトリを見る。
+  const pinnedRoot = existsSync(path.join(args.root, PINNED_REF_SOURCE)) ? args.root : REPO_ROOT;
+  checkPinnedRefs(readPinnedProjectRefs(pinnedRoot), byRuntime, { violations, pending, ok });
+  if (!baselineCoversProductionOnlyValues) {
+    pending.push(
+      `片側混入を検出できない本番資源が残っている: ${UNPINNED_PRODUCTION_RESOURCES.join(" / ")}。` +
+        "ソース固定の宣言が無く、docs/ops/env-baseline.json の production_only_values 待ち（task_035 / task_024）",
     );
   }
 
@@ -317,8 +447,11 @@ function main() {
     pending.push("no .dev.vars.example / .env.example found — secret name template check skipped");
   } else {
     const documented = new Map();
+    /** 雛形ごとの記載状況。`.dev.vars.example` だけがランタイム経路の雛形である。 */
+    const perTemplate = new Map();
     for (const template of templates) {
       const { names, commented } = readEnvNames(readFileSync(template.file, "utf8"));
+      perTemplate.set(template.name, new Set([...names, ...commented]));
       for (const name of names) documented.set(name, template.name);
       for (const name of commented) {
         if (!documented.has(name)) documented.set(name, `${template.name} (commented out)`);
@@ -332,6 +465,33 @@ function main() {
         );
       } else {
         ok.push(`${name} is documented in ${where}`);
+      }
+    }
+    /**
+     * ★ 記載場所は等価ではない。`wrangler dev` / `npm run cf:dev` と、`next dev` の
+     *   platform proxy（initOpenNextCloudflareForDev）が読むのは **.dev.vars** であって
+     *   `.env` / `.env.local` ではない。ルートハンドラは `getCloudflareContext().env` から
+     *   `loadAppConfig()` を呼ぶので、`.env.example` にしか名前が無い必須秘密値は
+     *   「雛形どおりコピーしたのにローカルで 500 / 503 になる」を生む。
+     *   `.dev.vars.example` は task_003 の所有ファイルなので violation にはせず pending に出す。
+     */
+    const devVars = perTemplate.get(".dev.vars.example");
+    if (devVars === undefined) {
+      pending.push(
+        ".dev.vars.example not found — the runtime-path template (wrangler dev / platform proxy) was not checked",
+      );
+    } else {
+      const missingInRuntimeTemplate = REQUIRED_SECRET_NAMES.filter(
+        (name) => documented.has(name) && !devVars.has(name),
+      );
+      if (missingInRuntimeTemplate.length > 0) {
+        pending.push(
+          `.dev.vars.example に無い必須秘密値: ${missingInRuntimeTemplate.join(", ")} — ` +
+            "wrangler dev / next dev の platform proxy は .env / .env.local を読まないため、" +
+            "雛形どおりコピーした開発者はルートが 500 / 503 になる（.dev.vars.example は task_003 所有。task_003 / task_035 で追記）",
+        );
+      } else {
+        ok.push(".dev.vars.example carries every startup-required secret name");
       }
     }
     // ローカル限定の逃げ道が .env.example の runtime 節に漏れていないこと。

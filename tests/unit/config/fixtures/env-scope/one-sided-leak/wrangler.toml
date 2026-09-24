@@ -1,0 +1,30 @@
+# gate:env の検査 (7) 用フィクスチャ — **片側混入型**の本番資源参照。
+#
+# 本番の Supabase project ref を [env.staging] に**だけ**書く。
+# [env.production] 側には同じリテラルを置かないので、staging と production の
+# 「値の衝突」検査（検査 (3)）では捕まらない。
+# 捕まえられるのは、ソース固定の宣言（src/lib/config/env.ts の
+# EXPECTED_SUPABASE_PROJECT_REF）と突き合わせる検査 (7) だけである。
+
+name = "cashapp"
+main = ".open-next/worker.js"
+compatibility_date = "2026-09-01"
+
+[vars]
+APP_ENV = "development"
+
+[env.staging.vars]
+APP_ENV = "staging"
+# ★ ここが混入。production の ref を staging が掴んでいる。
+SUPABASE_PROJECT_REF = "productionprojectref"
+
+[[env.staging.hyperdrive]]
+binding = "HYPERDRIVE"
+id = "staging-hyperdrive-id-0001"
+
+[env.production.vars]
+APP_ENV = "production"
+
+[[env.production.hyperdrive]]
+binding = "HYPERDRIVE"
+id = "production-hyperdrive-id-0001"

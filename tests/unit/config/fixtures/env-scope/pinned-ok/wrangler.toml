@@ -1,0 +1,26 @@
+# gate:env の検査 (7) 用フィクスチャ — 正しい配置（誤検知しないことの確認）。
+#
+# 実 ref が採番済みでも、それぞれが自分の environment にだけ書かれていれば違反ではない。
+
+name = "cashapp"
+main = ".open-next/worker.js"
+compatibility_date = "2026-09-01"
+
+[vars]
+APP_ENV = "development"
+
+[env.staging.vars]
+APP_ENV = "staging"
+SUPABASE_PROJECT_REF = "stagingprojectrefabc"
+
+[[env.staging.hyperdrive]]
+binding = "HYPERDRIVE"
+id = "staging-hyperdrive-id-0001"
+
+[env.production.vars]
+APP_ENV = "production"
+SUPABASE_PROJECT_REF = "productionprojectref"
+
+[[env.production.hyperdrive]]
+binding = "HYPERDRIVE"
+id = "production-hyperdrive-id-0001"
