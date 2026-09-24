@@ -2436,6 +2436,57 @@ GPT-6 Astra 7 件のうち重複を除く 7 件を**全件修正**した（詳�
   `feature_flag.updated_by` の CHECK が自動化を拒むため実装できない（P-10 は Phase 1 で人手運用）。
 - Hyperdrive 経路の実測は task_035 後、本番 200 疎通は task_025（ローカルは 404 を確認済み）。
 
+## task_023（依存解消後の再実装: outbox transports・ADR-007 accepted・health degraded）
+
+### 決まったこと
+
+- task_020（cron 6 本、`9dcab77`）と task_018（outbox 基盤）が着地したため BLOCKED を解除した。
+  ADR-007（幹事の生 LINE userId 保持）は実装ワークフロー指示によりパターン B で `accepted` に
+  確定（Phase 1 は push せず、運営者向け内部 outbox と幹事画面バッジで伝える。Phase 2 で再検討）。
+- `src/lib/line/messaging.ts`（`notifyOrganizer()`。in_app_badge 固定・外部 fetch なし）と
+  `src/lib/outbox-transports.ts`（`ops_alert`→`internal_webhook` / `organizer_notify`→
+  `notifyOrganizer()`）を実装。`tests/integration/outbox-delivery.test.ts` 4 件で実 DB 検証。
+- `docs/decisions/ADR-007-raw-userid-consent.md` を accepted にした際、G10（accepted ADR に
+  `[設計]`/`[不明]` ラベルが残っていないか）に引っかかったため、確信度表記を他の accepted ADR
+  （ADR-002 等）と同じ `Confidence: high/medium` 形式に直した（tests/unit/gate-check.test.ts 解消）。
+
+### 未解決
+
+- `src/lib/outbox-transports.ts` の `deliverOutboxJob` は `src/app/api/cron/outbox/route.ts`
+  （task_020 所有・既定 `logOnlyDeliver`）へ未配線（route.ts は task_023 の files_to_modify 外）。
+- `check_113` の expected_result（LINE Messaging API push）が ADR-007 パターン B と文言不一致。
+  `docs/acceptance-checks.json` は files_to_modify 外のため未改訂、PO 判断待ち。
+- `check_114` の外形監視実測（手動）と `check_115`（attention_unseen_hours 週次メトリクス）は
+  それぞれ staging デプロイ・週次集計パイプラインの所有タスク不在で継続 deferred。
+
+## task_019（修正ラウンド: 検証失敗 G4 とレビューのギャップ high 1・medium 6 を修正）
+
+### 決まったこと
+
+- `docs/PROGRESS.md` 482 行目の状態トークンを `BLOCKED` → `DONE_WITH_CONCERNS` に訂正し
+  G4（PROGRESS.md と台帳の食い違い）を解消した（task_013 の 4 周目と同じ扱い）。
+- `tests/conformance/kit.ts` に `ExecutedCaseIds`（`afterEach` が `describe` 見出しから拾う、
+  実際に走った `it()` のケース id 集合）を追加し、`pass` 記録と実行実態の乖離を機械検出できる
+  ようにした。`ConformanceCaseStatus` に `"blocked"` を追加し、n/a（対象外）と実装ギャップ
+  （apply.ts 拡張待ちの C21/C22）を型で区別した。
+- C27（許可外ホストの deepLink 拒否）を manual_confirm 側で実テスト化、C29（返金期限）の
+  空虚な pass 主張を n/a へ訂正、C5 に outbox mismatch_alert 検査、C14 に `runApplyPending`
+  を使ったゲート復帰後の実適用検査、C13 に credential_fp の突き合わせを追加した。
+- 修正後の32ケース内訳: fixture_provider pass 20/n/a 10/blocked 2、manual_confirm
+  pass 4（C9/C10/C12/C27）/n/a 28。verify_commands 3 本（test:conformance 38/38・test:gate・
+  gate:constraints 0 violation）はいずれも `scripts/with-lock.sh db scripts/record-run.sh
+  task_019` 経由で実測 exit 0。
+
+### 未解決
+
+- `docs/concerns/task_019.md`（high 1・medium 4・low 2）。最重要は変わらず gate.yml
+  （task_009 所有）の acceptance ジョブが Postgres 無しで test:contract/test:conformance/
+  test:gate を再実行しようとする穴。
+- `docs/review-log/task_019.json` の round1 は BLOCKED 宣言のみのコミットを審査したもので、
+  現在の実装を一度も審査していない。ハーネス規則により本ラウンドは再レビューしていない。
+- C21/C22（apply.ts 拡張）は担当タスク未定。required_status_checks 登録・gate-contract.yml
+  の実走確認は git push 後の CI 待ちで deferred のまま。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -2692,3 +2743,12 @@ GPT-6 Astra 7 件のうち重複を除く 7 件を**全件修正**した（詳�
 - 2026-09-24T18:47:40Z HEAD=6100a0e 決まったこと: task_018: 最終 HEAD d54a8a0 での verify_commands 再実行ログと台帳同期 / 未解決: 未コミット 38 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_021.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json 
 - 2026-09-24T18:48:50Z HEAD=9dcab77 決まったこと: task_020: cron 6 本（照合バッチ・outbox 配達・保持期間・冪等キー掃除・監査検証・保留再適用） / 未解決: 未コミット 22 件: docs/PROGRESS.md docs/concerns/task_021.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json 
 - 2026-09-24T18:49:22Z HEAD=704393e 決まったこと: task_021(G5修正ラウンド): 敵対レビューreject是正 — proposalId先頭ゼロ再承認とlogin大小文字二人承認偽装を修正 / 未解決: 未コミット 18 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json docs/run-log/task_018.json 
+- 2026-09-24T18:50:36Z HEAD=14e2f5b 決まったこと: task_021: HANDOFFターンログ追記（Stopフック自動記録の反映） / 未解決: 未コミット 19 件: docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json docs/run-log/task_018.json docs/run-log/task_019.json 
+- 2026-09-24T18:53:21Z HEAD=14e2f5b 決まったこと: task_021: HANDOFFターンログ追記（Stopフック自動記録の反映） / 未解決: 未コミット 24 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json docs/run-log/task_018.json 
+- 2026-09-24T18:56:22Z HEAD=14e2f5b 決まったこと: task_021: HANDOFFターンログ追記（Stopフック自動記録の反映） / 未解決: 未コミット 27 件: docs/HANDOFF.md docs/decisions/ADR-007-raw-userid-consent.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json 
+- 2026-09-24T19:00:22Z HEAD=14e2f5b 決まったこと: task_021: HANDOFFターンログ追記（Stopフック自動記録の反映） / 未解決: 未コミット 38 件: docs/HANDOFF.md docs/decisions/ADR-007-raw-userid-consent.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json 
+- 2026-09-24T19:01:22Z HEAD=e8c6395 決まったこと: task_020: 敵対レビュー記録（G5） / 未解決: 未コミット 39 件: docs/HANDOFF.md docs/decisions/ADR-007-raw-userid-consent.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json 
+- 2026-09-24T19:02:22Z HEAD=e8c6395 決まったこと: task_020: 敵対レビュー記録（G5） / 未解決: 未コミット 39 件: docs/HANDOFF.md docs/decisions/ADR-007-raw-userid-consent.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json 
+- 2026-09-24T19:03:22Z HEAD=e8c6395 決まったこと: task_020: 敵対レビュー記録（G5） / 未解決: 未コミット 41 件: docs/HANDOFF.md docs/concerns/task_023.md docs/decisions/ADR-007-raw-userid-consent.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json 
+- 2026-09-24T19:06:25Z HEAD=e8c6395 決まったこと: task_020: 敵対レビュー記録（G5） / 未解決: 未コミット 48 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_023.md docs/decisions/ADR-007-raw-userid-consent.md docs/ops/line-channels.md docs/ops/monitoring.md docs/run-log/task_008.json docs/run-log/task_012.json 
+- 2026-09-24T19:07:24Z HEAD=e8c6395 決まったこと: task_020: 敵対レビュー記録（G5） / 未解決: 未コミット 50 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_019.md docs/concerns/task_023.md docs/decisions/ADR-007-raw-userid-consent.md docs/ops/line-channels.md docs/ops/monitoring.md docs/run-log/task_008.json 

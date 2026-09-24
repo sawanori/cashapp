@@ -2186,12 +2186,13 @@
       "optional": false,
       "completion_status": "DONE_WITH_CONCERNS",
       "concerns": [
-        "[severity: high] gate.yml（task_009 所有）の acceptance ジョブが test:contract / test:conformance / test:gate を実 Postgres 無しで再実行しようとする構造的な穴（DB_ONLY_NAMES に未登録）。task_018 完了時から存在し本ラウンドで対象が広がった / 対応案: task_009 が DB_ONLY_NAMES に3件追加。詳細は docs/concerns/task_019.md §5。",
-        "[severity: medium] C1〜C31 のうち21ケースが実Postgres経由でpass、11ケースは fixture_provider の能力限界（createCheckout/refund/statusQuery非対応）・W3（ランク前進のみ）・apply.tsに無い分岐（参加者削除/イベント中止）を理由にn/a。C21/C22はapply.ts（task_018所有）の実装ギャップ / 対応案: apply.ts拡張の担当タスク未定。詳細は docs/concerns/task_019.md §4。",
+        "[severity: high] gate.yml（task_009 所有）の acceptance ジョブが test:contract / test:conformance / test:gate を実 Postgres 無しで再実行しようとする構造的な穴（DB_ONLY_NAMES に未登録）。task_018 完了時から存在し変わらず未解消 / 対応案: task_009 が DB_ONLY_NAMES に3件追加。詳細は docs/concerns/task_019.md §5。",
+        "[severity: medium] 32ケース中 fixture_provider が pass 20・n/a 10・blocked 2、manual_confirm が pass 4（C9/C10/C12/C27）・n/a 28。C21/C22 は apply.ts（task_018所有）に participant.status/event.status を読む分岐が無い実装ギャップのため n/a ではなく blocked として記録（担当タスク未定）。C12/C23/C25/C30 の n/a 理由は実際の検証箇所（他ファイル）を明記し直した / 対応案: apply.ts拡張の担当タスク未定。詳細は docs/concerns/task_019.md §4。",
+        "[severity: medium] docs/review-log/task_019.json の round1 は BLOCKED 宣言のみのコミット（47608da）を審査したもので、9421d14 以降の実装（fixture_provider 実装・本ラウンドの修正）を一度も審査していない。ハーネス規則（review-log 既存時は再作成不要。reject でも再レビューしない）に従い本ラウンドでは review-drive.sh/merge-review.sh を実行していない / 対応案: 次に adversarial review を回す機会があれば現行 HEAD を対象に round2 を実施する。詳細は docs/concerns/task_019.md §-1。",
         "[severity: medium] gate-contract.yml の実走確認とrequired_status_checksへの追加はgit push後のCI待ちでdeferred / 対応案: メインセッションのpush後にtask_009が確認・登録。詳細は docs/concerns/task_019.md §7。",
         "[severity: low] task_018の既存5 fixtureがcaptured_atを欠きprovenance検査を通らない（webhookルート経由のC1〜C31検査自体には無影響） / 対応案: task_018の次ラウンドで追記。詳細は docs/concerns/task_019.md §6。",
-        "[severity: low] gate:constraintsが他タスク（未追跡のsrc/lib/reconcile.ts）由来で一時的にexit 1（task_019自身が原因ではない） / 対応不要。詳細は docs/concerns/task_019.md §8。",
-        "[severity: low・解消済み] G5 round1の指摘どおりtask_018に依存しない部分（captured_from検証・manual_confirmのC9/C10/C12）は前ラウンドで実装済み。npm run test:conformance / test:gate / gate:constraints は本ラウンドで実測exit 0（gate:constraintsの1件は上記§8参照）。scripts/record-run.sh task_019経由。詳細は docs/concerns/task_019.md §0・§4。"
+        "[severity: low・解消済み] gate:constraintsが他タスク（未追跡だったsrc/lib/reconcile.ts のW11）由来で一時的にexit 1していたが、task_020のコミット（9dcab77）で解消。本ラウンドの実測は29 grep entry 0 violation / 対応不要。詳細は docs/concerns/task_019.md §8。",
+        "[severity: low・解消済み] G5 round1の指摘どおりtask_018に依存しない部分（captured_from検証・manual_confirmのC9/C10/C12）は前ラウンドで実装済み。本ラウンドでレビューのギャップ（executedCaseIds追跡・C27実テスト化・C21/C22のblocked分離・C29/C5/C14/C13の検証強化）を修正し、npm run test:conformance（38/38）/ test:gate / gate:constraints はいずれも実測exit 0。scripts/with-lock.sh db scripts/record-run.sh task_019経由。詳細は docs/concerns/task_019.md §-1。"
       ]
     },
     {
@@ -2625,15 +2626,13 @@
       "adversarial_review": "required",
       "evidence_label": "[設計]",
       "optional": false,
-      "completion_status": "BLOCKED",
+      "completion_status": "DONE_WITH_CONCERNS",
       "concerns": [
-        "[severity: high] 依存タスク task_020（cron: 照合バッチ・outbox 配達）が依然未着手（本ラウンドも find で files_to_create 0 件を再確認）。outbox の実配達（Messaging API push）はこれに依存し続けており check_113 は未達／対応案: docs/concerns/task_023.md §1。task_018 → task_020 完了後に再着手",
-        "[severity: high] task_018 の outbox.ts（OUTBOX_TRANSPORT: organizer_notify/ops_alert）は本ラウンドも同一ワークツリーで未コミットのままで、task_023 の前提語彙との食い違いは未解消。src/lib/outbox-transports.ts は今回も実装していない／対応案: docs/concerns/task_023.md §2。task_018 確定後に scope を絞り直す",
-        "[severity: high] ADR-007 を proposed で起票した（docs/decisions/ADR-007-raw-userid-consent.md、パターンA/Bを提示）が、生 userId 保持の可否は依然 PO 未決定。src/lib/line/messaging.ts と src/lib/outbox-transports.ts は据え置いたまま／対応案: docs/concerns/task_023.md §6。PO が ADR-007 を accepted にしたら再着手",
-        "[severity: medium] health.ts の DB 側 degraded 判定（4 条件）は task_018/020 に依存せず実装可能というレビュー指摘を受けて今回実装した: src/lib/health.ts（読み取り専用）・src/app/api/health/route.ts 拡張・tests/unit/health.test.ts に24件追加。scripts/record-run.sh task_023 で typecheck exit0・test:unit exit0（新規24件）・test:integration exit0（203/203）を確認済み。check_114 の自動化部分は達成、外形監視の実測（手動部分）は staging デプロイが前提のため未達／対応案: docs/concerns/task_023.md §5",
-        "[severity: medium] docs/ops/line-channels.md と docs/ops/monitoring.md を新規作成した（手順・候補の記録のみ。実際のチャネル開設・監視サービス契約は未実施）／対応案: docs/concerns/task_023.md §7",
-        "[severity: medium] check_115（attention_unseen_hours・O-2バッジ）は週次ログ集計パイプラインの所有タスク不在に加え、src/app/(liff)/events/page.tsx の配線も本ラウンドは未着手／対応案: docs/concerns/task_023.md §4・§8。週次集計の切り出しをPO判断で行ってから着手",
-        "[severity: low] npm run test:unit は tests/unit/gate-check.test.ts（task_006 所有）の 2 件が失敗するが、原因は task_018 が package.json.scripts に test:contract を追加した並行変更で、task_023 のファイルには起因しない／対応案: docs/concerns/task_023.md §9。task_006 側で対応",
+        "[severity: medium] check_115（attention_unseen_hours・週次メトリクス）は週次ログ集計パイプラインの所有タスクが無く未着手（done_definition には含まれないため今回もスコープ外）／対応案: docs/concerns/task_023.md §4・§8。PO判断で新規タスクを切り出した後、src/app/(liff)/events/page.tsxへ単発計測とバッジ配線を追加",
+        "[severity: medium] check_114 の外形監視の実測（手動）は staging デプロイが前提のため未達。自動化部分（health.ts の DB 側 degraded 判定 4 条件・tests/unit/health.test.ts 24件）は達成済み（typecheck/test:unit/test:integration/gate:constraints 全件 exit 0 を確認）／対応案: docs/concerns/task_023.md §5。task_024 以降の staging デプロイ後に record-run --manual で実測記録",
+        "[severity: medium] src/lib/outbox-transports.ts の deliverOutboxJob を本番 cron（src/app/api/cron/outbox/route.ts、task_020 所有）の runOutboxBatch 呼び出しへ配線していない（route.ts は task_023 の files_to_modify に無いため）。tests/integration/outbox-delivery.test.ts は runOutboxBatch + deliverOutboxJob を直接組み合わせて実 DB で動作検証済み／対応案: docs/concerns/task_023.md §10。route.ts の handle() 内 1 行差し替え（task_020 所有者 or 次回 task_023）",
+        "[severity: low] check_113 の expected_result 文言（LINE Messaging API 経由で push）が、本ラウンドで accepted にした ADR-007 パターン B（Phase 1 は push しない）と食い違う。docs/acceptance-checks.json は task_023 の files_to_create/files_to_modify に無いため未改訂／対応案: docs/concerns/task_023.md §11。PO 判断で check_113 の文言改訂",
+        "[severity: low] docs/ops/line-channels.md・docs/ops/monitoring.md の実施記録は空欄のまま（実チャネル開設・監視サービス契約は未実施）／対応案: docs/concerns/task_023.md §7。task_025（チャネル開設）・task_024 以降（監視実測）で追記",
         "[severity: low] Messaging API の通数課金と幹事の友だち追加率は未検証（既存懸念。docs/ops/line-channels.md の未確認事項として持ち越し）"
       ]
     },

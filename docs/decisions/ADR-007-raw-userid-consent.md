@@ -2,7 +2,10 @@
 
 ## ステータス
 
-`proposed`
+`accepted`（パターン B。2026-09-25、task_023 再着手ラウンドの実装ワークフロー指示により確定。
+決定の主体はプロジェクト運営フロー（PO 指示の申し送り）であり、AskUserQuestion による
+その場の PO 回答ではない。**PO は本 ADR をいつでも更新し、パターン A へ切り替えることができる**
+（下記「決定（確定）」参照）。
 
 ## コンテキスト
 
@@ -36,10 +39,36 @@ PII（生の LINE userId）を新規に保存するかどうかという判断�
 前に分岐の枠組みだけを定義**し、判断が下りたら本 ADR を更新して `accepted` または `superseded`
 にする。
 
-## 決定（PO 回答受領前の分岐設計。proposed）
+## 決定（確定）
 
-Messaging API 経由で幹事へ `push` するかどうかは、以下 2 パターンのいずれかになりうる。
-各パターンでの対応方針を、回答受領前の時点で次のとおり定める。
+**パターン B を Phase 1 の方針として採用する。**
+
+> Phase 1 では生 userId を保存しない。要対応通知は運営者向け内部 outbox と幹事画面のバッジで
+> 伝え、Messaging API の push は Phase 2 で同意設計とともに扱う。
+
+- `src/lib/line/messaging.ts` は Phase 1 では LINE Messaging API への `push` を一切呼ばない。
+  `notifyOrganizer()` は幹事向け通知の配達先を常に `in_app_badge`（O-2 の要対応バッジ、
+  `src/app/(liff)/events/page.tsx`。task_014 で実装済み）に決定して返すだけの関数であり、
+  外部への `fetch` を行わない。
+- `src/lib/outbox-transports.ts` の `organizer_notify` 配達は `notifyOrganizer()` を呼ぶだけで
+  完了扱いにする（`docs/concerns/task_023.md` §2 の narrowing を Pattern B のもとで実装した形）。
+  `ops_alert` は PII を含まない payload を運営者向け内部 webhook（`internal_webhook`。
+  `OPS_ALERT_WEBHOOK_URL` 未設定ならログのみ）へ送る。
+- `docs/acceptance-checks.json` の `check_113` の `expected_result` は依然「幹事に Messaging API
+  経由で通知が送られ（モック）」という Pattern A 相当の文言のままである。本 ADR の決定と
+  一致していないが、`docs/acceptance-checks.json` は task_023 の `files_to_modify` に無く、
+  改訂は別途 PO 判断のうえで行う（`docs/concerns/task_023.md` に記録）。
+- Messaging API チャネルの開設・友だち追加導線（`docs/ops/line-channels.md`）自体は Pattern B
+  でも先行させてよい（push を Phase 2 で有効にする際の前提を整えるため）。友だち追加イベントの
+  Webhook 受信・生 userId の受け渡しは実装しない（受け取った時点で保存せず捨てる設計すら
+  Phase 1 では組まない。実装物が無ければ「保存しない」を破りようがないため、最小の安全側）。
+- Phase 2 で同意設計が固まったら、本 ADR を更新し `notifyOrganizer()` に実際の `push` 呼び出しを
+  追加する（パターン A の保存方式を採るか、別の同意フローを採るかは Phase 2 側の判断）。
+
+### 参考: 判断時に列挙した 2 パターン（Phase 2 検討時の再利用のため残す）
+
+以下は本 ADR が `proposed` だった時点で列挙した分岐であり、上記の確定によりパターン A は
+Phase 1 では不採用となったが、Phase 2 の検討材料として文面を残す。
 
 ### パターン A: 生 userId を保持する
 
@@ -66,26 +95,28 @@ Messaging API 経由で幹事へ `push` するかどうかは、以下 2 パタ�
 
 ## 影響
 
-- `src/lib/line/messaging.ts`（幹事の生 userId を Messaging API 用に受け取る想定のモジュール）と
-  `src/lib/outbox-transports.ts`（`organizer_notify` → 具体的な配達手段の実装）は、本 ADR が
-  `accepted` になり、かつ `src/lib/outbox.ts`（task_018 所有）が確定コミットされるまで実装しない
-  （`docs/concerns/task_023.md` §2・§3）。
-- パターン A を採る場合、§7-5 の改訂・擬似匿名化対象表の拡張・PEPPER ローテーション設計への
-  組み込みが追加の PO 決定／実装スコープとして発生する。
-- パターン B を採る場合、`check_113`（`mismatch` 等の要対応が Messaging API 経由で幹事に届く）の
-  `expected_result` 自体を「Phase 1 は運営者向け内部通知のみ、幹事への push は Phase 3」に
-  改訂する必要があり、`docs/acceptance-checks.json` の更新は PO 判断のうえ別途行う。
-- いずれのパターンでも、`/api/health` の DB 側 degraded 判定（`src/lib/health.ts`、check_114）は
-  本 ADR の決定を待たずに独立して実装できる（4 条件はいずれも既存テーブルの読み取りのみで、
-  Messaging API にも生 userId にも触れない）。task_023 の今回の作業はこの独立部分のみを実装した。
+- `src/lib/line/messaging.ts`（`notifyOrganizer()`。Phase 1 は in_app_badge 固定・push なし）と
+  `src/lib/outbox-transports.ts`（`organizer_notify` → `notifyOrganizer()` / `ops_alert` →
+  `internal_webhook`）を本ラウンド（task_023 再着手）で実装した（`docs/concerns/task_023.md` §2・
+  §3 の narrowing に沿う）。
+- パターン A（生 userId を保持する）は Phase 1 では不採用。Phase 2 で改めて検討する場合、
+  §7-5 の改訂・擬似匿名化対象表の拡張・PEPPER ローテーション設計への組み込みが追加の PO 決定／
+  実装スコープとして必要になる（上の「参考」節に判断材料を残す）。
+- パターン B を採ったことにより、`check_113`（`mismatch` 等の要対応が Messaging API 経由で幹事に
+  届く）の `expected_result` の文言（Pattern A 相当）と実装の間に食い違いが生じている。
+  `docs/acceptance-checks.json` は task_023 の `files_to_modify` に無いため本ラウンドでは改訂せず、
+  `docs/concerns/task_023.md` に記録した。
+- `/api/health` の DB 側 degraded 判定（`src/lib/health.ts`、check_114）は本 ADR の決定と独立に
+  実装済み（4 条件はいずれも既存テーブルの読み取りのみで、Messaging API にも生 userId にも
+  触れない。前ラウンドで実装済み・本ラウンドでの変更なし）。
 
 ## 確信度
 
-[設計] — `docs/research/premortem-phase1b-2026-09-24.md` P-12 の対応案（「ADR-007 を task_023 より
-前に書き、(a) 生 userId を保持する、(b) 保持せず…のどちらを採るかを PO が決める」）に基づき、
-回答到着前の時点で分岐の枠組みを起票する。`docs/implementation-plan.md` §13 付近の ADR 一覧が
-`ADR-007 生 userId 同意` を `proposed` 止まりの作成対象として挙げている（`[設計]/[不明]` 依存は
-`proposed` 止まり）。いずれのパターンも採用を確定するものではない。
+Confidence: medium — 決定（パターン B）そのものは task_023 再着手ラウンドの実装ワークフロー指示に
+明記されており曖昧さは無い。`docs/research/premortem-phase1b-2026-09-24.md` P-12 が列挙した (a)/(b)
+の二択のうち (b) を採用した形と一致する。medium とするのは、決定の主体が PO 本人による明示的な
+AskUserQuestion 回答ではなく運営フロー側からの申し送りであるため（「ステータス」節に明記）。
+PO は本 ADR をいつでも更新し、パターン A（または別の設計）へ切り替えることができる。
 
 ## 参照
 

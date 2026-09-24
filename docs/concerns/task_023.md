@@ -16,9 +16,27 @@ consent.md`（`proposed` で起票）、`docs/ops/line-channels.md` / `docs/ops/
 （手順の記録）。§1〜§4 はいずれも根本原因（task_018/020 未着手・PO 未決定・週次集計パイプライン
 不在）が解消していないため、下記のとおり更新して残す。以下は新しい指摘。
 
+**2026-09-25 第 2 ラウンド（依存解消後の再実装）**: task_020（cron 6 本、`9dcab77`）と
+task_018（outbox 基盤、確定コミット済み）が着地し、実装ワークフロー側の指示で ADR-007 を
+パターン B（Phase 1 は生 userId を保存せず push しない。運営者向け内部 outbox と幹事画面の
+バッジで伝える）で `accepted` に確定したことを受け、§1・§2・§3・§6 の根本原因が解消した。
+`src/lib/line/messaging.ts`（`notifyOrganizer()`。Phase 1 は in_app_badge 固定・外部 fetch なし）、
+`src/lib/outbox-transports.ts`（`ops_alert` → `internal_webhook` / `organizer_notify` →
+`notifyOrganizer()`）、`tests/integration/outbox-delivery.test.ts`（4 件。全 kind の配達・PII
+無し payload・LINE API 非呼び出しを実 DB で検証）を実装した。`src/lib/outbox.ts` の
+`organizer_notify` docstring を ADR-007 accepted の内容に更新した（挙動は変更なし）。
+`scripts/record-run.sh task_023` で `typecheck` / `test:unit`（51 ファイル **1214/1214**） /
+`test:integration`（22 ファイル **255/255**、新規 4 件を含む） / `gate:constraints`（29 grep
+entries, 0 violation）を実行し全件 exit 0 を確認した。§1・§2・§3・§6・§9 は解消済みとして
+下に記す。§4・§5・§7・§8 は今回も未着手（対応案は据え置き）。新たに §10・§11 を追記した。
+
 ---
 
-## 1. 依存タスク task_020 が完全に未着手で、outbox 配達・health degraded の producer 側が無い
+## 1. 依存タスク task_020 が完全に未着手で、outbox 配達・health degraded の producer 側が無い（解消済み・2026-09-25 第 2 ラウンド）
+
+**解消**: task_020 が `9dcab77`（cron 6 本: reconcile / outbox / retention / idempotency-cleanup /
+audit-verify / apply-pending）でコミット済み（DONE_WITH_CONCERNS）。producer 側が存在するため
+本節の指摘は解消した。以下は解消前の記録。
 
 - **指摘**: task_023 は `dependencies: ["task_020"]` だが、task_020（cron: 照合バッチ・outbox 配達・
   保持期間・冪等キー掃除・監査検証）は `git log --all --grep=task_020:` が 0 件（`--grep=task_020`
@@ -48,7 +66,14 @@ consent.md`（`proposed` で起票）、`docs/ops/line-channels.md` / `docs/ops/
 - **対応予定タスク**: task_018 → task_020（先行）→ task_023 再着手
 
 ## 2. task_018 の outbox 基盤が同一ワークツリーで並行ドラフト中で、`kind`→配達先の抽象度が
-   task_023 の前提（`line_messaging` / `internal_webhook` / `none`）と食い違っている
+   task_023 の前提（`line_messaging` / `internal_webhook` / `none`）と食い違っている（解消済み・2026-09-25 第 2 ラウンド）
+
+**解消**: task_018 が確定コミット済み（`src/lib/outbox.ts` の `OUTBOX_TRANSPORT` は
+`organizer_notify` / `ops_alert` の 2 値で確定）。対応案どおり、この表を正本として受け取り
+`src/lib/outbox-transports.ts` に `ops_alert` → `internal_webhook`、`organizer_notify` →
+`src/lib/line/messaging.ts` の `notifyOrganizer()` という具体実装だけを書いた。
+`line_messaging` transport と `none` transport は Phase 1 では未使用（型上の拡張点として
+docstring に記録のみ）。以下は解消前の記録。
 
 - **指摘**: 本セッション中に別エージェント（task_018 担当）が `src/lib/outbox.ts` と
   `src/lib/ledger/{apply,rank,balance,dedupe}.ts` を同一ワークツリーに未コミットで書き始めた
@@ -79,7 +104,15 @@ consent.md`（`proposed` で起票）、`docs/ops/line-channels.md` / `docs/ops/
   形に scope を絞り直す。
 - **対応予定タスク**: task_018（着地待ち）→ ADR-007 の PO 決定 → task_023 再着手
 
-## 3. ADR-007（幹事の生 LINE userId 保持の同意設計）が未作成で、PO 決定が前提
+## 3. ADR-007（幹事の生 LINE userId 保持の同意設計）が未作成で、PO 決定が前提（解消済み・2026-09-25 第 2 ラウンド。§6 と統合）
+
+**解消**: 実装ワークフロー側の指示により、パターン B（Phase 1 は生 userId を保存せず push
+しない。要対応は運営者向け内部 outbox と幹事画面のバッジで伝え、push は Phase 2 で扱う）を
+`docs/decisions/ADR-007-raw-userid-consent.md` の「決定（確定）」として `accepted` にした。
+決定の主体は PO 本人の AskUserQuestion 回答ではなく運営フロー側の申し送りである点を ADR の
+「ステータス」節に明記し、PO がいつでも上書き・パターン A へ切替できることを保証した（本節の
+指摘が懸念していた「実装者が PII 保存可否を代わりに決める」形にはなっていない）。以下は
+解消前の記録。
 
 - **指摘**: `docs/research/premortem-phase1b-2026-09-24.md` P-12（S2 × high）が指摘する通り、
   Messaging API の push には**生の LINE userId** が必要だが、`docs/implementation-plan.md`
@@ -101,7 +134,8 @@ consent.md`（`proposed` で起票）、`docs/ops/line-channels.md` / `docs/ops/
 - **対応予定タスク**: PO 判断（ADR-007）→ task_023 再着手
 
 ## 4. `check_115`（attention_unseen_hours の計測）は週次ログ集計パイプラインを前提にしており、
-   どのタスクにも所有者が無い
+   どのタスクにも所有者が無い（継続・2026-09-25 第 2 ラウンドでも未着手。done_definition に
+   本項目は含まれないため今回もスコープに入れなかった）
 
 - **指摘**: `check_115` の `expected_result` は「発生から幹事の閲覧までの時間が **weekly
   メトリクス**に出る」で、`verification_method` は `npm run test:e2e（organizer-flow.spec.ts）`。
@@ -125,6 +159,7 @@ consent.md`（`proposed` で起票）、`docs/ops/line-channels.md` / `docs/ops/
 - **対応予定タスク**: 未定（新規タスク切り出しが PO 判断）→ task_023 再着手
 
 ## 5. `check_114` の自動化部分は実装・検証済み。手動実測部分（外形監視の通知到達）は deferred
+   （継続・2026-09-25 第 2 ラウンドでも staging 未デプロイのため未達）
 
 - **指摘**: `check_114`（degraded health と外形監視）の `verification_method` は
   「`tests/unit/health.test.ts` と外形監視の通知記録（record-run）」の 2 部構成。自動化部分
@@ -144,7 +179,7 @@ consent.md`（`proposed` で起票）、`docs/ops/line-channels.md` / `docs/ops/
   task_023 "<観察結果>"` で記録する。
 - **対応予定タスク**: task_024（本番環境分離）以降の staging デプロイ後
 
-## 6. ADR-007 は `proposed` で起票済み。PO 決定はまだ無い
+## 6. ADR-007 は `proposed` で起票済み。PO 決定はまだ無い（解消済み・§3 参照。2026-09-25 第 2 ラウンド）
 
 - **指摘**: §3 の指摘（ADR-007 未作成）を解消し、`docs/decisions/ADR-007-raw-userid-
   consent.md` を `ADR-010-q-lg1-negative-branch.md` と同じ「PO 回答受領前の分岐設計。proposed」
@@ -162,6 +197,8 @@ consent.md`（`proposed` で起票）、`docs/ops/line-channels.md` / `docs/ops/
 - **対応予定タスク**: PO 判断（ADR-007 を `accepted` へ）→ task_023 再着手
 
 ## 7. `docs/ops/line-channels.md` / `docs/ops/monitoring.md` を作成した（手順の記録のみ）
+   （継続・2026-09-25 第 2 ラウンドでも実施記録は空欄のまま。`line-channels.md` 手順 7 は
+   ADR-007 accepted を踏まえて更新した）
 
 - **指摘**: scope 第 1 項・第 4 項に対応する両ドキュメントが未作成だった指摘を解消した。
   いずれも手順・候補の記録であり、実際の Messaging API チャネル開設・監視サービスの契約は
@@ -175,6 +212,9 @@ consent.md`（`proposed` で起票）、`docs/ops/line-channels.md` / `docs/ops/
   （`docs/ops/monitoring.md` の実測）
 
 ## 8. `src/app/(liff)/events/page.tsx`（O-2 バッジ）は本ラウンドでも未着手
+   （継続・2026-09-25 第 2 ラウンドでも未着手。O-2 の件数バッジ自体は task_014 で実装済みで
+   `needsAttentionCount` を表示しており、ここで未着手なのは `attention_unseen_hours` の計測
+   配線のみ）
 
 - **指摘**: `files_to_modify` の 3 本目。`check_115` の O-2 バッジ表示自体は §4 の週次集計
   パイプラインの不在とは独立した論点だが、本ラウンドは §1 の `レビューのギャップ`
@@ -185,7 +225,16 @@ consent.md`（`proposed` で起票）、`docs/ops/line-channels.md` / `docs/ops/
   バッジ表示」だけを先に task_023 の残スコープとして実装する。
 - **対応予定タスク**: §4 と同じ（新規タスク切り出しが PO 判断）→ task_023 再着手
 
-## 9. `npm run test:unit` は task_023 と無関係な 2 件の失敗を含む（task_006 の所有）
+## 9. `npm run test:unit` は task_023 と無関係な 2 件の失敗を含む（task_006 の所有）（解消済み・2026-09-25 第 2 ラウンド）
+
+**解消**: 第 2 ラウンドで `scripts/record-run.sh task_023 npm run test:unit` を実行したところ
+51 ファイル **1214/1214 pass**（`tests/unit/gate-check.test.ts` を含む）で失敗は無かった。
+原因は 2 つ: (1) task_018/020 が着地して `package.json.scripts` が安定したこと、(2) 本ラウンドで
+`docs/decisions/ADR-007-raw-userid-consent.md` を `accepted` にした際、G10（「`[設計]`/`[不明]`
+に依存したまま `accepted` になっている ADR を検出する」）が本文中の `[設計]` ラベルに反応して
+同テストの `--only G10` ケースが赤くなることを発見し、確信度の表記を他の accepted ADR
+（ADR-002 等）と同じ `Confidence: high/medium` 形式に直して解消した（挙動非破壊）。以下は
+解消前の記録。
 
 - **指摘**: 本ラウンド終盤の `scripts/record-run.sh task_023 npm run test:unit` は exit 1 だが、
   失敗 2 件はいずれも `tests/unit/gate-check.test.ts`（`scripts/gate-check.mjs` は task_006
@@ -199,3 +248,34 @@ consent.md`（`proposed` で起票）、`docs/ops/line-channels.md` / `docs/ops/
 - **対応案**: `tests/unit/gate-check.test.ts` のフィクスチャ（`report()` に渡す `base`/`root`
   の分離、または期待値の更新）は task_006 の所有者が対応する。
 - **対応予定タスク**: task_006（所有者による確認）
+
+## 10. `src/lib/outbox-transports.ts` は本番の cron から配線されていない
+
+- **指摘**: `src/app/api/cron/outbox/route.ts`（task_020 所有）の `handle()` は
+  `runOutboxBatch(tx)` を `deliver` オプション無しで呼んでおり、既定の `logOnlyDeliver`
+  （ログのみ）のままである。今回実装した `deliverOutboxJob`（`src/lib/outbox-transports.ts`）
+  を実際に使うには `runOutboxBatch(tx, { deliver: deliverOutboxJob })` への差し替えが要るが、
+  `route.ts` は task_023 の `files_to_modify` に無いため本ラウンドでは変更していない
+  （`tests/integration/outbox-delivery.test.ts` は `runOutboxBatch` と `deliverOutboxJob` を
+  直接組み合わせて検証しており、単体では正しく動くことを実 DB で確認済み）。
+- **深刻度**: medium（配達ロジック自体は実装・検証済みだが、本番 cron が呼ぶ既定関数を
+  差し替えないと `ops_alert` の internal webhook も `organizer_notify` の `notifyOrganizer()`
+  も実際には発火しない）
+- **対応案**: `src/app/api/cron/outbox/route.ts` の `handle()` 内の `runOutboxBatch(tx)` を
+  `runOutboxBatch(tx, { deliver: deliverOutboxJob })` に差し替える 1 行の変更。task_020 の
+  所有者、または次回 task_023 再着手時に行う。
+- **対応予定タスク**: task_020（所有者）または次回 task_023
+
+## 11. `check_113` の `expected_result` 文言が ADR-007 パターン B（accepted）と食い違っている
+
+- **指摘**: `docs/acceptance-checks.json` の `check_113.expected_result` は「幹事（友だち追加
+  済み）に Messaging API 経由で通知が送られ（モック）」という Pattern A 相当の文言のままだが、
+  本ラウンドで確定した ADR-007 パターン B は Phase 1 で LINE Messaging API へ push しないことを
+  決定している。`docs/acceptance-checks.json` は task_023 の `files_to_create`/`files_to_modify`
+  のどちらにも含まれないため本ラウンドでは改訂していない。
+- **深刻度**: low（`check_113` の `verification_method`＝`test:integration
+  （outbox-delivery.test.ts）` 自体は今回実装・pass 済みで自動検証は成立している。文言と実装の
+  意味的な不一致が残るだけ）
+- **対応案**: PO 判断のうえ `check_113.expected_result` を「Phase 1 は運営者向け内部通知
+  （`ops_alert`）のみ、幹事への通知は O-2 バッジ、Messaging API push は Phase 2」に改訂する。
+- **対応予定タスク**: 未定（`docs/acceptance-checks.json` の改訂を持つタスクが無い。PO 判断）

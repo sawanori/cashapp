@@ -32,10 +32,12 @@ task_023 の scope「外形監視（無料枠）からのポーリングと通�
 ## degraded 時の通知経路
 
 - 一次通知: 上表いずれかのサービスから運営者（NonTurn LLC）宛のメール、または Slack Webhook。
-- 幹事への通知はここでは扱わない。幹事向けの要対応通知は Messaging API 経由の配達（scope）で、
-  ADR-007（`docs/decisions/ADR-007-raw-userid-consent.md`）の PO 決定待ち。外形監視の degraded
-  通知は**運営者向け**（サービス全体の異常）であり、個々の要対応（mismatch 等）の幹事通知とは
-  別物である。
+- 幹事への通知はここでは扱わない。幹事向けの要対応通知は ADR-007（`docs/decisions/
+  ADR-007-raw-userid-consent.md`、パターン B, accepted）により Phase 1 は O-2 の要対応バッジ
+  のみ（Messaging API push は Phase 2）。運営者向けの要対応通知は `src/lib/outbox-transports.ts`
+  の `ops_alert`（internal webhook）で別途扱う。外形監視の degraded 通知は**運営者向け**
+  （サービス全体の異常）であり、個々の要対応（mismatch 等）の運営者向け通知（`ops_alert`）とも
+  幹事向け通知（O-2 バッジ）とも別物である。
 - `docs/implementation-plan.md` §17-5「キルスイッチ」との関係: `/api/health` の degraded は
   自動で `PAYMENTS_ENABLED=false` にはしない（キルスイッチの発火条件は同 §17-5 に列挙された
   8 項目のみ）。degraded は「調べる」トリガーであり、「止める」トリガーではない。

@@ -479,7 +479,12 @@
   全て exit 0（`test:unit` 1099/1099・`test:integration` 193/193）、(3) done_definition 5 項目めの
   「決済 SDK 無し」を `npm ls --all` の走査で確認（一致は `is-promise` の偽陽性 1 行のみ）を行い、
   未コミットで残っていた `docs/run-log/task_017.json` の実行ログをコミットした。追加の実装変更は無い。
-- task_019: BLOCKED — 依存タスク task_018（台帳適用・冪等基盤・Webhook ルート・
+- task_019: DONE_WITH_CONCERNS — **（状態トークンは初回 BLOCKED から、task_018 完了後の
+  再着手ラウンドで DONE_WITH_CONCERNS に訂正。gate:check の G4 は task ごとに最初の宣言行だけを
+  台帳と突き合わせるので、状態が変わったらこの行のトークンを直すこと — task_013 の 4 周目と同じ
+  扱い。本文は初回 BLOCKED 判定時点のまま残す。経緯は下の「task_019（G5 round1 の指摘反映）」
+  「task_019: DONE_WITH_CONCERNS —」「task_019（修正ラウンド）」の各行を参照）** 依存タスク
+  task_018（台帳適用・冪等基盤・Webhook ルート・
   `fixture_provider` 契約テストヘルパー）が完全に未着手（`git log --all --grep=task_018` 0 件、
   `files_to_create` 22 本が `find` で 0 件、全 `git worktree` にもコミット無し）であることを実測
   確認した。`npm run gate:constraints` 自身が `defer P2 (0 targets; waiting on task_018)` /
@@ -503,7 +508,12 @@
   `test:integration` 11 ファイル **193/193** / `gate:constraints` 25 grep 0 violation /
   `gate:wording` 0 violation）。ソースの追加変更は無し。残懸念は `docs/concerns/task_015.md`
   の C-015-1〜7（medium 5・low 2）のままで、増減なし。
-- task_023: BLOCKED — 依存タスク task_020（cron: 照合バッチ・outbox 配達）が完全に未着手
+- task_023: DONE_WITH_CONCERNS — **（状態トークンは初回 BLOCKED から、task_020/task_018 完了と
+  ADR-007 accepted 後の再着手ラウンドで DONE_WITH_CONCERNS に訂正。gate:check の G4 は task
+  ごとに最初の宣言行だけを台帳と突き合わせるので、状態が変わったらこの行のトークンを直すこと
+  — task_013 の 4 周目・task_019 と同じ扱い。本文は初回 BLOCKED 判定時点のまま残す。経緯は
+  下の「task_023（修正ラウンド）」「task_023（依存解消後の再実装）」の各行を参照）**
+  依存タスク task_020（cron: 照合バッチ・outbox 配達）が完全に未着手
   （`files_to_create` 16 本が `find` で 0 件、`docs/PROGRESS.md` に完了宣言なし、
   `gate:constraints` が `defer W9`/`defer W11 waiting on task_020` と独立に裏付ける）。
   さらに本セッション中に task_020 の依存元 task_018 の `src/lib/outbox.ts` /
@@ -734,3 +744,61 @@
   `ReconcileDeps.lockKey`（テスト隔離専用）を足した。残懸念 10 件は `docs/concerns/task_020.md`
   （medium 5・low 5）。最大のものは check_043 の期待値「organizer_label が NULL」が NOT NULL 制約で
   実現不可能な点（固定文字列置換で実装し、受入基準は書き換えていない）。
+- task_019（修正ラウンド）: DONE_WITH_CONCERNS — 前ラウンドの検証失敗（G4: 本ファイルの
+  BLOCKED 宣言と台帳の DONE_WITH_CONCERNS の食い違い）とレビューのギャップ（high 1・medium 6）を
+  修正した。(1) **G4**: 本ファイル 482 行目の状態トークンを BLOCKED → DONE_WITH_CONCERNS に訂正
+  （task_013 の 4 周目と同じ扱い。本文は当時のまま）。(2) **[high→medium 部分解消]
+  done_definition 第1項の pass 主張と実行実態の乖離**: `tests/conformance/kit.ts` に
+  `ExecutedCaseIds`（`describe()` 見出しからケース id を拾う `afterEach` フックが集める集合）を
+  追加し、`assertCatalogComplete`/`buildReport` が「`pass` と記録したのに対応する `it()` が
+  このファイルに無い」ケースを検出して例外にするようにした。C27（許可外ホストの deepLink 拒否）は
+  `manual-confirm.conformance.test.ts` に `buildReceivingLink` を直接使う実テストを新設して pass
+  に格上げ。C12/C23/C25/C30 は n/a のまま据え置いたが、理由文言を「どこで実際に検証済みか
+  （C12→manual-confirm 側の実テスト、C23→`tests/integration/checkout.test.ts` の check_093 実測、
+  C25→C15 と同じ webhook-side の帰結）」または「Phase 1 に外部 API を呼ぶアダプタが 1 つも無い
+  構造的な理由（C30）」へ書き換え、実行実態と矛盾しない形にした。(3) **[medium] C21/C22 の
+  n/a 埋没**: `ConformanceCaseStatus` に `"blocked"` を追加し、fixture_provider 側の C21/C22 を
+  n/a から blocked（apply.ts 拡張の担当タスク未定、という実装ギャップである旨を型で区別）に
+  変更した。(4) **[medium] C29 の空虚な pass**: fixture_provider の C29 は「引数の invoiceId
+  文字列を変えただけで期限判定を一切検査していない」のに pass と記録していた誤りを是正し、
+  capabilities.refundWindowDays が null であること（期限という概念自体が無い）を根拠に n/a へ
+  訂正した（テスト自体は削除せず、検証内容を正しく言い直した）。(5) **[medium] C5 の
+  mismatch_alert 未検証・C14 の復帰後適用が未実行**: C5 に outbox の `mismatch_alert` 検査を、
+  C14 に `runApplyPending`（task_020 所有・変更しない。`applyGate` を開けた状態で呼ぶ）を使った
+  ゲート復帰後の実適用検査を追加した（done_definition の文言どおり「off 中に保存され、復帰後に
+  台帳へ載る」を実際に実行）。(6) **[medium] C13 の credential_fp 未検証**: 2 つの binding に
+  16 進 16 桁の `credential_fp` を明示的に書き分け、適用後の `payment_attempt.provider_binding_id`
+  と `provider_binding.credential_fp` を突き合わせる assertion を追加した。**verify_commands 3 本
+  すべて `scripts/with-lock.sh db scripts/record-run.sh task_019` 経由で実測 exit 0**:
+  `test:conformance`（2 ファイル **38/38 pass**。fixture_provider 20 pass/10 n/a/2 blocked、
+  manual_confirm 4 pass/28 n/a）/ `test:gate`（test:contract 8/8 pass + test:conformance 38/38
+  pass）/ `gate:constraints`（29 grep entry **0 violation**。前ラウンドで記録した W11 の
+  他タスク由来の一時的違反は task_020 の着地で解消済み）。`npm run typecheck` /
+  `npm run lint:changed` も exit 0。**敵対レビュー記録（G5）はハーネス規則により本ラウンドでは
+  再実施しない**（`docs/review-log/task_019.json` が既に存在するため。既存記録は round 1 —
+  BLOCKED 宣言のみの時点 — に対するもので現在の実装を審査していない食い違いは、修正内容ごと
+  `docs/concerns/task_019.md` に記録した）。残懸念は `docs/concerns/task_019.md`
+  （high 1・medium 4・low 3）。最重要は変わらず gate.yml（task_009 所有）の acceptance ジョブが
+  test:contract/test:conformance/test:gate を実 Postgres 無しで再実行しようとする穴。
+  C21/C22（apply.ts 拡張）と C23/C25/C30（Phase 1 に checkout/外部 API 呼び出しアダプタが無い
+  構造的制約）は対応予定タスク未定のまま。required_status_checks への登録・gate-contract.yml
+  の実走確認は git push 後の CI 待ちで deferred。
+- task_023（依存解消後の再実装）: DONE_WITH_CONCERNS — 依存タスク task_020（`9dcab77`）と
+  task_018 が着地したため BLOCKED を解除。実装ワークフロー指示により ADR-007（幹事の生 LINE
+  userId 保持）をパターン B（Phase 1 は push せず、運営者向け内部 outbox と幹事画面バッジで
+  伝える。push は Phase 2）で `accepted` に確定。`src/lib/line/messaging.ts`（`notifyOrganizer()`。
+  in_app_badge 固定・外部 fetch なし）と `src/lib/outbox-transports.ts`（`ops_alert`→
+  `internal_webhook` / `organizer_notify`→`notifyOrganizer()`）を実装し、
+  `tests/integration/outbox-delivery.test.ts`（4 件。全 kind の配達・PII 無し payload・LINE API
+  非呼び出しを実 DB で検証）を追加。`src/lib/outbox.ts` の `organizer_notify` docstring を
+  ADR-007 accepted の内容へ更新（挙動非破壊）。ADR-007 を accepted にした際、G10（accepted ADR
+  に `[設計]`/`[不明]` ラベルが残っていないか）に引っかかったため確信度表記を修正し、
+  副次的に `tests/unit/gate-check.test.ts` の既存失敗も解消した。`scripts/record-run.sh
+  task_023` で `typecheck` / `test:unit`（51 ファイル **1214/1214**） / `test:integration`
+  （22 ファイル **255/255**） / `gate:constraints`（0 violation）を全て exit 0 で確認済み
+  （health.ts の DB 側 degraded 判定 4 条件は前ラウンド実装のまま変更なし・24 件 pass 継続）。
+  未解決: `deliverOutboxJob` は本番 cron（`src/app/api/cron/outbox/route.ts`、task_020 所有・
+  files_to_modify 外）へ未配線、`check_113` の expected_result（LINE push 前提）が ADR-007
+  パターン B と文言不一致（`docs/acceptance-checks.json` は files_to_modify 外で未改訂）、
+  `check_114` の外形監視実測（staging 前提）と `check_115`（週次メトリクス、所有タスク不在）は
+  継続 deferred。残懸念 6 件（medium 3・low 3）は `docs/concerns/task_023.md`。

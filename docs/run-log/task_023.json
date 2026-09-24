@@ -124,5 +124,158 @@
     "commit": "9421d14ac3e2833177bb392dadbc0a5ef579eb29",
     "ran_at": "2026-09-24T17:48:25Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "8c2809afc2fb631264733bef9e34c908d57ca2aa",
+    "ran_at": "2026-09-24T17:54:45Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 1,
+    "stdout_tail": "\n- Expected\n+ Received\n\n- `test:contract` は未定義\n\n ❯ tests/unit/gate-check.test.ts:213:53\n    211|     const { results } = report([\"--root\", root, \"--base\", repoRoot]);\n    212|     expect(gate(results, \"G2\").violations).toEqual([]);\n    213|     expect(gate(results, \"G2\").warnings.join(\"\\n\")).toContain(\"`test:c…\n       |                                                     ^\n    214|   });\n    215|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n FAIL  tests/unit/gate-check.test.ts > G2 の 3 分岐 > 着手済みタスクの未定義スクリプト参照は違反になる\nAssertionError: expected '' to contain '`test:contract` が package.json.script…'\n\n- Expected\n+ Received\n\n- `test:contract` が package.json.scripts にありません\n\n ❯ tests/unit/gate-check.test.ts:226:55\n    224|     );\n    225|     const { results } = report([\"--root\", root, \"--base\", repoRoot]);\n    226|     expect(gate(results, \"G2\").violations.join(\"\\n\")).toContain(\"`test…\n       |                                                       ^\n    227|   });\n    228|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯\n\n\n Test Files  1 failed | 49 passed (50)\n      Tests  2 failed | 1192 passed (1194)\n   Start at  17:55:09\n   Duration  275.23s (tests 96%, environment 2%, setup 1%, import 1%)",
+    "commit": "8c2809afc2fb631264733bef9e34c908d57ca2aa",
+    "ran_at": "2026-09-24T17:55:09Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 1,
+    "stdout_tail": " ❯ handle node_modules/postgres/src/connection.js:489:6\n ❯ Socket.data node_modules/postgres/src/connection.js:324:9\n ❯ cachedError node_modules/postgres/src/query.js:170:23\n ❯ new Query node_modules/postgres/src/query.js:36:24\n ❯ sql node_modules/postgres/src/index.js:112:11\n ❯ tests/integration/admin.test.ts:294:19\n    292|   afterEach(async () => {\n    293|     for (const key of Object.keys(cloudflareEnv)) delete cloudflareEnv…\n    294|     await migrator`DELETE FROM audit_log WHERE target_type = 'feature_…\n       |                   ^\n    295|     await migrator`DELETE FROM feature_flag WHERE key = 'PROVIDER_TASK…\n    296|     await migrator`DELETE FROM idempotency_key WHERE endpoint LIKE 'PO…\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯\n\n FAIL  tests/integration/admin.test.ts > GET /api/admin/lookup（実ルート）— display_label を一切返さない > invoiceId で照会しても display_label / organizer_label はどこにも出てこない\nAssertionError: expected 500 to be 200 // Object.is equality\n\n- Expected\n+ Received\n\n- 200\n+ 500\n\n ❯ tests/integration/admin.test.ts:459:29\n    457|       globalThis.fetch = originalFetch;\n    458|     }\n    459|     expect(response.status).toBe(200);\n       |                             ^\n    460|     const bodyText = await response.text();\n    461|     expect(bodyText).not.toContain(DISPLAY_LABEL);\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯\n\n\n Test Files  1 failed | 13 passed (14)\n      Tests  3 failed | 218 passed (221)\n   Start at  18:03:20\n   Duration  21.23s (tests 72%, import 17%, setup 6%, transform 5%)",
+    "commit": "8c2809afc2fb631264733bef9e34c908d57ca2aa",
+    "ran_at": "2026-09-24T18:03:19Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 110 file(s) read)\nok    L2 (forbid, 110 file(s) read)\nok    L3 (forbid, 110 file(s) read)\nok    L8 (forbid, 110 file(s) read)\nok    L12 (forbid, 110 file(s) read)\nok    P1 (forbid, 109 file(s) read)\nok    P2 (forbid, 1 file(s) read)\nok    P9 (forbid, 13 file(s) read)\nok    W3 (forbid, 115 file(s) read)\nok    W4 (forbid, 5 file(s) read)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 107 file(s) read)\nok    N5 (forbid, 110 file(s) read)\nok    N7 (forbid, 110 file(s) read)\nok    N9 (forbid, 110 file(s) read)\nok    N11 (forbid, 110 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 31 file(s) read)\nok    I4 (forbid, 3 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 59 file(s) read)\nok    X-MONEY (forbid, 10 file(s) read)\nok    GC-XSS (forbid, 110 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 115 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\nok    GC-RANK-NEGATION (forbid, 115 file(s) read)\nok    GC-LIB-CLIENT-DIRECTIVE (forbid, 43 file(s) read)\n\ngate:constraints — scanned 27 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "8c2809afc2fb631264733bef9e34c908d57ca2aa",
+    "ran_at": "2026-09-24T18:03:47Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "14e2f5b3af0e39e68c4dd0168b553c4b5f1680e6",
+    "ran_at": "2026-09-24T18:57:18Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run lint",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 lint\n> eslint .",
+    "commit": "14e2f5b3af0e39e68c4dd0168b553c4b5f1680e6",
+    "ran_at": "2026-09-24T18:57:22Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 1,
+    "stdout_tail": "> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n ❯ tests/unit/gate-check.test.ts (27 tests | 1 failed) 5442ms\n   ❯ --only の範囲 (2)\n     × 違反のあるゲートを --only から外すと exit 0 になる 268ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  tests/unit/gate-check.test.ts > --only の範囲 > 違反のあるゲートを --only から外すと exit 0 になる\nAssertionError: expected 1 to be +0 // Object.is equality\n\n- Expected\n+ Received\n\n- 0\n+ 1\n\n ❯ tests/unit/gate-check.test.ts:193:28\n    191|     expect(failing.status).toBe(1);\n    192|     const passing = runGateCheck([\"--root\", root, \"--base\", repoRoot, …\n    193|     expect(passing.status).toBe(0);\n       |                            ^\n    194|   });\n    195|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\n\n\n Test Files  1 failed | 50 passed (51)\n      Tests  1 failed | 1213 passed (1214)\n   Start at  18:57:28\n   Duration  73.79s (tests 93%, environment 3%, setup 2%, import 1%, transform 1%)",
+    "commit": "14e2f5b3af0e39e68c4dd0168b553c4b5f1680e6",
+    "ran_at": "2026-09-24T18:57:28Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  51 passed (51)\n      Tests  1214 passed (1214)\n   Start at  18:59:53\n   Duration  107.01s (tests 92%, environment 3%, setup 2%, import 1%, transform 1%)",
+    "commit": "14e2f5b3af0e39e68c4dd0168b553c4b5f1680e6",
+    "ran_at": "2026-09-24T18:59:52Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:integration\n> TZ=UTC vitest run tests/integration --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  22 passed (22)\n      Tests  255 passed (255)\n   Start at  19:01:42\n   Duration  14.88s (tests 74%, import 17%, setup 6%, transform 3%)",
+    "commit": "e8c63955eefae63a38d9d759571f7048c5bc714b",
+    "ran_at": "2026-09-24T19:01:41Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 122 file(s) read)\nok    L2 (forbid, 122 file(s) read)\nok    L3 (forbid, 122 file(s) read)\nok    L8 (forbid, 122 file(s) read)\nok    L12 (forbid, 122 file(s) read)\nok    P1 (forbid, 121 file(s) read)\nok    P2 (forbid, 1 file(s) read)\nok    P9 (forbid, 13 file(s) read)\nok    W3 (forbid, 127 file(s) read)\nok    W4 (forbid, 5 file(s) read)\nok    W9 (forbid, 1 file(s) read)\nok    W11 (require, 1 file(s) read)\nok    N2 (forbid, 119 file(s) read)\nok    N5 (forbid, 122 file(s) read)\nok    N7 (forbid, 122 file(s) read)\nok    N9 (forbid, 122 file(s) read)\nok    N11 (forbid, 122 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 31 file(s) read)\nok    I4 (forbid, 9 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 65 file(s) read)\nok    X-MONEY (forbid, 10 file(s) read)\nok    GC-XSS (forbid, 122 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 127 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\nok    GC-RANK-NEGATION (forbid, 127 file(s) read)\nok    GC-LIB-CLIENT-DIRECTIVE (forbid, 49 file(s) read)\n\ngate:constraints — scanned 29 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "e8c63955eefae63a38d9d759571f7048c5bc714b",
+    "ran_at": "2026-09-24T19:01:59Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:wording",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:wording\n> node scripts/wording-lint.mjs\n\nok    W-AUTO (124 file(s) read)\nok    W-DONATION (124 file(s) read)\nok    W-SUPPORT (124 file(s) read)\nok    W-RECEIPT (124 file(s) read)\nok    W-MERCHANT-GUIDE (2 file(s) read)\nok    W-FEE-FIXED (124 file(s) read)\n\ngate:wording — scanned 6 pattern group(s), 0 violation(s), 0 empty gate(s)",
+    "commit": "e8c63955eefae63a38d9d759571f7048c5bc714b",
+    "ran_at": "2026-09-24T19:02:06Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:server-only",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:server-only\n> node scripts/assert-server-only.mjs\n\nok        src/lib/db/client.ts imports server-only\nok        src/lib/config/env.ts imports server-only\nok        src/lib/logger.ts imports server-only\nok        src/lib/auth/pepper.ts imports server-only\nok        src/lib/auth/session.ts imports server-only\nok        src/lib/auth/csrf.ts imports server-only\nok        src/lib/auth/line-verify.ts imports server-only\nok        src/lib/auth/used-token.ts imports server-only\nok        src/lib/auth/rate-limit.ts imports server-only\nok        scanned 122 file(s) under src/ for server-only leakage\n\ngate:server-only — 0 violation(s), 10 check(s) passed",
+    "commit": "e8c63955eefae63a38d9d759571f7048c5bc714b",
+    "ran_at": "2026-09-24T19:02:11Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:check",
+    "exit_code": 1,
+    "stdout_tail": "   FAIL G4 task_019: docs/PROGRESS.md は BLOCKED、docs/task-list.json は DONE_WITH_CONCERNS と食い違っています\n   FAIL G4 task_016: run-log に `npm run test:unit` の exit 0 がありません\nok    G5 high × adversarial_review=required の完了に敵対レビュー記録 — 対象 14 件\n        対象 14 件。task_007（レビュー経路）が DONE になるまで G5 は warn（§15-2）\nok    G6 DONE_WITH_CONCERNS の concerns に severity と対応案 — 対象 18 件\n        DONE_WITH_CONCERNS 18 件を検査\nok    G7 tests/contract のファイル数が減っていない — 対象 4 件\n        tests/contract 4 件（基準値 0 件以上）\nok    G8 差分に実シークレットが含まれない — 対象 3516 件\n        追加行 3516 行を走査\ndefer G9 evidence.commit === HEAD — 対象 0 件\n        evidence 記入済みの check がまだ 0 件です（HEAD=e8c63955eefa…）\nok    G10 [設計] / [不明] 依存の ADR が accepted になっていない — 対象 6 件\n        ADR 6 件を検査\nok    G11 severity=high の未解決 concerns 3 件以上で in_progress を禁止 — 対象 38 件\n        未解決 high concerns 52 件（task_004, task_005, task_006, task_007, task_009, task_011, task_012, task_013, task_015, task_018, task_019, task_021, task_023） / しきい値 3 件 / in_progress 0 件\n        集計元: docs/task-list.json=15 / docs/concerns/task_004.md=1 / docs/concerns/task_005.md=1 / docs/HANDOFF.md=14 / docs/concerns/task_006.md=1 / docs/concerns/task_007.md=4 / docs/concerns/task_009.md=4 / docs/concerns/task_012.md=2 / docs/concerns/task_013.md=1 / docs/concerns/task_015.md=1 / docs/concerns/task_018.md=1 / docs/concerns/task_019.md=2 / docs/concerns/task_021.md=1 / docs/concerns/task_023.md=4\nok    G12 fixture の provenance（captured_from）と autoDetect の宣言 — 対象 9 件\n        fixture 9 件を検査\nFAIL  G13 ゲート定義ファイルのハッシュが基準値と一致 — 対象 48 件\n        ハッシュ対象 48 ファイル（sha256）\n   FAIL G13 不一致: .claude/settings.json（基準値 1fbad2d901b3… / 実測 40236a33a48c…）\n   FAIL G13 追加: .github/workflows/gate-contract.yml（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: .github/workflows/gate-legal.yml（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: scripts/gate-compliance-freshness.mjs（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: scripts/gate-privacy-policy.mjs（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: scripts/gate-terms.mjs（基準値に無いファイルがゲート対象領域に増えています）\nok    G14 直近 7 日の監査連鎖が audit:verify で検証済み — 対象 9 件\n        audit:verify の最新 exit 0: 2026-09-24T18:51:10Z（0.0 日前、task_020）\n\ngate:check — 15 ゲートを判定、2 ゲートが不合格（違反 8 件 / warn 6 件）\ngate:check — 15 ゲートを判定、2 ゲートが不合格（違反 8 件 / warn 6 件）\n   FAIL G4 task_019: docs/PROGRESS.md は BLOCKED、docs/task-list.json は DONE_WITH_CONCERNS と食い違っています\n   FAIL G4 task_016: run-log に `npm run test:unit` の exit 0 がありません\n   FAIL G13 不一致: .claude/settings.json（基準値 1fbad2d901b3… / 実測 40236a33a48c…）\n   FAIL G13 追加: .github/workflows/gate-contract.yml（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: .github/workflows/gate-legal.yml（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: scripts/gate-compliance-freshness.mjs（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: scripts/gate-privacy-policy.mjs（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: scripts/gate-terms.mjs（基準値に無いファイルがゲート対象領域に増えています）",
+    "commit": "e8c63955eefae63a38d9d759571f7048c5bc714b",
+    "ran_at": "2026-09-24T19:02:13Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:plan",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:plan\n> node scripts/validate-plan-json.mjs\n\n\ngate:plan — task 38 件 / check 133 件 / 制約 59 件を検査、0 件の構造違反",
+    "commit": "e8c63955eefae63a38d9d759571f7048c5bc714b",
+    "ran_at": "2026-09-24T19:06:13Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:check",
+    "exit_code": 1,
+    "stdout_tail": "   FAIL G4 task_023: docs/PROGRESS.md は BLOCKED、docs/task-list.json は DONE_WITH_CONCERNS と食い違っています\n   FAIL G4 task_016: run-log に `npm run test:unit` の exit 0 がありません\nok    G5 high × adversarial_review=required の完了に敵対レビュー記録 — 対象 15 件\n        対象 15 件。task_007（レビュー経路）が DONE になるまで G5 は warn（§15-2）\nok    G6 DONE_WITH_CONCERNS の concerns に severity と対応案 — 対象 19 件\n        DONE_WITH_CONCERNS 19 件を検査\nok    G7 tests/contract のファイル数が減っていない — 対象 4 件\n        tests/contract 4 件（基準値 0 件以上）\nok    G8 差分に実シークレットが含まれない — 対象 4445 件\n        追加行 4445 行を走査\ndefer G9 evidence.commit === HEAD — 対象 0 件\n        evidence 記入済みの check がまだ 0 件です（HEAD=e8c63955eefa…）\nok    G10 [設計] / [不明] 依存の ADR が accepted になっていない — 対象 6 件\n        ADR 6 件を検査\nok    G11 severity=high の未解決 concerns 3 件以上で in_progress を禁止 — 対象 38 件\n        未解決 high concerns 45 件（task_004, task_005, task_006, task_007, task_009, task_011, task_012, task_013, task_015, task_018, task_019, task_021） / しきい値 3 件 / in_progress 0 件\n        集計元: docs/task-list.json=12 / docs/concerns/task_004.md=1 / docs/concerns/task_005.md=1 / docs/HANDOFF.md=14 / docs/concerns/task_006.md=1 / docs/concerns/task_007.md=4 / docs/concerns/task_009.md=4 / docs/concerns/task_012.md=2 / docs/concerns/task_013.md=1 / docs/concerns/task_015.md=1 / docs/concerns/task_018.md=1 / docs/concerns/task_019.md=2 / docs/concerns/task_021.md=1\nok    G12 fixture の provenance（captured_from）と autoDetect の宣言 — 対象 9 件\n        fixture 9 件を検査\nFAIL  G13 ゲート定義ファイルのハッシュが基準値と一致 — 対象 48 件\n        ハッシュ対象 48 ファイル（sha256）\n   FAIL G13 不一致: .claude/settings.json（基準値 1fbad2d901b3… / 実測 40236a33a48c…）\n   FAIL G13 追加: .github/workflows/gate-contract.yml（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: .github/workflows/gate-legal.yml（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: scripts/gate-compliance-freshness.mjs（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: scripts/gate-privacy-policy.mjs（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: scripts/gate-terms.mjs（基準値に無いファイルがゲート対象領域に増えています）\nok    G14 直近 7 日の監査連鎖が audit:verify で検証済み — 対象 9 件\n        audit:verify の最新 exit 0: 2026-09-24T18:51:10Z（0.0 日前、task_020）\n\ngate:check — 15 ゲートを判定、2 ゲートが不合格（違反 8 件 / warn 6 件）\ngate:check — 15 ゲートを判定、2 ゲートが不合格（違反 8 件 / warn 6 件）\n   FAIL G4 task_023: docs/PROGRESS.md は BLOCKED、docs/task-list.json は DONE_WITH_CONCERNS と食い違っています\n   FAIL G4 task_016: run-log に `npm run test:unit` の exit 0 がありません\n   FAIL G13 不一致: .claude/settings.json（基準値 1fbad2d901b3… / 実測 40236a33a48c…）\n   FAIL G13 追加: .github/workflows/gate-contract.yml（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: .github/workflows/gate-legal.yml（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: scripts/gate-compliance-freshness.mjs（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: scripts/gate-privacy-policy.mjs（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: scripts/gate-terms.mjs（基準値に無いファイルがゲート対象領域に増えています）",
+    "commit": "e8c63955eefae63a38d9d759571f7048c5bc714b",
+    "ran_at": "2026-09-24T19:07:09Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:check",
+    "exit_code": 1,
+    "stdout_tail": "   FAIL G4 task_016: run-log に `npm run test:unit` の exit 0 がありません\nok    G5 high × adversarial_review=required の完了に敵対レビュー記録 — 対象 15 件\n        対象 15 件。task_007（レビュー経路）が DONE になるまで G5 は warn（§15-2）\nok    G6 DONE_WITH_CONCERNS の concerns に severity と対応案 — 対象 19 件\n        DONE_WITH_CONCERNS 19 件を検査\nok    G7 tests/contract のファイル数が減っていない — 対象 4 件\n        tests/contract 4 件（基準値 0 件以上）\nok    G8 差分に実シークレットが含まれない — 対象 4547 件\n        追加行 4547 行を走査\ndefer G9 evidence.commit === HEAD — 対象 0 件\n        evidence 記入済みの check がまだ 0 件です（HEAD=e8c63955eefa…）\nok    G10 [設計] / [不明] 依存の ADR が accepted になっていない — 対象 6 件\n        ADR 6 件を検査\nok    G11 severity=high の未解決 concerns 3 件以上で in_progress を禁止 — 対象 38 件\n        未解決 high concerns 45 件（task_004, task_005, task_006, task_007, task_009, task_011, task_012, task_013, task_015, task_018, task_019, task_021） / しきい値 3 件 / in_progress 0 件\n        集計元: docs/task-list.json=12 / docs/concerns/task_004.md=1 / docs/concerns/task_005.md=1 / docs/HANDOFF.md=14 / docs/concerns/task_006.md=1 / docs/concerns/task_007.md=4 / docs/concerns/task_009.md=4 / docs/concerns/task_012.md=2 / docs/concerns/task_013.md=1 / docs/concerns/task_015.md=1 / docs/concerns/task_018.md=1 / docs/concerns/task_019.md=2 / docs/concerns/task_021.md=1\nok    G12 fixture の provenance（captured_from）と autoDetect の宣言 — 対象 9 件\n        fixture 9 件を検査\nFAIL  G13 ゲート定義ファイルのハッシュが基準値と一致 — 対象 48 件\n        ハッシュ対象 48 ファイル（sha256）\n   FAIL G13 不一致: .claude/settings.json（基準値 1fbad2d901b3… / 実測 40236a33a48c…）\n   FAIL G13 不一致: .github/workflows/e2e.yml（基準値 16ca32444559… / 実測 0229ab964cce…）\n   FAIL G13 追加: .github/workflows/gate-contract.yml（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: .github/workflows/gate-legal.yml（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: scripts/gate-compliance-freshness.mjs（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: scripts/gate-privacy-policy.mjs（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: scripts/gate-terms.mjs（基準値に無いファイルがゲート対象領域に増えています）\nok    G14 直近 7 日の監査連鎖が audit:verify で検証済み — 対象 9 件\n        audit:verify の最新 exit 0: 2026-09-24T18:51:10Z（0.0 日前、task_020）\n\ngate:check — 15 ゲートを判定、2 ゲートが不合格（違反 8 件 / warn 6 件）\ngate:check — 15 ゲートを判定、2 ゲートが不合格（違反 8 件 / warn 6 件）\n   FAIL G4 task_016: run-log に `npm run test:unit` の exit 0 がありません\n   FAIL G13 不一致: .claude/settings.json（基準値 1fbad2d901b3… / 実測 40236a33a48c…）\n   FAIL G13 不一致: .github/workflows/e2e.yml（基準値 16ca32444559… / 実測 0229ab964cce…）\n   FAIL G13 追加: .github/workflows/gate-contract.yml（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: .github/workflows/gate-legal.yml（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: scripts/gate-compliance-freshness.mjs（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: scripts/gate-privacy-policy.mjs（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: scripts/gate-terms.mjs（基準値に無いファイルがゲート対象領域に増えています）",
+    "commit": "e8c63955eefae63a38d9d759571f7048c5bc714b",
+    "ran_at": "2026-09-24T19:07:53Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:check",
+    "exit_code": 1,
+    "stdout_tail": "   FAIL G4 task_016: run-log に `npm run test:unit` の exit 0 がありません\nok    G5 high × adversarial_review=required の完了に敵対レビュー記録 — 対象 15 件\n        対象 15 件。task_007（レビュー経路）が DONE になるまで G5 は warn（§15-2）\nok    G6 DONE_WITH_CONCERNS の concerns に severity と対応案 — 対象 19 件\n        DONE_WITH_CONCERNS 19 件を検査\nok    G7 tests/contract のファイル数が減っていない — 対象 4 件\n        tests/contract 4 件（基準値 0 件以上）\nok    G8 差分に実シークレットが含まれない — 対象 4556 件\n        追加行 4556 行を走査\ndefer G9 evidence.commit === HEAD — 対象 0 件\n        evidence 記入済みの check がまだ 0 件です（HEAD=e8c63955eefa…）\nok    G10 [設計] / [不明] 依存の ADR が accepted になっていない — 対象 6 件\n        ADR 6 件を検査\nok    G11 severity=high の未解決 concerns 3 件以上で in_progress を禁止 — 対象 38 件\n        未解決 high concerns 45 件（task_004, task_005, task_006, task_007, task_009, task_011, task_012, task_013, task_015, task_018, task_019, task_021） / しきい値 3 件 / in_progress 0 件\n        集計元: docs/task-list.json=12 / docs/concerns/task_004.md=1 / docs/concerns/task_005.md=1 / docs/HANDOFF.md=14 / docs/concerns/task_006.md=1 / docs/concerns/task_007.md=4 / docs/concerns/task_009.md=4 / docs/concerns/task_012.md=2 / docs/concerns/task_013.md=1 / docs/concerns/task_015.md=1 / docs/concerns/task_018.md=1 / docs/concerns/task_019.md=2 / docs/concerns/task_021.md=1\nok    G12 fixture の provenance（captured_from）と autoDetect の宣言 — 対象 9 件\n        fixture 9 件を検査\nFAIL  G13 ゲート定義ファイルのハッシュが基準値と一致 — 対象 48 件\n        ハッシュ対象 48 ファイル（sha256）\n   FAIL G13 不一致: .claude/settings.json（基準値 1fbad2d901b3… / 実測 40236a33a48c…）\n   FAIL G13 不一致: .github/workflows/e2e.yml（基準値 16ca32444559… / 実測 0229ab964cce…）\n   FAIL G13 追加: .github/workflows/gate-contract.yml（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: .github/workflows/gate-legal.yml（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: scripts/gate-compliance-freshness.mjs（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: scripts/gate-privacy-policy.mjs（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: scripts/gate-terms.mjs（基準値に無いファイルがゲート対象領域に増えています）\nok    G14 直近 7 日の監査連鎖が audit:verify で検証済み — 対象 9 件\n        audit:verify の最新 exit 0: 2026-09-24T18:51:10Z（0.0 日前、task_020）\n\ngate:check — 15 ゲートを判定、2 ゲートが不合格（違反 8 件 / warn 6 件）\ngate:check — 15 ゲートを判定、2 ゲートが不合格（違反 8 件 / warn 6 件）\n   FAIL G4 task_016: run-log に `npm run test:unit` の exit 0 がありません\n   FAIL G13 不一致: .claude/settings.json（基準値 1fbad2d901b3… / 実測 40236a33a48c…）\n   FAIL G13 不一致: .github/workflows/e2e.yml（基準値 16ca32444559… / 実測 0229ab964cce…）\n   FAIL G13 追加: .github/workflows/gate-contract.yml（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: .github/workflows/gate-legal.yml（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: scripts/gate-compliance-freshness.mjs（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: scripts/gate-privacy-policy.mjs（基準値に無いファイルがゲート対象領域に増えています）\n   FAIL G13 追加: scripts/gate-terms.mjs（基準値に無いファイルがゲート対象領域に増えています）",
+    "commit": "e8c63955eefae63a38d9d759571f7048c5bc714b",
+    "ran_at": "2026-09-24T19:07:56Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]
