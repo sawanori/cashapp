@@ -1634,12 +1634,26 @@ GPT-6 Astra の敵対レビュー（high 1 / medium 2）。**再現 2 件・非�
   `sessionStorage` がまったく使えない端末では復帰時に退避カウンタも 0 に戻る。
   再読み込みをまたいで数えるには回数を URL（`redirectUri` のクエリ）へ持ち出す必要があり、
   それは `(liff)` 画面側（task_014）の設計判断。→ C-013-13
-- **[severity: medium] `npm run test:unit` は exit 1**。落ちたのは既知の
-  `tests/unit/gate-constraints.test.ts`（5 秒タイムアウト・C-013-12）と、**並行して編集中の
-  他タスクの未コミットファイル**起因のもの（`tests/unit/auth/csrf.test.ts` が未追跡の
-  `src/lib/auth/request-guard.ts` を咎める、`.claude/workflows/*.ts` 編集中の
-  `workflow-scripts.test.ts` など）。実行ごとに赤の顔ぶれが変わる（5 → 22 → 2 ファイル）。
-  task_013 所有テストの赤は 0 件（`tests/unit/liff` / `telemetry.test.ts` / `components` で 98/98 緑）。
+- **[severity: medium] `npm run test:unit` は exit 1**。最終 HEAD での実測では赤は
+  `tests/unit/gate-constraints.test.ts` の `Error: Test timed out in 5000ms` だけで
+  （947/958 pass・単独実行は 30/30 緑）、既知の C-013-12（task_004 の担当）である。
+  作業中は並行編集中の他タスクの未コミットファイル起因の赤も混ざり、実行ごとに顔ぶれが
+  変わった（5 → 22 → 11 件）。**task_013 所有テストの赤は一度も出ていない**
+  （`tests/unit/liff` / `telemetry.test.ts` / `components` で 101/101 緑）。
+
+### 2 巡目（1 巡目の修正に対する敵対レビューを受けて）
+
+- **gemini と GPT-6 Astra が独立に同じ high を挙げた**（merge-review: `reject` / 有効票 2 /
+  実効 high 2）。1 巡目の `readAttempts` が**保存値を退避先より優先**していたため、
+  `getItem` は成功するが `setItem` が落ちるストレージ（quota 超過）では保存値 `"1"` を読み続け、
+  退避カウンタがいくら増えても打ち切りに到達しない。**再読み込みをまたがなくても起きる**。
+  `Math.max(memoryAttempts, readStoredAttempts(storage))` に直した。→ C-013-16
+- gemini の medium も塞いだ。`readBoundedBody` の非ストリーム経路が `request.text()` で
+  読み切ってから測っており、ストリーム側の上限を迂回していた。`body === null`（本文なし）だけ
+  `text()` を使い、**本文はあるのに読み取り機が無い**場合は読まずに 400（fail-closed）。→ C-013-17
+- **教訓**: 1 巡目に足した「読めるが書けない」テストは `getItem` が常に `null` を返す形だったので、
+  「古い値が読める」経路を踏んでいなかった。ストレージの故障モードは
+  「読めない」「書けない」「古い値が読める」の 3 つに分けて書くこと。
 
 ## task_012（レビュー修正・2 周目）
 
@@ -1821,3 +1835,5 @@ GPT-6 Astra の敵対レビュー（high 1 / medium 3）。**4 件すべて HEAD
 - 2026-09-24T13:26:21Z HEAD=ffe9f01 決まったこと: task_013(4周目): ストレージ不能時の login 打ち切りとテレメトリ本文の上限を実測つきで塞ぐ / 未解決: 未コミット 50 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_008.md docs/concerns/task_012.md docs/concerns/task_013.md docs/constraints.json 
 - 2026-09-24T13:27:24Z HEAD=10b4e7f 決まったこと: task_012(2周目): 敵対レビュー high 1 / medium 3 を再現してから塞ぐ（ログインCSRF・DB到達順・引用符キー・PEPPER分裂） / 未解決: 未コミット 37 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/concerns/task_008.md docs/concerns/task_013.md docs/constraints.json docs/review-log/task_004.json docs/review-log/task_013.json 
 - 2026-09-24T13:28:21Z HEAD=10b4e7f 決まったこと: task_012(2周目): 敵対レビュー high 1 / medium 3 を再現してから塞ぐ（ログインCSRF・DB到達順・引用符キー・PEPPER分裂） / 未解決: 未コミット 38 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/concerns/task_008.md docs/concerns/task_013.md docs/constraints.json docs/review-log/task_004.json docs/review-log/task_013.json 
+- 2026-09-24T13:29:22Z HEAD=12fc3b9 決まったこと: task_012(2周目): HANDOFF に決まったこと / 未解決を追記（並行タスクのターンログ行を同梱） / 未解決: 未コミット 40 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_008.md docs/concerns/task_013.md docs/constraints.json docs/review-log/task_004.json 
+- 2026-09-24T13:29:59Z HEAD=12fc3b9 決まったこと: task_012(2周目): HANDOFF に決まったこと / 未解決を追記（並行タスクのターンログ行を同梱） / 未解決: 未コミット 42 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_008.md docs/concerns/task_013.md docs/constraints.json docs/decisions/ADR-009-id-token-single-use.md 

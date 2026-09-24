@@ -483,3 +483,41 @@ Cloudflare Workers のランタイムがリクエスト全体をどこまで受�
 それらは未束縛のままである（C-013-6 と同じく task_024 / task_035）。
 
 **対応予定タスク**: なし（本文読み込みの範囲は解消。上流の受信制限は C-013-6 に含む）
+
+---
+
+## C-013-16 [high → 解消] 保存値を優先したため「読めるが書けない」ストレージで打ち切れなかった
+
+**指摘（4 周目・2 巡目。gemini F-1 と GPT-6 Astra F-1 が独立に同じ反例を挙げた）**:
+C-013-13 の修正版 `readAttempts` は、保存値が有効な整数ならそれを退避先より**優先**していた。
+`getItem` は成功するが `setItem` が落ちるストレージ（quota 超過など）では保存値が `"1"` のまま
+残り続けるため、`writeAttempts` が退避先に 2 を入れても次回また 1 を読み、`login()` を呼び続ける。
+**再読み込みをまたがなくても起きる**ので、C-013-13 に書いた「ページ 1 回分」の制約とは別の穴である。
+1 巡目に足した「読めるが書けない」テストは `getItem` が常に `null` を返す形だったので、
+この経路を踏んでいなかった。
+
+**HEAD での再現（実測）**: `getItem` が常に `"1"` を返し `setItem` が throw するストレージで
+`bootLiff` を 2 回呼ぶテストを足したところ、2 回目も `redirecting_to_login` になった
+（`AssertionError: expected 'redirecting_to_login' to be 'auth_unavailable'`）。
+
+**対応（実施済み）**: `readAttempts` を
+`Math.max(memoryAttempts, readStoredAttempts(storage))` に変えた。
+どちらか一方でも数えられている限り打ち切りに到達する。健全な経路では `memoryAttempts` は 0 のままなので、
+`sessionStorage` が正常に動く端末の挙動は変わらない。修正後は同じテストが緑
+（`tests/unit/liff/client.test.ts` 23 件）。
+
+---
+
+## C-013-17 [medium → 解消] `readBoundedBody` の非ストリーム経路が上限を掛けずに読み切っていた
+
+**指摘（4 周目・2 巡目。gemini F-2）**: `readBoundedBody` は `request.body` が
+ストリームとして読めない場合に `await request.text()` へ退避しており、**そこだけ読み切ってから**
+バイト長を測っていた。ストリーム側に入れた上限をこの枝が迂回する。
+
+**HEAD での再現（実測）**: `getReader` を持たない本文を渡すと `text()` が 1 回呼ばれた
+（`AssertionError: expected 1 to be +0`）。
+
+**対応（実施済み）**: 枝を 2 つに割った。`request.body === null`（本文そのものが無い）は
+従来どおり `text()`（結果は空文字）で、**本文はあるのに読み取り機が無い**場合は
+`text()` を呼ばずに 400 で落とす（fail-closed）。`tests/unit/telemetry.test.ts` に
+「`text()` は 1 回も呼ばれない」ことと「`body === null` は空文字として扱う」ことを固定した。

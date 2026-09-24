@@ -23,7 +23,7 @@ const {
   isClientErrorCode,
   reportClientError,
 } = await import("@/lib/telemetry");
-const { POST, parseClientErrorBody, MAX_TELEMETRY_BODY_BYTES } = await import(
+const { POST, parseClientErrorBody, readBoundedBody, MAX_TELEMETRY_BODY_BYTES } = await import(
   "@/app/api/telemetry/client-error/route"
 );
 const { LOG_KEY_ALLOWLIST } = await import("@/lib/logger");
@@ -268,6 +268,33 @@ describe("POST /api/telemetry/client-error", () => {
       // 読んだ量は上限 + 1 チャンク以内で止まっている。本文全体は受け取っていない。
       expect(pulled.bytes).toBeLessThanOrEqual(MAX_TELEMETRY_BODY_BYTES + CHUNK_BYTES * 2);
       expect(pulled.bytes).toBeLessThan(totalBytes);
+    });
+
+    /**
+     * 4 周目のレビュー（gemini F-2）で挙がった逃げ道。
+     *
+     * `readBoundedBody` の「ストリームとして読めないとき」の枝が `request.text()` を呼ぶと、
+     * そこだけ**読み切ってから**測ることになり、上限が受信量を制限しない。
+     * 本文を持つのに読み取り機が無いリクエストは、読まずに 400 で落とす（fail-closed）。
+     */
+    it("ストリームとして読めない本文は読まずに 400（text() へ逃げない）", async () => {
+      let textCalls = 0;
+      const unreadable = {
+        // `getReader` を持たない「本文らしきもの」。上限を掛ける手段が無い。
+        body: {},
+        text: async () => {
+          textCalls += 1;
+          return "a".repeat(MAX_TELEMETRY_BODY_BYTES * 16);
+        },
+      } as unknown as Pick<Request, "body" | "text">;
+
+      await expect(readBoundedBody(unreadable, MAX_TELEMETRY_BODY_BYTES)).rejects.toThrowError();
+      expect(textCalls).toBe(0);
+    });
+
+    it("本文が無いリクエスト（body === null）は空文字として扱う", async () => {
+      const empty = { body: null, text: async () => "" };
+      await expect(readBoundedBody(empty, MAX_TELEMETRY_BODY_BYTES)).resolves.toBe("");
     });
 
     it("レート制限の判定は本文を読む前に終わっている（本文に触れずに 503）", async () => {

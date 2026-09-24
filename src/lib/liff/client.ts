@@ -202,17 +202,29 @@ function defaultStorage(): AttemptStorage | null {
  */
 let memoryAttempts = 0;
 
-function readAttempts(storage: AttemptStorage | null): number {
-  if (storage === null) return memoryAttempts;
+/** `storage` に残っている値。読めない・壊れている・置き場が無いときは 0。 */
+function readStoredAttempts(storage: AttemptStorage | null): number {
+  if (storage === null) return 0;
   try {
     const raw = storage.getItem(LOGIN_ATTEMPT_STORAGE_KEY);
-    // 読めたが未記録のときも退避先を見る。「前回の書き込みが落ちた」場合がここに来る。
-    if (raw === null) return memoryAttempts;
+    if (raw === null) return 0;
     const value = Number.parseInt(raw, 10);
-    return Number.isInteger(value) && value >= 0 ? value : memoryAttempts;
+    return Number.isInteger(value) && value >= 0 ? value : 0;
   } catch {
-    return memoryAttempts;
+    return 0;
   }
+}
+
+/**
+ * 試行回数。**保存値と退避先の大きいほう**を採る。
+ *
+ * ★ 保存値を優先してはいけない。「読めるが書けない」ストレージ（quota 超過など）では
+ *   `getItem` が古い値を返し続ける一方 `setItem` は落ちるので、保存値を信じると
+ *   カウンタが永久に進まず `login()` を呼び続ける（再読み込みをまたがなくても起きる）。
+ *   大きいほうを採れば、どちらか一方でも数えられている限り打ち切りに到達する。
+ */
+function readAttempts(storage: AttemptStorage | null): number {
+  return Math.max(memoryAttempts, readStoredAttempts(storage));
 }
 
 function writeAttempts(storage: AttemptStorage | null, value: number): void {

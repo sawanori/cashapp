@@ -360,6 +360,38 @@ describe("bootLiff の起動順序", () => {
       expect(again.loginAttempts).toBe(1);
     });
 
+    /**
+     * 4 周目のレビューで gemini / GPT-6 Astra の両方が挙げた反例。
+     *
+     * 退避先より**保存値を優先**すると、「読めるが書けない」ストレージ（quota 超過など）で
+     * 古い値を読み続け、退避先がいくら増えても打ち切りに到達しない。
+     * 再読み込みをまたがなくても起きる（前の `readOnlyStorage` は `getItem` が
+     * 常に `null` を返す形だったので、この経路を踏んでいなかった）。
+     */
+    it("保存値が古いまま更新できないストレージでも打ち切る（読める値は退避先より小さい）", async () => {
+      const { bootLiff: boot } = await import("@/lib/liff/client");
+      const { liff, login } = fakeLiff({ inClient: true, loggedIn: false });
+      const staleStorage: AttemptStorage = {
+        // 一度書けた "1" がそのまま残り続ける。
+        getItem: () => "1",
+        setItem: () => {
+          throw new Error("QuotaExceededError");
+        },
+        removeItem: () => undefined,
+      };
+      const deps = { loadLiff: async () => liff, storage: staleStorage, report };
+
+      const first = await boot(LIFF_ID, deps);
+      expect(first.state).toBe("redirecting_to_login");
+      expect(first.loginAttempts).toBe(2);
+
+      const second = await boot(LIFF_ID, deps);
+      expect(second.state).toBe("auth_unavailable");
+      expect(second.loginAttempts).toBe(MAX_LOGIN_ATTEMPTS);
+      expect(login).toHaveBeenCalledTimes(1);
+      expect(reported).toEqual([CLIENT_ERROR_CODES.LOGIN_LOOP_ABORTED]);
+    });
+
     it("storage が書けなかった回の分も数える（読めるが書けないストレージ）", async () => {
       const { bootLiff: boot } = await import("@/lib/liff/client");
       const { liff, login } = fakeLiff({ inClient: true, loggedIn: false });

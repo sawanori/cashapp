@@ -216,5 +216,156 @@
     "task_mismatches": 0,
     "effective_high": 1,
     "exit_code": 1
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_013",
+    "reviewer": "adversarial-reviewer-gemini",
+    "vendor": "gemini",
+    "reviewer_route": "verified",
+    "model_id_requested": "gemini-2.5-pro",
+    "model_id_actual": "gemini-2.5-pro",
+    "model_id_source": "cli_stats",
+    "cli_version": "0.38.1",
+    "backend": "gemini-cli",
+    "ran_at": "2026-09-24T13:20:59Z",
+    "commit": "b9b91c605f276c0f2b921d229f83441da2eeabc3",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "high",
+        "title": "Login loop prevention can be bypassed if storage becomes read-only",
+        "detail": "The `readAttempts` function prefers the value from `sessionStorage` over the in-memory fallback counter `memoryAttempts` if a value exists in storage. If `sessionStorage` becomes read-only (e.g., due to quota limits), `getItem` will succeed with a stale value, but `setItem` will fail. In this case, the in-memory counter `memoryAttempts` will be incremented, but on the next check, `readAttempts` will read the old, lower value from storage again, effectively resetting the counter and allowing the login loop to continue indefinitely. The logic should use the maximum of the value from storage and the in-memory fallback.",
+        "file": "src/lib/liff/client.ts",
+        "line": 199,
+        "repro": "1. Start with working `sessionStorage` and call `bootLiff` once with a non-logged-in user. `sessionStorage` will now contain `{\"cashapp.liff.loginAttempts\": \"1\"}`. 2. Mock `sessionStorage.setItem` to throw an error (e.g., QuotaExceededError) while `getItem` still returns the old value `\"1\"`. 3. Call `bootLiff` a second time. It will read `1` from storage, call `login()`, and its attempt to write `2` will fail, setting an in-memory counter to `2`. 4. Call `bootLiff` a third time. It will again read `1` from storage, ignoring the in-memory counter which is 2. The loop abortion check (`attempts >= 2`) fails, and `login()` is called for a third time, violating the design.",
+        "citation": "The task goal states 'ログインループを 2 回で打ち切り' (Stop login loops after 2 attempts). The code fails to guarantee this under plausible failure conditions (storage quota exceeded), violating the requirement derived from risk R-LINE-02.",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-2",
+        "severity": "medium",
+        "title": "Resource exhaustion vulnerability in telemetry endpoint's non-streaming fallback",
+        "detail": "The `readBoundedBody` function contains a fallback path for `Request` objects that do not have a streaming body. In this path, it calls `await request.text()`, which buffers the entire request body into memory before its size is checked. An attacker could exploit this by sending a request without a streaming body (if the environment allows it) and a very large payload, bypassing the stream-based size limit and causing excessive memory consumption, leading to a denial of service. The test suite does not cover this vulnerable fallback path.",
+        "file": "src/app/api/telemetry/client-error/route.ts",
+        "line": 75,
+        "citation": "The function's own code comments acknowledge the danger of using `await request.text()` for potentially large bodies: '`text()` は**本文を読み終えてから**...**受信量・メモリ使用量は何も制限されない**' ('`text()`...the check happens after reading everything...**received size and memory usage are not limited**'). The fallback path then implements this exact vulnerable pattern.",
+        "effective_severity": "medium"
+      }
+    ],
+    "raw_warnings": [],
+    "packet_bytes": 196001,
+    "validated_at": "2026-09-24T13:23:29Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/review-013-r4/gemini.json",
+    "merged_at": "2026-09-24T13:23:29Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gemini-2.5-pro を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 1,
+        "medium": 1,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 2,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_013",
+    "reviewer": "adversarial-reviewer-gpt",
+    "vendor": "gpt",
+    "reviewer_route": "cli-fallback",
+    "model_id_requested": "gpt-6-astra",
+    "model_id_actual": "gpt-6-astra",
+    "model_id_source": "self_report",
+    "cli_version": "codex-cli 0.154.0",
+    "backend": "codex",
+    "ran_at": "2026-09-24T13:22:21Z",
+    "commit": "b9b91c605f276c0f2b921d229f83441da2eeabc3",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "high",
+        "title": "保存済みカウンタを読めても更新できない場合、ログインを打ち切れない",
+        "detail": "readAttempts は保存済みの有効な整数を memoryAttempts より優先する。保存値が \"1\" のまま setItem が失敗すると、writeAttempts が memoryAttempts に 2 を保存しても、次回は再び 1 を読み、login を呼び続ける。ページを再読み込みしなくても発生するため、既知の再読み込み時のカウンタ消失とは別の反例である。追加テストの書き込み不能ケースは getItem が null を返す場合しか検査していない。",
+        "file": "src/lib/liff/client.ts",
+        "line": 212,
+        "repro": "新しいモジュール実体で、storage={getItem:()=>\"1\",setItem:()=>{throw new Error(\"QuotaExceededError\")},removeItem:()=>{}} を用意する。SDK は init:async()=>undefined、isInClient:()=>true、isLoggedIn:()=>false、login:呼び出し回数を記録する関数、getIDToken:()=>null とする。同じ SDK と storage、report:()=>{} を渡して bootLiff(\"2000000000-abcd1234\", deps) を逐次 3 回呼ぶ。コード上、全回が state=\"redirecting_to_login\"、loginAttempts=2 となり、login が 3 回呼ばれる。保存済みの 1 回を含めた上限 2 回で停止しない。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      }
+    ],
+    "diagnostics": {
+      "exit_code": 0,
+      "event_types": [
+        "thread.started",
+        "turn.started",
+        "item.completed",
+        "item.completed",
+        "turn.completed"
+      ],
+      "cli_errors": [
+        "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+      ],
+      "last_message_bytes": 883,
+      "stderr_tail": "source_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n2026-09-24T13:21:02.907059Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T13:21:03.092686Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T13:21:03.450754Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer error=\\\"invalid_request\\\", error_description=\\\"No access token was provided in this request\\\", resource_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n"
+    },
+    "packet_bytes": 196001,
+    "validated_at": "2026-09-24T13:23:29Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/review-013-r4/gpt.json",
+    "merged_at": "2026-09-24T13:23:29Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gpt-6-astra を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 1,
+        "medium": 0,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 1,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "type": "summary",
+    "task_id": "task_013",
+    "round": 1,
+    "merged_at": "2026-09-24T13:23:29Z",
+    "decision": "reject",
+    "envelopes": 2,
+    "votes": 2,
+    "vendors": [
+      "gemini",
+      "gpt"
+    ],
+    "author_vendor": "claude",
+    "missing_votes": 0,
+    "invalid_envelopes": 0,
+    "invalid_reviews": 0,
+    "self_reviews": 0,
+    "task_mismatches": 0,
+    "effective_high": 2,
+    "exit_code": 1
   }
 ]

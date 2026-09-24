@@ -68,13 +68,19 @@ export async function readBoundedBody(
   maxBytes: number,
 ): Promise<string> {
   const stream = request.body;
-  if (stream === null || typeof stream.getReader !== "function") {
-    // ストリームが取れない実装（テストダブル等）。ここだけは読み切ってから測るしかない。
+  if (stream === null) {
+    // 本文そのものが無いリクエスト。読むものが無いので `text()` は空文字になる。
     const text = await request.text();
     if (new TextEncoder().encode(text).byteLength > maxBytes) {
       throw badRequest("request body is too large");
     }
     return text;
+  }
+  if (typeof stream.getReader !== "function") {
+    // 本文はあるのにストリームとして読めない。**上限を掛ける手段が無い**ので、
+    // `request.text()` へ逃げず（逃げるとそこだけ読み切ってから測ることになる）、
+    // 1 バイトも読まずに落とす（fail-closed）。
+    throw badRequest("request body is not readable as a stream");
   }
 
   const reader = stream.getReader();
