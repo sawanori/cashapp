@@ -295,3 +295,160 @@ middleware がリクエスト側へ載せた CSP から nonce が取り出せる
 Next 側の nonce 伝播経路が変わった合図なので、伝播を取り直してからテストを直すこと。
 
 **対応予定タスク**: なし（記録のみ。実機での CSP 実測は C-012-3 のとおり task_013 / task_022）
+
+---
+
+# 敵対レビュー（GPT-6 Astra, 2026-09-24, commit 906ba0a）への対応
+
+封筒: `docs/review-log/task_012.json` の該当エントリ（verdict FAIL / high 1・medium 3）。
+各項目は「指摘 / 再現結果 / 修正 / 残懸念」で書く。再現は**修正前の HEAD で実際にテストを走らせた**結果である。
+
+---
+
+## C-012-17 [high → 解消] ログイン CSRF（クロスサイトのフォーム送信で攻撃者のセッションを被害者に発行させられた）
+
+**指摘（F-1）**: `src/app/api/auth/line/route.ts` が `Origin` も `Content-Type` も検査せず
+`request.json()` を実行し、本文の追加フィールドも許容していた。攻撃者は自分の**未使用**の
+ID トークンを埋めたフォームを別オリジンに置き、被害者のブラウザからトップレベル送信させられる。
+
+```html
+<form method="POST" action="https://app.example/api/auth/line" enctype="text/plain">
+  <input name='{"idToken":"T_A","padding":"' value='"}'>
+</form>
+```
+
+`enctype="text/plain"` のフォーム本文は `{"idToken":"T_A","padding":"="}` という**有効な JSON** になる。
+ID トークンの単回使用（ADR-009）も IP レート制限も、この**初回の 1 通**は拒否しない。
+セッション Cookie は `SameSite=Lax` だが、これは「送信時に付かない」規則であって
+「クロスサイト経由の応答で**設定できない**」規則ではないため、被害者のブラウザには
+攻撃者のアカウントのセッションが入る（ログイン CSRF / セッション固定）。
+
+**再現結果**: 再現した。`tests/unit/auth/line-route.test.ts` を修正前の HEAD で実行すると、
+上記フォームをそのまま再現したリクエストが **403 ではなく 200** を返し、応答に
+セッション Cookie が付いた（`expected 200 to be 403`）。同ファイルの 14 ケース中 10 ケースが失敗。
+
+**修正**: `src/lib/auth/request-guard.ts`（新規）を追加し、ルートの先頭で 3 枚重ねに落とす。
+
+1. `assertSameOriginRequest()` — `Origin` があれば自サイトのオリジンと完全一致すること
+   （一致しなければ 403 `CSRF_INVALID`）、`Origin` が無ければ `Sec-Fetch-Site: same-origin` があること。
+   **どちらも無ければ拒否（fail-closed）**。
+2. `assertJsonContentType()` — `application/json` 以外は **415**（HTML フォームは JSON を送れない）。
+3. `assertOnlyKnownBodyKeys()` — 本文のキーは `idToken` だけ。未知フィールドは **400**
+   （`padding` のような詰め物を通さない）。
+
+**自サイトの決め方（環境変数を増やさなかった理由）**: 許可オリジンは `Host` ヘッダと `request.url`
+から導く（`https://<host>`、ループバックのみ `http://<host>` も許可）。どちらも別サイトのページからは
+偽装できない。**`https://liff.line.me` は許可しない**: あのオリジンは全 LIFF アプリの共有物で、
+誰でも自分の LIFF を置けるため、許可すると別の LIFF 開発者から同じ攻撃が成立する。
+LIFF アプリの実体はこのアプリ自身のエンドポイント URL で開かれるので、正規の
+`fetch("/api/auth/line")`（`src/app/(liff)/**` の 5 か所。いずれも `content-type: application/json`）は
+常に同一オリジンであり、この判定で落ちない。
+
+**`Origin` が無いケースを fail-closed にした根拠**: Fetch 標準では **GET / HEAD 以外のリクエストは
+`Origin` を持つ**。したがってブラウザ経由の正規 POST が `Origin` 無しで届くことはなく、
+`Origin` も `Sec-Fetch-Site` も無いのは「ブラウザ以外の経路」である。
+その経路を通す利益は無い（LIFF 以外からこのエンドポイントを叩く正規の利用者はいない）一方、
+通せば上記の攻撃面が残る。よって拒否する。`curl` 等で疎通確認する場合は
+`-H 'Sec-Fetch-Site: same-origin'` か自オリジンの `Origin` を明示すること。
+
+**実測**: 同テスト 14 ケースが全て緑（うち正規の LIFF リクエスト 3 ケースが 200 を返し、DB まで到達することも確認）。
+
+**残懸念**: `request.url` のスキームがプロキシで書き換わる構成では `https://<host>` 候補が効く形にしてあるが、
+**Workers 以外のホスティングに移した場合は未検証**[不明]。移す場合はこのガードの実機確認が要る。
+
+---
+
+## C-012-18 [medium → 解消] レート制限で拒否するリクエストが先に DB へ接続していた
+
+**指摘（F-2）**: POST ハンドラは `authenticateWithLineIdToken()` に入る前に
+`createVerifiedDbClient()` を呼んでいた。この関数は接続と `SELECT session_user` を実行するため、
+429 で弾くはずの乱打がそのまま DB の負荷になる。既存の「DB に到達しない」テストは
+認証関数だけを呼んでおり、ルートの前処理を検査していなかった。
+
+**再現結果**: 再現した。修正前の HEAD では、レート制限が `{success:false}` を返す設定でも
+ルートは **200** を返し（＝レート制限判定自体がルート経路に無く）、`createVerifiedDbClient()` に到達していた。
+
+**修正**: `src/lib/auth/line-verify.ts` に `authRateLimitKey()` / `enforceAuthRateLimit()` /
+`singleFlightRateLimiter()` を切り出し、ルートは **DB 接続前**に `enforceAuthRateLimit()` を呼ぶ。
+`authenticateWithLineIdToken()` 側の判定は**残す**（このモジュールを唯一の入口として使う
+統合テストの契約を変えないため）。同じキーを 2 回判定してカウンタを二重消費しないよう、
+ルートは `singleFlightRateLimiter()` で包んだものを渡す。
+
+**実測**: `tests/unit/auth/line-route.test.ts` の 3 ケースで、(a) 429 のとき
+`createVerifiedDbClient()` が 1 度も呼ばれないこと、(b) バックエンド未束縛なら 503 で同じく到達しないこと、
+(c) 正常時にバックエンドの `limit()` 呼び出しが**ちょうど 1 回**であること、を実測した。
+
+**残懸念**: `loadAppConfig()` はレート制限より前に走る（設定不備は即 500 相当にしたいため）。
+これは DB にも外部にも触らない純粋な文字列検査なので負荷の観点では問題にならない。
+
+---
+
+## C-012-19 [medium → 解消] `gate:env` が引用符付きの TOML キーを読み飛ばしていた
+
+**指摘（F-3）**: `scripts/gate-env-scope.mjs` の代入行の正規表現 `^([A-Za-z0-9_.-]+)\s*=\s*(.+)$` は
+TOML の quoted key（`"KEY" = …` / `'KEY' = …`）に一致しない。禁止名を引用符で囲むだけで
+検査 (1) を回避でき、`SUPABASE_SERVICE_ROLE_KEY` がランタイムの `vars` にあっても exit 0 になる。
+
+**再現結果**: 再現した。`tests/unit/config/fixtures/env-scope/quoted-keys/wrangler.toml`
+（`[env.staging.vars]` に `"SUPABASE_SERVICE_ROLE_KEY"` / `'ALLOW_PRIVILEGED_DB_ROLE'`、
+`[env.production.vars]` に `"PEPPER"` を置いたもの）に対し、修正前は
+`node scripts/gate-env-scope.mjs --root <fixture> --no-live` が **exit 0**（違反 0 件）だった。
+
+**修正**: 代入行の正規表現を素のキー / `"…"` / `'…'` の 3 形に対応させ、キーの引用符を外して比較する。
+併せて値側の `unquote()` を単一引用符（TOML のリテラル文字列）にも対応させ、
+`stripTomlComment()` が基本文字列とリテラル文字列の両方を見るようにした
+（`'pass#word'` のような値の `#` をコメント開始と誤認しないため）。
+
+**実測**: 上記フィクスチャで exit 非 0 になり、3 つの違反
+（`SUPABASE_SERVICE_ROLE_KEY must never be a runtime var` /
+`ALLOW_PRIVILEGED_DB_ROLE must never be a runtime var` / `PEPPER is a secret`）が出る。
+実リポジトリに対しては従来どおり exit 0（違反 0・pending 5）。回帰は `tests/unit/config/env.test.ts` に固定した。
+`scripts/gate-env-scope.mjs` は G13（gate:integrity）の対象なので、基準値
+`docs/gates/integrity-baseline.json` を同じコミットで更新した。
+
+**残懸念**: これは「最小限の TOML 読み取り」であって完全な TOML パーサではない。
+複数行文字列・インラインテーブル・ドット付きの quoted key（`a."b c" = …`）は依然として未対応である。
+`wrangler.toml` でそれらを使い始めたら、このゲートは**黙って読み飛ばす**側に倒れる。
+恒久対処は TOML パーサの導入（依存が増える）か、`wrangler.toml` の書き方を平易な形に限る運用規約。
+
+---
+
+## C-012-20 [medium → 解消（fail-closed で）] PEPPER 切替中にアカウントが分裂しうる
+
+**指摘（F-4）**: 移行処理は旧版の参照値を**上書き**する。移行後に旧 PEPPER だけを持つ処理系へ
+ログインが届くと、その処理系は既存ユーザーを発見できず**別の `app_user` を作る**。
+新版の処理系は現行行を見つけた時点で戻るため、その後も 2 つのアカウントが残り、
+発行されるセッションの userId が設定によって変わる。
+
+**再現結果**: 再現した。`tests/unit/auth/pepper.test.ts`（postgres.js のタグ付きテンプレートを模した
+スタブで SQL の発行順を見るもの）を修正前の HEAD で実行すると、PEPPER v1 だけを持つ処理系が
+「v1 の参照値では見つからない・DB には v2 の行がある」状況で **例外を投げず `INSERT INTO app_user` を発行**した。
+
+**採った方式**: 「旧参照値を残す」案は `app_user` / `participant_claim` のスキーマ変更
+（参照値の複数保持）を要し、`supabase/migrations/**` は task_011 の所有ファイルで本修正の範囲外である。
+また、旧参照値を残す方式は「旧 PEPPER で引ける期間」を延ばす＝R-SEC-09 で減らしたかった
+露出面を再び広げる。したがって **旧 PEPPER 単独の処理系が新規作成に進めないようにする**方を採った。
+
+**修正**: `resolveAppUser()` の `INSERT` 直前に
+`SELECT pepper_version FROM app_user WHERE identity_scope = … AND pepper_version > <現行> LIMIT 1` を置き、
+1 行でも見つかったら（＝この処理系の PEPPER 設定が DB より古い）**新規作成せず**
+`CONFIG_INVALID` / 503 で落とす。既存行が現行版・旧版で見つかる経路は従来どおり通る（移行も従来どおり）。
+
+**根拠**: 割れたアカウントは事後に自動では併合できない（移行で旧参照値が消えているため、
+「同じ人だ」と示す手掛かりが DB に残らない）。一方 503 は運用で解消できる
+（新しい PEPPER をその処理系へ投入して再デプロイする）。**取り返しのつかない側を避ける**。
+
+**実測**: 同テスト 7 ケースが緑。(a) 新しい版の行があれば `CONFIG_INVALID` / 503 で `INSERT` を発行しない、
+(b) 無ければ従来どおり作成する、(c) 現行版の行が見つかる経路・旧版からの移行経路は SQL の発行順が変わらない、
+を実測した。実 Postgres に対する通し（`tests/integration/auth.test.ts` の check_074）も緑のまま。
+
+**残懸念（運用手順）**: PEPPER を増やすときは
+**「全処理系へ新旧そろえて投入 → デプロイ完了を確認 → ログインを流す」** の順を守ること。
+ロールアウト中に旧設定のまま残っている処理系へ**新規**ユーザーのログインが当たると 503 になる
+（既存ユーザーも、移行済みなら 503 になる）。これは意図した fail-closed だが、
+**切替の窓ではログインが落ちうる**という運用上の制約である。
+手順書への反映は `docs/ops/key-rotation-drill.md`（task_024）で行う。
+なお、この検査は `app_user` に対する 1 回の索引スキャン（`identity_scope` + `pepper_version`）で、
+**新規作成の経路でしか走らない**（既存ユーザーのログインには増えない）。
+
+**対応予定タスク**: task_024（`docs/ops/key-rotation-drill.md` に切替手順を書く）

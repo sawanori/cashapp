@@ -134,6 +134,10 @@ function parseArgs(argv) {
  * 対応する構文: `[table]` / `[[array of tables]]` / `key = "string"` / `key = 123` / `key = true`
  * / `key = ["a", "b"]`（1 行のみ）。行コメント（`#`）は落とす。
  *
+ * ★ **キーは引用符で囲める**（TOML 仕様の quoted key: `"KEY" = …` / `'KEY' = …`）。
+ *   引用符付きキーを読み飛ばす実装だと、禁止名を引用符で囲むだけで検査 (1) を回避できる
+ *   （敵対レビュー F-3, 2026-09-24）。キーの引用符は外して比較する。
+ *
  * @returns {{ path: string, key: string, value: string, line: number }[]}
  */
 function readTomlAssignments(text) {
@@ -161,34 +165,49 @@ function readTomlAssignments(text) {
       continue;
     }
 
-    const assignment = /^([A-Za-z0-9_.-]+)\s*=\s*(.+)$/.exec(withoutComment);
+    // 素のキー / "引用符付きキー" / '引用符付きキー' の 3 形すべてを拾う。
+    const assignment =
+      /^(?:"([^"]*)"|'([^']*)'|([A-Za-z0-9_.-]+))\s*=\s*(.+)$/.exec(withoutComment);
     if (assignment === null) continue;
+    const key = assignment[1] ?? assignment[2] ?? assignment[3];
+    if (key === undefined) continue;
     out.push({
       path: tablePath,
-      key: assignment[1],
-      value: unquote(assignment[2].trim()),
+      key,
+      value: unquote(assignment[4].trim()),
       line: i + 1,
     });
   }
   return out;
 }
 
-/** 文字列リテラルの中の `#` をコメント開始と誤認しないようにしながら行コメントを落とす。 */
+/**
+ * 文字列リテラルの中の `#` をコメント開始と誤認しないようにしながら行コメントを落とす。
+ * TOML の文字列は `"…"`（基本文字列）と `'…'`（リテラル文字列）の 2 種類あり、
+ * どちらの中にいるかを別々に見る（リテラル文字列の中ではエスケープが効かない）。
+ */
 function stripTomlComment(line) {
-  let inString = false;
+  let inBasic = false;
+  let inLiteral = false;
   for (let i = 0; i < line.length; i += 1) {
     const ch = line[i];
-    if (ch === '"' && line[i - 1] !== "\\") {
-      inString = !inString;
-    } else if (ch === "#" && !inString) {
+    if (ch === '"' && !inLiteral && line[i - 1] !== "\\") {
+      inBasic = !inBasic;
+    } else if (ch === "'" && !inBasic) {
+      inLiteral = !inLiteral;
+    } else if (ch === "#" && !inBasic && !inLiteral) {
       return line.slice(0, i);
     }
   }
   return line;
 }
 
+/** 値の引用符を外す（`"…"` / `'…'` の両方。TOML はどちらも文字列リテラル）。 */
 function unquote(value) {
   if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
+    return value.slice(1, -1);
+  }
+  if (value.length >= 2 && value.startsWith("'") && value.endsWith("'")) {
     return value.slice(1, -1);
   }
   return value;

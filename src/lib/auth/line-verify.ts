@@ -31,7 +31,7 @@ import {
   userRefFingerprint,
   type AppUserRow,
 } from "@/lib/auth/pepper";
-import type { RateLimiter } from "@/lib/auth/rate-limit";
+import type { RateLimitDecision, RateLimiter } from "@/lib/auth/rate-limit";
 import { issueSession, type IssuedSession } from "@/lib/auth/session";
 import { idTokenUsageKey, type UsedIdTokenStore } from "@/lib/auth/used-token";
 import { AppError, ERROR_CODES, badRequest, idTokenInvalid, rateLimited } from "@/lib/errors";
@@ -188,6 +188,58 @@ export function readIdTokenFromBody(body: unknown): string {
 }
 
 /**
+ * レート制限のキー。生 IP は使わず、PEPPER で HMAC した参照値を使う（§7-5 / R-SEC-04）。
+ */
+export async function authRateLimitKey(
+  config: AppConfig,
+  clientIp: string | null,
+): Promise<string> {
+  const pepper = currentPepper(config);
+  const ipRef =
+    clientIp === null || clientIp.length === 0 ? "unknown" : await hashIp(clientIp, pepper.value);
+  return `auth-line:${ipRef}`;
+}
+
+/**
+ * レート制限**だけ**を判定する。超過なら 429 を投げる。
+ *
+ * ★ ルートハンドラはこれを **DB へ接続する前**に呼ぶ（敵対レビュー F-2, 2026-09-24）。
+ *   `createVerifiedDbClient()` は接続と `SELECT session_user` を行うため、先に呼ぶと
+ *   429 で弾くはずの乱打がそのまま DB の負荷になる。
+ */
+export async function enforceAuthRateLimit(
+  config: AppConfig,
+  rateLimiter: RateLimiter,
+  clientIp: string | null,
+): Promise<RateLimitDecision> {
+  const decision = await rateLimiter.check(await authRateLimitKey(config, clientIp));
+  if (!decision.allowed) {
+    throw rateLimited("too many authentication attempts from this address");
+  }
+  return decision;
+}
+
+/**
+ * 同じキーの再判定でバックエンドを二度叩かないラッパ（**1 リクエストの中でだけ**使う）。
+ *
+ * ルートハンドラは DB 接続前に一度判定し、その後 `authenticateWithLineIdToken()` も
+ * 自分でレート制限を掛ける（ここを唯一の入口として使う統合テストのため）。素のまま渡すと
+ * 1 リクエストでカウンタを 2 消費してしまうので、判定結果を使い回す。
+ */
+export function singleFlightRateLimiter(rateLimiter: RateLimiter): RateLimiter {
+  const inFlight = new Map<string, Promise<RateLimitDecision>>();
+  return {
+    check(key: string): Promise<RateLimitDecision> {
+      const seen = inFlight.get(key);
+      if (seen !== undefined) return seen;
+      const pending = rateLimiter.check(key);
+      inFlight.set(key, pending);
+      return pending;
+    },
+  };
+}
+
+/**
  * `/api/auth/line` の本体。ルートハンドラは Cloudflare の env を解決してこれを呼ぶだけにする
  * （統合テストが同じ経路をそのまま叩けるように、ここを唯一の入口にする）。
  */
@@ -200,14 +252,9 @@ export async function authenticateWithLineIdToken(
   const pepper = currentPepper(config);
 
   // ① IP 単位のレート制限。生 IP は使わず HMAC にしてから鍵にする（§7-5）。
-  const ipRef =
-    deps.clientIp === null || deps.clientIp.length === 0
-      ? "unknown"
-      : await hashIp(deps.clientIp, pepper.value);
-  const decision = await rateLimiter.check(`auth-line:${ipRef}`);
-  if (!decision.allowed) {
-    throw rateLimited("too many authentication attempts from this address");
-  }
+  //    ルートハンドラは DB 接続前に同じ判定を済ませ、`singleFlightRateLimiter()` で
+  //    包んだものを渡してくる（同じキーの 2 回目はバックエンドを叩かない）。
+  const decision = await enforceAuthRateLimit(config, rateLimiter, deps.clientIp);
 
   // ② LINE で検証。
   const payload = await verifyLineIdToken({

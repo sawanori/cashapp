@@ -10,16 +10,34 @@
  * （統合テストが同じ経路をそのまま叩けるようにするため）。
  *
  * ★ CSRF トークンは**応答ボディでだけ**返す。Cookie には入れない（R-SEC-12）。
+ *
+ * ★ 前段ガードの順番を変えないこと（敵対レビュー F-1 / F-2, 2026-09-24）。
+ *   1. クロスサイト送信の拒否（403）… セッションを**作る**経路なので、ここを開けると
+ *      攻撃者のアカウントのセッション Cookie を被害者に発行させられる（ログイン CSRF）。
+ *   2. `Content-Type` の検査（415）と本文の未知フィールド拒否（400）。
+ *   3. レート制限（429）… **DB へ接続する前**に判定する。
+ *   4. ここで初めて `createVerifiedDbClient()`。
  */
 
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 
-import { authenticateWithLineIdToken, readIdTokenFromBody } from "@/lib/auth/line-verify";
+import {
+  authenticateWithLineIdToken,
+  enforceAuthRateLimit,
+  readIdTokenFromBody,
+  singleFlightRateLimiter,
+} from "@/lib/auth/line-verify";
 import {
   RateLimiterUnavailableError,
   resolveRateLimiter,
   type RateLimitEnv,
 } from "@/lib/auth/rate-limit";
+import {
+  AUTH_LINE_BODY_KEYS,
+  assertJsonContentType,
+  assertOnlyKnownBodyKeys,
+  assertSameOriginRequest,
+} from "@/lib/auth/request-guard";
 import { buildSessionCookie } from "@/lib/auth/session";
 import { createDbUsedIdTokenStore } from "@/lib/auth/used-token";
 import { loadAppConfig, type RawEnv } from "@/lib/config/env";
@@ -38,12 +56,19 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const config = loadAppConfig(routeEnv);
 
+    // ① クロスサイトからの送信を最初に落とす（ログイン CSRF / セッション固定。F-1）。
+    assertSameOriginRequest(request);
+    // ② フォームが送れる Content-Type を弾く（415）。
+    assertJsonContentType(request);
+
     let body: unknown;
     try {
       body = await request.json();
     } catch {
       throw badRequest("request body is not JSON");
     }
+    // ③ 未知フィールドは受け取らない（詰め物で有効な JSON を作る手口を止める。制約 N2）。
+    assertOnlyKnownBodyKeys(body, AUTH_LINE_BODY_KEYS);
     const idToken = readIdTokenFromBody(body);
 
     let rateLimiter;
@@ -61,6 +86,13 @@ export async function POST(request: Request): Promise<Response> {
       throw error;
     }
 
+    // ④ レート制限は DB へ接続する**前**に判定する（F-2）。
+    //    `authenticateWithLineIdToken()` も同じ判定を行うので、同じキーの 2 回目が
+    //    バックエンドのカウンタを二重に消費しないようラップして渡す。
+    const clientIp = request.headers.get("cf-connecting-ip");
+    const requestRateLimiter = singleFlightRateLimiter(rateLimiter);
+    await enforceAuthRateLimit(config, requestRateLimiter, clientIp);
+
     db = await createVerifiedDbClient(routeEnv);
 
     const result = await authenticateWithLineIdToken(
@@ -68,8 +100,8 @@ export async function POST(request: Request): Promise<Response> {
         config,
         sql: db.sql,
         usedTokenStore: createDbUsedIdTokenStore(db.sql),
-        rateLimiter,
-        clientIp: request.headers.get("cf-connecting-ip"),
+        rateLimiter: requestRateLimiter,
+        clientIp,
       },
       idToken,
     );

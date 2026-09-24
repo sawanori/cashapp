@@ -366,4 +366,19 @@ describe("npm run gate:env（scripts/gate-env-scope.mjs）", () => {
     expect(result.output).toContain(".dev.vars.example に無い必須秘密値");
     expect(result.output).toContain("LINE_ENV_PROFILE");
   });
+
+  /**
+   * 敵対レビュー F-3（GPT-6 Astra, 2026-09-24）の回帰。
+   *
+   * TOML はキーを引用符で囲める（`"KEY" = "..."` / `'KEY' = '...'`）。代入行の正規表現が
+   * 引用符付きキーを拾わないと、禁止名を引用符で囲むだけで検査を回避できる
+   * （`SUPABASE_SERVICE_ROLE_KEY` がランタイムの vars にあっても exit 0 になる）。
+   */
+  it("引用符付きキーで書かれた禁止名・秘密値も検出する（F-3）", () => {
+    const result = runGateEnv(path.join(FIXTURES, "quoted-keys"));
+    expect(result.exitCode).not.toBe(0);
+    expect(result.output).toContain("SUPABASE_SERVICE_ROLE_KEY must never be a runtime var");
+    expect(result.output).toContain("ALLOW_PRIVILEGED_DB_ROLE must never be a runtime var");
+    expect(result.output).toContain("PEPPER is a secret");
+  });
 });

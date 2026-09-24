@@ -25,6 +25,7 @@ import type postgres from "postgres";
 
 import type { AppConfig, PepperVersion } from "@/lib/config/env";
 import { currentPepper } from "@/lib/config/env";
+import { AppError, ERROR_CODES } from "@/lib/errors";
 
 /**
  * LINE の userId はプロバイダー単位で共通・移動不可（R-LINE-07）。
@@ -122,7 +123,19 @@ export interface ResolveAppUserResult {
  *   1. 現行 PEPPER で参照値を作り、その行を探す。あればそれ。
  *   2. 無ければ、古いバージョンの PEPPER を新しい順に試して行を探す。
  *      見つかったら `app_user` と `participant_claim` を現行バージョンへ書き換える。
- *   3. それでも無ければ新規作成（`ON CONFLICT DO UPDATE` で同時実行に耐える）。
+ *   3. 作る前に、**DB に自分より新しい `pepper_version` の行が無いか**を確かめる。
+ *      あればこの処理系の設定が古い（下記）。
+ *   4. それでも無ければ新規作成（`ON CONFLICT DO UPDATE` で同時実行に耐える）。
+ *
+ * ★ 手順 3 の理由（敵対レビュー F-4, 2026-09-24）
+ *   移行は `line_user_ref` を**上書き**する（旧参照値は残らない）。そのため PEPPER 切替の
+ *   最中に、新しい PEPPER をまだ持っていない処理系（古いデプロイ・巻き戻したデプロイ・
+ *   secret の投入漏れ）へログインが届くと、その処理系は移行済みの行を発見できず、
+ *   **同じ人の app_user をもう 1 つ作ってしまう**。以後、発行されるセッションの userId が
+ *   処理系ごとに変わり、請求・claim・監査ログが 2 つのアカウントに割れる。
+ *   割れたアカウントは事後に自動では併合できない（旧参照値が残っていない）ので、
+ *   **新規作成の側を止める**（fail-closed）。旧設定の処理系で既存ユーザーがログインできない
+ *   状態は 503 として表に出し、運用（secret の投入・デプロイのやり直し）で解消する。
  */
 export async function resolveAppUser(
   sql: postgres.Sql,
@@ -187,6 +200,30 @@ export async function resolveAppUser(
         migratedFromPepperVersion: legacy.version,
         created: false,
       };
+    }
+
+    // ★ 新規作成の直前に「自分より新しい pepper_version の行」を探す（F-4）。
+    //   1 行でも見つかれば、この処理系の PEPPER 設定は DB より古い。ここで新しい行を作ると
+    //   同じ人のアカウントが割れるので、作らずに落とす。
+    const newer = await tx<{ pepper_version: number }[]>`
+      SELECT pepper_version
+      FROM app_user
+      WHERE identity_scope = ${IDENTITY_SCOPE}
+        AND pepper_version > ${current.version}
+      LIMIT 1
+    `;
+    if (newer.length > 0) {
+      throw new AppError(
+        ERROR_CODES.CONFIG_INVALID,
+        503,
+        "ただいま受け付けできません。時間をおいてお試しください。",
+        {
+          detail:
+            `app_user has rows at pepper_version ${newer[0]?.pepper_version} but this runtime's ` +
+            `current PEPPER version is ${current.version}: refusing to create a second account ` +
+            "for the same person (add the newer PEPPER to this runtime)",
+        },
+      );
     }
 
     const inserted = await tx<(AppUserDbRow & { inserted: boolean })[]>`

@@ -831,7 +831,10 @@
         "[severity: low] task_007 から送られた「封筒の自己申告パス集合の正本化 → task_008 / task_010」は task_008 の scope にも files_to_create にも無く、本タスクでは触っていない / 封筒スキーマは task_010 の担当として送り返す（C-008-8）",
         "[severity: low] docs/premortem/<date>.json の形式（7 項目）を機械検査するゲートが無い / スキーマ検査を足す。ただし対象 0 件のまま合格するゲートを作らない（R-TH-01）（C-008-9）",
         "[severity: medium] release-audit.ts の成立条件 1「独立した 2 ベンダー以上が go」の読みを、緩い読み（作者 claude + 独立 1 件 = 計 2 票）から厳しい読み（独立ベンダー 2 件）へ締めた。副作用として gemini / gpt の片方が不達だと PO が不達を承認しても go に到達できない / ADR で「独立」の定義を一本化する。緩めるのは ADR と PO の仕事（C-008-10）",
-        "[severity: low・解消済み] 6 周目の修正: task-loop.ts が実効 high を直近 1 周分しか保持せず、high を出した経路が最終周で欠票になると high が消えて DONE で閉じていた（修正前 HEAD で status=DONE を実測）。未解消 high を周をまたいで持ち越し、欠票レーンは自分の過去の high を落とせない形に直した。併せて有効票 0 件の周では DONE 系で閉じない歯止めを追加（修正後は両ケースとも BLOCKED を実測。tests/unit/workflows/workflow-scripts.test.ts 44 件全緑）"
+        "[severity: low・解消済み] 6 周目の修正: task-loop.ts が実効 high を直近 1 周分しか保持せず、high を出した経路が最終周で欠票になると high が消えて DONE で閉じていた（修正前 HEAD で status=DONE を実測）。未解消 high を周をまたいで持ち越し、欠票レーンは自分の過去の high を落とせない形に直した。併せて有効票 0 件の周では DONE 系で閉じない歯止めを追加（修正後は両ケースとも BLOCKED を実測。tests/unit/workflows/workflow-scripts.test.ts 44 件全緑）",
+        "[severity: low・解消済み] 7 周目の修正（レビュー high）: 独立性の会計に封筒の自己申告 vendor を使っていたため、作者ベンダーのレーンが vendor: \"gemini\" と名乗るだけで独立票に化けられた。修正前 HEAD で task-loop=DONE（voting_vendors=[gemini]）・release-audit=go（independent=[gemini,gpt]）を実測。会計をレーン定数だけで行い、自己申告が食い違う封筒は invalid_envelope の欠票へ落とす形に直した（修正後は BLOCKED / verdict≠go を実測）（C-008-11）",
+        "[severity: low・解消済み] 7 周目の修正（レビュー medium）: model_id_actual の無い封筒と findings 配列の無い封筒が「指摘 0 件の有効票」として数えられていた。票の採否に model_id_actual 非空・findings 配列・（release-audit は）verdict が enum 3 値のいずれか、を足して invalid_envelope の欠票へ落とした。テストは 44 → 49 件（expect の削減・skip 追加なし）（C-008-12）",
+        "[severity: low] 7 周目の G13 基準値再生成は、別タスクが未コミットで編集中の scripts/gate-env-scope.mjs を焼き込まないよう、当該ファイルだけ git show HEAD: の内容へ戻した木を --root に渡して書いた。結果 npm run gate:check は G13 のみ不合格（違反 1 件・出どころは別タスクの未コミット差分）で exit 1 / 所有タスクがコミット時に基準値を再生成すれば解消する（C-008-4 の 7 周目追記）"
       ]
     },
     {
@@ -1372,7 +1375,12 @@
       "evidence_label": "[文書]",
       "optional": false,
       "completion_status": "DONE_WITH_CONCERNS",
-      "concerns": []
+      "concerns": [
+        "[severity: medium] 残懸念の一覧は docs/concerns/task_012.md に記録（C-012-1〜20。各項目に深刻度と対応案を付記）／対応案: 同ファイルの『対応案』欄に従い、対応予定タスクで解消する",
+        "[severity: medium] GPT-6 Astra F-4（medium）は fail-closed で塞いだ: PEPPER 切替のロールアウト中、新しい PEPPER をまだ持たない処理系に新規ログイン（および移行済みユーザーのログイン）が当たると 503 CONFIG_INVALID になる（docs/concerns/task_012.md C-012-20）／対応案: 「全処理系へ新旧そろえて投入 → デプロイ完了を確認 → ログインを流す」の手順を docs/ops/key-rotation-drill.md（task_024）に書く",
+        "[severity: medium] GPT-6 Astra F-3（medium）の修正後も scripts/gate-env-scope.mjs の TOML 読み取りは最小実装のままで、複数行文字列・インラインテーブル・ドット付きの quoted key は黙って読み飛ばす（docs/concerns/task_012.md C-012-19）／対応案: wrangler.toml の書き方を平易な形に限る運用規約にするか、TOML パーサを入れる（task_035 / task_024 で判断）",
+        "[severity: low] GPT-6 Astra F-1（high）の修正で使う「自サイト」の判定は Host ヘッダと request.url から導いており、Cloudflare Workers 以外のホスティングでは未検証（docs/concerns/task_012.md C-012-17）／対応案: ホスティングを変える場合は LIFF 実機で /api/auth/line の 403 が出ないことを確認してから移す（task_022）"
+      ]
     },
     {
       "task_id": "task_013",

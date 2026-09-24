@@ -1,0 +1,32 @@
+# gate:env の回帰フィクスチャ（敵対レビュー F-3, 2026-09-24）。
+#
+# TOML はキーを引用符で囲める（`"KEY" = "..."` / `'KEY' = '...'`）。
+# 引用符付きキーを読み飛ばす実装だと、禁止された変数名を引用符で囲むだけで
+# 検査を回避できてしまう。このフィクスチャは「引用符で囲んでも検出される」ことを固定する。
+#
+# 値はすべて合成のダミーである（実在の資格情報ではない）。
+
+name = "fixture-quoted-dev"
+main = ".open-next/worker.js"
+compatibility_date = "2026-09-24"
+
+[vars]
+APP_ENV = "development"
+
+[env.staging]
+name = "fixture-quoted-staging"
+
+[env.staging.vars]
+APP_ENV = "staging"
+# 二重引用符で囲んだ禁止名（レビュー指摘の repro そのもの）。
+"SUPABASE_SERVICE_ROLE_KEY" = "synthetic-service-role-value-00000000"
+# 単一引用符（TOML のリテラル文字列）と、等号まわりの空白なし。
+'ALLOW_PRIVILEGED_DB_ROLE'='1'
+
+[env.production]
+name = "fixture-quoted-production"
+
+[env.production.vars]
+APP_ENV = "production"
+# 秘密値の名前（[vars] 平文禁止）を引用符で囲み、等号のまわりに空白を多めに置いた形。
+"PEPPER"   =   "synthetic-pepper-value-0000000000000000"
