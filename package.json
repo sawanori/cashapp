@@ -35,7 +35,8 @@
     "review:gpt": "node scripts/review-gpt.mjs",
     "review:validate": "node scripts/validate-findings.mjs",
     "review:merge": "bash scripts/merge-review.sh",
-    "build:web-only": "node scripts/build-web-only.mjs"
+    "build:web-only": "node scripts/build-web-only.mjs",
+    "evidence:record": "node scripts/record-evidence.mjs"
   },
   "private": true,
   "engines": {
