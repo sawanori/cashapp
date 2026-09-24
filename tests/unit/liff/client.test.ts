@@ -435,6 +435,58 @@ describe("bootLiff の起動順序", () => {
       expect(reported).toEqual([CLIENT_ERROR_CODES.LOGIN_LOOP_ABORTED]);
     });
 
+    /**
+     * 4 周目の 4 巡目に GPT-6 Astra が挙げた反例。**既定の置き場を使う本番の経路**を通る。
+     *
+     * `defaultStorage()` は `sessionStorage` への参照自体が throw すると `null` を返す。
+     * 退避先を「置き場オブジェクトごと」に持つと、参照できていた間の数（2）と
+     * `null` になった後の数（0）が別勘定になり、3 回目の `login()` が通る。
+     * 本番でカウンタが属する単位は**ページ**であって置き場オブジェクトではない。
+     */
+    it("既定の置き場が途中で参照できなくなっても打ち切る（storage を渡さない本番経路）", async () => {
+      const { bootLiff: boot } = await import("@/lib/liff/client");
+      const { liff, login } = fakeLiff({ inClient: true, loggedIn: false });
+      const map = new Map<string, string>();
+      let available = true;
+      const real: AttemptStorage = {
+        getItem: (key) => map.get(key) ?? null,
+        setItem: (key, value) => {
+          map.set(key, value);
+        },
+        removeItem: (key) => {
+          map.delete(key);
+        },
+      };
+      Object.defineProperty(globalThis, "sessionStorage", {
+        configurable: true,
+        get: () => {
+          // Safari のプライベートモード等では参照そのものが throw する。
+          if (!available) throw new Error("SecurityError");
+          return real;
+        },
+      });
+
+      try {
+        // `storage` を渡さない ＝ `defaultStorage()` を通る本番と同じ経路。
+        const deps = { loadLiff: async () => liff, report };
+        expect((await boot(LIFF_ID, deps)).loginAttempts).toBe(1);
+        expect((await boot(LIFF_ID, deps)).loginAttempts).toBe(2);
+        expect(map.get(LOGIN_ATTEMPT_STORAGE_KEY)).toBe("2");
+        expect(login).toHaveBeenCalledTimes(2);
+
+        // ここで sessionStorage への参照自体が落ちるようになる。
+        available = false;
+        const third = await boot(LIFF_ID, deps);
+
+        expect(third.state).toBe("auth_unavailable");
+        expect(third.loginAttempts).toBe(MAX_LOGIN_ATTEMPTS);
+        expect(login).toHaveBeenCalledTimes(MAX_LOGIN_ATTEMPTS);
+        expect(reported).toEqual([CLIENT_ERROR_CODES.LOGIN_LOOP_ABORTED]);
+      } finally {
+        Reflect.deleteProperty(globalThis, "sessionStorage");
+      }
+    });
+
     it("storage が書けなかった回の分も数える（読めるが書けないストレージ）", async () => {
       const { bootLiff: boot } = await import("@/lib/liff/client");
       const { liff, login } = fakeLiff({ inClient: true, loggedIn: false });

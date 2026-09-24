@@ -1681,6 +1681,27 @@ GPT-6 Astra の敵対レビュー（high 1 / medium 2）。**再現 2 件・非�
 - **教訓（ストレージの故障モードは 4 つ）**: 「置き場が無い」「読めない」「書けない」
   「古い値が読める」に加えて **「途中で使えなくなる」**。3 巡とも同じ関数の別の穴だった。
 
+### 4 巡目 — **この周は BLOCKED で閉じる**
+
+- gemini は **PASS（finding 0 件）**、GPT-6 Astra が **high をさらに 1 件**
+  （merge-review: `reject` / 有効票 2 / 実効 high 1）。3 巡目の `WeakMap<AttemptStorage, number>`
+  は退避先を**置き場オブジェクトごと**に持つため、`defaultStorage()` が
+  `sessionStorage` への参照失敗で `null` に転じると、参照できていた間の数（2）と
+  `null` 側の数（0）が別勘定になり 3 回目の `login()` が通る。→ C-013-19
+- 退避先のキーを**スコープ**に変えた。`deps.storage` 未指定の経路（本番）は
+  `defaultStorage()` の戻り値が何であれ常に同じ `DEFAULT_STORAGE_SCOPE` で数える。
+  **カウンタが属する単位は置き場オブジェクトではなくページである。**
+  注入された置き場だけ従来どおり置き場ごとに分ける（本番経路には影響しない）。
+- **この 4 巡目の修正は敵対レビューに掛けていない。** reject 後の再実行が指示された
+  上限（2 回）に達したためである。`docs/review-log/task_013.json` の最後の記録は
+  1 つ前のコミット `2d3db98` に対する `reject`（実効 high 1）なので、
+  §15-3 step 5「3 周後も high が残れば BLOCKED」に該当する。
+  **次の周の最初の仕事は、C-013-19 の修正をレビューに掛け直すこと。**
+- **ストレージの故障モードは 5 つある**（4 巡かけて 1 つずつ出てきた）:
+  ①置き場が無い ②読み書きが例外 ③読めるが書けない（古い値が読める）
+  ④書けていたのに途中で落ちる ⑤**既定の置き場の取得自体が途中で落ちる**。
+  この種の「退避先」を書くときは最初から 5 つ全部をテストに並べること。
+
 ## task_012（レビュー修正・2 周目）
 
 GPT-6 Astra の敵対レビュー（high 1 / medium 3）。**4 件すべて HEAD で再現してから塞いだ**（非再現 0 件）。
@@ -1956,3 +1977,7 @@ GPT-6 Astra の敵対レビュー（high 1 / medium 3）。**4 件すべて HEAD
 - 2026-09-24T13:45:26Z HEAD=2d3db98 決まったこと: task_013(4周目・3巡目): 保存できた回も退避先に残し、null body で text() を呼ばない / 未解決: 未コミット 42 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/concerns/task_012.md docs/constraints.json docs/decisions/ADR-009-id-token-single-use.md docs/gates/integrity-baseline.json docs/review-log/task_004.json 
 - 2026-09-24T13:47:24Z HEAD=9d393be 決まったこと: task_014: イベント・参加者 API と幹事画面（O-2〜O-6.5） / 未解決: 未コミット 11 件: docs/concerns/task_012.md docs/decisions/ADR-009-id-token-single-use.md docs/review-log/task_012.json docs/run-log/task_008.json docs/run-log/task_012.json scripts/gate-env-scope.mjs src/lib/auth/pepper.ts tests/unit/auth/pepper.test.ts 
 - 2026-09-24T13:48:25Z HEAD=9d393be 決まったこと: task_014: イベント・参加者 API と幹事画面（O-2〜O-6.5） / 未解決: 未コミット 16 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_012.md docs/decisions/ADR-009-id-token-single-use.md docs/gates/integrity-baseline.json docs/review-log/task_012.json docs/review-log/task_013.json docs/run-log/task_008.json 
+- 2026-09-24T13:50:24Z HEAD=d6f140f 決まったこと: task_012(3周目): 2 周目レビューの high 1 / medium 1 を再現してから塞ぐ（同時初回ログインの分裂・TOML エスケープ） / 未解決: 未コミット 6 件: .claude/workflows/release-audit.ts docs/review-log/task_013.json docs/run-log/task_008.json src/lib/liff/client.ts tests/unit/liff/client.test.ts tests/gates/probe.test.ts 
+- 2026-09-24T13:52:25Z HEAD=3f2ea9b 決まったこと: task_012(3周目): G13 基準値を取り直す（並行タスクの再生成に自分のハッシュを巻き戻されていた） / 未解決: 未コミット 11 件: .claude/workflows/release-audit.ts docs/HANDOFF.md docs/concerns/task_013.md docs/review-log/task_013.json docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_013.json src/lib/liff/client.ts 
+- 2026-09-24T13:54:30Z HEAD=3f2ea9b 決まったこと: task_012(3周目): G13 基準値を取り直す（並行タスクの再生成に自分のハッシュを巻き戻されていた） / 未解決: 未コミット 15 件: .claude/workflows/release-audit.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_008.md docs/concerns/task_013.md docs/gates/integrity-baseline.json docs/review-log/task_013.json docs/run-log/task_008.json 
+- 2026-09-24T13:55:25Z HEAD=3f2ea9b 決まったこと: task_012(3周目): G13 基準値を取り直す（並行タスクの再生成に自分のハッシュを巻き戻されていた） / 未解決: 未コミット 17 件: .claude/workflows/release-audit.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_008.md docs/concerns/task_013.md docs/gates/integrity-baseline.json docs/review-log/task_013.json docs/run-log/task_008.json 

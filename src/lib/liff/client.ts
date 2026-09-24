@@ -28,8 +28,9 @@
  *   プライベートモード等では `sessionStorage` へのアクセス自体が throw する。そこで
  *   「読めない・書けない」を 0 とみなすと、未ログインで戻るたびに `login()` が呼ばれて
  *   R-LINE-02 の往復がそのまま起きる。読み書きが成立しない回はモジュール内の
- *   `memoryAttempts` へ退避して数え、上限に達したら同じように `auth_unavailable` に落とす
- *   （fail-closed）。退避先の有効範囲はページ 1 回分なので `sessionStorage` の代用ではない。
+ *   退避カウンタ（`memoryAttemptsByScope`）で数え、上限に達したら同じように
+ *   `auth_unavailable` に落とす（fail-closed）。保存値と退避先は**大きいほう**を採る。
+ *   退避先の有効範囲はページ 1 回分なので `sessionStorage` の代用ではない。
  *
  * ★ SDK は npm 依存として固定したものを **動的 import** で読む（R-LINE-03、制約 I4）。
  *   CDN の直リンクは使わない。モック（`@line/liff-mock`）へ到達する経路は
@@ -185,7 +186,7 @@ function defaultStorage(): AttemptStorage | null {
 }
 
 /**
- * 試行回数の**退避先カウンタ**（置き場ごとに 1 つ）。
+ * 試行回数の**退避先カウンタ**（スコープごとに 1 つ）。
  *
  * ★ これが無いと打ち切りがまるごと効かない。`storage` が `null`（SSR・
  *   `sessionStorage` へのアクセス自体が throw する Safari のプライベートモード等）や、
@@ -194,10 +195,11 @@ function defaultStorage(): AttemptStorage | null {
  *   R-LINE-02 が防ぎたい往復がそのまま起きる。**数えられないなら打ち切らない**ではなく、
  *   **数えられる場所へ退避して打ち切る**（fail-closed）。
  *
- * ★ 置き場（`AttemptStorage` のインスタンス）をキーにする。本番の置き場は
- *   `globalThis.sessionStorage` ＝ ページごとに 1 つの固定オブジェクトなので、
- *   実質「このページのカウンタ」になる。モジュール変数 1 本にしないのは、置き場が違えば
- *   数も別であるべきだからである（`storage: null` のぶんだけ別に持つ）。
+ * ★ スコープは**置き場オブジェクトではない**。既定の経路（`deps.storage` 未指定＝本番）は
+ *   `defaultStorage()` が返す値が `sessionStorage` だったり `null` だったりしても
+ *   常に同じ `DEFAULT_STORAGE_SCOPE` で数える。置き場ごとに分けると、
+ *   参照できていた間の数と `null` になった後の数が別勘定になって打ち切りが外れる（C-013-19）。
+ *   呼び出し側が置き場を注入したときだけ、その置き場ごとに分ける。
  *
  * ★ 有効範囲はこのモジュールが生きている間 ＝ **このページ（タブの 1 回の読み込み）**である。
  *   `login()` → LINE の認可画面 → 復帰でページが作り直されればここも 0 に戻るので、
@@ -205,32 +207,44 @@ function defaultStorage(): AttemptStorage | null {
  *   再読み込みをまたいで数え続けたい場合は URL などページの外へ持ち出す必要があり、
  *   それは本モジュールの担当ではない（`docs/concerns/task_013.md` C-013-13）。
  */
-const memoryAttemptsByStorage = new WeakMap<AttemptStorage, number>();
+const memoryAttemptsByScope = new WeakMap<object, number>();
 
-/** `storage` が `null`（置き場そのものが無い）ときの退避先。 */
-let memoryAttemptsWithoutStorage = 0;
+/**
+ * 既定の置き場（`defaultStorage()`）を使う経路＝**本番**のスコープ。
+ *
+ * ★ ここを「`sessionStorage` オブジェクトごと」にしてはいけない。`defaultStorage()` は
+ *   `sessionStorage` への参照自体が throw する状況で `null` を返すので、
+ *   参照できていた間の数と `null` になった後の数が**別勘定**になり、3 回目の `login()` が通る
+ *   （`docs/concerns/task_013.md` C-013-19）。本番でカウンタが属する単位は
+ *   置き場オブジェクトではなく**ページ**である。
+ */
+const DEFAULT_STORAGE_SCOPE: object = {};
 
-function readMemoryAttempts(storage: AttemptStorage | null): number {
-  if (storage === null) return memoryAttemptsWithoutStorage;
-  return memoryAttemptsByStorage.get(storage) ?? 0;
+/** 呼び出し側が `storage: null` を明示した経路のスコープ。 */
+const INJECTED_NULL_SCOPE: object = {};
+
+/**
+ * 退避先を引くためのキー。
+ *
+ * 既定の置き場を使うとき（`deps.storage` 未指定＝本番）は常に同じページ用スコープ。
+ * 呼び出し側が置き場を注入したときは、その置き場ごとに分ける（注入した側の期待に合わせる）。
+ */
+function attemptScope(storage: AttemptStorage | null, injected: boolean): object {
+  if (!injected) return DEFAULT_STORAGE_SCOPE;
+  return storage ?? INJECTED_NULL_SCOPE;
+}
+
+function readMemoryAttempts(scope: object): number {
+  return memoryAttemptsByScope.get(scope) ?? 0;
 }
 
 /** 退避先は**減らさない**（一度数えた試行はこのページの中で消えない）。 */
-function writeMemoryAttempts(storage: AttemptStorage | null, value: number): void {
-  if (storage === null) {
-    memoryAttemptsWithoutStorage = Math.max(memoryAttemptsWithoutStorage, value);
-    return;
-  }
-  const current = memoryAttemptsByStorage.get(storage) ?? 0;
-  memoryAttemptsByStorage.set(storage, Math.max(current, value));
+function writeMemoryAttempts(scope: object, value: number): void {
+  memoryAttemptsByScope.set(scope, Math.max(memoryAttemptsByScope.get(scope) ?? 0, value));
 }
 
-function clearMemoryAttempts(storage: AttemptStorage | null): void {
-  if (storage === null) {
-    memoryAttemptsWithoutStorage = 0;
-    return;
-  }
-  memoryAttemptsByStorage.delete(storage);
+function clearMemoryAttempts(scope: object): void {
+  memoryAttemptsByScope.delete(scope);
 }
 
 /** `storage` に残っている値。読めない・壊れている・置き場が無いときは 0。 */
@@ -254,8 +268,8 @@ function readStoredAttempts(storage: AttemptStorage | null): number {
  *   カウンタが永久に進まず `login()` を呼び続ける（再読み込みをまたがなくても起きる）。
  *   大きいほうを採れば、どちらか一方でも数えられている限り打ち切りに到達する。
  */
-function readAttempts(storage: AttemptStorage | null): number {
-  return Math.max(readMemoryAttempts(storage), readStoredAttempts(storage));
+function readAttempts(storage: AttemptStorage | null, scope: object): number {
+  return Math.max(readMemoryAttempts(scope), readStoredAttempts(storage));
 }
 
 /**
@@ -266,8 +280,8 @@ function readAttempts(storage: AttemptStorage | null): number {
  *   保存値も読めず退避先も 0 のままになり、3 回目の `login()` が通る。
  *   同じページの中で起きるので、再読み込みによる消失とは別の経路である。
  */
-function writeAttempts(storage: AttemptStorage | null, value: number): void {
-  writeMemoryAttempts(storage, value);
+function writeAttempts(storage: AttemptStorage | null, scope: object, value: number): void {
+  writeMemoryAttempts(scope, value);
   if (storage === null) return;
   try {
     storage.setItem(LOGIN_ATTEMPT_STORAGE_KEY, String(value));
@@ -276,8 +290,8 @@ function writeAttempts(storage: AttemptStorage | null, value: number): void {
   }
 }
 
-function clearAttempts(storage: AttemptStorage | null): void {
-  clearMemoryAttempts(storage);
+function clearAttempts(storage: AttemptStorage | null, scope: object): void {
+  clearMemoryAttempts(scope);
   if (storage === null) return;
   try {
     storage.removeItem(LOGIN_ATTEMPT_STORAGE_KEY);
@@ -345,7 +359,11 @@ export function liffPermanentLink(liffId: string): string | null {
  * @param liffId `(liff)` レイアウトが実行時に渡した LIFF ID。
  */
 export async function bootLiff(liffId: string, deps: BootLiffDeps = {}): Promise<LiffBootResult> {
-  const storage = deps.storage === undefined ? defaultStorage() : deps.storage;
+  const injectedStorage = deps.storage !== undefined;
+  const storage = injectedStorage ? deps.storage : defaultStorage();
+  // 退避先のスコープは**置き場が取れたかどうかより前**に決める。既定の経路（本番）は
+  // `defaultStorage()` が `null` を返した回も同じスコープで数える（C-013-19）。
+  const scope = attemptScope(storage, injectedStorage);
   const report = deps.report ?? ((code: ClientErrorCode) => void reportClientError(code));
   const timeoutMs = deps.timeoutMs ?? SDK_LOAD_TIMEOUT_MS;
   const loadLiff = deps.loadLiff ?? defaultLoadLiff;
@@ -367,7 +385,7 @@ export async function bootLiff(liffId: string, deps: BootLiffDeps = {}): Promise
     liff = null;
   }
   if (liff === null) {
-    return fail("sdk_unavailable", CLIENT_ERROR_CODES.SDK_LOAD_FAILED, readAttempts(storage));
+    return fail("sdk_unavailable", CLIENT_ERROR_CODES.SDK_LOAD_FAILED, readAttempts(storage, scope));
   }
 
   // --- 2. init（reject だけでなく「返ってこない」も打ち切る） ---
@@ -384,24 +402,24 @@ export async function bootLiff(liffId: string, deps: BootLiffDeps = {}): Promise
     initialized = null;
   }
   if (initialized === null) {
-    return fail("init_failed", CLIENT_ERROR_CODES.LIFF_INIT_FAILED, readAttempts(storage));
+    return fail("init_failed", CLIENT_ERROR_CODES.LIFF_INIT_FAILED, readAttempts(storage, scope));
   }
 
   // --- 3. isInClient（login より前！ R-LINE-02 / check_029） ---
   if (!liff.isInClient()) {
     // ここで `login()` を呼ばないことがこの分岐の全てである。テレメトリも送らない
     // （LINE 外から開くのは障害ではなく通常の利用状況であり、件数は画面表示側で数える）。
-    return { state: "outside_line", loginAttempts: readAttempts(storage) };
+    return { state: "outside_line", loginAttempts: readAttempts(storage, scope) };
   }
 
   // --- 4. isLoggedIn と試行回数の打ち切り ---
   if (!liff.isLoggedIn()) {
-    const attempts = readAttempts(storage);
+    const attempts = readAttempts(storage, scope);
     if (attempts >= MAX_LOGIN_ATTEMPTS) {
       return fail("auth_unavailable", CLIENT_ERROR_CODES.LOGIN_LOOP_ABORTED, attempts);
     }
     const next = attempts + 1;
-    writeAttempts(storage, next);
+    writeAttempts(storage, scope, next);
     liff.login();
     return { state: "redirecting_to_login", loginAttempts: next };
   }
@@ -409,9 +427,9 @@ export async function bootLiff(liffId: string, deps: BootLiffDeps = {}): Promise
   // --- 5. ID トークン ---
   const idToken = liff.getIDToken();
   if (idToken === null || idToken.length === 0) {
-    return fail("auth_unavailable", CLIENT_ERROR_CODES.LOGIN_LOOP_ABORTED, readAttempts(storage));
+    return fail("auth_unavailable", CLIENT_ERROR_CODES.LOGIN_LOOP_ABORTED, readAttempts(storage, scope));
   }
 
-  clearAttempts(storage);
+  clearAttempts(storage, scope);
   return { state: "ready", idToken, loginAttempts: 0 };
 }

@@ -1485,9 +1485,10 @@
       "adversarial_review": "required",
       "evidence_label": "[設計]",
       "optional": false,
-      "completion_status": "DONE_WITH_CONCERNS",
+      "completion_status": "BLOCKED",
       "concerns": [
         "[severity: medium] 残懸念の一覧は docs/concerns/task_013.md に記録（各項目に深刻度と対応案を付記）／対応案: 同ファイルの『対応案』欄に従い、対応予定タスクで解消する",
+        "[severity: high] 4 周目 4 巡目の指摘（GPT-6 Astra F-1・退避先を置き場オブジェクトごとに持つと既定の置き場が途中で参照できなくなったときに数が切り替わる）は修正済みだが、その修正を敵対レビューに掛けていない。reject 後の再実行が上限 2 回に達したためで、review-log の最後の記録は 1 つ前のコミットに対する reject（実効 high 1）である（docs/concerns/task_013.md C-013-19）／対応案: 次の周の最初に C-013-19 の修正とストレージ故障モード 5 種のテストを敵対レビューに掛け直す。§15-3 step 5 により本周は BLOCKED として閉じる",
         "[severity: medium] GPT-6 Astra F-1（high）の修正は「ページ 1 回分」しか効かない: sessionStorage が使えない端末では login() のページ遷移でメモリ退避カウンタも 0 に戻るため、再読み込みをまたぐ打ち切りは保証されない（docs/concerns/task_013.md C-013-13）／対応案: task_014 の (liff) 起動画面で、ストレージ不能時に限り試行回数を redirectUri のクエリへ載せて往復させるかを決める",
         "[severity: low] GPT-6 Astra F-3（medium）で入れた readBoundedBody が守るのはハンドラが読む量であって、ランタイム／WAF がリクエストをどこまで受信するかではない（docs/concerns/task_013.md C-013-15）／対応案: レート制限バインディングと合わせて task_024 / task_035 の環境構築で上流の受信制限を設定する"
       ]
