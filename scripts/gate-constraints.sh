@@ -377,15 +377,37 @@ while IFS= read -r entry; do
       done < "$HITS"
     done < <(printf '%s' "$entry" | jq -r '.grep_patterns[]')
   else
-    # require: every target file must contain at least one of the patterns
+    # require: every target file must contain at least one of the patterns,
+    # in code that actually runs. A required pattern is a promise that a
+    # statement exists; `// import "server-only";` and a line sitting inside a
+    # /* ... */ block satisfied a line-anchored grep without any such statement
+    # (GPT rounds 2 and 3, F-6 / F-2). Comments are therefore removed before
+    # the match. The stripper is deliberately string-literal-unaware: the worst
+    # it can do is cut too much, which fails the required check — fail-closed.
     pats_file="$TMPDIR_GATE/pats.txt"
+    stripped="$TMPDIR_GATE/stripped.txt"
     printf '%s' "$entry" | jq -r '.grep_patterns[]' > "$pats_file"
     while IFS= read -r f; do
       [ -n "$f" ] || continue
+      awk '
+        BEGIN { inblk = 0 }
+        {
+          line = $0; out = ""; i = 1; n = length(line)
+          while (i <= n) {
+            two = substr(line, i, 2)
+            if (inblk) {
+              if (two == "*/") { inblk = 0; i += 2 } else { i += 1 }
+            } else if (two == "/*") { inblk = 1; i += 2 }
+            else if (two == "//" || two == "--") { break }
+            else { out = out substr(line, i, 1); i += 1 }
+          }
+          print out
+        }
+      ' "$ROOT/$f" > "$stripped" 2>/dev/null
       found=0
       while IFS= read -r pat; do
         [ -n "$pat" ] || continue
-        if grep -qE -- "$pat" "$ROOT/$f" 2>/dev/null; then found=1; break; fi
+        if grep -qE -- "$pat" "$stripped" 2>/dev/null; then found=1; break; fi
       done < "$pats_file"
       if [ "$found" -eq 0 ]; then
         printf '%s %s:1 | required pattern missing (%s)\n' "$id" "$f" "$(printf '%s' "$entry" | jq -r '.grep_patterns | join(" OR ")')"
