@@ -99,6 +99,27 @@ function writeConstraints(root: string, entries: Partial<ConstraintEntry>[]): vo
   );
 }
 
+/**
+ * Turns a fixture directory into a real git repository so the gate takes the
+ * `git ls-files` branch instead of the `find` fallback. `core.quotePath` is
+ * left ON on purpose: that is git's default and the condition under which
+ * non-ASCII paths used to fall out of every scan.
+ */
+function initGitRepo(root: string): void {
+  const git = (...args: string[]) =>
+    spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
+  const init = git("init", "-q");
+  expect(init.status, `git init failed: ${init.stderr}`).toBe(0);
+  git("config", "user.email", "gate@example.invalid");
+  git("config", "user.name", "gate fixture");
+  git("config", "core.quotePath", "true");
+}
+
+function gitAddAll(root: string): void {
+  const res = spawnSync("git", ["-C", root, "add", "-A"], { encoding: "utf8" });
+  expect(res.status, `git add failed: ${res.stderr}`).toBe(0);
+}
+
 function markTaskDone(root: string, taskId: string): void {
   writeFile(
     root,
@@ -318,6 +339,58 @@ describe("scripts/gate-constraints.sh", () => {
     expect(res.status).toBe(0);
   });
 
+  it("scans a non-ASCII path inside a git repo with core.quotePath on", () => {
+    const root = makeTempRepo();
+    initGitRepo(root);
+    writeConstraints(root, [
+      { id: "T-FORBID", grep_patterns: ["forbiddenToken"], globs: ["src/**/*.ts"] },
+    ]);
+    writeFile(root, "src/ok.ts", "const ok = 1;\n");
+    writeFile(root, "src/集金.ts", "const bad = forbiddenToken;\n");
+    gitAddAll(root);
+
+    const res = runGate(root);
+
+    expect(res.status).toBe(1);
+    expect(res.stdout).toContain("T-FORBID src/集金.ts:1");
+  });
+
+  it("fails closed when every target is tracked but gone from the working tree", () => {
+    const root = makeTempRepo();
+    initGitRepo(root);
+    writeConstraints(root, [
+      { id: "T-GONE", grep_patterns: ["forbiddenToken"], globs: ["src/**/*.ts"] },
+    ]);
+    writeFile(root, "src/a.ts", "const a = 1;\n");
+    gitAddAll(root);
+    fs.rmSync(path.join(root, "src", "a.ts"));
+
+    const res = runGate(root);
+
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain("UNREADABLE T-GONE");
+    expect(res.stdout).toContain("T-GONE src/a.ts:1");
+  });
+
+  it("reports an unreadable target while still scanning the readable ones", () => {
+    const root = makeTempRepo();
+    initGitRepo(root);
+    writeConstraints(root, [
+      { id: "T-PART", grep_patterns: ["forbiddenToken"], globs: ["src/**/*.ts"] },
+    ]);
+    writeFile(root, "src/a.ts", "const bad = forbiddenToken;\n");
+    writeFile(root, "src/b.ts", "const b = 1;\n");
+    gitAddAll(root);
+    fs.rmSync(path.join(root, "src", "b.ts"));
+
+    const res = runGate(root);
+
+    expect(res.status).toBe(1);
+    expect(res.stdout).toContain("T-PART src/b.ts:1");
+    expect(res.stdout).toContain("T-PART src/a.ts:1");
+    expect(res.stderr).not.toContain("UNREADABLE T-PART");
+  });
+
   it("exits 2 on a structurally invalid constraints file", () => {
     const root = makeTempRepo();
     writeFile(
@@ -417,6 +490,143 @@ describe("scripts/gate-constraints.sh (real docs/constraints.json against a fixt
     for (const id of ["P1", "L3", "N9", "N2", "L12", "N11", "N7", "L8", "I3", "GC-XSS"]) {
       expect(res.stdout, `${id} should have fired`).toContain(`${id} src/app/`);
     }
+  });
+
+  it("flags a paid write whose rank column is assigned but never compared (W3)", () => {
+    const root = makeTempRepo();
+    seedCleanTree(root);
+    writeFile(
+      root,
+      "src/lib/update.ts",
+      "export const query = \"UPDATE payments SET status = 'paid', status_rank = 2 WHERE id = $1\";\n",
+    );
+
+    const res = runRealGate(root);
+
+    expect(res.status).toBe(1);
+    expect(res.stdout).toContain("W3 src/lib/update.ts:1");
+  });
+
+  it("still exempts a paid write guarded by a rank comparison (W3)", () => {
+    const root = makeTempRepo();
+    seedCleanTree(root);
+    writeFile(
+      root,
+      "src/lib/apply.ts",
+      "export const query = \"UPDATE payments SET status = 'paid' WHERE status_rank < $2\";\n",
+    );
+
+    const res = runRealGate(root);
+
+    expect(`${res.stdout}${res.stderr}`).not.toContain("W3 ");
+    expect(res.status).toBe(0);
+  });
+
+  it("flags a dynamic import() of a payment SDK outside the adapter directory (P1)", () => {
+    const root = makeTempRepo();
+    seedCleanTree(root);
+    writeFile(
+      root,
+      "src/lib/load-payment.ts",
+      'export async function loadPayment() { return import("stripe"); }\n',
+    );
+
+    const res = runRealGate(root);
+
+    expect(res.status).toBe(1);
+    expect(res.stdout).toContain("P1 src/lib/load-payment.ts:1");
+  });
+
+  it("still allows a dynamic import() inside src/lib/payments/providers (P1)", () => {
+    const root = makeTempRepo();
+    seedCleanTree(root);
+    writeFile(
+      root,
+      "src/lib/payments/providers/stripe.ts",
+      'export const load = () => import("stripe");\n',
+    );
+
+    const res = runRealGate(root);
+
+    expect(res.status).toBe(0);
+  });
+
+  it("flags a date column and a bare timestamp declared on the CREATE TABLE line (X-TIME)", () => {
+    const root = makeTempRepo();
+    seedCleanTree(root);
+    writeFile(
+      root,
+      "supabase/migrations/001.sql",
+      "CREATE TABLE example (due_on date, created_at timestamp);\n",
+    );
+
+    const res = runRealGate(root);
+
+    expect(res.status).toBe(1);
+    expect(res.stdout).toContain("X-TIME supabase/migrations/001.sql:1");
+  });
+
+  it("still allows timestamptz and timestamp with time zone on one line (X-TIME)", () => {
+    const root = makeTempRepo();
+    seedCleanTree(root);
+    writeFile(
+      root,
+      "supabase/migrations/002.sql",
+      "CREATE TABLE ok (a timestamptz, b timestamp with time zone NOT NULL, c timestamptz DEFAULT now());\n",
+    );
+
+    const res = runRealGate(root);
+
+    expect(`${res.stdout}${res.stderr}`).not.toContain("X-TIME ");
+    expect(res.status).toBe(0);
+  });
+
+  it("does not accept a commented-out server-only import (GC-SERVER-ONLY)", () => {
+    const root = makeTempRepo();
+    seedCleanTree(root);
+    writeFile(root, "src/lib/db/client.ts", '// import "server-only";\nexport const db = null;\n');
+
+    const res = runRealGate(root);
+
+    expect(res.status).toBe(1);
+    expect(res.stdout).toContain("GC-SERVER-ONLY src/lib/db/client.ts:1");
+  });
+
+  it("accepts an executed server-only import (GC-SERVER-ONLY)", () => {
+    const root = makeTempRepo();
+    seedCleanTree(root);
+    writeFile(root, "src/lib/db/client.ts", 'import "server-only";\nexport const db = null;\n');
+    writeFile(root, "src/lib/config/env.ts", 'import "server-only";\nexport const env = {};\n');
+
+    const res = runRealGate(root);
+
+    expect(res.status).toBe(0);
+  });
+
+  it("flags a DB import from a client .ts outside src/components (I3)", () => {
+    const root = makeTempRepo();
+    seedCleanTree(root);
+    writeFile(
+      root,
+      "src/hooks/use-db.ts",
+      "'use client';\nimport postgres from 'postgres';\nexport const connect = () => postgres('postgres://localhost/db');\n",
+    );
+
+    const res = runRealGate(root);
+
+    expect(res.status).toBe(1);
+    expect(res.stdout).toContain("I3 src/hooks/use-db.ts:2");
+  });
+
+  it("still allows a DB import from a server module under src/lib (I3)", () => {
+    const root = makeTempRepo();
+    seedCleanTree(root);
+    writeFile(root, "src/lib/server-db.ts", 'import postgres from "postgres";\nexport const c = postgres;\n');
+
+    const res = runRealGate(root);
+
+    expect(`${res.stdout}${res.stderr}`).not.toContain("I3 ");
+    expect(res.status).toBe(0);
   });
 
   it("fails an I1 / I2 tree whose required Cloudflare settings are missing", () => {

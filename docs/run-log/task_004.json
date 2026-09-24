@@ -79,5 +79,68 @@
     "commit": "7ba8eae101d2cc73247e444d7205d455aaf07672",
     "ran_at": "2026-09-24T04:02:37Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 45 file(s))\nok    L2 (forbid, 45 file(s))\nok    L3 (forbid, 45 file(s))\nok    L8 (forbid, 45 file(s))\nok    L12 (forbid, 45 file(s))\nok    P1 (forbid, 45 file(s))\ndefer P2 (0 targets; waiting on task_018)\nok    P9 (forbid, 7 file(s))\nok    W3 (forbid, 52 file(s))\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 43 file(s))\nok    N5 (forbid, 45 file(s))\nok    N7 (forbid, 45 file(s))\nok    N9 (forbid, 45 file(s))\nok    N11 (forbid, 45 file(s))\nok    I1 (require, 1 file(s))\nok    I2 (require, 1 file(s))\nok    I3 (forbid, 15 file(s))\nok    I4 (forbid, 2 file(s))\nok    X-TIME (forbid, 8 file(s))\nok    X-ID (forbid, 18 file(s))\nok    X-MONEY (forbid, 1 file(s))\nok    GC-XSS (forbid, 45 file(s))\nok    GC-ENV-PUBLIC (forbid, 50 file(s))\nok    GC-SERVER-ONLY (require, 1 file(s))\n\ngate:constraints — scanned 23 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "6533340f0de5ff88d08b746fea8400962e6a2388",
+    "ran_at": "2026-09-24T12:55:04Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 1,
+    "stdout_tail": "AssertionError: expected [ 'lookup', 'lookup', 'insert' ] to deeply equal [ 'lookup', 'lookup', …(2) ]\n\n- Expected\n+ Received\n\n  [\n    \"lookup\",\n    \"lookup\",\n-   \"newer-version-probe\",\n    \"insert\",\n  ]\n\n ❯ tests/unit/auth/pepper.test.ts:192:33\n    190|\n    191|     expect(result.created).toBe(true);\n    192|     expect(queries.map(kindOf)).toEqual([\n       |                                 ^\n    193|       \"lookup\",\n    194|       \"lookup\",\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/16]⎯\n\n FAIL  tests/unit/config/env.test.ts > npm run gate:env（scripts/gate-env-scope.mjs） > 引用符付きキーで書かれた禁止名・秘密値も検出する（F-3）\nAssertionError: expected +0 not to be +0 // Object.is equality\n ❯ tests/unit/config/env.test.ts:379:33\n    377|   it(\"引用符付きキーで書かれた禁止名・秘密値も検出する（F-3）\", () => {\n    378|     const result = runGateEnv(path.join(FIXTURES, \"quoted-keys\"));\n    379|     expect(result.exitCode).not.toBe(0);\n       |                                 ^\n    380|     expect(result.output).toContain(\"SUPABASE_SERVICE_ROLE_KEY must ne…\n    381|     expect(result.output).toContain(\"ALLOW_PRIVILEGED_DB_ROLE must nev…\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/16]⎯\n\n\n Test Files  5 failed | 32 passed (37)\n      Tests  16 failed | 934 passed (950)\n   Start at  13:05:06\n   Duration  31.66s (tests 89%, environment 5%, setup 4%, transform 1%, import 1%)",
+    "commit": "3bdf5d4a5bf7f486adb9423d4aada8458748eb0e",
+    "ran_at": "2026-09-24T13:05:06Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx vitest run tests/unit/gate-constraints.test.ts tests/unit/wording-lint.test.ts",
+    "exit_code": 0,
+    "stdout_tail": "(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  2 passed (2)\n      Tests  44 passed (44)\n   Start at  22:06:19\n   Duration  27.12s (tests 99%)",
+    "commit": "3bdf5d4a5bf7f486adb9423d4aada8458748eb0e",
+    "ran_at": "2026-09-24T13:06:19Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 46 file(s) read)\nok    L2 (forbid, 46 file(s) read)\nok    L3 (forbid, 46 file(s) read)\nok    L8 (forbid, 46 file(s) read)\nok    L12 (forbid, 46 file(s) read)\nok    P1 (forbid, 46 file(s) read)\ndefer P2 (0 targets; waiting on task_018)\nok    P9 (forbid, 7 file(s) read)\nok    W3 (forbid, 53 file(s) read)\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 44 file(s) read)\nok    N5 (forbid, 46 file(s) read)\nok    N7 (forbid, 46 file(s) read)\nok    N9 (forbid, 46 file(s) read)\nok    N11 (forbid, 46 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 15 file(s) read)\nok    I4 (forbid, 2 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 18 file(s) read)\nok    X-MONEY (forbid, 1 file(s) read)\nok    GC-XSS (forbid, 46 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 51 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\n\ngate:constraints — scanned 23 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "3bdf5d4a5bf7f486adb9423d4aada8458748eb0e",
+    "ran_at": "2026-09-24T13:06:46Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:wording",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:wording\n> node scripts/wording-lint.mjs\n\nok    W-AUTO (46 file(s) read)\nok    W-DONATION (46 file(s) read)\nok    W-SUPPORT (46 file(s) read)\nok    W-RECEIPT (46 file(s) read)\ndefer W-MERCHANT-GUIDE (0 targets; waiting on task_025)\nok    W-FEE-FIXED (46 file(s) read)\n\ngate:wording — scanned 5 pattern group(s), 0 violation(s), 0 empty gate(s)",
+    "commit": "3bdf5d4a5bf7f486adb9423d4aada8458748eb0e",
+    "ran_at": "2026-09-24T13:06:48Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 2,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit\n\nsrc/lib/auth/pepper.ts(215,17): error TS2304: Cannot find name 'AppError'.\nsrc/lib/auth/pepper.ts(216,9): error TS2304: Cannot find name 'ERROR_CODES'.",
+    "commit": "3bdf5d4a5bf7f486adb9423d4aada8458748eb0e",
+    "ran_at": "2026-09-24T13:06:57Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run lint",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 lint\n> eslint .",
+    "commit": "3bdf5d4a5bf7f486adb9423d4aada8458748eb0e",
+    "ran_at": "2026-09-24T13:07:06Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]

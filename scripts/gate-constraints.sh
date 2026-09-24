@@ -3,7 +3,7 @@
 #
 # Machine-checks the design constraints declared in docs/constraints.json.
 #
-# Two failure modes, both exit 1:
+# Three failure modes, all exit 1:
 #   1. A forbidden pattern matched (or a required pattern was missing).
 #      Printed as: "<id> <file>:<line>"
 #   2. A gate scanned ZERO files. A gate that has nothing to look at is not a
@@ -11,11 +11,18 @@
 #      `expect_targets` is "now" must have at least one target file today.
 #      Entries whose `expect_targets` is "from_task_XXX" are allowed to have
 #      zero targets until that task is DONE, and fail once it is.
+#   3. A gate matched target paths but could READ none of them (deleted from
+#      the working tree while still in the index, unreadable, not a regular
+#      file). Counting paths is not counting bytes: a gate that opened nothing
+#      is the same silently disabled gate as (2). Every unreadable target is
+#      reported individually as a violation as well.
 #
 # Exit codes:
 #   0  no violations, every gate had something to scan (or was legitimately deferred)
-#   1  at least one violation, or an empty-target gate that is no longer deferred
-#   2  usage / configuration error (bad JSON, unsupported glob, missing field)
+#   1  at least one violation, an empty-target gate that is no longer deferred,
+#      or a gate whose targets could not be read
+#   2  usage / configuration error (bad JSON, unsupported glob, missing field,
+#      a repository path containing a newline)
 #
 # Compatible with bash 3.2 (macOS system bash): no globstar, no mapfile,
 # no associative arrays. External dependencies: git, jq, grep, sed, awk, xargs.
@@ -28,7 +35,7 @@
 set -uo pipefail
 
 usage() {
-  sed -n '2,25p' "$0" >&2
+  sed -n '2,29p' "$0" >&2
   exit 2
 }
 
@@ -84,7 +91,28 @@ HITS="$TMPDIR_GATE/hits.txt"
 if [ -d "$ROOT/.git" ]; then
   # Tracked + untracked-but-not-ignored. Keeps node_modules/.next/.open-next
   # out of the scan without hardcoding them here.
-  git -C "$ROOT" ls-files -co --exclude-standard | LC_ALL=C sort -u > "$FILE_LIST"
+  #
+  # `-z` is load-bearing, not a style choice. Without it git honours
+  # core.quotePath (on by default), which C-escapes every non-ASCII path:
+  #   src/集金.ts  ->  "src/\351\233\206\351\207\221.ts"
+  # Such a line matches none of the anchored globs, so a file with a Japanese
+  # name silently drops out of every gate while other files keep the target
+  # count non-zero (GPT review F-1).
+  git -C "$ROOT" ls-files -z -co --exclude-standard > "$FILE_LIST.z" || {
+    echo "gate-constraints.sh: git ls-files failed in $ROOT" >&2
+    exit 2
+  }
+  # -z emits paths verbatim, so a path containing a literal newline would be
+  # split into two bogus lines below. Detect that instead of scanning a lie.
+  nul_count="$(LC_ALL=C tr -cd '\000' < "$FILE_LIST.z" | LC_ALL=C wc -c | tr -d '[:space:]')"
+  LC_ALL=C tr '\000' '\n' < "$FILE_LIST.z" > "$FILE_LIST.raw"
+  line_count="$(LC_ALL=C grep -c '' "$FILE_LIST.raw" 2>/dev/null || true)"
+  [ -n "$line_count" ] || line_count=0
+  if [ "$nul_count" != "$line_count" ]; then
+    echo "gate-constraints.sh: a path in $ROOT contains a newline; refusing to scan an ambiguous file list" >&2
+    exit 2
+  fi
+  LC_ALL=C sort -u "$FILE_LIST.raw" > "$FILE_LIST"
 else
   ( cd "$ROOT" && find . -type f \
       -not -path './.git/*' -not -path './node_modules/*' \
@@ -270,6 +298,34 @@ while IFS= read -r entry; do
     continue
   fi
 
+  # ---- readable-target policy (a gate that read nothing never "passes")
+  # `git ls-files` lists index entries, so a tracked file deleted from the
+  # working tree still shows up here; grep then reads nothing and the gate
+  # reported "ok". Count what can actually be opened, report every target that
+  # cannot be, and fail closed when the readable count is 0 (GPT review F-2).
+  READABLE="$TMPDIR_GATE/readable.txt"
+  : > "$READABLE"
+  unreadable=0
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    if [ -f "$ROOT/$f" ] && [ -r "$ROOT/$f" ]; then
+      printf '%s\n' "$f" >> "$READABLE"
+    else
+      printf '%s %s:1 | target matched the glob but could not be read (deleted, unreadable, or not a regular file)\n' "$id" "$f"
+      unreadable=$((unreadable + 1))
+    fi
+  done < "$TARGETS"
+
+  readable_count="$(grep -c . "$READABLE" 2>/dev/null || true)"
+  [ -n "$readable_count" ] || readable_count=0
+
+  if [ "$readable_count" -eq 0 ]; then
+    echo "UNREADABLE $id: $target_count target(s) matched but 0 could be read" >&2
+    empty_gates=$((empty_gates + 1))
+    violations=$((violations + unreadable))
+    continue
+  fi
+
   scanned_entries=$((scanned_entries + 1))
 
   # ---- allow_if_line_matches
@@ -278,13 +334,13 @@ while IFS= read -r entry; do
     allow_re="$(printf '%s' "$entry" | jq -r '.allow_if_line_matches[]' | awk 'BEGIN{ORS=""} NR==1{print $0; next} {print "|" $0}')"
   fi
 
-  entry_hits=0
+  entry_hits=$unreadable
 
   if [ "$mode" = "forbid" ]; then
     while IFS= read -r pat; do
       [ -n "$pat" ] || continue
       : > "$HITS"
-      tr '\n' '\0' < "$TARGETS" | ( cd "$ROOT" && xargs -0 grep -nHE -e "$pat" -- ) > "$HITS" 2>/dev/null
+      tr '\n' '\0' < "$READABLE" | ( cd "$ROOT" && xargs -0 grep -nHE -e "$pat" -- ) > "$HITS" 2>/dev/null
       while IFS= read -r hit; do
         [ -n "$hit" ] || continue
         file="${hit%%:*}"
@@ -313,12 +369,12 @@ while IFS= read -r entry; do
         printf '%s %s:1 | required pattern missing (%s)\n' "$id" "$f" "$(printf '%s' "$entry" | jq -r '.grep_patterns | join(" OR ")')"
         entry_hits=$((entry_hits + 1))
       fi
-    done < "$TARGETS"
+    done < "$READABLE"
   fi
 
   violations=$((violations + entry_hits))
   if [ "$entry_hits" -eq 0 ]; then
-    say "ok    $id ($mode, $target_count file(s))"
+    say "ok    $id ($mode, $readable_count file(s) read)"
   fi
 done < "$ENTRIES"
 

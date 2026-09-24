@@ -64,6 +64,27 @@ function writePolicy(root: string, policy: Policy): string {
   return path.join(root, "policy.md");
 }
 
+/**
+ * Turns a fixture directory into a real git repository so the linter takes the
+ * `git ls-files` branch instead of the `fs.readdir` fallback. `core.quotePath`
+ * stays ON (git's default) because that is the condition under which non-ASCII
+ * paths used to fall out of every pattern group.
+ */
+function initGitRepo(root: string): void {
+  const git = (...args: string[]) =>
+    spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
+  const init = git("init", "-q");
+  expect(init.status, `git init failed: ${init.stderr}`).toBe(0);
+  git("config", "user.email", "lint@example.invalid");
+  git("config", "user.name", "lint fixture");
+  git("config", "core.quotePath", "true");
+}
+
+function gitAddAll(root: string): void {
+  const res = spawnSync("git", ["-C", root, "add", "-A"], { encoding: "utf8" });
+  expect(res.status, `git add failed: ${res.stderr}`).toBe(0);
+}
+
 function runLint(root: string, policyPath: string): LintResult {
   const res = spawnSync(
     "node",
@@ -222,6 +243,47 @@ describe("scripts/wording-lint.mjs (fixture policy)", () => {
 
     expect(res.status).toBe(1);
     expect(res.stderr).toContain("EMPTY W-FIXTURE");
+  });
+
+  it("scans a non-ASCII path inside a git repo with core.quotePath on", () => {
+    const root = makeTempRepo();
+    initGitRepo(root);
+    const policyPath = writePolicy(root, basePolicy);
+    writeFile(root, "src/ok.ts", 'const a = "ok";\n');
+    writeFile(root, "src/集金.ts", 'const b = "寄付を受け付けます";\n');
+    gitAddAll(root);
+
+    const res = runLint(root, policyPath);
+
+    expect(res.status).toBe(1);
+    expect(res.stdout).toContain("W-FIXTURE src/集金.ts:1");
+  });
+
+  it("fails closed when every target is tracked but gone from the working tree", () => {
+    const root = makeTempRepo();
+    initGitRepo(root);
+    const policyPath = writePolicy(root, basePolicy);
+    writeFile(root, "src/a.ts", 'const a = "ok";\n');
+    gitAddAll(root);
+    fs.rmSync(path.join(root, "src", "a.ts"));
+
+    const res = runLint(root, policyPath);
+
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain("UNREADABLE W-FIXTURE");
+    expect(res.stdout).toContain("W-FIXTURE src/a.ts:1");
+  });
+
+  it("fails closed when the only target is bigger than the scan limit", () => {
+    const root = makeTempRepo();
+    const policyPath = writePolicy(root, basePolicy);
+    writeFile(root, "src/a.ts", `// ${"x".repeat(2 * 1024 * 1024)}\nconst b = "寄付";\n`);
+
+    const res = runLint(root, policyPath);
+
+    expect(res.status).toBe(1);
+    expect(res.stdout).toContain("over the 2097152-byte scan limit");
+    expect(res.stderr).toContain("UNREADABLE W-FIXTURE");
   });
 
   it("tolerates zero targets while the declared task is not DONE, and fails once it is", () => {

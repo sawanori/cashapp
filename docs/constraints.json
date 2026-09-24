@@ -240,7 +240,8 @@
       "match_mode": "forbid",
       "grep_patterns": [
         "from[[:space:]]*[\"'](@paypayopa/|paypayopa|stripe|@stripe/|payjp|@payjp/)",
-        "require\\([[:space:]]*[\"'](@paypayopa/|paypayopa|stripe|@stripe/|payjp|@payjp/)"
+        "require\\([[:space:]]*[\"'](@paypayopa/|paypayopa|stripe|@stripe/|payjp|@payjp/)",
+        "import\\([[:space:]]*[\"'](@paypayopa/|paypayopa|stripe|@stripe/|payjp|@payjp/)"
       ],
       "globs": [
         "src/**/*.ts",
@@ -424,10 +425,11 @@
         "src/lib/ledger/apply.ts"
       ],
       "allow_if_line_matches": [
-        "(status_rank|statusRank)"
+        "(status_rank|statusRank)[[:space:]]*(<=?|>=?)",
+        "(<=?|>=?)[[:space:]]*(status_rank|statusRank)"
       ],
       "expect_targets": "now",
-      "notes": "rank ガード（status_rank < $new_rank）と同一行に無い 'paid' 代入を違反とみなす。状態遷移は src/lib/ledger/apply.ts 経由のみ。"
+      "notes": "rank ガード（status_rank < $new_rank）と同一行に無い 'paid' 代入を違反とみなす。許可条件はランク名の出現ではなく**比較演算子を伴うランク比較**であること（ランクを無条件に代入するだけの UPDATE を免除しないため。GPT レビュー F-3）。状態遷移は src/lib/ledger/apply.ts 経由のみ。"
     },
     {
       "id": "W4",
@@ -819,12 +821,17 @@
       ],
       "globs": [
         "src/**/*.tsx",
-        "src/components/**/*.ts"
+        "src/**/*.ts"
       ],
-      "exclude_globs": [],
+      "exclude_globs": [
+        "src/lib/**",
+        "src/app/api/**",
+        "src/app/**/route.ts",
+        "src/middleware.ts"
+      ],
       "allow_if_line_matches": [],
       "expect_targets": "now",
-      "notes": "サーバーコンポーネント（.tsx）からの DB 直アクセスも禁止する。DB は Route Handler 経由のみ。"
+      "notes": "サーバーコンポーネント（.tsx）からの DB 直アクセスも禁止する。DB は Route Handler 経由のみ。.ts の対象は src/components 配下に限らない（src/hooks 等に置いた 'use client' 付き .ts が漏れていた。GPT レビュー F-7）。サーバー側と確定している src/lib・Route Handler・middleware だけを除外する。"
     },
     {
       "id": "I4",
@@ -879,8 +886,9 @@
       "enforcement": "grep",
       "match_mode": "forbid",
       "grep_patterns": [
-        "^[[:space:]]*[\"']?[a-z_][a-z0-9_]*[\"']?[[:space:]]+date([[:space:]]|,|\\)|$)",
-        "timestamp[[:space:]]+without[[:space:]]+time[[:space:]]+zone",
+        "(^|[(,])[[:space:]]*[\"']?[A-Za-z_][A-Za-z0-9_]*[\"']?[[:space:]]+[dD][aA][tT][eE]([[:space:]]|,|\\)|;|$)",
+        "[tT][iI][mM][eE][sS][tT][aA][mM][pP][[:space:]]+[wW][iI][tT][hH][oO][uU][tT][[:space:]]+[tT][iI][mM][eE][[:space:]]+[zZ][oO][nN][eE]",
+        "(^|[(,])[[:space:]]*[\"']?[A-Za-z_][A-Za-z0-9_]*[\"']?[[:space:]]+[tT][iI][mM][eE][sS][tT][aA][mM][pP]([[:space:]]*(,|\\)|;|$)|[[:space:]]+[^wW[:space:]])",
         "(^|[^A-Za-z_])date\\([\"']",
         "(^|[^A-Za-z_])timestamp\\([\"'][^\"']*[\"'][[:space:]]*\\)"
       ],
@@ -891,7 +899,7 @@
       "exclude_globs": [],
       "allow_if_line_matches": [],
       "expect_targets": "from_task_011",
-      "notes": "drizzle では timestamp(..., { withTimezone: true }) を必須とする。date() は使わない。"
+      "notes": "drizzle では timestamp(..., { withTimezone: true }) を必須とする。date() は使わない。列定義は行頭に限らず CREATE TABLE と同一行でも検出する。裸の timestamp は『WITHOUT TIME ZONE 明記』に限定せず、timestamptz / timestamp with time zone 以外の形（timestamp, / timestamp) / timestamp NOT NULL など）を検出する（GPT レビュー F-5）。"
     },
     {
       "id": "X-ID",
@@ -990,15 +998,17 @@
       "enforcement": "grep",
       "match_mode": "require",
       "grep_patterns": [
-        "import[[:space:]]+[\"']server-only[\"']"
+        "^[[:space:]]*import[[:space:]]+[\"']server-only[\"'][[:space:]]*;?[[:space:]]*$"
       ],
       "globs": [
         "src/lib/db/client.ts",
+        "src/lib/config/env.ts",
         "src/lib/secrets.ts"
       ],
       "exclude_globs": [],
       "allow_if_line_matches": [],
-      "expect_targets": "from_task_011"
+      "expect_targets": "from_task_011",
+      "notes": "必須パターンは行頭から始まる実行される import だけを認める（// や /* の中に書かれた import 文字列で必須検査を満たせていた。GPT レビュー F-6）。対象は DB クライアントに加えてシークレット取得モジュール（src/lib/config/env.ts）も含める（F-7）。伝播側（'use client' からの import）の検査は scripts/assert-server-only.mjs が受け持つ。"
     }
   ]
 }

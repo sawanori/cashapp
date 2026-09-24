@@ -3,14 +3,19 @@
 //
 // Machine-checks the forbidden vocabulary declared in docs/wording-policy.md.
 //
-// Two failure modes, both exit 1:
+// Three failure modes, all exit 1:
 //   1. A forbidden word matched. Printed as: "<id> <file>:<line>"
 //   2. A pattern group scanned ZERO files. A gate with nothing to look at is
 //      not a passing gate (R-TH-01). `expect_targets: "now"` requires at least
 //      one target today; `"from_task_XXX"` tolerates zero until that task is
 //      DONE, and fails afterwards.
+//   3. A pattern group matched target paths but READ none of them (deleted
+//      from the working tree while still in the index, not a regular file, or
+//      over MAX_FILE_BYTES). Every such skip is reported individually as a
+//      violation, and a group that read nothing fails like (2).
 //
-// Exit codes: 0 clean / 1 violation or empty gate / 2 usage or config error.
+// Exit codes: 0 clean / 1 violation, empty gate or unread gate / 2 usage or
+// config error (including a repository path containing a newline).
 //
 // Usage:
 //   node scripts/wording-lint.mjs [--root <dir>] [--policy <file>]
@@ -111,12 +116,26 @@ function globsToMatcher(globs) {
 
 function listFiles(root) {
   if (fs.existsSync(path.join(root, ".git"))) {
+    // `-z` is load-bearing, not a style choice. Without it git honours
+    // core.quotePath (on by default), which C-escapes every non-ASCII path:
+    //   src/集金.ts  ->  "src/\351\233\206\351\207\221.ts"
+    // Such a string matches none of the anchored globs, so a file with a
+    // Japanese name silently drops out of every group while other files keep
+    // the target count non-zero (GPT review F-1).
     const out = execFileSync(
       "git",
-      ["-C", root, "ls-files", "-co", "--exclude-standard"],
+      ["-C", root, "ls-files", "-z", "-co", "--exclude-standard"],
       { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
     );
-    return out.split("\n").filter((l) => l.length > 0).sort();
+    const entries = out.split("\0").filter((l) => l.length > 0);
+    // -z emits paths verbatim, so a path containing a literal newline is a
+    // path we cannot line-orient safely. Refuse rather than scan a lie.
+    for (const entry of entries) {
+      if (entry.includes("\n")) {
+        fail(`a path in ${root} contains a newline; refusing to scan an ambiguous file list`);
+      }
+    }
+    return entries.sort();
   }
   const acc = [];
   const skip = new Set([".git", "node_modules", ".next", ".open-next", ".wrangler"]);
@@ -296,15 +315,37 @@ function main() {
     });
 
     let entryHits = 0;
+    // Counting paths is not counting bytes. A target that cannot be stat'd
+    // (tracked but deleted from the working tree), is not a regular file, or
+    // is too big to read used to be skipped in silence — so a group could
+    // "pass" having opened nothing at all. Report every skip and fail closed
+    // when the read count is 0 (GPT review F-2).
+    let readFiles = 0;
     for (const rel of targets) {
       const abs = path.join(root, rel);
       let stat;
       try {
         stat = fs.statSync(abs);
       } catch {
+        process.stdout.write(
+          `${id} ${rel}:1 | target matched the glob but could not be read (deleted or unreadable)\n`,
+        );
+        entryHits += 1;
         continue;
       }
-      if (!stat.isFile() || stat.size > MAX_FILE_BYTES) continue;
+      if (!stat.isFile()) {
+        process.stdout.write(`${id} ${rel}:1 | target is not a regular file\n`);
+        entryHits += 1;
+        continue;
+      }
+      if (stat.size > MAX_FILE_BYTES) {
+        process.stdout.write(
+          `${id} ${rel}:1 | target is ${stat.size} bytes, over the ${MAX_FILE_BYTES}-byte scan limit\n`,
+        );
+        entryHits += 1;
+        continue;
+      }
+      readFiles += 1;
       const lines = fs.readFileSync(abs, "utf8").split("\n");
       for (let i = 0; i < lines.length; i += 1) {
         const line = lines[i] ?? "";
@@ -331,8 +372,15 @@ function main() {
       }
     }
 
+    if (readFiles === 0) {
+      process.stderr.write(
+        `UNREADABLE ${id}: ${targets.length} target(s) matched but 0 could be read\n`,
+      );
+      emptyGates += 1;
+    }
+
     violations += entryHits;
-    if (entryHits === 0) log(`ok    ${id} (${targets.length} file(s))`);
+    if (entryHits === 0) log(`ok    ${id} (${readFiles} file(s) read)`);
   }
 
   log("");

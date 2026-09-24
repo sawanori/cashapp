@@ -2,9 +2,9 @@
   "$comment": "G13 の基準値。docs/gates/** は PO 専管のため、このファイルの唯一の書き込み経路は `node scripts/gate-integrity.mjs --write-baseline` である（scripts/deny-test-weakening.sh / deny-dangerous-bash.sh が Edit / Write / Bash 経由の直接書き込みを遮断する）。ゲート対象領域を意図して変更したときだけ再生成し、差分を PR で人間に見せること。",
   "schema_version": 1,
   "algorithm": "sha256",
-  "generated_at": "2026-09-24T12:45:37Z",
+  "generated_at": "2026-09-24T13:12:44Z",
   "generated_by": "scripts/gate-integrity.mjs --write-baseline",
-  "generated_at_commit": "522d54347f1eedc4e94023e2d67e0719bef4d5a8",
+  "generated_at_commit": "3bdf5d4a5bf7f486adb9423d4aada8458748eb0e",
   "patterns": [
     {
       "kind": "dir",
@@ -99,7 +99,7 @@
     "scripts/deny-dangerous-bash.sh": "3a188ca2465b0e20fe8c993b9439319fe8482d8a3d40c5783bd2462a8c984f3f",
     "scripts/deny-test-weakening.sh": "b344cda4b41bb173ade1aa308bfee801158e6380a225bec173efbee749b80146",
     "scripts/gate-check.mjs": "38afbc84e85af92e121e2df73820dac4fe39d94a0077e5f959ef4ef4c61ddb49",
-    "scripts/gate-constraints.sh": "3591e68ccf38e1681258ef4f117424e4c7deb8e28418612cc38bba56751311a6",
+    "scripts/gate-constraints.sh": "b6e186accb68b16ffb295f38fa8b1e184a53d5efa9915cbaba17bead481ac78c",
     "scripts/gate-env-scope.mjs": "208c5057e83b09cedf2bb509a742fa20b615b1c7cc0a73aab230e7dc09d31f9d",
     "scripts/gate-integrity.mjs": "881c9bd24f7bbbba222564dba3bebb7c4d3df9e9509763957ec73b5c334b2630",
     "scripts/gate-status.mjs": "72c9cc0f3f2140cec25213f473688ca6a2d1dcbef93394f8759b61aceb6f173f",
@@ -109,6 +109,6 @@
     "scripts/test-hook-enforcement.sh": "437e0abece7946ec8624332a917b41b26f754f008ab71bdf0e70ab1b6920b35d",
     "scripts/validate-findings.mjs": "29032edd500cd1d37a74bafe1ccfa5e48f1980beb1eea0b128ad2becf81364b3",
     "scripts/validate-plan-json.mjs": "93f7771bd507a7f2e40527f0d95a67157b95aa758c2c47efa9b36e286928637b",
-    "scripts/wording-lint.mjs": "9c0d41d886af6cf0e8c4b1b94ab97e157c98a414615a1d409c22bb6eca0108d7"
+    "scripts/wording-lint.mjs": "f934d2e63f2e4fc5e118e187762bfdc075263d621fdeab1722b2a83cc5719ca4"
   }
 }
