@@ -89,9 +89,16 @@ export async function POST(request: Request): Promise<Response> {
                 collectByAt: result.event.collectByAt === null ? null : result.event.collectByAt.toISOString(),
                 createdAt: result.event.createdAt.toISOString(),
               },
+              // 保存される側。再送ではこちらだけが返るため false になる。
+              joinTokenAvailable: false,
             },
             // joinToken は保存しない・再送では返さない（task_014 scope）。
-            extra: { joinToken: result.joinToken },
+            //
+            // ★ task_015 の設計判断（C-014-6）: 生のトークンは DB にハッシュしか残さないため、
+            //   この初回応答を取りこぼすと**サーバーにも復元できない**。冪等再送では
+            //   `joinTokenAvailable: false`（保存側の既定値）が返るので、クライアントは
+            //   「リンクを作り直す」導線（POST /api/events/:id/rotate-join-token）へ案内できる。
+            extra: { joinToken: result.joinToken, joinTokenAvailable: true },
           };
         },
       ),

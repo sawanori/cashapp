@@ -1,0 +1,113 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`申告済みと支払済みが同じ見た目にならない（check_087） > paid のスナップショット 1`] = `
+<div>
+  <section
+    class="participant-status"
+    data-state="paid"
+    data-tone="success"
+  >
+    <p
+      class="participant-status__amount tabular"
+    >
+      ¥3,000
+    </p>
+    <p
+      class="participant-status__state"
+    >
+      <svg
+        aria-hidden="true"
+        class="invoice-row__icon"
+        fill="none"
+        focusable="false"
+        height="16"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="16"
+      >
+        <path
+          d="M5 12.5l4.5 4.5L19 7"
+        />
+      </svg>
+      <span
+        class="participant-status__state-text"
+      >
+        支払済み（手動確認・自動照合ではありません）
+      </span>
+    </p>
+    <p
+      class="participant-status__body"
+    >
+      お支払いが記録されています。
+    </p>
+    <p
+      class="participant-status__badge"
+      data-testid="participant-non-auto-badge"
+    >
+      幹事が手動で確認します（自動照合ではありません）。
+    </p>
+  </section>
+</div>
+`;
+
+exports[`申告済みと支払済みが同じ見た目にならない（check_087） > self_reported のスナップショット 1`] = `
+<div>
+  <section
+    class="participant-status"
+    data-state="self_reported"
+    data-tone="warning"
+  >
+    <p
+      class="participant-status__amount tabular"
+    >
+      ¥3,000
+    </p>
+    <p
+      class="participant-status__state"
+    >
+      <svg
+        aria-hidden="true"
+        class="invoice-row__icon"
+        fill="none"
+        focusable="false"
+        height="16"
+        stroke="currentColor"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        viewBox="0 0 24 24"
+        width="16"
+      >
+        <path
+          d="M12 3l9 16H3z"
+        />
+        <path
+          d="M12 9v4"
+        />
+        <path
+          d="M12 16.5h.01"
+        />
+      </svg>
+      <span
+        class="participant-status__state-text"
+      >
+        申告済み（幹事の確認待ち）
+      </span>
+    </p>
+    <p
+      class="participant-status__body"
+    >
+      あなたの申告を幹事が確認中です（アプリは入金を検知していません）。
+    </p>
+    <p
+      class="participant-status__badge"
+      data-testid="participant-non-auto-badge"
+    >
+      幹事が手動で確認します（自動照合ではありません）。
+    </p>
+  </section>
+</div>
+`;

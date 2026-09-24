@@ -383,3 +383,22 @@
   **verify_commands 6 本すべて `scripts/record-run.sh task_014` 経由で exit 0**（`typecheck` /
   `lint` / `test:unit` 38 ファイル 1010/1010 / `test:integration` 6 ファイル **101/101**
   （F-5 の回帰テスト 1 本を追加）/ `gate:constraints` / `gate:wording`）。
+- task_015: DONE_WITH_CONCERNS — 請求発行・招待トークン・参加者単位 claim/unclaim・preview・
+  自己申告・参加者画面（P-1〜P-3）を実装。新規 25 ファイル（`src/lib/join-token.ts`、
+  `src/lib/db/repositories/{invoices,claims}.ts`、幹事 API 7 本、参加者 API 7 本、画面 4 枚、
+  テスト 5 本）＋ `src/app/api/events/route.ts` と `src/components/InvoiceRow.tsx` の修正。
+  **招待トークンは 128 ビット CSPRNG・SHA-256 ハッシュのみ保存・90 日の期限・ローテーション可**で、
+  入口はヘッダ `X-Join-Token` だけ（パスに置かない。制約 X-ID）。生の値を保存しないため
+  `GET /api/events/:id/join-token` はメタ情報だけを返し、配り直しは
+  `POST /api/events/:id/rotate-join-token`（旧リンク即 404）— これが task_014 の **C-014-6 への
+  回答**で、`POST /api/events` の応答に `joinTokenAvailable` を足した。claim は
+  `participant_claim` の部分一意 2 本で二重 claim を DB が止め（409 `ALREADY_CLAIMED`）、
+  同一人物・同一参加者の再送だけは成功として返す。unclaim は理由を固定分類で受け、支払済みなら
+  `needs_attention` を立てる（ランクは動かさない）。自己申告は `payment_self_report` にのみ記録し
+  **`ledger_entry` には 1 行も書かない**（テストで前後の件数一致を実測）。preview はセッション不要・
+  IP レート制限つきで、応答の型にも実データにも `amount` / `status` キーが無い（6 キー固定・氏名なし）。
+  P-3 の「申告済み（幹事の確認待ち）」は支払済みと tone・文言・アイコンをすべて分け、スナップショット
+  2 枚が別物であることを固定した。**verify_commands 5 本すべて `scripts/record-run.sh task_015`
+  経由で exit 0**（`typecheck` / `test:unit` 43 ファイル **1096/1096** / `test:integration`
+  10 ファイル **175/175**（新規 64 件）/ `gate:constraints` / `gate:wording`）。残懸念 7 件は
+  `docs/concerns/task_015.md`（C-015-1〜7。medium 5・low 2）。

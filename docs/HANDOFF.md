@@ -2047,6 +2047,116 @@ medium 指摘が出た。
 
 - C-014-1〜8（`docs/concerns/task_014.md`）がそのまま残懸念。合計 8 件（medium 3・low 5）。
 
+## task_015（請求発行・招待トークン・claim/unclaim・preview・自己申告・P-1〜P-3）
+
+### 決まったこと
+
+- **招待トークンの生の値はどこにも保存しない**。`event.join_token_hash`（SHA-256）だけを持ち、
+  生の値は発行時の 1 応答にしか現れない。したがって `GET /api/events/:id/join-token` は
+  **メタ情報だけ**（期限・版・`tokenRetrievable: false`）を返し、リンクを配り直すときは
+  `POST /api/events/:id/rotate-join-token`（旧リンクは即 404）を使う。これが task_014 の
+  **C-014-6（冪等再送で joinToken を失う）への回答**であり、`POST /api/events` の応答にも
+  `joinTokenAvailable`（初回 true / 再送 false）を足して、クライアントが「作り直す」導線へ
+  案内できるようにした。
+- **トークンはヘッダ `X-Join-Token` だけで運ぶ**（制約 X-ID）。`src/lib/join-token.ts` は
+  ヘッダ以外の入口を持たない。参加者画面は招待リンクのクエリ `?t=` から 1 度だけ読み取り、
+  以後はヘッダで送る。Cookie にもブラウザの保存領域にも残さない。強度は 128 ビット、
+  既定の寿命は 90 日、比較は SQL の等値 ＋ `timingSafeEqualBytes` の二重。
+- **`joinToken` は候補一覧までの権限**という §9 の原則をコードの形にした。`/api/e/me` /
+  `/api/e/claim` / `/api/e/self-report` / `/api/e/cannot-pay` / `/api/e/request-add` /
+  `/api/e/candidates` はすべて `requireSession` を通り、`preview` だけが通らない。
+  これは `tests/integration/idor.test.ts` が静的にも検査する。
+- **未承認の追加リクエストの印**は `claim_token_hash IS NULL AND confirmed_by_organizer_at IS NULL`
+  とした（幹事が登録した参加者は task_014 の `createParticipants` が必ず claim トークンを
+  発行するため）。承認は `confirmed_by_organizer_at` を立てる。**暗黙の印なので専用列へ移す提案を
+  C-015-1 に残した**。
+- **自由記述の受け皿を増やさない**（premortem P-07）。unclaim の理由は固定の分類 4 値、
+  自己申告は `method` のみで `note` を受け取らない（常に NULL）。`audit_log.detail` にも
+  enum と件数しか入れない。
+- **自己申告は台帳に触れない**。`payment_self_report` に 1 行入れるだけで、`ledger_entry` にも
+  `settlement_status` にも書かない。P-3 の表示も支払済みとは tone・文言・アイコンをすべて分けた
+  （`ParticipantStatus`。スナップショット 2 枚が別物であることをテストで固定）。
+- 状態変更系のうち、**非冪等なもの（請求の一括発行・トークンのローテーション）だけ
+  `Idempotency-Key` 必須**にした。void / unclaim / approve-add / cannot-pay は再実行しても
+  結果が重ならない（409 か no-op）ため要求しない。
+- **verify_commands 5 本すべて `scripts/record-run.sh task_015` 経由で exit 0**
+  （`typecheck` / `test:unit` 43 ファイル 1096/1096 / `test:integration` 10 ファイル 175/175 /
+  `gate:constraints` / `gate:wording`）。`npm run lint` も自タスクのファイルに対して exit 0。
+
+### 未解決
+
+- C-015-1〜7（`docs/concerns/task_015.md`）。medium 5・low 2。要点は
+  (1) 未承認リクエストの印が暗黙、(2) 招待リンクの再表示ができない（設計上の制約）、
+  (3) トークンがリンクのクエリに載る（アクセスログ）、(4) 429 の実バインディング未実測、
+  (5) Route Handler 自体の自動テストが無い、(6) O-9 の分類表示は task_021、
+  (7) Hyperdrive 経由の実測は task_035 後。
+- task_014 の C-014-7（`removeParticipant` の TOCTOU）は本タスクでも解けない。
+  `payment_attempt` を作る経路は task_017（`POST /api/e/checkout`）にあるため、そのまま送る。
+- P-4〜P-7（支払い方法の選択・決済事業者への遷移・復帰・完了）は task_017 の scope。
+  P-3 には自己申告と「この方法では払えない」の 2 つだけを置いてある。
+
+## task_017（PaymentProvider IF v2・レジストリ・ManualConfirmAdapter・非自動ラベル 8 層・O-0）
+
+### 決まったこと
+
+- **IF v2 は全メソッドの第一引数が `binding`**（`createCheckout(binding, cmd)` ほか）。
+  `ProviderCapabilities` は 15 項目（`refundWindowDays` / `dispute` /
+  `disputeResponseWindowDays` / `checkoutIdempotent` / `credentialCustody` /
+  `settlementQuery` / `feeModel` / `settlementSchedule` を v1 から追加）。
+  `PaymentEventKind` に `refund_pending` / `refund_failed` / `disputed` /
+  `dispute_resolved` を足し、DB の `payment_event.kind` の CHECK と同じ集合にそろえた。
+- **`Money` は `declare const` の unique symbol でブランドした**。`yen()` 以外では作れず、
+  オブジェクトリテラルの代入は型エラーになる（`money.test.ts` に `@ts-expect-error` で固定。
+  この行が通るようになったら `npm run typecheck` が落ちる）。アダプタ境界へ数値を渡すのは
+  `toProviderAmount()` の 1 本だけ。均等割りは最大剰余法で、合計一致と差 1 円以内を
+  500 ケースのプロパティテスト（種固定の LCG。fast-check は足していない）で押さえた。
+- **ガードの順序は「manual_confirm を最初に短絡」**。`docs/task-list.json` の scope 文は
+  「環境ガード → manual_confirm 通過」の順に読めるが、`implementation-plan.md` §7-6 と
+  check_090 が「manual_confirm は全ガードをスキップ」と書いているので後者を採った。
+  自動アダプタに対しては 環境 → `PAYMENTS_ENABLED` → ゲート → MODE → binding →
+  幹事 suspended → `minors_included` → fixture provenance の順。
+- **ゲートの正本は JSON、状態は DB 射影**。`src/lib/payments/gates.ts` の `CANONICAL_GATES`
+  は `docs/gates/compliance-gates.json` の写しで、一致は `registry.test.ts` が JSON を読んで
+  検査する（Workers からリポジトリのファイルは読めないため写し＋機械検査にした）。
+  射影に行が無いゲートは `missing` として**止める**（同期漏れで穴が開かない）。
+- **止めるのは `createCheckout` と binding 作成だけ**。Webhook 受信・保存・`getPaymentStatus`・
+  `refund` 用の入口は `resolveProviderWithoutGate()` として名前で分けた。
+  binding の新規作成は `assertProviderBindingAllowed()` で、`binding.status` の検査だけを外す。
+- **`ManualConfirmAdapter` は一次資料が無いのでリンクを出さない**。受取リンクのテンプレートは
+  `verified` フラグを持ち、未検証のエントリは `activeReceivingLinkTemplates()` から外れる。
+  PayPay の URL 形式は未取得なので `verified: false` のままで、既定では `deepLink` が `null`、
+  案内は「幹事にご確認ください」に倒れる（`docs/vendor-docs/paypay/receiving-link.md`）。
+  許可ホストの検査はテンプレートの `host` と組み立て結果の `hostname` の**二重**で行う。
+- **`manual-attest` は最小追記**。`manual_attestation` を INSERT、`ledger_entry` を
+  `dedupe_key='attest:<invoiceId>'` で 1 件だけ credit、`invoice` をランクガード付きで前進、
+  生きた `payment_attempt` を `canceled` に落とす（手動経路は事業者からの確定が来ないので、
+  放置すると名簿が「手続き中（催促は送れません）」で固定される）。
+- **`POST /api/e/checkout` は金額を受け取らない**。`amount` / `amountMinor` / `money` /
+  `currency` がボディにあれば 400。生きた試行があれば同じ案内を返し、無ければ write-ahead で
+  `payment_attempt` を作ってからアダプタを呼ぶ。ゲートの解決は**すべての書き込みより前**に置いた
+  （check_010「payment_attempt は作られない」）。
+- **HTTP 層とトランザクション本体を分けた**。`applyManualAttest()` と
+  `createCheckoutForClaim()` を route からエクスポートし、統合テストが Cloudflare の
+  ランタイム文脈なしに実 DB へ通せるようにした。
+
+### 未解決
+
+- PayPay 受取リンクの URL 形式が未取得で、P-5 のホスト名併記は既定では画面に出ない（C-017-1）。
+- `src/components/InvoiceRow.tsx`（8 層の⑦）は並行実行の task_015 が同じ変更を未コミットで
+  入れていたため本タスクでは触らず、コミットにも含めていない（C-017-2）。
+  `src/components/SummaryBar.tsx`（8 層の④）は本タスクで変更・コミットした。
+- 手動確認でも `payment_attempt` を作るため、`manual-attest` が走らないと生きた試行が
+  24 時間残る。`statusQuery=false` の試行を期限で `expired` に落とすのは task_020（C-017-4）。
+- `applyToLedger` の不変条件（金額不一致・二重払い・取消後入金）は task_018（C-017-8）。
+- `POST /api/e/cannot-pay`（task_021）と `GET /api/e/me` の `allowCash`（task_015 / 016）が
+  未接続で、P-4 の 2 つの導線は固定文言のまま（C-017-5 / C-017-6）。
+- e2e（check_001 / check_092）と ProviderConformanceKit（C9 / C10 / C12 / C23 / C30）は
+  task_019 / task_022。Hyperdrive 経由の実測（A21）は task_035 後（C-017-9 / C-017-10）。
+- task_014 から送られた C-014-7（`removeParticipant` の TOCTOU）は、`payment_attempt` を
+  作る経路がこのタスクに来たが、**解けていない**。`POST /api/e/checkout` は請求行を
+  `FOR UPDATE` で掴むが、`removeParticipant` 側が同じ行を掴まないため、削除と試行作成の
+  競合はなお開いている。`removeParticipant` は task_014 の担当ファイルなので触っていない。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -2215,3 +2325,23 @@ medium 指摘が出た。
 - 2026-09-24T14:40:33Z HEAD=bf51ee3 決まったこと: vitest: 並列実装下の偽陽性対策としてワーカー上限 4・タイムアウト 20 秒（テスト内容は不変） / 未解決: 未コミット 33 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/concerns/task_013.md docs/constraints.json docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/review-log/task_013.json 
 - 2026-09-24T14:40:48Z HEAD=bf51ee3 決まったこと: vitest: 並列実装下の偽陽性対策としてワーカー上限 4・タイムアウト 20 秒（テスト内容は不変） / 未解決: 未コミット 33 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/concerns/task_013.md docs/constraints.json docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/review-log/task_013.json 
 - 2026-09-24T14:41:35Z HEAD=bf51ee3 決まったこと: vitest: 並列実装下の偽陽性対策としてワーカー上限 4・タイムアウト 20 秒（テスト内容は不変） / 未解決: 未コミット 33 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/concerns/task_013.md docs/constraints.json docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/review-log/task_013.json 
+- 2026-09-24T14:42:35Z HEAD=06f1d73 決まったこと: task_013(5巡目レビュー): pass。SDK 状態取得の例外とパイプ左側の代入を塞ぎ DONE_WITH_CONCERNS へ戻す / 未解決: 未コミット 24 件: docs/PROGRESS.md docs/concerns/task_004.md docs/constraints.json docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/run-log/task_004.json docs/run-log/task_008.json docs/run-log/task_012.json 
+- 2026-09-24T14:43:51Z HEAD=4a5ba3a 決まったこと: harness-round2: H2-14（G4 が PROGRESS の最初の宣言行しか採らない実測） / 未解決: 未コミット 25 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/constraints.json docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/run-log/task_004.json docs/run-log/task_008.json 
+- 2026-09-24T14:44:34Z HEAD=4a5ba3a 決まったこと: harness-round2: H2-14（G4 が PROGRESS の最初の宣言行しか採らない実測） / 未解決: 未コミット 25 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/constraints.json docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/run-log/task_004.json docs/run-log/task_008.json 
+- 2026-09-24T14:46:14Z HEAD=addea00 決まったこと: task_004(6周目): verify_commands の再実行ログ（test:unit / typecheck とも exit 0） / 未解決: 未コミット 25 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/constraints.json docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/run-log/task_004.json docs/run-log/task_008.json 
+- 2026-09-24T14:46:33Z HEAD=addea00 決まったこと: task_004(6周目): verify_commands の再実行ログ（test:unit / typecheck とも exit 0） / 未解決: 未コミット 25 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/constraints.json docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/run-log/task_004.json docs/run-log/task_008.json 
+- 2026-09-24T14:50:34Z HEAD=addea00 決まったこと: task_004(6周目): verify_commands の再実行ログ（test:unit / typecheck とも exit 0） / 未解決: 未コミット 26 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/concerns/task_014.md docs/constraints.json docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/run-log/task_004.json 
+- 2026-09-24T14:54:33Z HEAD=41e8840 決まったこと: task_014(G5 round1 の指摘反映): 敵対レビュー round1 の medium 10件を修正 / 未解決: 未コミット 11 件: docs/HANDOFF.md docs/constraints.json docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/run-log/task_004.json docs/run-log/task_008.json docs/run-log/task_012.json docs/task-list.json 
+- 2026-09-24T14:56:34Z HEAD=41e8840 決まったこと: task_014(G5 round1 の指摘反映): 敵対レビュー round1 の medium 10件を修正 / 未解決: 未コミット 13 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/constraints.json docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/run-log/task_004.json docs/run-log/task_008.json 
+- 2026-09-24T14:57:34Z HEAD=487bccf 決まったこと: task_004(7周目): 5 回目の G5 の実効 high 1 / medium 2 を再現してから塞ぐ / 未解決: 未コミット 13 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/constraints.json docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/run-log/task_004.json docs/run-log/task_008.json 
+- 2026-09-24T15:03:45Z HEAD=487bccf 決まったこと: task_004(7周目): 5 回目の G5 の実効 high 1 / medium 2 を再現してから塞ぐ / 未解決: 未コミット 14 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/constraints.json docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/review-log/task_014.json docs/run-log/task_004.json 
+- 2026-09-24T15:08:29Z HEAD=4db5e7a 決まったこと: task_004(8周目・打ち切り): 自作の W11 回帰と use client の行末コメントを直し、残り 3 件を記録する / 未解決: 未コミット 20 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/concerns/task_014.md docs/constraints.json docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/review-log/task_014.json 
+- 2026-09-24T15:08:44Z HEAD=4db5e7a 決まったこと: task_004(8周目・打ち切り): 自作の W11 回帰と use client の行末コメントを直し、残り 3 件を記録する / 未解決: 未コミット 20 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/concerns/task_014.md docs/constraints.json docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/review-log/task_014.json 
+- 2026-09-24T15:11:03Z HEAD=99331d1 決まったこと: harness-round2: H2-15（git add -A の遮断）・H2-16（行指向 grep の限界は AST / DB テストへ） / 未解決: 未コミット 13 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_014.md docs/review-log/task_014.json docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/task-list.json 
+- 2026-09-24T15:11:39Z HEAD=99331d1 決まったこと: harness-round2: H2-15（git add -A の遮断）・H2-16（行指向 grep の限界は AST / DB テストへ） / 未解決: 未コミット 13 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_014.md docs/review-log/task_014.json docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/task-list.json 
+- 2026-09-24T15:12:39Z HEAD=99331d1 決まったこと: harness-round2: H2-15（git add -A の遮断）・H2-16（行指向 grep の限界は AST / DB テストへ） / 未解決: 未コミット 13 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_014.md docs/review-log/task_014.json docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/task-list.json 
+- 2026-09-24T15:14:38Z HEAD=2a2de03 決まったこと: task_014(G5 round2 の指摘反映): 敵対レビュー round2 の medium 4件を修正、3件は concerns へ / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/task-list.json tests/gates/probe.test.ts 
+- 2026-09-24T15:16:38Z HEAD=2a2de03 決まったこと: task_014(G5 round2 の指摘反映): 敵対レビュー round2 の medium 4件を修正、3件は concerns へ / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/task-list.json tests/gates/probe.test.ts 
+- 2026-09-24T15:19:38Z HEAD=2a2de03 決まったこと: task_014(G5 round2 の指摘反映): 敵対レビュー round2 の medium 4件を修正、3件は concerns へ / 未解決: 未コミット 6 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/task-list.json tests/gates/probe.test.ts 
+- 2026-09-24T15:27:06Z HEAD=2a2de03 決まったこと: task_014(G5 round2 の指摘反映): 敵対レビュー round2 の medium 4件を修正、3件は concerns へ / 未解決: 未コミット 6 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/task-list.json tests/gates/probe.test.ts 
+- 2026-09-24T15:59:55Z HEAD=2a2de03 決まったこと: task_014(G5 round2 の指摘反映): 敵対レビュー round2 の medium 4件を修正、3件は concerns へ / 未解決: 未コミット 46 件: docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/task-list.json src/app/api/events/route.ts src/components/InvoiceRow.tsx 

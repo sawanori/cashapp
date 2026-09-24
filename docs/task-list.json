@@ -469,16 +469,20 @@
       "optional": false,
       "completion_status": "DONE_WITH_CONCERNS",
       "concerns": [
+        "[severity: high・未解消] 行指向 grep は複数行にまたがる回避を閉じられない。UPDATE ... WHERE status_rank < 2 の次の行に OR id = 1; を置くと、W3 の免除判定も GC-RANK-NEGATION の検出も 1 行しか見ないため両方すり抜ける（GPT 6 周目 F-1・high）。同型で、エスケープされたバックティック（F-2）と改行した動的 import（F-4）も未修正。2〜6 回目の G5 は毎回この形の high を 1 件返しており（<> → OR → 改行した OR）、パターンを足すたびに同じ構造の別例が出る＝ゲートの設計上の限界で個別の書き漏らしではない / 道具を替える: (1) TypeScript 側は scripts/assert-server-only.mjs（task_011）を typescript の createSourceFile ベースにする、(2) SQL 側は task_018 の台帳テストで「状態遷移は src/lib/ledger/apply.ts 経由のみ」を実行時に固定する、(3) それまで W3 / GC-RANK-NEGATION は「1 行に収まる回避だけを止めるトリップワイヤ」として扱う。PO 判断待ち（C-004-8）",
         "[severity: medium] I3 は「クライアントかどうか」をディレクトリで近似している。grep ゲートは 1 行単位でしか判定できず「'use client' を宣言したファイルが DB を import している」というファイル単位の条件を表現できないため、src/lib/ 配下に置いたクライアント用ヘルパ .ts は依然 I3 の対象外（.tsx は 4 周目に対象へ戻した）/ ファイル単位の伝播検査は scripts/assert-server-only.mjs（npm run gate:server-only・task_011 所有）が受け持つ。両者の対象集合は一致していないので ADR で一本化する（C-004-1）",
         "[severity: medium] GC-SERVER-ONLY の対象は明示列挙のまま。src/lib/db/** の glob に広げると server-only を持たない src/lib/db/schema.ts と他タスクが追加中の src/lib/db/repositories/** を巻き込み、task_004 の変更が他タスクを落とす / 必須モジュールの正本は scripts/assert-server-only.mjs の SERVER_ONLY_MODULES。docs/constraints.json 側はその部分集合という二重管理を解消する（C-004-2）",
         "[severity: medium] F-2 の修正で「対象にマッチしたパスが 1 つでも読めなければ違反」にしたため、別エージェントが同じワークツリーでファイルを移動・削除している最中は実害が無くても偽陽性が出る / fail-open より fail-closed を選んだ結果として意図どおり残す（C-004-3）",
         "[severity: low] パスに改行を含むリポジトリは走査せず exit 2 で落ちる。-z 化で引用問題は消えたが、改行入りパスは行指向の一覧に落とせない / 実際に必要になったら一覧全体を NUL 指向に作り直す（C-004-4）",
-        "[severity: low・解消済み] 4 周目の最終実測で verify_commands は全て exit 0: npm run test:unit（37 ファイル 981/981 緑・135 秒）/ gate:constraints / gate:wording。加えて typecheck / lint / gate:server-only も exit 0、task_004 所有の 2 テストファイルは 58/58 緑。3 周目に残っていた赤（tests/unit/ci/acceptance-rerun.test.ts の Test timed out in 5000ms）は負荷由来で、本周では再現しなかった（C-004-5）",
+        "[severity: low・解消済み] 7 周目の最終実測で verify_commands は全て exit 0: npm run test:unit（38 ファイル 1008/1008 緑）/ gate:constraints / gate:wording。typecheck / lint も exit 0、task_004 所有の 2 テストファイルは 66/66 緑。5 周目に赤だった 2 本（typecheck の src/lib/liff/client.ts、test:unit の tests/unit/ci/web-only-workflow.test.ts）は task_013 が d1a2eeb でコミットしたあと緑になった（C-004-5）",
         "[severity: low] 回帰テストで実ゲートの起動回数が 3 → 12 回に増え、tests/unit/gate-constraints.test.ts 単体で 60〜85 秒かかる。vitest の並列実行中に CPU を奪うため、既定 5000ms で書かれた他タスクのテストがタイムアウトしやすくなる（C-004-5 の赤がこれ）。実ゲート 1 回 ~4 秒が下限で本タスク側ではこれ以上縮められない / vitest.config.ts（task_003 所有）の testTimeout 引き上げか poolOptions での並列度調整（C-004-7）",
-        "[severity: medium] forbid 側はコメント内のランクガードを今も免除する: UPDATE ... SET status = 'paid' WHERE id = 1; -- and status_rank < 2 が W3 の免除条件を満たす（実測 exit 0）。require 側（ブロックコメント内の import \"server-only\"）は 4 周目にコメント除去で塞いだが、forbid 側の allow_if_line_matches に同じ処理を掛けると文字列リテラル中の // で正当なガードを見落とす偽陽性になるため残す。同じ穴は scripts/assert-server-only.mjs（task_011 所有）にも残っている / TypeScript 側は assert-server-only.mjs を AST ベースにする、SQL 側は task_018 の台帳テストで担保する（C-004-6）",
+        "[severity: medium] コメント除去は字句解析ではない: 通常の引用符の中身を解釈しないため、文字列リテラル中の // や -- や # で行が途中で切れる。require 側は「必須が見つからない＝違反」、forbid の免除判定側は「免除が効かない＝違反」に倒れるのでどちらも fail-closed（違反が隠れる方向には倒れない）だが偽陽性は出うる。同じ穴が scripts/assert-server-only.mjs（task_011 所有）には残り、ブロックコメント／テンプレート文字列内の import \"server-only\" を今も合格させる / TypeScript 側は assert-server-only.mjs を AST ベースにする（task_011）、SQL 側は task_018 の台帳テストで担保する（C-004-6）",
         "[severity: low・解消済み] 2 周目の修正: GPT-6 Astra の high 2 件（core.quotePath による日本語パスの取りこぼし / 読めた対象 0 件での合格）と medium 5 件（W3 のランクガード条件・P1 の動的 import・X-TIME の date と裸 timestamp・GC-SERVER-ONLY のコメント素通り・I3 の対象範囲）を、7 件すべて実際に再現してから直し、同じ手順で塞がったことを実測した（docs/concerns/task_004.md）。回帰テストは gate 側 210 行・wording 側 62 行を追加し、既存の expect は 1 つも減らしていない",
         "[severity: low・解消済み] 3 周目の修正: コミット 26eb304 に対する G5 は pass（有効票 2 / 実効 high 0）だったが新たに medium 7 件が出たので、7 件すべてを再現したうえで 5 件を塞いだ（波括弧 glob が (?: の ? を潰して .ts を見逃す / 不正な正規表現を違反 0 件として合格させる / 後退方向のランク比較が W3 を免除する / 副作用 import と空白付き動的 import が P1 を通過する / timestamp(3) と ALTER TABLE ... date を見逃す）。残り 2 件は C-004-6。併せて task_007・task_013 から送られていた gate-constraints.test.ts の 5 秒タイムアウトを、実ゲート 1 回が実測 ~4 秒であることを測ったうえで vi.setConfig の testTimeout 引き上げで解消した（アサーションは 1 つも緩めていない。it 44 → 52 件）",
-        "[severity: low・解消済み] 4 周目の修正: 2 回目の G5 が reject（実効 high 2）だったので high 2 件 / medium 3 件を再現してから直した。(1) SQL の不等号 <> が W3 の前進方向ランク比較として免除されていた（<=? が <> の先頭に一致）→ < の直後が >、> の直前が < でないことを要求。(2) ブロックコメント内の import \"server-only\" が必須検査を満たしていた → require モードの照合前に awk でコメントを落とす（文字列リテラルは解釈しない＝誤って切れば必須が落ちる fail-closed 側）。(3) src/lib/** の除外が .tsx まで巻き込み、src/lib/client-db.tsx の postgres import が I3 から漏れていた → 除外を *.ts に限定。(4) timestamp(3) with time zone を誤って違反にしていた（偽陽性）→ 精度付きパターンにも終端条件を付けた。(5) gemini の「test:unit が落ちている」は本周の実測 exit 0（981/981 緑）で解消。it 52 → 58 件"
+        "[severity: low・解消済み] 4 周目の修正: 2 回目の G5 が reject（実効 high 2）だったので high 2 件 / medium 3 件を再現してから直した。(1) SQL の不等号 <> が W3 の前進方向ランク比較として免除されていた（<=? が <> の先頭に一致）→ < の直後が >、> の直前が < でないことを要求。(2) ブロックコメント内の import \"server-only\" が必須検査を満たしていた → require モードの照合前に awk でコメントを落とす（文字列リテラルは解釈しない＝誤って切れば必須が落ちる fail-closed 側）。(3) src/lib/** の除外が .tsx まで巻き込み、src/lib/client-db.tsx の postgres import が I3 から漏れていた → 除外を *.ts に限定。(4) timestamp(3) with time zone を誤って違反にしていた（偽陽性）→ 精度付きパターンにも終端条件を付けた。(5) gemini の「test:unit が落ちている」は本周の実測 exit 0（981/981 緑）で解消。it 52 → 58 件",
+        "[severity: low・解消済み] 5 周目の修正: 3 回目の G5 も reject（実効 high 1）だったので high 1 件 / medium 4 件を再現してから直した。(1) NOT (status_rank < 2) が W3 の免除条件を満たしていた → 1 行の ERE に後読みが無いため、否定つきランク比較そのものを禁じる gate_only_check GC-RANK-NEGATION を追加。(2) テンプレート文字列内の import \"server-only\" が必須検査を満たしていた → 除去処理にバックティックの状態を追加。(3) src/lib/**/*.ts の除外でクライアント用 .ts が I3 から漏れる件 → 除外が成り立つ前提そのものをゲート化する GC-LIB-CLIENT-DIRECTIVE（src/lib に 'use client' を禁止）を追加。(4) TOML の # コメントで I1 / I2 が合格していた → 除去処理を拡張子ごとに切り替え。(5) コメント内のランクガードで W3 の免除が成立する件（C-004-6 に残していた）→ 免除判定だけを除去後の行に対して行い、違反検出は生の行のままにした（切りすぎても違反が増えるだけで隠れない非対称性）。制約は 54 + gate_only_checks 5 件、it 58 → 63 件",
+        "[severity: low・解消済み] 6・7 周目の修正: 4 回目の G5 は gemini high 1（「test:unit が落ちている」= 他タスクの未コミットファイル起因で、同じ HEAD の再実行で exit 0）と GPT 欠票。5 回目の G5 は GPT high 1 / medium 2 で、3 件とも再現してから直した。(1) [high] WHERE status_rank < 2 OR id = 1 のように OR で別条件を足すと前進ガードが在るまま後退できる → GC-RANK-NEGATION を「弱められた形」全般（否定 ＋ 同一行の OR / ||）へ広げた。(2) I3 が動的 import('postgres') と副作用 import を見逃していた → P1 と同じ形のパターンを追加。(3) X-TIME が ADD COLUMN IF NOT EXISTS ... date を見逃していた → DDL パターンに IF NOT EXISTS を挟めるようにした。it 63 → 66 件",
+        "[severity: low・解消済み] 8 周目の修正: 6 回目の G5（gemini PASS / GPT high 1 + medium 4）のうち 2 件だけ直した。(1) 5 周目に自分で作り込んだ回帰: require 経路のテンプレート文字列除去を全エントリに掛けていたため、W11 の pg_try_advisory_lock を sql`...` で書くと required pattern missing になる（task_020 着地時に壊れる）→ 除去をエントリごとのオプトイン（strip_template_strings: true）にし、GC-SERVER-ONLY だけ有効にした。(2) 'use client'; // コメント が GC-LIB-CLIENT-DIRECTIVE の行末アンカーを外していた → $ を外した。残る 3 件は C-004-8。it 66 → 68 件"
       ]
     },
     {
@@ -1722,8 +1726,16 @@
       "adversarial_review": "required",
       "evidence_label": "[設計]",
       "optional": false,
-      "completion_status": null,
-      "concerns": []
+      "completion_status": "DONE_WITH_CONCERNS",
+      "concerns": [
+        "[severity: medium] 未承認の追加リクエストの判定が claim_token_hash IS NULL AND confirmed_by_organizer_at IS NULL という暗黙の組み合わせに依存している（participant に由来を表す列が無い） / 対応案: participant に origin 列（organizer / participant_request）を足して判定を 1 本にする。task_021",
+        "[severity: medium] GET /api/events/:id/join-token は生のトークンを返せない（ハッシュしか保存していないため）。配布リンクを取り直すには rotate が必要で旧リンクが無効になる（C-014-6 への回答） / 対応案: 配布導線（task_016）で作成直後に配ることを主導線にし、復旧は作り直しとして明示する",
+        "[severity: medium] 招待トークンはリンクのクエリ（?t=）で参加者へ届くためアクセスログに載り得る（パスには置いていない。着地後はヘッダのみ） / 対応案: アクセスログのクエリ保存除外、または着地直後の history.replaceState。task_024 / task_022",
+        "[severity: medium] レート制限の 429 は実バインディング越しでは未実測（ローカルに Rate Limiting バインディングも Durable Object も無い） / 対応案: deferred: task_024 / task_035 の完了後に実測する",
+        "[severity: medium] /api/e/* の Route Handler 自体を走らせる自動テストが無い（getCloudflareContext が要るため）。リポジトリ層の実挙動＋ルートの静的検査で担保している / 対応案: task_022 の E2E で P-1〜P-3 を通しで踏む",
+        "[severity: low] cannot-pay は needs_attention と audit_log.action までで、O-9 の分類表示は未実装 / 対応案: task_021 が O-9 で分類する",
+        "[severity: low] Hyperdrive 経由の実測（A21）は未了。ローカル direct 接続（app_rw）でのみ検証 / 対応案: deferred: task_035 完了後"
+      ]
     },
     {
       "task_id": "task_016",
@@ -1919,8 +1931,19 @@
       "adversarial_review": "required",
       "evidence_label": "[設計]",
       "optional": false,
-      "completion_status": null,
-      "concerns": []
+      "completion_status": "DONE_WITH_CONCERNS",
+      "concerns": [
+        "[severity: medium] PayPay 受取リンクの URL 形式が一次資料未取得のため RECEIVING_LINK_TEMPLATES は verified:false。既定では deepLink が常に null で P-5 のホスト名併記は出ない / docs/vendor-docs/paypay/receiving-link.md を埋めてから verified:true にする（C-017-1）",
+        "[severity: medium] files_to_modify の src/components/InvoiceRow.tsx は並行実行の task_015 が同じ変更（self_reported）を未コミットで入れていたため本タスクでは触らずコミットにも含めていない / task_015 のコミットに含まれることを確認する（C-017-2）",
+        "[severity: medium] 手動確認でも payment_attempt を write-ahead するため、manual-attest が走らない限り生きた試行が expires_at（24 時間）まで残る / 照合ジョブで statusQuery=false の試行を期限で expired に落とす（C-017-4）",
+        "[severity: medium] manual-attest は最小追記で、applyToLedger の不変条件（金額不一致・二重払い・取消後入金）を持たない / task_018 で applyToLedger に寄せる（C-017-8）",
+        "[severity: low] registry の 9 パターンは unit がフェイク、実 DB 版は tests/integration/checkout.test.ts にある / check_090 の verification_method に test:integration を併記する（C-017-3）",
+        "[severity: low] P-4 の「この方法では払えない」は固定文言の案内のみ（POST /api/e/cannot-pay は task_021）/ 実装後にボタンから POST する（C-017-5）",
+        "[severity: low] 参加者画面が event.allow_cash を読めないため現金欄は条件つき文言 / GET /api/e/me が allowCash を返したら出し分ける（C-017-6）",
+        "[severity: low] O-0 の選択結果を O-3 に引き渡していない（Cookie / localStorage 禁止のため）/ 幹事プロフィールに持たせるか O-3 で再掲する（C-017-7）",
+        "[severity: low] e2e（check_001 / check_092）と ProviderConformanceKit（C9 / C10 / C12 / C23 / C30）は未実施 / task_019・task_022 で実施する（C-017-9）",
+        "[severity: low] deferred: task_035 完了後 — Hyperdrive 経由の実測（A21）は未実施。ローカル direct 接続（app_rw）でのみ検証した（C-017-10）"
+      ]
     },
     {
       "task_id": "task_018",
