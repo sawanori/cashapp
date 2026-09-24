@@ -1050,6 +1050,73 @@ task_006 側は「自分のファイルは既にコミット済み」として�
 - **[severity: medium] テレメトリは記録するだけで集計もアラートも無い。** レート制限バインディングが
   未束縛なので、staging / production では現状 fail-closed の 503 になる。→ task_023 / 035 / 024
 
+## task_007（レビュー修正・2 周目）
+
+### 直したこと
+
+- **封筒の制約絞り込みが部分一致だった**（R-TH-10 違反）。`scripts/build-review-packet.sh` の
+  `select([.id] | inside($ids))` は jq の仕様上「`$ids` のいずれかが `.id` を**部分文字列として**
+  含むか」を見るため、`constraint_ids: ["L11"]` が `L1` も引き当てていた（`N1`/`N11`/`N12`、
+  `W1`/`W12` も同じ）。`select(.id as $i | ($ids | index($i)) != null)` へ置き換えた。
+  実測: task_009（`constraint_ids: ["L11"]`）の封筒は修正前 `["L1","L11"]` /
+  `constraints_included: 2`、修正後 `["L11"]` / `1`。
+- **レビュー封筒のテストがリポジトリの状態を暗黙の入力にしていた。**
+  `tests/unit/{merge-review,validate-findings}.test.ts` の多くのケースが `--whitelist` を
+  渡さずに起動していたため、`validate-findings.mjs` がリポジトリルートの
+  `docs/metrics/model-bench.md`（task_010 が作る予定）を読んでいた。そのファイルが
+  出来た瞬間に中身次第で `counts_as_vote` の期待が崩れる。両テストの起動ヘルパを
+  「`--whitelist` が明示されていなければフィクスチャを必ず渡す」に変え、
+  `scripts/merge-review.sh` に `--whitelist <file>` の受け渡し口を足した。
+  実測: リポジトリルートに `approved_models: ["only-some-other-model"]` だけを書いた
+  `docs/metrics/model-bench.md` を置いた状態でも 36 件すべて pass（検証後に削除済み）。
+- **回帰テスト `tests/unit/build-review-packet.test.ts`（6 件）を追加した。**
+  task_007 の `files_to_create` には無いが、1 点目の回帰を固定する先が他に無い
+  （他タスクの所有物でもない）。修正前のスクリプトに対しては 6 件中 4 件が赤になることを
+  確認してから直している。
+
+### 未解決 / concerns（2 周目時点）
+
+- **[severity: medium] `npm run test:unit` は最終 HEAD でも exit 1。** 落ちているのは
+  `tests/unit/gate-constraints.test.ts > "passes on a clean tree"` の
+  `Test timed out in 5000ms`（実測 6523ms）**1 件だけ**で、691 件中 690 件は pass。
+  同ファイル単体なら 17 件 pass / 7.64s で exit 0、task_007 の 2 テストファイルを
+  `--exclude` で外して全体を回しても同じテストが落ちる。原因は全 25 ファイル並列時の
+  5 秒既定タイムアウト超過であり **task_007 の成果物ではない**。当該ファイルは
+  **task_004 の所有**なので触っていない。直すなら当該 `it()` に明示 timeout を与えること
+  （`vitest.config.ts` のグローバル `testTimeout` は他の遅いテストまで一律に緩めるので採らない）。
+  → task_004
+- **[severity: medium] review-log には出所の担保が無く、レビューを受ける側が
+  「敵対レビュー済み」を自作できる。** 手書き封筒 1 通で
+  `bash scripts/merge-review.sh task_099 ...` が `decision=pass` / exit 0 を返すことを実測した。
+  `scripts/deny-dangerous-bash.sh` は `docs/review-log/**` を守っておらず（exit 0）、
+  G13 の対象定義（`scripts/gate-` / `deny-` / `assert-` / `validate-` 接頭辞 ＋ `scripts/ci`）は
+  `merge-review.sh` / `build-review-packet.sh` / `review-*.mjs` を含まない。
+  **「review-log があること」を「敵対レビューを受けたこと」の証明として扱わない。**
+  → task_008（review-log を書く経路）/ task_010（封筒スキーマ）
+- **[解消] `npm run gate:constraints` は exit 0 に戻った**（22 grep エントリ / 違反 0 件）。
+  1 周目の exit 1 は task_013 の未追跡ファイルのコメント行が原因で、task_013 側が直した。
+- **[severity: high] 2 周目の敵対レビュー（round 3）は `reject` で終わっている。**
+  有効票 1（Gemini `verified` / `gemini-2.5-pro` / `model_id_source: cli_stats` /
+  `cli_version: 0.38.1`）・欠票 1（GPT）・実効 high 2。`docs/review-log/task_007.json` の
+  round 3 に記録した。3 件の finding はこの diff が作った欠陥ではなく、封筒に同梱した
+  `docs/concerns/task_007.md` の既知の懸念の読み上げで、F-1 = 同 12 / F-2 = 同 1 /
+  F-3 = 同 11 に対応する。**3 件とも task_007 の所有ファイルでは直せない**ため未修正のまま
+  残した。→ task_004（F-3）/ task_006・task_008・task_009・task_010（F-1）/ PO（F-2）
+- **[severity: medium] 封筒は同じサイズでも返る日と返らない日がある。** round 3 では
+  76896 bytes が 780 秒でタイムアウトし、43007 bytes に絞って返った。1 周目 round 2 の
+  76688 bytes は返っていた。`--max-diff-bytes` の既定 120000 は明らかに大きい。→ task_008 / task_010
+- 1 周目からの残懸念（GPT-6 Astra 経路の遮断、G5 のブロッキング化、ホワイトリスト未設定、
+  封筒サイズ、CI の adversarial ジョブの入口不一致）は `docs/concerns/task_007.md` のまま。
+
+### 次のアクション（2 周目時点）
+
+1. task_004 が `tests/unit/gate-constraints.test.ts` の当該 `it()` に明示 timeout を与える。
+   これが直るまで **CI の acceptance ジョブ（verify_commands の再実行）は落ちる**。
+2. task_008 / task_010 が review-log の出所担保（`docs/concerns/task_007.md` の 12）を決める。
+   最低でも G13 の `patterns` に `scripts/review-` と `merge-review.sh` /
+   `build-review-packet.sh` を足すのは安い。
+3. GPT-6 Astra 経路は PO 承認待ち（task_010）。開通するまで「3 ベンダー体制」と称さない。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -1124,3 +1191,10 @@ task_006 側は「自分のファイルは既にコミット済み」として�
 - 2026-09-24T09:24:06Z HEAD=061bf8e 決まったこと: task_007: 最終確認時の gate:check 2 ゲート不合格の出どころを記録（G5 は意図した強制力 / G13 は task_009 の未コミット差分） / 未解決: 未コミット 19 件: docs/run-log/task_006.json docs/run-log/task_009.json docs/run-log/task_012.json package.json scripts/ci/secrets-grep.sh src/app/layout.tsx docs/vendor-docs/line/liff-sdk.md scripts/build-web-only.mjs 
 - 2026-09-24T09:28:04Z HEAD=061bf8e 決まったこと: task_007: 最終確認時の gate:check 2 ゲート不合格の出どころを記録（G5 は意図した強制力 / G13 は task_009 の未コミット差分） / 未解決: 未コミット 30 件: .env.example .github/workflows/gate.yml docs/HANDOFF.md docs/concerns/task_009.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json docs/run-log/task_012.json 
 - 2026-09-24T09:32:06Z HEAD=061bf8e 決まったこと: task_007: 最終確認時の gate:check 2 ゲート不合格の出どころを記録（G5 は意図した強制力 / G13 は task_009 の未コミット差分） / 未解決: 未コミット 33 件: .env.example .github/workflows/gate.yml docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_009.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json 
+- 2026-09-24T09:36:07Z HEAD=3fec1c5 決まったこと: task_009(2周目): secrets ジョブの偽陽性を直し、test-tamper-guard を本文編集でも再実行する / 未解決: 未コミット 7 件: docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json docs/run-log/task_012.json docs/review-log/task_009.json docs/run-log/task_013.json tests/gates/probe.test.ts 
+- 2026-09-24T09:40:05Z HEAD=1da804b 決まったこと: task_013: 最終 HEAD aa7a8dc での verify_commands 6 本の実行ログ（全 exit 0）と未検証項目の手動記録 / 未解決: 未コミット 9 件: docs/HANDOFF.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json docs/run-log/task_012.json scripts/build-review-packet.sh docs/review-log/task_009.json tests/gates/probe.test.ts 
+- 2026-09-24T09:44:05Z HEAD=f004da2 決まったこと: task_013: 並行実行下で他タスクのテストが不安定に落ちる観測を run-log に記録 / 未解決: 未コミット 15 件: docs/HANDOFF.md docs/concerns/task_007.md docs/concerns/task_009.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json docs/run-log/task_012.json docs/run-log/task_013.json 
+- 2026-09-24T09:48:06Z HEAD=62e31be 決まったこと: task_007(2周目): 封筒の制約絞り込みを完全一致にし、レビュー封筒テストをリポジトリ状態から切り離す / 未解決: 未コミット 7 件: docs/HANDOFF.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json docs/run-log/task_012.json docs/run-log/task_013.json tests/gates/probe.test.ts 
+- 2026-09-24T09:56:06Z HEAD=62e31be 決まったこと: task_007(2周目): 封筒の制約絞り込みを完全一致にし、レビュー封筒テストをリポジトリ状態から切り離す / 未解決: 未コミット 7 件: docs/HANDOFF.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json docs/run-log/task_012.json docs/run-log/task_013.json tests/gates/probe.test.ts 
+- 2026-09-24T09:58:33Z HEAD=62e31be 決まったこと: task_007(2周目): 封筒の制約絞り込みを完全一致にし、レビュー封筒テストをリポジトリ状態から切り離す / 未解決: 未コミット 7 件: docs/HANDOFF.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json docs/run-log/task_012.json docs/run-log/task_013.json tests/gates/probe.test.ts 
+- 2026-09-24T10:01:19Z HEAD=62e31be 決まったこと: task_007(2周目): 封筒の制約絞り込みを完全一致にし、レビュー封筒テストをリポジトリ状態から切り離す / 未解決: 未コミット 13 件: docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json docs/run-log/task_012.json docs/run-log/task_013.json docs/task-list.json 

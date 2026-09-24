@@ -124,8 +124,10 @@
       "adversarial_review": "not_required",
       "evidence_label": "[設計]",
       "optional": false,
-      "completion_status": null,
-      "concerns": []
+      "completion_status": "DONE_WITH_CONCERNS",
+      "concerns": [
+        "[severity: medium] 残懸念の一覧は docs/HANDOFF.md に記録（各項目に深刻度と対応案を付記）／対応案: 同ファイルの『対応案』欄に従い、対応予定タスクで解消する"
+      ]
     },
     {
       "task_id": "task_002",
@@ -731,10 +733,14 @@
       "completion_status": "DONE_WITH_CONCERNS",
       "concerns": [
         "[severity: high] GPT-6 Astra 経路は codex 側フック（block-non-claude-model.sh）で遮断中 [実測]。codex exec は exit 0 のままエージェント応答を返さない。解除は PO 承認事項（task_010）で、それまで敵対レビューは Gemini 単独であり欠票を review-log に残し続ける。この状態を「3 ベンダー体制」と称さない。",
-        "[severity: high] task_007 の完了により G5 がブロッキングになり、review-log を持たない完了済み task_004 / 005 / 006 / 011 / 012 の 5 件が違反として列挙される（§15-2 の設計どおりの強制力）。解消手順は docs/concerns/task_007.md の 3 に記載。欠票で敷き詰めず Gemini 経路で実レビューを取ること。",
+        "[severity: high] task_007 の完了により G5 がブロッキングになり、review-log を持たない完了済みタスクが違反として列挙される（§15-2 の設計どおりの強制力）。解消手順は docs/concerns/task_007.md の 3 に記載。欠票で敷き詰めず Gemini 経路で実レビューを取ること。",
+        "[severity: high] 2 周目の敵対レビュー（round 3、対象 commit 62e31be）は decision=reject で終わっている [実測]。有効票 1（Gemini verified / gemini-2.5-pro / model_id_source=cli_stats / cli_version=0.38.1）・欠票 1（GPT）・実効 high 2。3 件の finding はこの diff が作った欠陥ではなく、封筒に同梱した docs/concerns/task_007.md の既知の懸念の読み上げ（F-1=同 12 / F-2=同 1 / F-3=同 11）で、3 件とも task_007 の所有ファイルでは直せないため未修正のまま残した。詳細は docs/concerns/task_007.md の 15。",
+        "[severity: medium] verify_commands の npm run test:unit は最終 HEAD でも exit 1 [実測 commit 62e31be]。落ちているのは tests/unit/gate-constraints.test.ts > 'passes on a clean tree' の Test timed out in 5000ms（実測 6523ms）1 件のみで 691 件中 690 件は pass。同ファイル単体では 17 件 pass / exit 0、task_007 の 2 テストファイルを除外して全体を回しても同じテストが落ちるため task_007 の成果物ではない。当該ファイルは task_004 の所有なので触っていない。CI の acceptance ジョブは verify_commands を再実行するのでそこで落ちる。詳細は docs/concerns/task_007.md の 11。",
+        "[severity: medium] docs/review-log/<task_id>.json に出所の担保が無く、レビューを受ける側が手書き封筒 1 通で「敵対レビュー済み」を作れる [実測]。merge-review.sh は decision=pass / exit 0 を返し、deny-dangerous-bash.sh は docs/review-log/** を守らず、G13 の対象接頭辞（scripts/gate- / deny- / assert- / validate- ＋ scripts/ci）は merge-review.sh / build-review-packet.sh / review-*.mjs を含まない。「review-log があること」を「敵対レビューを受けたこと」の証明として扱わない。対応は task_008 / task_010。詳細は docs/concerns/task_007.md の 12。",
         "[severity: medium] CI の adversarial ジョブ（task_009 の gate.yml）が scripts/review/run-adversarial.* を探すが、実際の入口は build-review-packet.sh / review-gemini.mjs / review-gpt.mjs / validate-findings.mjs / merge-review.sh の 5 本でパスが一致しない。入口名をそろえるかラッパーを足すかは task_010 が決める（required には入れない）。",
-        "[severity: medium] 合格モデルのホワイトリスト docs/metrics/model-bench.md が未作成のため model_mismatch を検出できず、validate-findings.mjs は model_whitelist_unconfigured の警告のみを出す。R-TH-11 の「名乗らせる」は効いているが「照合する」は未実装。task_010 のベンチで確定させる。",
-        "[severity: medium] 封筒のペイロードが大きい（本タスクの実レビューで 265KB / 同梱 17 ファイル）。制約の絞り込みは効いているが artifact 側が支配的で 1 往復に十数分かかる。metrics.payload_bytes を task-loop が 1 周ごとに run-log へ記録すること（task_008）。"
+        "[severity: medium] 合格モデルのホワイトリスト docs/metrics/model-bench.md が未作成のため model_mismatch を検出できず、validate-findings.mjs は model_whitelist_unconfigured の警告のみを出す。R-TH-11 の「名乗らせる」は効いているが「照合する」は未実装。task_010 のベンチで確定させる。なお 2 周目でテスト側は --whitelist をフィクスチャで明示するようにしたので、このファイルが出来ても tests/unit/{merge-review,validate-findings}.test.ts は影響を受けない。",
+        "[severity: medium] 封筒のペイロードが大きいとレビューが返ってこない（265KB の封筒で gemini-2.5-pro が 900 秒タイムアウト、76KB なら返る [実測]）。--max-diff-bytes（既定 120000）/ --max-file-bytes / --head で絞れるようにしたが、既定値は task_008 / task_010 で実測に基づいて見直すこと。metrics.payload_bytes を task-loop が 1 周ごとに run-log へ記録する（task_008）。",
+        "[severity: low] deferred: CI の adversarial ジョブ追加と実走は GitHub リモート作成後に実施する（PO 判断待ち）。追加する場合は .github/workflows/gate-adversarial.yml として独立ファイルで足し、required status checks には入れない（R-TH-03）。"
       ]
     },
     {
@@ -1435,8 +1441,10 @@
       "adversarial_review": "required",
       "evidence_label": "[設計]",
       "optional": false,
-      "completion_status": null,
-      "concerns": []
+      "completion_status": "DONE_WITH_CONCERNS",
+      "concerns": [
+        "[severity: medium] 残懸念の一覧は docs/concerns/task_013.md に記録（各項目に深刻度と対応案を付記）／対応案: 同ファイルの『対応案』欄に従い、対応予定タスクで解消する"
+      ]
     },
     {
       "task_id": "task_014",

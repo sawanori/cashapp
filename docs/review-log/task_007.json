@@ -213,5 +213,146 @@
     "invalid_reviews": 0,
     "effective_high": 0,
     "exit_code": 0
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_007",
+    "reviewer": "adversarial-reviewer-gemini",
+    "vendor": "gemini",
+    "reviewer_route": "verified",
+    "model_id_requested": "gemini-2.5-pro",
+    "model_id_actual": "gemini-2.5-pro",
+    "model_id_source": "cli_stats",
+    "cli_version": "0.38.1",
+    "backend": "gemini-cli",
+    "ran_at": "2026-09-24T10:02:22Z",
+    "commit": "62e31be78af6976727d91aa22c5ca6854cc2b400",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "high",
+        "title": "The adversarial review process can be bypassed by forging review logs",
+        "detail": "Concern #12 in `docs/concerns/task_007.md` documents a critical vulnerability. The `docs/review-log/` directory, which serves as evidence for gate G5, is not protected from direct writes by `scripts/deny-dangerous-bash.sh`. Furthermore, the scripts intended to be the sole writers (`merge-review.sh`, `review-*.mjs`) are not integrity-checked by gate G13. This allows a developer to manually create a fake `review-log.json` file with a PASS status, completely bypassing the adversarial review process. The concern documents that this is feasible in practice.",
+        "file": "docs/concerns/task_007.md",
+        "line": 82,
+        "repro": "As documented in the concern: 1. Create a fake envelope JSON with `findings: []`. 2. Run `bash scripts/merge-review.sh <task_id> --out <file> <fake_envelope>`. 3. The command exits 0 and produces a valid-looking log file that G5 would accept. 4. Alternatively, `echo '...' > docs/review-log/<task_id>.json` is also not blocked.",
+        "citation": "The concern notes this violates the spirit of R-TH-13 ('The path to write gate evidence must be mechanically protected'). The provided `docs/concerns/task_007.md` states: 'The review log does not have a guarantee of its origin, and the review recipient can create a \"hostile review completed\" by themselves.' (原文: review-log には出所の担保が無く、レビューを受ける側が「敵対レビュー済み」を自作できる)",
+        "suggested_fix": null,
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-2",
+        "severity": "high",
+        "title": "Adversarial review is only running with one vendor, halving its effectiveness",
+        "detail": "Concern #1 in `docs/concerns/task_007.md` states that the GPT-6 Astra review route is non-functional because it is blocked by a local hook (`~/.codex/hooks/block-non-claude-model.sh`). This means that despite having two review scripts (`review-gemini.mjs`, `review-gpt.mjs`), only the Gemini-based review is actually running. This violates the principle 'detector and author are from different vendors' (§16-1) for any work done by a Gemini-based agent, defeating the purpose of a multi-vendor setup.",
+        "file": "docs/concerns/task_007.md",
+        "line": 30,
+        "repro": "As documented, run `codex exec --json -m gpt-6-astra` with a review packet. The command will exit 0 but produce no response, resulting in an 'unavailable' (欠票) envelope.",
+        "citation": "This violates the principle 'detector and author are from different vendors' (§16-1, referenced in the concern). The provided `docs/concerns/task_007.md` states: 'the current adversarial review is solely by Gemini.' (原文: 現状の敵対レビューは Gemini 単独である)",
+        "suggested_fix": null,
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-3",
+        "severity": "medium",
+        "title": "A required verification command (`npm run test:unit`) is failing",
+        "detail": "Concern #11 in `docs/concerns/task_007.md` reports that `npm run test:unit`, one of the task's `verify_commands`, fails with a timeout. Although the failing test (`tests/unit/gate-constraints.test.ts`) is owned by another task (task_004), the 'definition of done' for any given task requires all its `verify_commands` to pass on the final commit. A failing `verify_command` should block this task from being completed, as it indicates an unhealthy state in the repository that will cause CI to fail.",
+        "file": "docs/concerns/task_007.md",
+        "line": 52,
+        "repro": "Run `npm run test:unit` on the commit `62e31be`.",
+        "citation": "The Definition of Done for a task requires `verify_commands` to pass. The provided `docs/concerns/task_007.md` states: 'the acceptance job in CI re-runs verify_commands, so it will fail there.' (原文: CI の acceptance ジョブは verify_commands を再実行するのでそこで落ちる)",
+        "suggested_fix": null,
+        "effective_severity": "medium"
+      }
+    ],
+    "raw_warnings": [],
+    "packet_bytes": 31287,
+    "validated_at": "2026-09-24T10:03:02Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/g3.json",
+    "merged_at": "2026-09-24T10:03:02Z",
+    "round": 3,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gemini-2.5-pro を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 2,
+        "medium": 1,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 3,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_007",
+    "reviewer": "adversarial-reviewer-gpt",
+    "vendor": "gpt",
+    "reviewer_route": "unavailable",
+    "model_id_requested": "gpt-6-astra",
+    "ran_at": "2026-09-24T10:01:20Z",
+    "commit": "62e31be78af6976727d91aa22c5ca6854cc2b400",
+    "verdict": "UNKNOWN",
+    "findings": [],
+    "unavailable_reason": "codex exec はエージェントの応答を返しませんでした（exit 0、イベント: thread.started, turn.started, item.completed, turn.completed）。~/.codex/hooks/block-non-claude-model.sh が UserPromptSubmit で非 Claude モデルのプロンプトを遮断している状態と一致します（R-TH-03）。解除は PO 承認事項（task_010）。",
+    "attempted_command": "codex exec --json --skip-git-repo-check -s read-only -m gpt-6-astra --output-last-message <tmp> -  # instruction + packet on stdin",
+    "diagnostics": {
+      "exit_code": 0,
+      "event_types": [
+        "thread.started",
+        "turn.started",
+        "item.completed",
+        "turn.completed"
+      ],
+      "cli_errors": [
+        "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+      ],
+      "last_message_bytes": 0,
+      "stderr_tail": "nsport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer error=\\\"invalid_request\\\", error_description=\\\"No access token was provided in this request\\\", resource_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n2026-09-24T10:01:15.434053Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T10:01:15.461670Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\nWarning: no last agent message; wrote empty content to /var/folders/h6/2q0crwpx3zx94d5zxclh_f5c0000gn/T/review-gpt-hLt9Cb/last-message.txt\n"
+    },
+    "validated_at": "2026-09-24T10:03:02Z",
+    "classification": "missing_vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/x2.json",
+    "merged_at": "2026-09-24T10:03:02Z",
+    "round": 3,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": false,
+      "errors": [],
+      "warnings": [],
+      "downgrades": [],
+      "counts": {
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 0,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "type": "summary",
+    "task_id": "task_007",
+    "round": 3,
+    "merged_at": "2026-09-24T10:03:02Z",
+    "decision": "reject",
+    "envelopes": 2,
+    "votes": 1,
+    "missing_votes": 1,
+    "invalid_envelopes": 0,
+    "invalid_reviews": 0,
+    "effective_high": 2,
+    "exit_code": 1
   }
 ]

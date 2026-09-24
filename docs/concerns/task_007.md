@@ -303,3 +303,32 @@
   `docs/metrics/model-bench.md` を置いた状態で両ファイルを回し、**36 件すべて pass**
   （検証後にその一時ファイルは削除済み。`docs/metrics/` は存在しない）。
 - **対応予定タスク**: なし（task_010 が `docs/metrics/model-bench.md` を作っても両テストは影響を受けない）
+
+## 15. 2 周目の敵対レビュー（round 3）は `reject` で終わっている
+
+- **指摘**: 2 周目の修正コミット `62e31be`（親 `92352ea`）を対象に敵対レビューを走らせた結果は
+  **`decision: reject` / `effective_high: 2`**（有効票 1 = Gemini `verified` /
+  `gemini-2.5-pro` / `cli_stats` / `0.38.1` / `gemini-cli`、欠票 1 = GPT）。
+  `docs/review-log/task_007.json` の round 3 に記録した。**この節を読まずに
+  「task_007 は敵対レビューを通った」と書かないこと。**
+  - 封筒は 2 回作り直している。`--max-file-bytes 8000 --max-diff-bytes 22000`
+    （76896 bytes）は **gemini-2.5-pro が 780 秒で応答せずタイムアウト**（`unavailable`）。
+    `--max-file-bytes 3500 --max-diff-bytes 14000`（43007 bytes）で返った。
+    1 周目 round 2 の 76688 bytes は返っていたので、**同じサイズでも返る日と返らない日がある**。
+    concerns 7 の「既定 120000 は実測で見直す」はこの観測でさらに強まる。
+  - 3 件の finding は**いずれもこの diff が作った欠陥ではなく、封筒に同梱した
+    `docs/concerns/task_007.md` に書いてある既知の懸念をレビュアが読み上げたもの**である。
+    対応関係: F-1（high）＝ 本ファイルの 12、F-2（high）＝ 1、F-3（medium）＝ 11。
+    F-1 / F-2 には repro と citation があるため降格されず、実効 high 2 件として
+    `reject` になっている。
+- **深刻度**: high（「未修正の high が 2 件ある状態で完了扱いにしている」ことそのもの）
+- **対応案**: 3 件とも **task_007 の所有ファイルでは直せない**。
+  - F-1（review-log の出所担保）→ `scripts/deny-dangerous-bash.sh` は task_006、
+    `docs/gates/integrity-baseline.json` は task_009、封筒スキーマは task_008 / task_010 の所有。
+  - F-2（GPT 経路の遮断）→ `~/.codex/hooks/block-non-claude-model.sh` の解除は **PO の承認事項**で、
+    AI が解除してはならない（§16-1 の 4 / F13）。
+  - F-3（`npm run test:unit` が赤い）→ `tests/unit/gate-constraints.test.ts` は task_004 の所有。
+  したがって **3 件を未修正のまま残し、reject の事実を review-log と本ファイルに残す**扱いにした。
+  レビュアの言うとおり「verify_commands が赤いまま完了扱いにするのは不健全」であり、
+  **F-3 が直るまで CI の acceptance ジョブは落ちる**。
+- **対応予定タスク**: task_004（F-3）/ task_006・task_008・task_009・task_010（F-1）/ PO（F-2）

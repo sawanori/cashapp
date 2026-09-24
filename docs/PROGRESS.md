@@ -143,3 +143,46 @@
   CI 実走は GitHub リモート未作成で deferred、`(liff)` / `(web)` にページが無くレイアウトの
   実行経路が未検証、下限未満判定の取りこぼし、テレメトリの集計・アラート未実装
   （`docs/concerns/task_013.md`）。
+
+- task_007（レビュー修正・2 周目）: DONE_WITH_CONCERNS — レビュー指摘 medium 4 件のうち、
+  本タスクの所有ファイルで直せる 2 件を直した。(1) **封筒の制約絞り込みが部分一致だった**
+  （R-TH-10 違反）。`scripts/build-review-packet.sh` の `select([.id] | inside($ids))` は
+  jq の仕様上「`$ids` のいずれかが `.id` を**部分文字列として**含むか」を見るため、
+  `constraint_ids: ["L11"]` が `L1` も引き当てていた（`N1`/`N11`/`N12`、`W1`/`W12` も同じ）。
+  `select(.id as $i | ($ids | index($i)) != null)` へ置き換えた。実測: task_009
+  （`constraint_ids: ["L11"]`）の封筒は修正前 `["L1","L11"]` / `constraints_included: 2`、
+  修正後 `["L11"]` / `1`。回帰は `tests/unit/build-review-packet.test.ts`（6 件・新規）で
+  固定し、修正前のスクリプトに対して 6 件中 4 件が赤になることを確認してから直した。
+  (2) **レビュー封筒のテストがリポジトリの状態を暗黙の入力にしていた**。
+  `tests/unit/{merge-review,validate-findings}.test.ts` の多くが `--whitelist` を渡さず
+  起動していたため、`validate-findings.mjs` がリポジトリルートの
+  `docs/metrics/model-bench.md`（task_010 が作る予定）を読み、そのファイルが出来た瞬間に
+  期待が崩れる作りだった。両テストの起動ヘルパを「`--whitelist` が明示されていなければ
+  フィクスチャを必ず渡す」に変え、`scripts/merge-review.sh` に `--whitelist <file>` の
+  受け渡し口を足した（テスト 35 → 42 件）。実測: リポジトリルートに
+  `approved_models: ["only-some-other-model"]` だけを書いた `docs/metrics/model-bench.md` を
+  置いた状態でも 36 件すべて pass（検証後に削除済み）。
+  **verify_commands の再実行（commit 62e31be、`scripts/record-run.sh task_007` 経由）**:
+  `npm run gate:constraints` は **exit 0**（1 周目の exit 1 は task_013 の未追跡ファイルが
+  原因で、task_013 側が直したため解消）。`npm run test:unit` は **exit 1 のまま**で、
+  落ちているのは `tests/unit/gate-constraints.test.ts > "passes on a clean tree"` の
+  `Test timed out in 5000ms`（実測 6523ms）**1 件のみ**（691 件中 690 件 pass）。同ファイル
+  単体なら 17 件 pass / 7.64s で exit 0、task_007 の 2 テストファイルを `--exclude` で外して
+  全体を回しても同じテストが落ちるため、**task_007 の成果物ではない**。当該ファイルは
+  **task_004 の所有**なので触っていない（`docs/concerns/task_007.md` の 11）。
+  残り 2 件の指摘は所有権の外なので記録した: **review-log に出所の担保が無く、レビューを
+  受ける側が「敵対レビュー済み」を自作できる**（手書き封筒 1 通で `merge-review.sh` が
+  `decision=pass` / exit 0 を返すことを実測。`deny-dangerous-bash.sh` は
+  `docs/review-log/**` を守らず、G13 の対象接頭辞も `merge-review.sh` /
+  `build-review-packet.sh` / `review-*.mjs` を含まない → 同 12）。
+  **2 周目の敵対レビュー（round 3）は `reject` で終わっている**
+  （`docs/review-log/task_007.json`。有効票 1 = Gemini `verified` / `gemini-2.5-pro` /
+  `cli_stats`、欠票 1 = GPT、実効 high 2）。3 件の finding はこの diff が作った欠陥ではなく、
+  封筒に同梱した `docs/concerns/task_007.md` の既知の懸念をレビュアが読み上げたもので、
+  F-1 = 同 12（review-log の出所担保）/ F-2 = 同 1（GPT 経路の遮断）/ F-3 = 同 11
+  （`test:unit` が赤い）に対応する。**3 件とも task_007 の所有ファイルでは直せない**
+  （それぞれ task_006・task_008・task_009・task_010 / PO / task_004 の所有）ため未修正のまま
+  残し、reject の事実を review-log と `docs/concerns/task_007.md` の 15 に記録した。
+  封筒は 76896 bytes で 780 秒タイムアウトし、43007 bytes に絞って返った
+  （1 周目は 76688 bytes で返っていたので、同じサイズでも返る日と返らない日がある）。
+- task_036: DONE_WITH_CONCERNS — ゲート台帳（compliance-gates.json・10 ゲート unknown）と照会追跡台帳（external-inquiries.json）の雛形を作成（7f258ac）。PROGRESS.md 不在のため当時は未記入、後追いで記録。
