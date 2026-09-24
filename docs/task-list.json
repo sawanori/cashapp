@@ -474,7 +474,9 @@
         "[severity: medium] F-2 の修正で「対象にマッチしたパスが 1 つでも読めなければ違反」にしたため、別エージェントが同じワークツリーでファイルを移動・削除している最中は実害が無くても偽陽性が出る / fail-open より fail-closed を選んだ結果として意図どおり残す（C-004-3）",
         "[severity: low] パスに改行を含むリポジトリは走査せず exit 2 で落ちる。-z 化で引用問題は消えたが、改行入りパスは行指向の一覧に落とせない / 実際に必要になったら一覧全体を NUL 指向に作り直す（C-004-4）",
         "[severity: medium] 本周の最終実測で npm run test:unit は exit 1（37 ファイル中 5 ファイル・950 件中 16 件が赤）、npm run typecheck は exit 2。赤はすべて他タスクが編集中の未コミットファイル（src/lib/auth/pepper.ts の AppError / ERROR_CODES 未 import など）に起因し、task_004 所有の 2 テストファイルは 44/44 緑（npx vitest run tests/unit/gate-constraints.test.ts tests/unit/wording-lint.test.ts = exit 0）/ 当該タスクの修正待ち（C-004-5）",
-        "[severity: low・解消済み] 2 周目の修正: GPT-6 Astra の high 2 件（core.quotePath による日本語パスの取りこぼし / 読めた対象 0 件での合格）と medium 5 件（W3 のランクガード条件・P1 の動的 import・X-TIME の date と裸 timestamp・GC-SERVER-ONLY のコメント素通り・I3 の対象範囲）を、7 件すべて実際に再現してから直し、同じ手順で塞がったことを実測した（docs/concerns/task_004.md）。回帰テストは gate 側 210 行・wording 側 62 行を追加し、既存の expect は 1 つも減らしていない"
+        "[severity: medium] 行単位の grep はコメントを見分けられない: ブロックコメント内の import \"server-only\" が GC-SERVER-ONLY の必須検査を満たし（GPT 2 周目 F-2）、SQL 行コメント内の status_rank < 2 が W3 の免除条件を満たす（gemini 2 周目 F-1）。どちらも実測で exit 0。grep にコメント除去を足すと文字列リテラル中の // や /* で他タスクのファイルを誤検出するため直していない。同じ穴は scripts/assert-server-only.mjs（task_011 所有）にもあり、コメントアウトされた server-only を落とす検査はリポジトリに存在しない / TypeScript 側は assert-server-only.mjs を AST ベースにする、SQL 側は task_018 の台帳テストで担保する（C-004-6）",
+        "[severity: low・解消済み] 2 周目の修正: GPT-6 Astra の high 2 件（core.quotePath による日本語パスの取りこぼし / 読めた対象 0 件での合格）と medium 5 件（W3 のランクガード条件・P1 の動的 import・X-TIME の date と裸 timestamp・GC-SERVER-ONLY のコメント素通り・I3 の対象範囲）を、7 件すべて実際に再現してから直し、同じ手順で塞がったことを実測した（docs/concerns/task_004.md）。回帰テストは gate 側 210 行・wording 側 62 行を追加し、既存の expect は 1 つも減らしていない",
+        "[severity: low・解消済み] 3 周目の修正: コミット 26eb304 に対する G5 は pass（有効票 2 / 実効 high 0）だったが新たに medium 7 件が出たので、7 件すべてを再現したうえで 5 件を塞いだ（波括弧 glob が (?: の ? を潰して .ts を見逃す / 不正な正規表現を違反 0 件として合格させる / 後退方向のランク比較が W3 を免除する / 副作用 import と空白付き動的 import が P1 を通過する / timestamp(3) と ALTER TABLE ... date を見逃す）。残り 2 件は C-004-6。併せて task_007・task_013 から送られていた gate-constraints.test.ts の 5 秒タイムアウトを、実ゲート 1 回が実測 ~4 秒であることを測ったうえで vi.setConfig の testTimeout 引き上げで解消した（アサーションは 1 つも緩めていない。it 44 → 52 件）"
       ]
     },
     {
@@ -567,7 +569,7 @@
       "optional": false,
       "completion_status": "DONE_WITH_CONCERNS",
       "concerns": [
-        "[severity: high] deny-dangerous-bash.sh は列挙方式のため、docs/concerns/task_005.md §2 の 11 件（awk -i / ed / ex / vim -es / sponge / find -delete / xargs rm / git stash / git revert / git reset）が素通りする（敵対レビュー docs/review-log/task_005.json F-BASH-01 が high で reject）／対応案: docs/proposals/task_005-round5.patch（235/235 件合格を実測）を PO が人間レビューのうえ hooks の外で適用する。ガード本体は Edit/Write からも自己保全されているため AI は適用できない"
+        "[severity: high] deny-dangerous-bash.sh は列挙方式のため、docs/concerns/task_005.md §2 の 11 件（awk -i / ed / ex / vim -es / sponge / find -delete / xargs rm / git stash / git revert / git reset）が素通りする（敵対レビュー docs/review-log/task_005.json F-BASH-01 が high で reject）／対応案: docs/proposals/task_005-round5.patch（235/235 件合格を実測）を PO が人間レビューのうえ hooks の外で適用する。ガード本体は Edit/Write からも自己保全されているため AI は適用できない。追記 2026-09-24: GPT-6 Astra のレビュー（docs/review-log/task_005.json、high 8: 絶対パス cp・./ パス・git グローバルオプション・行継続・サブシェル cd・別ディレクトリ npm・deny-test-weakening の構造検査と断片境界）も同じくガード本体の問題。6 周目の累積修正案 docs/proposals/task_005-round6.{md,patch}（フックのテスト 337/337 合格）を起票済みで、5 周目案を包含する。適用は PO"
       ]
     },
     {
