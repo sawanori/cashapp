@@ -76,7 +76,8 @@ EMPTY="$OUT/empty-cwd"; mkdir -p "$EMPTY"
 ( cd "$EMPTY" && node "$REPO/scripts/review-gemini.mjs" --packet "$OUT/packet.json" --out "$OUT/gemini.json" \
     --timeout-ms 900000 --cli "$REPO/scripts/gemini-safe.sh" ) >>"$LOG" 2>&1
 say "gemini exit=$?"
-node "$REPO/scripts/review-gpt.mjs" --packet "$OUT/packet.json" --out "$OUT/gpt.json" --timeout-ms 300000 >>"$LOG" 2>&1
+# GPT-6 Astra は codex exec で 10 分以上かかる（実測 2026-09-24: 225KB の封筒で 680 秒）。
+node "$REPO/scripts/review-gpt.mjs" --packet "$OUT/packet.json" --out "$OUT/gpt.json" --timeout-ms 1500000 >>"$LOG" 2>&1
 say "gpt exit=$?"
 say "[$(date -u +%FT%TZ)] done → merge: bash scripts/merge-review.sh $TID $OUT/gemini.json $OUT/gpt.json"
 exit 0

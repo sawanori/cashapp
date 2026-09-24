@@ -102,5 +102,158 @@
     "invalid_reviews": 0,
     "effective_high": 0,
     "exit_code": 0
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_004",
+    "reviewer": "adversarial-reviewer-gpt",
+    "vendor": "gpt",
+    "reviewer_route": "cli-fallback",
+    "model_id_requested": "gpt-6-astra",
+    "model_id_actual": "gpt-6-astra",
+    "model_id_source": "self_report",
+    "cli_version": "codex-cli 0.154.0",
+    "backend": "codex",
+    "ran_at": "2026-09-24T12:46:33Z",
+    "commit": "8ea93a38f87aa86d7ffd28b856039e245cfe29c5",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "high",
+        "title": "日本語ファイル名の違反が両ゲートの走査対象から落ちる",
+        "detail": "git ls-files の出力を引用解除せずパスとして扱っている。core.quotePath=true では日本語を含むパスが引用符付きのエスケープ表現になるため、src/**/*.ts 等の先頭固定マッチに一致しない。正常な ASCII 名のファイルが別にあれば対象件数も満たされ、違反を含むファイルが未走査のまま合格する。gate-constraints.sh の86行目にも同じ問題がある。",
+        "file": "scripts/wording-lint.mjs",
+        "line": 116,
+        "repro": "新規ディレクトリ R で git init と git config core.quotePath true を実行する。src/ok.ts に export const ok = 1;、src/集金.ts に export const label = \"寄付\"; を置く。node <同梱のwording-lint.mjs> --root R --policy <同梱のwording-policy.md> を実行する。コード上は W-DONATION を検出せず exit 0 になる。再現手順は未実行。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-2",
+        "severity": "high",
+        "title": "実際に読めた対象が0件でも文言ゲートが合格する",
+        "detail": "対象件数はパス一覧だけで判定され、その後の stat 失敗や2 MiB超によるスキップを反映しない。全対象を読み飛ばしても entryHits は0のままで合格する。特に、削除したがステージしていない追跡ファイルは git ls-files に残るため、実ファイルが0件でも expect_targets=now を通過する。制約ゲートも同じ一覧を数え、grep の読取エラーを無視する。",
+        "file": "scripts/wording-lint.mjs",
+        "line": 263,
+        "repro": "新規 Git ディレクトリ R に src/a.ts を作成して git add src/a.ts を実行し、その後ファイルだけを削除する。node <同梱のwording-lint.mjs> --root R --policy <同梱のwording-policy.md> を実行する。存在する対象ソースは0件だが、コード上は exit 0 になる。別の反例として、唯一の src/a.ts を『export const label = \"寄付\";\\n』に2 MiB以上のコメントを付けた内容にすると、禁止語ごと読み飛ばして exit 0 になる。再現手順は未実行。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-3",
+        "severity": "medium",
+        "title": "status_rankへの代入だけでランクガードなしの更新が免除される",
+        "detail": "W3 の許可条件は status_rank または statusRank という文字列の存在だけであり、比較条件を要求しない。そのため、状態とランクを無条件に上書きする通常の UPDATE 文も違反行から除外される。",
+        "file": "scripts/gate-constraints.sh",
+        "line": 293,
+        "repro": "同梱テストの seedCleanTree と同じ入力ツリーに、src/lib/update.ts として export const query = \"UPDATE payments SET status = 'paid', status_rank = 2 WHERE id = $1\"; を追加し、実際の constraints.json でゲートを実行する。ランク比較が存在しないが、コード上は W3 を検出せず exit 0 になる。再現手順は未実行。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-4",
+        "severity": "medium",
+        "title": "決済SDKの動的importがP1を通過する",
+        "detail": "P1 は from と require の構文だけを検出するため、providers/ 外からの import(\"stripe\") は対象ファイル内にあっても一致しない。",
+        "file": "docs/constraints.json",
+        "line": 242,
+        "repro": "同梱テストの seedCleanTree と同じ入力ツリーに src/lib/load-payment.ts を追加し、内容を export async function loadPayment() { return import(\"stripe\"); } とする。実際の constraints.json でゲートを実行すると、コード上は P1 を検出せず exit 0 になる。再現手順は未実行。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-5",
+        "severity": "medium",
+        "title": "一般的なSQLのdate型と裸のtimestamp型を検出できない",
+        "detail": "SQLのdate型パターンは行頭に列名がある形に限定され、タイムゾーンなしtimestampは WITHOUT TIME ZONE の明記がある場合しか検出しない。CREATE TABLE と列定義を同一行に書くと、両方の禁止型が通過する。",
+        "file": "docs/constraints.json",
+        "line": 882,
+        "repro": "同梱テストの seedCleanTree と同じ入力ツリーに supabase/migrations/001.sql を追加し、CREATE TABLE example (due_on date, created_at timestamp); と記述する。実際の constraints.json でゲートを実行すると、コード上は X-TIME を検出せず exit 0 になる。再現手順は未実行。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-6",
+        "severity": "medium",
+        "title": "コメントだけでserver-onlyの必須検査を満たせる",
+        "detail": "GC-SERVER-ONLY は import の文字列がコメント内にあっても必須パターン成立と判定する。実行される import が存在しないファイルを合格させるため、宣言されたビルド時の保護を確認できていない。",
+        "file": "docs/constraints.json",
+        "line": 993,
+        "repro": "同梱テストの seedCleanTree と同じ入力ツリーに src/lib/db/client.ts を追加し、内容を // import \"server-only\";\\nexport const db = null; とする。実際の constraints.json でゲートを実行すると、コード上は GC-SERVER-ONLY を検出せず exit 0 になる。再現手順は未実行。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-7",
+        "severity": "medium",
+        "title": "components外のクライアント用tsファイルがDB import検査から漏れる",
+        "detail": "I3 の対象は全tsxファイルと src/components 配下のtsファイルに限定される。src/hooks 等に置いた 'use client' 付きtsファイルから postgres を直接importしても検査されない。GC-SERVER-ONLY も指定された2ファイルのみを対象としており、この入力を担保しない。",
+        "file": "docs/constraints.json",
+        "line": 820,
+        "repro": "同梱テストの seedCleanTree と同じ入力ツリーに src/hooks/use-db.ts を追加し、内容を 'use client';\\nimport postgres from 'postgres';\\nexport const connect = () => postgres('postgres://localhost/db'); とする。実際の constraints.json でゲートを実行すると、コード上は I3 を検出せず exit 0 になる。再現手順は未実行。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      }
+    ],
+    "diagnostics": {
+      "exit_code": 0,
+      "event_types": [
+        "thread.started",
+        "turn.started",
+        "item.completed",
+        "item.completed",
+        "turn.completed"
+      ],
+      "cli_errors": [
+        "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+      ],
+      "last_message_bytes": 4309,
+      "stderr_tail": "r: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T12:35:15.001031Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T12:35:15.033079Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T12:35:15.221480Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer error=\\\"invalid_request\\\", error_description=\\\"No access token was provided in this request\\\", resource_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n"
+    },
+    "packet_bytes": 183473,
+    "validated_at": "2026-09-24T12:47:15Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/gpt-retry/gpt-004.json",
+    "merged_at": "2026-09-24T12:47:15Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gpt-6-astra を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 2,
+        "medium": 5,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 7,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "type": "summary",
+    "task_id": "task_004",
+    "round": 1,
+    "merged_at": "2026-09-24T12:47:15Z",
+    "decision": "reject",
+    "envelopes": 1,
+    "votes": 1,
+    "vendors": [
+      "gpt"
+    ],
+    "author_vendor": "claude",
+    "missing_votes": 0,
+    "invalid_envelopes": 0,
+    "invalid_reviews": 0,
+    "self_reviews": 0,
+    "task_mismatches": 0,
+    "effective_high": 2,
+    "exit_code": 1
   }
 ]
