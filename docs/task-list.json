@@ -559,7 +559,9 @@
       "evidence_label": "[文書]",
       "optional": false,
       "completion_status": "DONE_WITH_CONCERNS",
-      "concerns": []
+      "concerns": [
+        "[severity: high] deny-dangerous-bash.sh は列挙方式のため、docs/concerns/task_005.md §2 の 11 件（awk -i / ed / ex / vim -es / sponge / find -delete / xargs rm / git stash / git revert / git reset）が素通りする（敵対レビュー docs/review-log/task_005.json F-BASH-01 が high で reject）／対応案: docs/proposals/task_005-round5.patch（235/235 件合格を実測）を PO が人間レビューのうえ hooks の外で適用する。ガード本体は Edit/Write からも自己保全されているため AI は適用できない"
+      ]
     },
     {
       "task_id": "task_006",
@@ -914,7 +916,7 @@
         "[severity: medium] G13 の基準値（docs/gates/integrity-baseline.json）は docs/gates/** にあり Edit / Write は禁止だが、node scripts/gate-integrity.mjs --write-baseline の Bash 実行では書き換えられる（deny-dangerous-bash.sh はリダイレクト・tee・cp/mv・sed -i・インタプリタのワンライナーしか見ない）。本タスク自身もこの経路で基準値を更新している。対応案: --write-baseline を PO 専用にするか、保護対象へ書き込む既知スクリプトの実行を deny-dangerous-bash.sh に列挙する。いずれも他タスク所有のファイルの改修。詳細は docs/concerns/task_009.md の 12b。",
         "[severity: medium] test-tamper-guard は記入内容を検証しない（設計どおり）。単一アカウントでは記入者とマージ者が同一人物であり、承認の代替ではなく緩和事実の記録強制にすぎない。緑を「レビュー済み」と誤読しないこと。詳細は docs/concerns/task_009.md の 8。",
         "[severity: medium] release.yml の (a) 段が見る PAYMENTS_ENABLED は「テキストの grep」であって、実行時にアプリが読む値そのものではない。4 周目に「true の不在」を「false の明示 1 件以上」へ変えて空振りは塞いだが、走査は依然として正規表現で、(1) migration や設定ファイルのコメントに `PAYMENTS_ENABLED = true` と書くだけでゲートが赤になる（fail-closed 側なので安全だが偽陽性が出る）、(2) 本番 DB の feature_flag が migration の seed 以降に UPDATE されていても検出できない。対応案: 決済タスクで gate:compliance 側に「本番 DB の feature_flag.PAYMENTS_ENABLED を読んで false であること」を確認する判定を足し、release-gate から呼ぶ。詳細は docs/concerns/task_009.md の 0-c。",
-      "[severity: medium] docs/task-list.json 自体はゲート緩和チェックリストの保護対象にも G13 のハッシュ対象にも入っておらず、無記録で書き換えられる（completion_status を戻す・verify_commands を削るなど）。3 周目に acceptance の再実行ループを `^npm run <script>$` の完全一致に縛ったのでコマンド注入の経路は塞がったが、台帳そのものの改変検知は無い。対応案の 2 択（check-pr-checklist.mjs の GUARDED_PATTERNS に加える / 完了タスクの verify_commands が減っていないことを base 比較で見る専用判定を足す）は task_006 との合意事項。詳細は docs/concerns/task_009.md の 13。",
+        "[severity: medium] docs/task-list.json 自体はゲート緩和チェックリストの保護対象にも G13 のハッシュ対象にも入っておらず、無記録で書き換えられる（completion_status を戻す・verify_commands を削るなど）。3 周目に acceptance の再実行ループを `^npm run <script>$` の完全一致に縛ったのでコマンド注入の経路は塞がったが、台帳そのものの改変検知は無い。対応案の 2 択（check-pr-checklist.mjs の GUARDED_PATTERNS に加える / 完了タスクの verify_commands が減っていないことを base 比較で見る専用判定を足す）は task_006 との合意事項。詳細は docs/concerns/task_009.md の 13。",
         "[severity: medium] acceptance ジョブが DB 依存の verify_commands（test:integration / gates:sync / db:migrate / db:diff:drizzle）を gate-integration.yml に委譲している。両ワークフローが required になって初めて「全 verify_commands が CI で再実行された」と言える。詳細は docs/concerns/task_009.md の 9。",
         "[severity: low] §16-6 の required 表のうち contract / a11y / legal / web-only / gate:compliance-freshness / waf のジョブは、対応する npm スクリプトが未作成のため実装していない。各タスクが gate-<job>.yml として独立追加する。詳細は docs/concerns/task_009.md の 10。"
       ]

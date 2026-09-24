@@ -1,0 +1,257 @@
+diff --git a/scripts/deny-dangerous-bash.sh b/scripts/deny-dangerous-bash.sh
+index d54866f..d97ec92 100755
+--- a/scripts/deny-dangerous-bash.sh
++++ b/scripts/deny-dangerous-bash.sh
+@@ -73,6 +73,13 @@ SELF="deny-dangerous-bash.sh"
+ MAX_DEPTH=5
+ RISKY_SCRIPT_NAME_RE='deploy|secret|publish|reset|push|prod'
+ 
++# Commands that write or delete whatever operand they are handed. Used where the
++# operand never appears on the command line itself (`find … -exec <verb>`,
++# `xargs <verb>`): there the verb is the only thing the guard can see, so any of
++# these after such a feeder is refused fail-closed. Shells and interpreters are
++# in the list because `xargs -I{} sh -c 'echo x > {}'` is the same hole.
++WRITE_VERB_RE='rm|rmdir|unlink|shred|truncate|mv|cp|install|rsync|tee|sponge|sed|perl|awk|gawk|dd|chmod|chown|ln|patch|git|ed|ex|vi|vim|nvim|nano|sh|bash|zsh|dash|node|nodejs|python[0-9.]*|ruby|php|deno|bun'
++
+ mask() {
+   # Redact credential-shaped text before it reaches stderr. The literal
+   # prefixes are split across string concatenations so that this file does not
+@@ -289,6 +296,30 @@ broad_target() {
+   return 1
+ }
+ 
++protected_parent() {
++  # A directory that *contains* a protected tree without being one itself:
++  # `docs` holds docs/run-log and docs/gates, and the repository root (also as an
++  # absolute path) holds everything. `find docs -delete` names no protected
++  # path yet reaches every run-log entry, so these operands count as protected
++  # for search-and-write commands. `docs/research` and other siblings stay
++  # outside on purpose.
++  local p="$1"
++  case "$p" in
++    docs|docs/|./docs|./docs/) return 0 ;;
++  esac
++  if [ -n "$ROOT" ]; then
++    case "$p" in
++      "$ROOT"|"$ROOT/"|"$ROOT/docs"|"$ROOT/docs/") return 0 ;;
++    esac
++  fi
++  if [ -n "$CWD_REL" ]; then
++    case "$(join_path "$CWD_REL" "$p")" in
++      docs|docs/) return 0 ;;
++    esac
++  fi
++  return 1
++}
++
+ cwd_unresolved_rel() {
+   # A relative destination written while the current directory is unknown.
+   [ "${CWD_UNKNOWN:-0}" -eq 1 ] || return 1
+@@ -383,6 +414,35 @@ raw_rules_hit() {
+   if is_rm_rf "$sub"; then
+     echo "rm -rf"; return 0
+   fi
++
++  # History operations that put *content* back without naming a file:
++  # `git stash push tests/x.test.ts` parks a test edit and `git stash pop`
++  # brings a rewritten one back, `git revert` and `git reset <commit>` move the
++  # tree to an older state — every one of them a way to undo a guard or a test
++  # from Bash (docs/concerns/task_005.md §2, closed in the 5th round). Only the
++  # read-only stash forms pass, and only the index-only `git reset [--] <paths>`
++  # / `git reset HEAD -- <paths>` (unstaging) is left open: with an explicit
++  # `--` no HEAD moves, and unstaging a protected path changes nothing on disk.
++  # Like the other git rules here, the match is clause-wide, so a commit message
++  # that spells out `git stash` is refused too — write "stash" in prose.
++  if printf '%s' "$sub" | grep -Eqi '(^| )git +stash( |$)' &&
++     ! printf '%s' "$sub" | grep -Eqi '(^| )git +stash +(list|show)( |$)'; then
++    echo "git stash（作業ツリーの退避・復元。list / show 以外）"; return 0
++  fi
++  if printf '%s' "$sub" | grep -Eqi '(^| )git +revert( |$)'; then
++    echo "git revert"; return 0
++  fi
++  if printf '%s' "$sub" | grep -Eqi '(^| )git +reset( |$)' &&
++     ! printf '%s' "$sub" | grep -Eq '(^| )--( |$)'; then
++    if printf '%s' "$sub" | grep -Eqi '(^| )--(hard|merge|keep|soft|mixed)( |$)' ||
++       printf '%s' "$sub" | grep -Eq '(^| )(HEAD|ORIG_HEAD|FETCH_HEAD|MERGE_HEAD)([~^@][^ ]*)?( |$)' ||
++       printf '%s' "$sub" | grep -Eq '(^| )[0-9a-f]{7,40}( |$)' ||
++       printf '%s' "$sub" | grep -Eq '(^| )(origin|upstream)/[^ ]+( |$)' ||
++       printf '%s' "$sub" | grep -Eq '(^| )(main|master|develop)( |$)' ||
++       printf '%s' "$sub" | grep -Eq '(^| )@\{[^ ]*\}( |$)'; then
++      echo "git reset（HEAD の巻き戻し。-- 付きのパス指定以外）"; return 0
++    fi
++  fi
+   return 1
+ }
+ 
+@@ -405,7 +465,7 @@ protected_tree() {
+ 
+ write_rules_hit() {
+   # $1 = one normalized subcommand. Echoes a description when it matches.
+-  local sub="$1" target tok seen_tee val
++  local sub="$1" target tok seen_tee seen_xargs val
+ 
+   for target in $(printf '%s' "$sub" | grep -oE '>>?[[:space:]]*[^[:space:]]+' | sed -E 's/^>>?[[:space:]]*//'); do
+     if unresolvable_dest "$target"; then
+@@ -536,6 +596,63 @@ write_rules_hit() {
+     done
+   fi
+ 
++  # ---- 5th round (docs/concerns/task_005.md §2, adversarial review F-BASH-01) ----
++  # Editors and in-place tools whose write target is an operand: `ed`, `ex`,
++  # `vim -es` (batch mode), `sponge`, `awk -i inplace` / `gawk -i`. None of them
++  # was in the verb list, so `ed -s scripts/deny-dangerous-bash.sh` rewrote the
++  # guard itself. Same clause-wide policy as cp/mv: a protected operand anywhere
++  # blocks. `awk` without `-i` only reads, so it is left alone.
++  if printf '%s' "$sub" | grep -Eq '(^| )(ed|ex|vi|vim|nvim|view|nano|sponge)( |$)' ||
++     { printf '%s' "$sub" | grep -Eq '(^| )(awk|gawk)( |$)' &&
++       printf '%s' "$sub" | grep -Eq '(^| )(-i|--in-place|--inplace)( |=|$)'; }; then
++    for tok in $sub; do
++      if protected "$tok" || protected_tree "$tok"; then
++        echo "編集系コマンド（ed / ex / vim / sponge / awk -i）の対象 ${tok}"; return 0
++      fi
++    done
++  fi
++
++  # `find … -delete` / `find … -exec <write verb>`: the files it touches never
++  # appear on the command line — only the search root does, and an omitted root
++  # means `.` (the repository, at the root). The root is refused when it is a
++  # protected tree, a directory holding one (`docs`, the repo root), the current
++  # directory, or a value this guard cannot resolve. `find /tmp/x -delete` and a
++  # read-only `-exec grep` stay possible.
++  if printf '%s' "$sub" | grep -Eq '(^| )find( |$)' &&
++     { printf '%s' "$sub" | grep -Eq '(^| )-delete( |$)' ||
++       printf '%s' "$sub" | grep -Eq "(^| )-(exec|execdir|ok|okdir) +($WRITE_VERB_RE)( |$)"; }; then
++    if ! printf '%s' "$sub" | grep -Eq '(^| )find +[^-]'; then
++      echo "find の書き込み動作（-delete / -exec）で探索元が省略されています（= カレントディレクトリ全体）"; return 0
++    fi
++    for tok in $sub; do
++      case "$tok" in
++        find|-*|"{}"|";"|"\\;"|"+") continue ;;
++      esac
++      if unresolvable_dest "$tok"; then
++        echo "find の書き込み動作の探索元 ${tok}（変数展開で判定できないため遮断）"; return 0
++      fi
++      if cwd_unresolved_rel "$tok"; then
++        echo "find の書き込み動作の探索元 ${tok}（解決できない cd の後の相対パス）"; return 0
++      fi
++      if protected "$tok" || protected_tree "$tok" || protected_parent "$tok" || broad_target "$tok"; then
++        echo "find の書き込み動作（-delete / -exec）の探索元 ${tok}（保護対象を含みうる）"; return 0
++      fi
++    done
++  fi
++
++  # `xargs <write verb>`: the operands arrive on stdin and are unknowable here,
++  # so any write verb (or a shell / interpreter) after `xargs` is refused.
++  # `xargs grep` / `xargs wc` / `xargs cat` keep working.
++  if printf '%s' "$sub" | grep -Eq '(^| )xargs( |$)'; then
++    seen_xargs=0
++    for tok in $sub; do
++      if [ "$seen_xargs" -eq 1 ] && printf '%s' "$tok" | grep -Eq "^($WRITE_VERB_RE)$"; then
++        echo "xargs 経由の書き込み・削除（${tok}。入力リストを判定できないため遮断）"; return 0
++      fi
++      [ "$tok" = "xargs" ] && seen_xargs=1
++    done
++  fi
++
+   return 1
+ }
+ 
+@@ -604,6 +721,25 @@ interpreter_write_hit() {
+   return 0
+ }
+ 
++feeder_write_hit() {
++  # $1 = the whole normalized command with separators flattened back to spaces.
++  # Two 5th-round classes hide their operand from the per-clause scan because
++  # normalize() treats `{` / `}` as clause separators: `awk -i inplace '{print}'
++  # <path>` lands the path in a clause of its own, and `xargs -I{} sh -c '…'`
++  # loses the verb's clause. Both are judged on the flattened line instead.
++  local whole="$1"
++  if printf '%s' "$whole" | grep -Eq '(^| )(awk|gawk)( +-[^ ]*)* +(-i|--in-place|--inplace)([ =]|$)' &&
++     printf '%s' "$whole" | grep -Eq "$PROTECTED_RE"; then
++    echo "awk -i（インプレース編集）が保護対象パスを参照しています"; return 0
++  fi
++  # The verb has to follow xargs and its options directly, so a later clause on
++  # the same line (`… | xargs wc -l && git commit …`) does not trip it.
++  if printf '%s' "$whole" | grep -Eq "(^| )xargs( +-[^ ]+( +[^- ][^ ]*)?)* +($WRITE_VERB_RE)( |$)"; then
++    echo "xargs 経由の書き込み・削除（入力リストを判定できないため遮断）"; return 0
++  fi
++  return 1
++}
++
+ # -------------------------------------------------------------- script refs --
+ script_names() {
+   # Flags may appear before `run` (npm --silent run X), after it
+@@ -658,6 +794,7 @@ scan_text() {
+   whole="$(printf '%s' "$norm" | tr "$SEP" ' ' | tr -s ' ')"
+ 
+   hit="$(interpreter_write_hit "$whole")" && block "${hit}（${whole}）" "保護対象ファイルへの Bash 経由の書き込みは禁止です（R-TH-02）"
++  hit="$(feeder_write_hit "$whole")" && block "${hit}（${whole}）" "保護対象ファイルへの Bash 経由の書き込み・削除は禁止です（R-TH-02 / R-SEC-07）"
+ 
+   subs_file="$(mktemp)"
+   # The trailing newline matters: `read` returns non-zero on a final line that
+diff --git a/tests/unit/hooks/deny-dangerous-bash.test.ts b/tests/unit/hooks/deny-dangerous-bash.test.ts
+index ae0e5a6..6cd66eb 100644
+--- a/tests/unit/hooks/deny-dangerous-bash.test.ts
++++ b/tests/unit/hooks/deny-dangerous-bash.test.ts
+@@ -149,6 +149,15 @@ const blockedWrites: string[] = [
+   "mv -t docs/run-log /tmp/a.json",
+   "cp --target-directory=docs/gates /tmp/a.json",
+   "cp -t .claude /tmp/settings.json",
++  // 5 周目（docs/concerns/task_005.md §2 / 敵対レビュー F-BASH-01）: 動詞の列挙に無かった
++  // 編集系コマンド。ガード本体・フック登録・テストを 1 コマンドで書き換えられた。
++  "awk -i inplace '{print}' scripts/deny-dangerous-bash.sh",
++  "gawk -i inplace '{print}' .claude/settings.json",
++  "ed -s scripts/deny-dangerous-bash.sh",
++  "ex -sc wq scripts/deny-dangerous-bash.sh",
++  "vim -es tests/contract/duplicate.test.ts",
++  "sponge scripts/deny-dangerous-bash.sh",
++  "echo '{}' | sponge docs/gates/legal-clearance.json",
+ ];
+ 
+ const blockedAliases: string[] = [
+@@ -242,6 +251,25 @@ const blockedEvasions: string[] = [
+   "git am /tmp/evil.patch",
+   "git am < /tmp/evil.patch",
+   "git am --3way /tmp/evil.patch",
++  // (7) 5 周目: 宛先がコマンド行に現れない削除。探索元が保護対象を含みうるなら遮断。
++  "find tests -name '*.test.ts' -delete",
++  "find . -name '*.json' -delete",
++  "find -name '*.test.ts' -delete",
++  "find docs -type f -delete",
++  "find scripts -name 'deny-*' -exec rm {} \\;",
++  "find $DIR -name '*.json' -delete",
++  "cd $TARGET && find . -name '*.json' -delete",
++  "xargs rm < /tmp/list.txt",
++  "cat /tmp/list.txt | xargs -0 rm -f",
++  "xargs -I{} sh -c 'echo x > {}' < /tmp/list.txt",
++  // (8) 5 周目: 履歴操作で内容を巻き戻す経路。list / show と `--` 付きのパス指定だけ通す。
++  "git stash push tests/unit/hooks/deny-dangerous-bash.test.ts",
++  "git stash",
++  "git stash pop",
++  "git revert --no-edit HEAD",
++  "git reset HEAD~1",
++  "git reset --soft HEAD~1",
++  "git reset --keep origin/main",
+ ];
+ 
+ const allowed: string[] = [
+@@ -301,6 +329,18 @@ const allowed: string[] = [
+   "git push origin main",
+   "scripts/record-run.sh task_005 npm run gate:constraints",
+   "scripts/record-run.sh --manual task_005 'SessionStart の注入を目視で確認した'",
++  // 5 周目の遮断が、読むだけの find / xargs・保護対象の外の削除・退避の閲覧・
++  // インデックスだけ戻す git reset まで巻き込んでいないこと。
++  "find docs -name '*.md'",
++  "find /tmp/scratch -name '*.log' -delete",
++  "find src -name '*.tsx' -exec grep -l useState {} \\;",
++  "ls tests/unit | xargs wc -l",
++  "git stash list",
++  "git stash show -p",
++  "git reset",
++  "git reset -- src/app/page.tsx",
++  "git reset HEAD -- src/app/page.tsx",
++  "awk '{print $1}' docs/run-log/task_005.json",
+ ];
+ 
+ describe("deny-dangerous-bash.sh — 破壊的・本番系コマンド", () => {

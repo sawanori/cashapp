@@ -70,6 +70,11 @@ ALLOW  git reset HEAD~1
   という allowlist 方式へ寄せる。(b) `git stash` / `git revert` / `git reset` は、
   対象に保護対象パスを含むかを `git diff --name-only` で事前判定して遮断する。
 - **対応予定タスク**: 未起票（task_005 の次の hardening ラウンド）。**deferred**。
+- **2026-09-24 追記（敵対レビュー後）**: 実経路の敵対レビュー（`docs/review-log/task_005.json`、Gemini、
+  F-BASH-01）がこの §2 を severity high として reject した。ガード本体は Edit/Write からも自己保全されて
+  いるため AI は直接修正できない。11 件すべてを遮断する 5 周目の修正案を
+  **`docs/proposals/task_005-round5.md` / `.patch`** として起票済み（スクラッチ用ワークツリーで
+  235 / 235 件合格を実測）。**PO の人間レビューと適用待ち。** 適用されるまで本項は high のまま。
 
 ---
 
