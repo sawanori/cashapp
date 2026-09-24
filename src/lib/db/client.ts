@@ -13,16 +13,38 @@
  *   `resolveDbConnection()` は既定でロールを検査し、`app_rw` 以外なら失敗する。
  *   マイグレーションツール（gates-sync 等）だけが `allowPrivilegedRole` で明示的に外す。
  *
- * ★ ローカル開発の抜け道は 1 つだけ、しかも三重に締める（`ALLOW_PRIVILEGED_DB_ROLE`）。
- *   `wrangler.toml` の `[[hyperdrive]] localConnectionString` はロール `postgres` を指しており
- *   （このファイルの所有は task_003 / task_035）、そのままでは `wrangler dev` / `npm run cf:dev` が
- *   ここで必ず落ちる。開発者が明示的に opt-in できるよう、次の 3 条件が**すべて**成立する
- *   ときに限り特権ロールを通す:
- *     1. `ALLOW_PRIVILEGED_DB_ROLE` が厳密に文字列 `"1"`
- *     2. `APP_ENV` が厳密に `"development"`（staging / production の [vars] は別値なので届かない）
- *     3. 接続先ホストがループバック（127.0.0.1 / localhost / ::1）
+ * ★ ロール検査は**二重**にする。文字列の見た目だけでは足りない（task_011 レビュー指摘）。
+ *   1. 静的: `parseConnection()` が `URL.username` を見るのに加えて、**クエリパラメータを
+ *      許可リストで弾く**。postgres.js は `defaults` に無いクエリパラメータを
+ *      `options.connection` に入れ（node_modules/postgres/cjs/src/index.js:437,485）、
+ *      StartupMessage が `Object.assign({ user, ... }, options.connection)` で組まれるため
+ *      （同 connection.js:996-1006）、`?user=postgres` を足すだけで `URL.username` を
+ *      迂回して別ロールで接続できてしまう。本セッションで実測済み:
+ *      `postgres://app_rw:postgres@127.0.0.1:54322/postgres?user=postgres` は
+ *      `URL.username = 'app_rw'` のまま `session_user = 'postgres'` で繋がった。
+ *   2. 実行時: `createVerifiedDbClient()` が接続直後に `SELECT session_user` を 1 回だけ
+ *      発行し、接続文字列が名乗るロールと一致しなければ接続を閉じて `DbRoleMismatchError`。
+ *      静的検査を将来すり抜けられても、実ロールで止まる。
+ *
+ * ★ ローカル開発の抜け道は 1 つだけ、しかも四重に締める（`ALLOW_PRIVILEGED_DB_ROLE`）。
+ *   次の 4 条件が**すべて**成立するときに限り特権ロールを通す:
+ *     1. 経路が `direct`（= `DATABASE_URL`）。Hyperdrive 経路では**常に**拒否する。
+ *        `wrangler.toml` の既定環境（`name = "cashapp-dev"`）の `[vars] APP_ENV` は
+ *        `"development"` であり、既定環境はデプロイ可能なので、APP_ENV だけでは
+ *        「ローカルに限る」条件にならない（task_011 レビュー指摘）。Hyperdrive
+ *        バインディングはデプロイ後のランタイムにこそ存在するため、経路で切る。
+ *     2. `ALLOW_PRIVILEGED_DB_ROLE` が厳密に文字列 `"1"`
+ *     3. `APP_ENV` が厳密に `"development"`
+ *     4. 接続先ホストがループバック（127.0.0.1 / localhost / ::1）
  *   このフラグは `.dev.vars.example` にだけ書く。`.env.example` のランタイム欄には置かない
  *   （統合テスト check_069 が両方を機械検査する）。
+ *
+ *   ローカルの `wrangler dev` / `npm run cf:dev` は Hyperdrive 経路なのでこのフラグでは
+ *   通らない。ローカルで Hyperdrive 経路を動かすには、Hyperdrive の一次資料
+ *   （docs/vendor-docs/cloudflare/hyperdrive.md「方法 2」）どおり環境変数
+ *   `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` に `app_rw` の接続文字列を
+ *   与える（環境変数は `wrangler.toml` の `localConnectionString` より優先される）。
+ *   恒久対処は task_035（`localConnectionString` 自体を `app_rw` に揃える）。
  *
  * ★ advisory lock は**トランザクションスコープの `pg_try_advisory_xact_lock` のみ**使う。
  *   セッションスコープの `pg_advisory_lock` / `pg_try_advisory_lock` は、接続プーラ
@@ -55,6 +77,35 @@ export const PRIVILEGED_ROLE_DEV_APP_ENV = "development";
 
 /** 上のフラグが効く唯一の接続先。`URL.hostname` は `::1` を `[::1]` にする。 */
 const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+
+/**
+ * 接続文字列に書いてよいクエリパラメータ。
+ *
+ * postgres.js の `parseOptions()` は、ここに挙げたキー（= 同ライブラリの `defaults` に
+ * あるキー）だけをクライアント側オプションとして消費し、**それ以外のすべてのキーを
+ * `options.connection` に積んで StartupMessage に転送する**
+ * （node_modules/postgres/cjs/src/index.js:437,485 / connection.js:996-1006）。
+ * 転送されるキーには `user`（接続ロールの上書き）・`database`・`options`（`-c` による
+ * サーバ設定の注入）・`replication` が含まれるため、許可リスト外は一律で拒否する。
+ * `sslmode` は `parseOptions()` が `ssl` に読み替えてからクエリから削除するので安全。
+ */
+const ALLOWED_CONNECTION_QUERY_PARAMS: ReadonlySet<string> = new Set([
+  "max",
+  "ssl",
+  "sslmode",
+  "sslnegotiation",
+  "idle_timeout",
+  "connect_timeout",
+  "max_lifetime",
+  "max_pipeline",
+  "backoff",
+  "keep_alive",
+  "prepare",
+  "debug",
+  "fetch_types",
+  "publications",
+  "target_session_attrs",
+]);
 
 export type DbRoute = "hyperdrive" | "direct";
 
@@ -124,6 +175,16 @@ function parseConnection(connectionString: string, route: DbRoute): ParsedConnec
       `database connection string for route '${route}' has unsupported protocol '${url.protocol}'`,
     );
   }
+  // ★ クエリパラメータによる StartupMessage 注入を塞ぐ（`?user=` によるロール偽装ほか）。
+  //   出すのはキー名だけ。値は秘密値になりうるので絶対に出さない。
+  const disallowed = [...new Set(url.searchParams.keys())]
+    .filter((key) => !ALLOWED_CONNECTION_QUERY_PARAMS.has(key))
+    .sort();
+  if (disallowed.length > 0) {
+    throw new DbConfigError(
+      `database connection string for route '${route}' has disallowed query parameter(s): ${disallowed.join(", ")}`,
+    );
+  }
   const role = decodeURIComponent(url.username);
   if (role.length === 0) {
     throw new DbConfigError(`database connection string for route '${route}' has no role`);
@@ -164,7 +225,7 @@ export function resolveDbConnection(
   if (role !== RUNTIME_DB_ROLE) {
     if (options.allowPrivilegedRole === true) {
       privilegedRoleGrant = "option";
-    } else if (isLocalDevPrivilegedOverride(env, host)) {
+    } else if (isLocalDevPrivilegedOverride(env, route, host)) {
       privilegedRoleGrant = "local-dev-flag";
     } else {
       throw new DbConfigError(
@@ -177,10 +238,16 @@ export function resolveDbConnection(
 }
 
 /**
- * ローカル開発の opt-in。3 条件すべてが成立したときだけ true。
+ * ローカル開発の opt-in。4 条件すべてが成立したときだけ true。
  * 1 つでも欠ければ false を返し、呼び出し側は通常どおり `DbConfigError` を投げる。
+ *
+ * 経路の条件を先に見る: Hyperdrive バインディングはデプロイ後の Workers ランタイムに
+ * こそ存在するため、`hyperdrive` 経路でこのフラグを効かせてはいけない。
+ * `APP_ENV === "development"` は `wrangler.toml` の既定環境（デプロイ可能）の値でもあり、
+ * 単独では「ローカルに限る」条件にならない。
  */
-function isLocalDevPrivilegedOverride(env: DbEnv, host: string): boolean {
+function isLocalDevPrivilegedOverride(env: DbEnv, route: DbRoute, host: string): boolean {
+  if (route !== "direct") return false;
   if (env.ALLOW_PRIVILEGED_DB_ROLE !== "1") return false;
   if (env.APP_ENV !== PRIVILEGED_ROLE_DEV_APP_ENV) return false;
   return LOOPBACK_HOSTS.has(host.toLowerCase());
@@ -226,6 +293,57 @@ export function createDbClient(env: DbEnv, options: CreateDbClientOptions = {}):
       await client.end();
     },
   };
+}
+
+/**
+ * 接続文字列が名乗るロールと、サーバが実際に認識しているロールの食い違い。
+ * 文字列レベルの検査（`parseConnection`）を迂回されたときの最後の砦。
+ */
+export class DbRoleMismatchError extends Error {
+  public readonly code = "db_role_mismatch";
+
+  public constructor(message: string) {
+    super(message);
+    this.name = "DbRoleMismatchError";
+  }
+}
+
+/**
+ * 接続が実際に名乗っているロール（`session_user`）が `expectedRole` と一致することを
+ * サーバに問い合わせて確かめる。一致しなければ `DbRoleMismatchError`。
+ *
+ * `session_user` を見るのは、`SET ROLE` 後も「認証に使われたロール」が分かるため。
+ * メッセージにはロール名しか入れない（接続文字列・パスワードを出さない）。
+ */
+export async function assertSessionRole(sql: postgres.Sql, expectedRole: string): Promise<void> {
+  const rows = await sql<{ actual_role: string }[]>`SELECT session_user AS actual_role`;
+  const actual = rows[0]?.actual_role;
+  if (actual !== expectedRole) {
+    throw new DbRoleMismatchError(
+      `database session role mismatch: connection string declares '${expectedRole}' but the server reports '${actual ?? "<none>"}'`,
+    );
+  }
+}
+
+/**
+ * `createDbClient()` に実ロールの検査を足したもの。ランタイムはこちらを使う。
+ *
+ * 接続直後に `SELECT session_user` を 1 回だけ発行し、食い違えば接続を閉じてから投げる。
+ * 接続文字列に `?user=` を足して `URL.username` を迂回する経路（本タスクで実測）を、
+ * 静的検査が将来抜けても実ロールで止めるための二重化。
+ */
+export async function createVerifiedDbClient(
+  env: DbEnv,
+  options: CreateDbClientOptions = {},
+): Promise<DbHandle> {
+  const handle = createDbClient(env, options);
+  try {
+    await assertSessionRole(handle.sql, handle.role);
+  } catch (error) {
+    await handle.close().catch(() => undefined);
+    throw error;
+  }
+  return handle;
 }
 
 /**

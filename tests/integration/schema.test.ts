@@ -786,6 +786,144 @@ describe("check_070: DB 制約の追加分", () => {
       ]);
     });
   });
+
+  // -------------------------------------------------------------------------
+  // provider_binding のスコープ（0007 の複合 FK）。
+  // 単独 FK のままだと、(a) 別の幹事が所有する受取先宛の行、(b) 名乗る provider_key が
+  // バインディングと食い違う行、のどちらも DB が受理してしまう。
+  // -------------------------------------------------------------------------
+  describe("provider_binding のスコープ（0007）", () => {
+    /** 2 人目の幹事と、その幹事が所有する paypay バインディングを作る。 */
+    async function insertOtherOrganizerBinding(
+      tx: postgres.TransactionSql,
+    ): Promise<{ userId: string; bindingId: string }> {
+      const suffix = uniq();
+      const [user] = await tx<{ id: string }[]>`
+        INSERT INTO app_user (line_user_ref, identity_scope, line_env)
+        VALUES (${Buffer.from(`other-${suffix}`)}, ${`test:other:${suffix}`}, 'development')
+        RETURNING id
+      `;
+      const [binding] = await tx<{ id: string }[]>`
+        INSERT INTO provider_binding (organizer_user_id, provider_key, receiving_identifier,
+                                      receiving_identifier_kind, capabilities)
+        VALUES (${user!.id}, 'paypay', ${`MERCHANT-${suffix}`.slice(0, 64)},
+                'merchant_id', '{}'::jsonb)
+        RETURNING id
+      `;
+      return { userId: user!.id, bindingId: binding!.id };
+    }
+
+    it("payment_attempt の provider_key がバインディングと食い違う行は作れない", async () => {
+      await withRollback(migrator, async (tx) => {
+        const f = await insertBaseFixture(tx, uniq());
+        const other = await insertOtherOrganizerBinding(tx);
+        // other.bindingId は provider_key='paypay'、試行は 'manual_confirm' を名乗る。
+        const error = await expectFailure(tx, (sp) => sp`
+          INSERT INTO payment_attempt
+            (invoice_id, provider_key, provider_binding_id, external_ref, amount_minor)
+          VALUES (${f.invoiceId}, 'manual_confirm', ${other.bindingId},
+                  ${`iv_${uniq().replace(/-/g, "")}_x`}, 3000)
+        `);
+        expect(error).toBeDefined();
+        // 23503 = foreign_key_violation（payment_attempt_binding_provider_fk）
+        expect(asPgError(error).code).toBe("23503");
+
+        const rows = await tx<{ n: number }[]>`
+          SELECT count(*)::int AS n
+          FROM payment_attempt pa JOIN provider_binding pb ON pb.id = pa.provider_binding_id
+          WHERE pb.provider_key <> pa.provider_key
+        `;
+        expect(rows[0]?.n).toBe(0);
+      });
+    });
+
+    it("provider_key が一致する payment_attempt は通る", async () => {
+      await withRollback(migrator, async (tx) => {
+        const f = await insertBaseFixture(tx, uniq());
+        const rows = await tx<{ id: string }[]>`
+          INSERT INTO payment_attempt
+            (invoice_id, provider_key, provider_binding_id, external_ref, amount_minor)
+          VALUES (${f.invoiceId}, 'manual_confirm', ${f.bindingId},
+                  ${`iv_${uniq().replace(/-/g, "")}_ok`}, 3000)
+          RETURNING id
+        `;
+        expect(rows).toHaveLength(1);
+      });
+    });
+
+    it("他の幹事が所有するバインディングを指すイベントは作れない", async () => {
+      await withRollback(migrator, async (tx) => {
+        const f = await insertBaseFixture(tx, uniq());
+        const other = await insertOtherOrganizerBinding(tx);
+        const suffix = uniq();
+        const error = await expectFailure(tx, (sp) => sp`
+          INSERT INTO event (organizer_user_id, title, organizer_label, join_token_hash,
+                             minors_included, provider_key, provider_binding_id)
+          VALUES (${f.userId}, ${`cross-${suffix}`}, 'organizer',
+                  ${Buffer.from(`join-cross-${suffix}`)}, false, 'paypay', ${other.bindingId})
+        `);
+        expect(error).toBeDefined();
+        // 23503 = foreign_key_violation（event_binding_owner_fk）
+        expect(asPgError(error).code).toBe("23503");
+
+        const rows = await tx<{ n: number }[]>`
+          SELECT count(*)::int AS n
+          FROM event e JOIN provider_binding pb ON pb.id = e.provider_binding_id
+          WHERE pb.organizer_user_id <> e.organizer_user_id
+        `;
+        expect(rows[0]?.n).toBe(0);
+      });
+    });
+
+    it("イベントの provider_key がバインディングと食い違う行も作れない", async () => {
+      await withRollback(migrator, async (tx) => {
+        const f = await insertBaseFixture(tx, uniq());
+        const suffix = uniq();
+        // f.bindingId は provider_key='manual_confirm'。イベントは 'paypay' を名乗る。
+        const error = await expectFailure(tx, (sp) => sp`
+          INSERT INTO event (organizer_user_id, title, organizer_label, join_token_hash,
+                             minors_included, provider_key, provider_binding_id)
+          VALUES (${f.userId}, ${`mismatch-${suffix}`}, 'organizer',
+                  ${Buffer.from(`join-mismatch-${suffix}`)}, false, 'paypay', ${f.bindingId})
+        `);
+        expect(error).toBeDefined();
+        expect(asPgError(error).code).toBe("23503");
+      });
+    });
+
+    it("provider_binding_id が NULL のイベントは通る（MATCH SIMPLE）", async () => {
+      await withRollback(migrator, async (tx) => {
+        const f = await insertBaseFixture(tx, uniq());
+        const suffix = uniq();
+        const rows = await tx<{ id: string }[]>`
+          INSERT INTO event (organizer_user_id, title, organizer_label, join_token_hash,
+                             minors_included)
+          VALUES (${f.userId}, ${`nobinding-${suffix}`}, 'organizer',
+                  ${Buffer.from(`join-nobinding-${suffix}`)}, false)
+          RETURNING id
+        `;
+        expect(rows).toHaveLength(1);
+      });
+    });
+
+    it("複合 UNIQUE と複合 FK が実在する", async () => {
+      const rows = await migrator<{ conname: string; contype: string }[]>`
+        SELECT conname, contype::text AS contype
+        FROM pg_constraint
+        WHERE conname IN ('provider_binding_provider_scope_uk', 'provider_binding_owner_scope_uk',
+                          'payment_attempt_binding_provider_fk', 'event_binding_provider_fk',
+                          'event_binding_owner_fk')
+        ORDER BY conname
+      `;
+      expect(rows).toEqual([
+        { conname: "event_binding_owner_fk", contype: "f" },
+        { conname: "event_binding_provider_fk", contype: "f" },
+        { conname: "payment_attempt_binding_provider_fk", contype: "f" },
+        { conname: "provider_binding_owner_scope_uk", contype: "u" },
+        { conname: "provider_binding_provider_scope_uk", contype: "u" },
+      ]);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -865,6 +1003,7 @@ describe("check_071: マイグレーションの正本", () => {
       "0004_ledger_event_scope_fk",
       "0005_default_privileges_revoke",
       "0006_payment_event_attempt_scope_fk",
+      "0007_provider_binding_scope_fk",
     ]);
   });
 

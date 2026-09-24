@@ -86,9 +86,13 @@ describe("resolveDbConnection", () => {
 
 // ---------------------------------------------------------------------------
 // ローカル開発専用の opt-in フラグ（task_011 レビュー修正）。
-// wrangler.toml の localConnectionString がロール postgres である以上、
-// `wrangler dev` を通す抜け道は必要になる。その抜け道が本番に届かないことを、
-// 3 条件それぞれを 1 つずつ欠けさせて確かめる。
+// 4 条件（direct 経路 / フラグ "1" / APP_ENV development / ループバック）を
+// 1 つずつ欠けさせて、抜け道が本番に届かないことを確かめる。
+//
+// ★ 経路の条件は後追いの修正で足した。wrangler.toml の既定環境（name = "cashapp-dev"）は
+//   デプロイ可能で、その [vars] APP_ENV は "development" である。つまり APP_ENV だけでは
+//   「ローカルに限る」条件にならない。Hyperdrive バインディングはデプロイ後の
+//   ランタイムにこそ存在するので、hyperdrive 経路では常に拒否する。
 // ---------------------------------------------------------------------------
 describe(`resolveDbConnection: ${PRIVILEGED_ROLE_DEV_FLAG}（ローカル開発専用）`, () => {
   const devEnvBase = {
@@ -96,14 +100,37 @@ describe(`resolveDbConnection: ${PRIVILEGED_ROLE_DEV_FLAG}（ローカル開発�
     ALLOW_PRIVILEGED_DB_ROLE: "1",
   } as const;
 
-  it("3 条件が揃えばローカルの Hyperdrive 経路で postgres ロールを通す", () => {
+  it("4 条件が揃えば direct 経路で postgres ロールを通す", () => {
     const resolved = resolveDbConnection({
       ...devEnvBase,
-      HYPERDRIVE: { connectionString: LOCAL_HYPERDRIVE_PRIVILEGED_URL },
+      DATABASE_URL: LOCAL_HYPERDRIVE_PRIVILEGED_URL,
     });
-    expect(resolved.route).toBe("hyperdrive");
+    expect(resolved.route).toBe("direct");
     expect(resolved.role).toBe("postgres");
     expect(resolved.privilegedRoleGrant).toBe("local-dev-flag");
+  });
+
+  it("hyperdrive 経路では 4 条件が揃っていてもフラグは効かない（デプロイ済み Worker に届かせない）", () => {
+    expect(() =>
+      resolveDbConnection({
+        ...devEnvBase,
+        HYPERDRIVE: { connectionString: LOCAL_HYPERDRIVE_PRIVILEGED_URL },
+      }),
+    ).toThrow(DbConfigError);
+    expect(() =>
+      resolveDbConnection({
+        ...devEnvBase,
+        HYPERDRIVE: { connectionString: LOCAL_HYPERDRIVE_PRIVILEGED_URL },
+      }),
+    ).toThrow(/must be 'app_rw'/);
+    // DATABASE_URL が併記されていても、Hyperdrive が優先される以上は拒否のまま。
+    expect(() =>
+      resolveDbConnection({
+        ...devEnvBase,
+        HYPERDRIVE: { connectionString: LOCAL_HYPERDRIVE_PRIVILEGED_URL },
+        DATABASE_URL: LOCAL_HYPERDRIVE_PRIVILEGED_URL,
+      }),
+    ).toThrow(DbConfigError);
   });
 
   it("localhost と [::1] もループバックとして通す", () => {
@@ -122,7 +149,7 @@ describe(`resolveDbConnection: ${PRIVILEGED_ROLE_DEV_FLAG}（ローカル開発�
         resolveDbConnection({
           ALLOW_PRIVILEGED_DB_ROLE: "1",
           APP_ENV: appEnv,
-          HYPERDRIVE: { connectionString: LOCAL_HYPERDRIVE_PRIVILEGED_URL },
+          DATABASE_URL: LOCAL_HYPERDRIVE_PRIVILEGED_URL,
         }),
       ).toThrow(DbConfigError);
     }
@@ -132,7 +159,7 @@ describe(`resolveDbConnection: ${PRIVILEGED_ROLE_DEV_FLAG}（ローカル開発�
     expect(() =>
       resolveDbConnection({
         ...devEnvBase,
-        HYPERDRIVE: { connectionString: REMOTE_PRIVILEGED_URL },
+        DATABASE_URL: REMOTE_PRIVILEGED_URL,
       }),
     ).toThrow(/must be 'app_rw'/);
   });
@@ -143,7 +170,7 @@ describe(`resolveDbConnection: ${PRIVILEGED_ROLE_DEV_FLAG}（ローカル開発�
         resolveDbConnection({
           APP_ENV: PRIVILEGED_ROLE_DEV_APP_ENV,
           ALLOW_PRIVILEGED_DB_ROLE: flag,
-          HYPERDRIVE: { connectionString: LOCAL_HYPERDRIVE_PRIVILEGED_URL },
+          DATABASE_URL: LOCAL_HYPERDRIVE_PRIVILEGED_URL,
         }),
       ).toThrow(DbConfigError);
     }
@@ -174,5 +201,66 @@ describe(`resolveDbConnection: ${PRIVILEGED_ROLE_DEV_FLAG}（ローカル開発�
       DbConfigError,
     );
     expect(() => resolveDbConnection({ DATABASE_URL: "not-a-url" })).toThrow(DbConfigError);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// クエリパラメータによる StartupMessage 注入（task_011 レビュー指摘 high）。
+//
+// postgres.js は `defaults` に無いクエリパラメータを options.connection に積み、
+// StartupMessage は Object.assign({ user, ... }, options.connection) で組まれる。
+// そのため `?user=postgres` を足すだけで URL.username の検査を迂回でき、
+// 実際に `postgres://app_rw:postgres@127.0.0.1:54322/postgres?user=postgres` が
+// session_user = 'postgres' で繋がることを本タスクで実測した。
+// ---------------------------------------------------------------------------
+describe("resolveDbConnection: 接続文字列のクエリパラメータ", () => {
+  const withQuery = (query: string): string =>
+    `postgresql://app_rw:pw@127.0.0.1:54322/postgres?${query}`;
+
+  it("?user= によるロール偽装は direct / hyperdrive のどちらの経路でも拒否する", () => {
+    const spoofed = withQuery("user=postgres");
+    expect(() => resolveDbConnection({ DATABASE_URL: spoofed })).toThrow(DbConfigError);
+    expect(() => resolveDbConnection({ HYPERDRIVE: { connectionString: spoofed } })).toThrow(
+      DbConfigError,
+    );
+    expect(() => resolveDbConnection({ DATABASE_URL: spoofed })).toThrow(/query parameter/);
+    // allowPrivilegedRole（マイグレーション経路）でも素通りさせない。
+    expect(() =>
+      resolveDbConnection({ DATABASE_URL: spoofed }, { allowPrivilegedRole: true }),
+    ).toThrow(DbConfigError);
+  });
+
+  it("StartupMessage に転送されうる他のキーも拒否する", () => {
+    for (const query of [
+      "options=-c%20role%3Dpostgres",
+      "database=other",
+      "dbname=other",
+      "replication=database",
+      "application_name=spoof",
+      "username=postgres",
+      "password=leak",
+    ]) {
+      expect(() => resolveDbConnection({ DATABASE_URL: withQuery(query) })).toThrow(DbConfigError);
+    }
+  });
+
+  it("エラーメッセージにキー名だけを出し、値は出さない", () => {
+    try {
+      resolveDbConnection({ DATABASE_URL: withQuery("user=postgres") });
+      throw new Error("expected resolveDbConnection to throw");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      expect(message).toContain("user");
+      expect(message).not.toContain("postgres:pw");
+      expect(message).not.toContain("pw@");
+    }
+  });
+
+  it("postgres.js がクライアント側で消費する既知のキーは通す", () => {
+    const resolved = resolveDbConnection({
+      DATABASE_URL: withQuery("sslmode=require&connect_timeout=10&prepare=false"),
+    });
+    expect(resolved.role).toBe(RUNTIME_DB_ROLE);
+    expect(resolved.host).toBe("127.0.0.1");
   });
 });

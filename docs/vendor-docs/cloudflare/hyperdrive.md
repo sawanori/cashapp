@@ -49,6 +49,22 @@ npx wrangler dev
   `localConnectionString` にダミーの既定クレデンシャル（`postgres:postgres`）を使う限りは
   秘匿性の実害は小さいが、本番相当の値を `wrangler.toml` にコミットしない規律は維持する。
 
+## デプロイ後の `connectionString` の形式（[不明]・task_011 レビュー対応で追記）
+
+**取得日: 2026-09-24。取得方法: WebFetch で
+https://developers.cloudflare.com/hyperdrive/configuration/connect-to-postgres/ を取得。**
+
+- 原文は「Hyperdrive は Worker 内に **dynamic connection string** を生成し、それを既存の
+  データベースドライバに渡す」としか書いておらず、**デプロイ後の `env.HYPERDRIVE.connectionString`
+  のホスト名の形式・ポート・ユーザー名の規則は記載が無い**（コード例は
+  `postgres(env.HYPERDRIVE.connectionString, { max: 5, fetch_types: false, prepare: true })` の
+  ように文字列をそのまま渡すだけ）。
+- したがって「デプロイ後の Hyperdrive の接続先がループバックかどうか」は一次資料で確定できない。
+  `src/lib/db/client.ts` の特権ロール許可フラグは、この不明点に依存しないよう
+  **経路が `direct` のときだけ**効く設計に変更した（task_011 レビュー修正）。
+- 実 ID 発行後（task_035）に、デプロイした Worker で `new URL(env.HYPERDRIVE.connectionString).hostname`
+  を 1 回ログに出して [実測] としてここに追記すること。
+
 ## 未確認・要フォローアップ
 
 - [不明] transaction モードの advisory lock 制約（`pg_try_advisory_lock` がセッションスコープで

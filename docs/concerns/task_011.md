@@ -19,6 +19,15 @@
 | 4 | wrangler.toml の `localConnectionString` が `resolveDbConnection()` に拒否される | **修正**（案 B: 明示フラグ `ALLOW_PRIVILEGED_DB_ROLE`。単体テスト 6 件追加） |
 | 5 | 「gate.yml に integration ジョブが追加され PR で緑」 | **deferred**（下記 C-011-1。静的検証のみ実施） |
 
+## 処理結果の一覧（2 周目レビューの 4 指摘）
+
+| # | 深刻度 | 指摘 | 結果 |
+|---|---|---|---|
+| 1 | high | `?user=postgres` を足すだけで `resolveDbConnection()` のロール検査を迂回できる | **修正**（`client.ts`: クエリパラメータ許可リスト＋`createVerifiedDbClient()` の実ロール検査。単体 5 → 20 ケース、統合に `db-role.test.ts` 5 ケース追加） |
+| 2 | medium | `payment_attempt.provider_binding_id` / `event.provider_binding_id` の cross-owner・provider_key 食い違い | **一部修正**（`0007_provider_binding_scope_fk.sql`。event の両方と payment_attempt の provider_key を閉塞。payment_attempt の cross-owner は下記 C-011-7 で PO 裁定へ） |
+| 3 | medium | `ALLOW_PRIVILEGED_DB_ROLE` の `APP_ENV === "development"` はローカル限定条件になっていない | **修正**（4 条件目として「経路が direct」を追加。Hyperdrive 経路では常に拒否。C-011-4 を更新） |
+| 4 | medium | 「gate.yml に integration ジョブが追加され PR で緑」が未達 | **deferred 継続**（C-011-1。指摘自身が「現環境では修正不能のため deferred で正しい」としている） |
+
 ---
 
 ## C-011-1 — CI の実走（PR で緑・required status check 登録）
@@ -37,6 +46,10 @@
   2. ステップの `run:` が呼ぶ `npm run <script>` がすべて `package.json` の scripts に実在する
      （空振り禁止つき。`test:integration` / `gates:sync` / `db:diff:drizzle` の 3 本の存在も必須にした）
   3. 運用上の禁止コマンド（`supabase stop` / `supabase db reset`）を含まない
+- **2 周目レビューでの再確認（2026-09-24）**: 同じ指摘が medium で再提出され、
+  レビュー自身が「現環境では修正不能のため deferred で正しい」と結論している。
+  本ラウンドでも `.github/workflows/` は `gate-integration.yml` 1 本のみ、`gate.yml` は不在、
+  `docs/run-log/task_009.json` も不在であることを確認した。状態は deferred のまま変わらない。
 - **対応予定タスク**: task_009（`gate.yml` 作成と `gate-integration / integration` の
   required status check 登録）→ その後に実 PR で緑を確認。
 
@@ -90,18 +103,37 @@
   (c) `supabase/seed.sql` は `supabase db reset` でしか走らず、その `db reset` が本ワークフローの
   禁止コマンド、の 3 点で採れなかった。案 B は変更が `src/lib/db/client.ts`（本タスクの所有物）と
   `.dev.vars.example` の記載だけで閉じる。
-- **緩和**: フラグは次の 3 条件が**すべて**成立するときだけ効く。
-  1. `ALLOW_PRIVILEGED_DB_ROLE` が厳密に文字列 `"1"`
-  2. `APP_ENV` が厳密に `"development"`（`wrangler.toml` の staging / production の
-     `[vars]` は `"staging"` / `"production"` なので届かない）
-  3. 接続先ホストがループバック（`127.0.0.1` / `localhost` / `::1` / `[::1]`）
-  条件を 1 つずつ欠けさせた否定ケースを `tests/unit/db-client.test.ts` に 6 件追加した。
-  さらに統合テストで「`.env.example` にこの名前が無い」「`.dev.vars.example` にあり、
-  かつ既定ではコメントアウトされている」「`wrangler.toml` にこの名前が無い」を機械検査する。
+- **緩和（2 周目レビューで 1 条件追加し 4 条件にした）**: フラグは次の 4 条件が**すべて**
+  成立するときだけ効く。
+  1. **経路が `direct`（= `DATABASE_URL`）。Hyperdrive 経路では常に拒否する**
+  2. `ALLOW_PRIVILEGED_DB_ROLE` が厳密に文字列 `"1"`
+  3. `APP_ENV` が厳密に `"development"`
+  4. 接続先ホストがループバック（`127.0.0.1` / `localhost` / `::1` / `[::1]`）
+  条件を 1 つずつ欠けさせた否定ケースを `tests/unit/db-client.test.ts` に持つ（同ファイルは
+  15 → 20 ケース）。さらに統合テストで「`.env.example` にこの名前が無い」
+  「`.dev.vars.example` にあり、かつ既定ではコメントアウトされている」
+  「`wrangler.toml` にこの名前が無い」を機械検査する。
+- **条件 1 を足した理由（2 周目レビュー指摘 3）**: 初回の記述は「staging / production の
+  `[vars]` は別値なので届かない」としていたが、これは**既定環境を扱えていなかった**。
+  `wrangler.toml` のトップレベル `[vars] APP_ENV = "development"` は
+  `name = "cashapp-dev"` のデプロイ可能な既定環境の値であり、`--env` なしの
+  `wrangler deploy` で実在のリモート Worker が `APP_ENV=development` で動く。
+  残る唯一のローカル条件だったループバック判定も、デプロイ後の
+  `env.HYPERDRIVE.connectionString` のホスト形式が一次資料に無い以上は保証にならない
+  （`docs/vendor-docs/cloudflare/hyperdrive.md` に [不明] として追記した）。
+  Hyperdrive バインディングはデプロイ後のランタイムにこそ存在するので、
+  「経路が `direct` であること」を条件にすれば、この不明点に依存せず締められる。
+- **`wrangler dev` / `npm run cf:dev` への影響**: 条件 1 により、このフラグでは
+  Hyperdrive 経路は通らなくなった。ローカルで cf:dev を動かす手段は
+  Hyperdrive の一次資料の「方法 2」に切り替える（環境変数
+  `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` に `app_rw` の接続文字列を
+  与える。環境変数は `wrangler.toml` の設定より優先される）。手順は
+  `.dev.vars.example` に書いた。**この経路の実走確認は未実施**（`wrangler dev` を
+  本セッションで起動していない）。
 - **残余リスク**: `.dev.vars` は開発者の手元ファイルなので、開発者が
-  `APP_ENV=development` のままリモートの DB を指した場合は……ループバック判定で止まる。
-  止まらないのは「ローカルの `supabase start` に特権ロールで入る」場合だけで、これは
-  ローカル DB に対する既存の権限と等価。
+  `APP_ENV=development` のままリモートの DB を `DATABASE_URL` で指した場合は
+  ループバック判定で止まる。止まらないのは「ローカルの `supabase start` に特権ロールで
+  入る」場合だけで、これはローカル DB に対する既存の権限と等価。
 - **対応予定タスク**: task_035（`localConnectionString` を `app_rw` に揃える作業が scope に
   記載済み）。それが完了すればフラグは不要になるので、その時点で削除を検討する。
 
@@ -116,6 +148,45 @@
   限定されている。`verification_method` の書き換えは PO 専管（task_038）に残す。
 - **対応予定タスク**: task_038（check_071 の裁定）。
 
+## C-011-7 — `payment_attempt` の cross-owner はまだ DB で塞げていない
+
+- **指摘**: `0007_provider_binding_scope_fk.sql` は `event` の cross-owner と
+  provider_key 食い違い、`payment_attempt` の provider_key 食い違いを閉じたが、
+  **`payment_attempt` が「別の幹事が所有するバインディング」を指す行**は、
+  provider_key さえ一致していれば今も受理される。
+- **深刻度**: medium
+- **状態**: **deferred: PO 裁定（task_017 / task_018）**
+- **実測（0007 適用後・BEGIN/ROLLBACK 内）**: 幹事 O1 のイベント→請求に対して、
+  O2 所有の `provider_binding`（`provider_key='paypay'`）を指し、`provider_key='paypay'` を
+  名乗る `payment_attempt` を INSERT → `INSERT 0 1` で受理。
+  `remaining_cross_owner_attempt_rows = 1`。
+- **DB だけで閉じられない理由**: `payment_attempt` には `organizer_user_id` も `event_id` も
+  無く、`invoice → event → organizer_user_id` の連鎖は複合 FK では届かない。閉じるには
+  (a) `payment_attempt` に `event_id` を持たせて `invoice(event_id, id)`（0004 で作成済み）と
+  `event(id, provider_binding_id)` の 2 本の複合 FK で縛るか、(b) 制約トリガを足すか、
+  のどちらかで、いずれも `src/lib/db/schema.ts` とリポジトリ層（task_014）に波及する。
+  列の追加は本ラウンドの許可範囲（レビュー指摘の修正）を超えるため PO 裁定に送る。
+- **現時点の緩和**: `event` 側が cross-owner を閉じたため、「イベントに紐づく正しい
+  バインディング」は DB 上で一意に決まる。残る穴は「アプリがそのイベントの
+  バインディング以外を `payment_attempt` に渡した場合」に限られ、決済試行の生成は
+  task_017 / task_018 の 1 経路に閉じる予定である。
+- **対応予定タスク**: task_017 / task_018（決済試行の生成経路）。PO が (a)/(b) を裁定する。
+
+## C-011-8 — 接続文字列のクエリパラメータ許可リストは実 Hyperdrive で未検証
+
+- **指摘**: `parseConnection()` は許可リスト外のクエリパラメータを一律 `DbConfigError` に
+  する。許可リストは postgres.js の `defaults`（`node_modules/postgres/cjs/src/index.js` の
+  `parseOptions`）＋ `sslmode` で作った。デプロイ後の `env.HYPERDRIVE.connectionString` が
+  これ以外のクエリパラメータを含んでいた場合、ランタイムが起動時に落ちる。
+- **深刻度**: low
+- **状態**: **accepted-risk**
+- **理由**: 落ちるとしても静かな誤接続ではなく `DbConfigError` として即座に見えるため、
+  「気づけない失敗」にはならない。逆に許可リストを緩めると `?user=` 型の迂回が戻る。
+  Hyperdrive の一次資料には `connectionString` の形式の記載が無い（本ラウンドで
+  `docs/vendor-docs/cloudflare/hyperdrive.md` に [不明] として追記）。
+- **対応予定タスク**: task_035（実 Hyperdrive ID 発行後に `connectionString` を 1 回実測し、
+  必要なら許可リストに追記して [実測] として vendor-docs に残す）。
+
 ## C-011-6 — 担当範囲外のファイルに触れた
 
 - **指摘**: 本ラウンドで task_011 の `files_to_create` / `files_to_modify` に無いファイルを
@@ -128,9 +199,14 @@
     「`ALLOW_PRIVILEGED_DB_ROLE=1` は `.dev.vars.example` にのみ記載」と明記
   - `tests/integration/ci-workflow.test.ts` — 指摘 5 の静的検証の置き場。
     どのタスクの `files_to_create` にも含まれない新規ファイル
-  - `supabase/migrations/0005` / `0006` — `0001` を直接書き換えると適用済みローカル DB と
+  - `supabase/migrations/0005` / `0006` / `0007` — `0001` を直接書き換えると適用済みローカル DB と
     shadow DB がずれ、整合に禁止コマンド（`supabase db reset`）が要るため追加マイグレーションにした
     （0003 / 0004 と同じ判断）
+  - `docs/vendor-docs/cloudflare/hyperdrive.md`（task_003 の `files_to_create`）— 2 周目レビュー
+    指摘 3 が「Hyperdrive の `connectionString` のホスト形式を一次資料で確認して
+    vendor-docs に残す」と明記。既存の節を書き換えず、節を 1 つ追記しただけ
+  - `tests/integration/db-role.test.ts` — 2 周目レビュー指摘 1（`?user=` 迂回）の遮断テストの
+    置き場。どのタスクの `files_to_create` にも含まれない新規ファイル
 - **触っていない**: `wrangler.toml`（task_003 / task_035 の所有）、
   `.github/workflows/gate.yml`（task_009 の所有）、`.claude/settings.json`、
   `docs/task-list.json`（並行タスクとの書き込み衝突回避）。

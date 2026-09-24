@@ -2,16 +2,27 @@
 
 ## ⚠ 既知の壊れている経路（着手前に必ず読む）
 
-- **`npm run cf:dev` / `wrangler dev` は `.dev.vars` に 1 行足さないと Hyperdrive 経路で失敗する**
-  （task_011 hardening 周で opt-in の抜け道を用意した。恒久策は task_035）。
+- **`npm run cf:dev` / `wrangler dev` は環境変数を 1 本 export しないと Hyperdrive 経路で失敗する**
+  （恒久策は task_035）。
   `wrangler.toml` の `[[hyperdrive]] localConnectionString` はロール `postgres`
   （`postgres://postgres:postgres@127.0.0.1:54322/postgres`）のままで、
   `src/lib/db/client.ts` の `resolveDbConnection()` はランタイムロールが `app_rw` で
   なければ `DbConfigError` を投げる（`tests/unit/db-client.test.ts` が拒否を検査している）。
-  **いま動かす方法**: `cp .dev.vars.example .dev.vars` して
-  `ALLOW_PRIVILEGED_DB_ROLE=1` の行のコメントを外す。このフラグは
-  (1) 値が厳密に `"1"` (2) `APP_ENV` が厳密に `"development"` (3) 接続先がループバック、
-  の 3 条件がすべて成立するときだけ効く（否定ケース 6 件を単体テストで検査）。
+  **いま動かす方法**（Hyperdrive の一次資料「方法 2」。環境変数は `wrangler.toml` の
+  設定より優先される。`docs/vendor-docs/cloudflare/hyperdrive.md`）:
+
+  ```sh
+  export CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE="postgres://app_rw:app_rw_local_dev_only@127.0.0.1:54322/postgres"
+  npm run cf:dev
+  ```
+
+  `app_rw` のローカルパスワードは `npm run test:integration` の setup が
+  `ALTER ROLE` で設定する（`tests/integration/setup.ts`）。**この経路の実走確認は未実施**。
+  **`ALLOW_PRIVILEGED_DB_ROLE=1` はこの用途には使えなくなった**（4 周目レビュー）。
+  同フラグは `direct` 経路（`DATABASE_URL`）でしか効かない。理由は
+  `wrangler.toml` の既定環境（`name = "cashapp-dev"`）がデプロイ可能で、その
+  `[vars] APP_ENV` が `"development"` である以上、`APP_ENV` は「ローカルに限る」条件に
+  ならないため（`docs/concerns/task_011.md` の C-011-4）。
   **恒久策（task_035）**: `localConnectionString` を
   `postgres://app_rw:app_rw_local_dev_only@127.0.0.1:54322/postgres` に変え、
   `wrangler dev` を 1 度実走して Hyperdrive 経路が通ることを確認する。それが済めば
@@ -381,6 +392,54 @@
   判断は正しく文言だけの問題。`docs/concerns/task_005.md` §5。
 - `check_053`（新規セッションでの SessionStart 注入の目視）は 3 周目で実測済み。本周では再実行していない。
 
+## task_011（レビュー修正・4 周目）
+
+### 直したこと
+
+- **接続文字列のロール検査が実効になっていなかった**（high）。`resolveDbConnection()` は
+  `URL.username` しか見ておらず、`?user=postgres` を足すだけで迂回できた。postgres.js は
+  `defaults` に無いクエリパラメータを `options.connection` に積み、StartupMessage が
+  `Object.assign({ user, … }, options.connection)` で組まれるためである。
+  本セッションで実測: `postgres://app_rw:postgres@127.0.0.1:54322/postgres?user=postgres` は
+  `URL.username = 'app_rw'` のまま `session_user = 'postgres'` で接続できた。
+  対処は二段。(1) `parseConnection()` に**クエリパラメータの許可リスト**を入れ、
+  postgres.js がクライアント側で消費するキー（`defaults` ＋ `sslmode`）以外は
+  `DbConfigError` にする。(2) `createVerifiedDbClient()` を追加し、接続直後に
+  `SELECT session_user` を 1 回だけ発行して接続文字列が名乗るロールと一致しなければ
+  接続を閉じて `DbRoleMismatchError` を投げる。**ランタイムはこちらを使うこと**
+  （`createDbClient()` は検査なしの低レベル API として残してある）。
+- **`ALLOW_PRIVILEGED_DB_ROLE` に 4 条件目「経路が `direct`」を足した**（medium）。
+  `wrangler.toml` の既定環境（`name = "cashapp-dev"`）はデプロイ可能で、その
+  `[vars] APP_ENV` は `"development"` である。つまり `APP_ENV` は「ローカルに限る」条件に
+  ならなかった。Hyperdrive バインディングはデプロイ後のランタイムにこそ存在するので、
+  経路で切れば、デプロイ後の `connectionString` のホスト形式（一次資料に記載が無い）に
+  依存せずに締められる。**副作用として cf:dev はこのフラグでは通らなくなった**。
+  代わりの手順は冒頭の「既知の壊れている経路」に書いた。
+- **`provider_binding` のスコープの穴を塞いだ**（medium。`supabase/migrations/0007_provider_binding_scope_fk.sql`）。
+  `provider_binding` に `UNIQUE (id, provider_key)` と `UNIQUE (id, organizer_user_id)` を張り、
+  `payment_attempt` に `(provider_binding_id, provider_key)` の複合 FK、`event` に
+  `(provider_binding_id, provider_key)` と `(provider_binding_id, organizer_user_id)` の複合 FK。
+  修正前は psql の BEGIN/ROLLBACK で「O1 のイベントが O2 の受取先を指す」
+  「試行の `provider_key` がバインディングと食い違う」の両方が受理されることを実測
+  （`cross_owner_attempt_rows=1` / `provider_key_mismatch_rows=1` / `cross_owner_event_rows=1`）。
+  修正後は `23503` で拒否される。
+- テストは統合 47 → 58 ケース（新規 `tests/integration/db-role.test.ts` 5 件を含む）、
+  `tests/unit/db-client.test.ts` は 15 → 20 ケース。既存テストの削除・skip・expect 削減はしていない。
+
+### 未解決
+
+- **`payment_attempt` の cross-owner は DB ではまだ塞げていない**（`docs/concerns/task_011.md` の
+  C-011-7）。`provider_key` さえ一致していれば、別の幹事が所有するバインディング宛の試行を
+  今も INSERT できる（0007 適用後に実測: `remaining_cross_owner_attempt_rows=1`）。
+  閉じるには `payment_attempt` に `event_id` を持たせる等の**列の追加**が要り、
+  `schema.ts` とリポジトリ層（task_014）に波及する。PO 裁定（task_017 / task_018）へ。
+- **CI の実走は deferred のまま**（C-011-1）。`.github/workflows/` は
+  `gate-integration.yml` 1 本のみで `gate.yml` は不在、`docs/run-log/task_009.json` も不在。
+  本周のレビュー自身が「現環境では修正不能のため deferred で正しい」としている。
+- デプロイ後の `env.HYPERDRIVE.connectionString` のホスト形式は一次資料に記載が無い
+  （2026-09-24 に WebFetch で確認し `docs/vendor-docs/cloudflare/hyperdrive.md` に [不明] を追記）。
+  クエリパラメータ許可リストが実 Hyperdrive の接続文字列で通るかも未検証（C-011-8。task_035）。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -413,3 +472,6 @@
 - 2026-09-24T05:47:00Z HEAD=34868e9 決まったこと: task_011(hardening): 修正後の verify_commands を HEAD d5089cc で再実行したログ / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json 
 - 2026-09-24T05:54:29Z HEAD=34868e9 決まったこと: task_011(hardening): 修正後の verify_commands を HEAD d5089cc で再実行したログ / 未解決: 未コミット 12 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json package.json scripts/deny-dangerous-bash.sh scripts/deny-test-weakening.sh 
 - 2026-09-24T05:59:29Z HEAD=34868e9 決まったこと: task_011(hardening): 修正後の verify_commands を HEAD d5089cc で再実行したログ / 未解決: 未コミット 16 件: docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json package.json scripts/deny-dangerous-bash.sh 
+- 2026-09-24T06:01:58Z HEAD=136be6d 決まったこと: task_005(hardening): 名指ししない迂回路の遮断・settings.json の構造検査・lint:changed の空振り修正 / 未解決: 未コミット 7 件: docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json src/lib/db/client.ts tests/unit/db-client.test.ts supabase/migrations/0007_provider_binding_scope_fk.sql 
+- 2026-09-24T06:04:31Z HEAD=51b093a 決まったこと: task_005(hardening): 修正後の verify_commands を HEAD 136be6d で再実行したログ / 未解決: 未コミット 9 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_011.json src/lib/db/client.ts tests/integration/schema.test.ts tests/unit/db-client.test.ts supabase/migrations/0007_provider_binding_scope_fk.sql 
+- 2026-09-24T06:07:00Z HEAD=51b093a 決まったこと: task_005(hardening): 修正後の verify_commands を HEAD 136be6d で再実行したログ / 未解決: 未コミット 13 件: .dev.vars.example docs/HANDOFF.md docs/concerns/task_011.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json docs/vendor-docs/cloudflare/hyperdrive.md 
