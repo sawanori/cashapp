@@ -73,5 +73,12 @@
     "commit": "3fec1c538baf88d17945d5e1755dd259c9eb212b",
     "ran_at": "2026-09-24T09:36:44Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "並行実行の影響についての観測: 本タスクのコミット後（HEAD 3fec1c5 以降）に npm run test:unit を 2 回追試したところ、1 回目は tests/unit/gate-constraints.test.ts の 2 件、2 回目はそれに加えて tests/unit/build-review-packet.test.ts の 4 件が落ちた。いずれも他タスク所有のテストで、単独実行では gate-constraints 17/17 pass・build-review-packet 6/6 pass（実測）。2 回目は実行中にテストファイル数が 24 → 25 に増えており（他エージェントが build-review-packet.test.ts を追加）、落ちた 2 ファイルはどちらもシェルを spawn する重いテストである。負荷と作業ツリーの同時変更による不安定化と判断する。本タスクのテスト 5 ファイル（tests/unit/liff/client.test.ts, tests/unit/components/StateView.test.tsx, tests/unit/components/ConsentGate.test.tsx, tests/unit/telemetry.test.ts, tests/unit/ci/web-only-workflow.test.ts）は HEAD 3fec1c5 でも 61/61 pass（実測）。record-run に残した npm run test:unit の exit 0 は HEAD aa7a8dc での 684/684 である。",
+    "commit": "1da804b89d4369108db2e16b25f4fc0282be2c9d",
+    "ran_at": "2026-09-24T09:41:22Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]
