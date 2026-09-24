@@ -649,3 +649,16 @@
   files_to_modify 不足で未実装（`POST /api/e/report` のレート制限で scope の別項目をカバー）。
   O-9 の 10 種別分類は参加者一覧 API の内訳不足で部分実装。`GATE-LEGAL-PII` は `unknown` の
   まま。
+- task_016（修正ラウンド）: DONE_WITH_CONCERNS — 外部レビュー是正 C-016-6: `share/page.tsx` が
+  参加者一覧を `limit=100` の1ページしか取得せず101人目以降が黙って消えていた不具合を、O-4と
+  同じ `nextCursor` 保持＋「さらに読み込む」導線（`ShareSheet` に `hasMoreParticipants` /
+  `loadingMoreParticipants` / `onLoadMoreParticipants` を追加）で修正。`ShareSheet.test.tsx`
+  に3件追加（既存24件は不変・27件全pass）。もう1件のレビュー指摘（check_030 の e2e が
+  `isApiAvailable=false` 時の `ShareSheet` を実ブラウザ描画していない）は `src/lib/liff/mock.ts`
+  が files_to_modify 外のため本ラウンドも対応不可（task_022 待ち。C-016-2 に再確認記録）。
+  **verify_commands 5本すべて `scripts/record-run.sh task_016` 経由で再実行**（`typecheck`
+  exit 0／`test:e2e` 2/2 pass／`gate:wording` 0 violation。`test:unit` は既知の
+  task_006所有ファイル2件失敗のみ exit 1（task_016新規27件は全pass）。`gate:constraints` は
+  他タスク未コミットの `src/lib/reconcile.ts`（W11）1件のみで exit 1、task_016のソースは
+  0 violation）。残懸念は `docs/concerns/task_016.md`（C-016-1〜7。medium 4・low 5、うち
+  C-016-6は修正済み）。

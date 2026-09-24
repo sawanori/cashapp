@@ -53,6 +53,15 @@ export interface ShareSheetProps {
   readonly onCreateLink: () => void;
   readonly creatingLink?: boolean;
   readonly participants: readonly ShareSheetParticipant[];
+  /**
+   * レビュー是正 C-016-6: `participants` はカーソルページングの 1 ページ分（呼び出し側の
+   * `limit=100`）で、続きがあるかどうかはこの props でしか分からない（O-4 の `nextCursor`
+   * と同じ形）。省略時は「続きは無い」として扱う（＝ボタンを出さない）。
+   */
+  readonly hasMoreParticipants?: boolean;
+  readonly loadingMoreParticipants?: boolean;
+  /** 続きを読み込む。`hasMoreParticipants` が真のときだけ渡されることを期待する。 */
+  readonly onLoadMoreParticipants?: () => void;
   /** `liff.isApiAvailable('shareTargetPicker')` の結果。呼び出し側が判定して渡す。 */
   readonly isApiAvailable: boolean;
   /** picker を開く。結果は戻り値で受け取り、このコンポーネントが表示する。 */
@@ -93,6 +102,9 @@ export function ShareSheet({
   onCreateLink,
   creatingLink = false,
   participants,
+  hasMoreParticipants = false,
+  loadingMoreParticipants = false,
+  onLoadMoreParticipants,
   isApiAvailable,
   onShareViaPicker,
 }: ShareSheetProps): ReactNode {
@@ -267,6 +279,20 @@ export function ShareSheet({
                 })}
               </ul>
             )}
+
+            {/* レビュー是正 C-016-6: 101 人目以降が黙って消えないよう、続きがあることと
+                読み込む手段を必ず出す（O-4「もっと見る」と同じ形）。 */}
+            {hasMoreParticipants && onLoadMoreParticipants !== undefined ? (
+              <button
+                type="button"
+                className="tap-target"
+                disabled={loadingMoreParticipants}
+                aria-busy={loadingMoreParticipants}
+                onClick={onLoadMoreParticipants}
+              >
+                {loadingMoreParticipants ? "読み込み中…" : "さらに読み込む"}
+              </button>
+            ) : null}
           </div>
 
           {/* リンクを疑われた際の説明テンプレ */}

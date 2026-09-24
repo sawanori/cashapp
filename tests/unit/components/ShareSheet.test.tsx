@@ -116,3 +116,41 @@ describe("未払い者だけを再共有する（既定フィルタ）", () => {
     expect(screen.getByText("佐藤")).toBeInTheDocument();
   });
 });
+
+describe("参加者の続きがある場合（レビュー是正 C-016-6: 100 名超のカーソルページング）", () => {
+  it("hasMoreParticipants=false（既定）では「さらに読み込む」ボタンが出ない", () => {
+    render(<ShareSheet {...baseProps} isApiAvailable={false} />);
+
+    expect(screen.queryByRole("button", { name: "さらに読み込む" })).not.toBeInTheDocument();
+  });
+
+  it("hasMoreParticipants=true では「さらに読み込む」ボタンが出て、押すと onLoadMoreParticipants を呼ぶ", () => {
+    const onLoadMoreParticipants = vi.fn();
+    render(
+      <ShareSheet
+        {...baseProps}
+        isApiAvailable={false}
+        hasMoreParticipants={true}
+        onLoadMoreParticipants={onLoadMoreParticipants}
+      />,
+    );
+
+    const button = screen.getByRole("button", { name: "さらに読み込む" });
+    fireEvent.click(button);
+    expect(onLoadMoreParticipants).toHaveBeenCalledTimes(1);
+  });
+
+  it("loadingMoreParticipants=true の間はボタンが無効になる", () => {
+    render(
+      <ShareSheet
+        {...baseProps}
+        isApiAvailable={false}
+        hasMoreParticipants={true}
+        loadingMoreParticipants={true}
+        onLoadMoreParticipants={() => {}}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "読み込み中…" })).toBeDisabled();
+  });
+});

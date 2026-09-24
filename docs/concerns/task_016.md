@@ -58,6 +58,9 @@
 - **対応予定タスク**: task_022（E2E 基盤）。check_030 の `verification_method` は
   「unit（前段）＋ e2e（`outside_line` 側の N8 確認）」の組み合わせに更新するか、task_022 で
   上記フックを足したうえで元の想定どおりに寄せるか、PO 判断が要る。
+- **修正ラウンド追記**: 外部レビューで同一ギャップが再指摘された。`src/lib/liff/mock.ts` は
+  依然 task_016 の files_to_create/files_to_modify の外のため、本ラウンドでも未対応（対応は
+  引き続き task_022）。
 
 ## C-016-3 `[severity: low]` 「参加者ごとの個別リンク」は claim トークン単位の個別 URL ではなく、
 共通の招待リンク＋宛名入り催促文である（C-015-2 の帰結。設計判断として実装）
@@ -91,6 +94,20 @@
 - **対応予定タスク**: 未定（PO 判断で軽微な UI 追随タスクとして切り出すか、次に
   `events/[id]/page.tsx` を触るタスクに含める）。
 
+## C-016-6 `[severity: medium・修正済み]` レビュー是正: 参加者一覧が 100 名超で切り捨てられていた
+
+- **指摘（外部レビュー）**: `share/page.tsx` が `?filter=all&limit=100` を 1 回だけ取得し
+  `nextCursor` を捨てていたため、101 人目以降が黙って消え、「未払いのみ再共有」も打ち切り表示
+  なしで一部しか対象にできなかった（O-4 は `nextCursor` を保持し「もっと見る」を出すのに、
+  本画面だけ欠落）。
+- **対応**: O-4 と同じ形で `fetchParticipants(cursor, append)` を実装し、`nextCursor` を
+  `participantsNextCursor` として保持。`ShareSheet` に `hasMoreParticipants` /
+  `loadingMoreParticipants` / `onLoadMoreParticipants` を追加し、続きがある間は
+  「さらに読み込む」ボタンを出す（打ち切りの黙殺を解消）。`tests/unit/components/
+  ShareSheet.test.tsx` に 3 件追加（ボタンの表示・非表示・クリックでコールバック・
+  ローディング中は disabled）し、既存 24 件は変更していない。
+- **対応予定タスク**: 完了（本ラウンドで修正）。
+
 ## C-016-5 `[severity: low]` `npm run test:unit` は task_016 と無関係な 2 件の失敗を含む
 （task_006 所有・task_023 の C-9 と同一事象）
 
@@ -106,6 +123,23 @@
 - **対応案**: `tests/unit/gate-check.test.ts` のフィクスチャ（`report()` に渡す `base`/`root`
   の分離、または期待値の更新）は task_006 の所有者が対応する。
 - **対応予定タスク**: task_006（所有者による確認）。
+- **修正ラウンド追記**: 本ラウンド（C-016-6 対応時）でも再確認したが未解消（2 件とも同一）。
+  task_016 の新規テストは 24→27 件（追加分含め）すべて pass。
+
+## C-016-7 `[severity: low]` `npm run gate:constraints` が task_016 と無関係な 1 件の違反を含む
+（`src/lib/reconcile.ts`、他タスクの未コミット作業ツリー由来）
+
+- **指摘**: 本ラウンドの `scripts/record-run.sh task_016 npm run gate:constraints` は exit 1
+  だが、違反は `W11 src/lib/reconcile.ts:1`（advisory lock パターン必須）のみで、この
+  ファイルは `git status` で未追跡（他タスクの並行作業ツリー由来。`task_016` の
+  files_to_create/files_to_modify の外）。前回ラウンド（コミット `4d339e1`）時点では
+  同ファイルが存在せず exit 0 だった。C-016-5 と同型の「並行タスクの未コミット差分に
+  よる一時的な赤」。
+- **深刻度**: low（task_016 のスコープ外。ソースは編集していない）。
+- **対応案**: `src/lib/reconcile.ts` の所有タスクが `pg_try_advisory(_xact)?_lock` を追加する
+  かコミットを完了させれば解消する見込み。
+- **対応予定タスク**: `src/lib/reconcile.ts` の所有タスク（未特定。task_023 系の作業ツリーと
+  推定）。
 
 ## GATE-LINE-POLICY / GATE-LINE-SHARE の状態（run-log 記録・done_definition 4 点目）
 

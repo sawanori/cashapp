@@ -54,11 +54,53 @@ export default function SharePage(): ReactNode {
   const [requestId, setRequestId] = useState<string | undefined>(undefined);
   const [summary, setSummary] = useState<SummaryBody | null>(null);
   const [participants, setParticipants] = useState<readonly ParticipantItem[]>([]);
+  // レビュー是正 C-016-6: 参加者一覧は 1 ページ（`limit=100`）しか取得しておらず、101 人目
+  // 以降が黙って消えていた（O-4 の `nextCursor` 保持・「もっと見る」と同じ形にそろえる）。
+  const [participantsNextCursor, setParticipantsNextCursor] = useState<string | null>(null);
+  const [loadingMoreParticipants, setLoadingMoreParticipants] = useState(false);
+  const participantsLoadSeqRef = useRef(0);
   const [joinLink, setJoinLink] = useState<string | null>(null);
   const [creatingLink, setCreatingLink] = useState(false);
   const [linkMessage, setLinkMessage] = useState<string | null>(null);
   const [isPickerApiAvailable, setIsPickerApiAvailable] = useState(false);
   const csrfTokenRef = useRef<string | null>(null);
+
+  // レビュー是正 C-016-6: O-4（`src/app/(liff)/events/[id]/participants/page.tsx`）の
+  // `loadParticipants` と同じ形。`append=true` で「さらに読み込む」の追記に使う。
+  // 呼び出し順の逆転（古い応答が新しい一覧を上書き）を連番で防ぐのも同じ理由。
+  const fetchParticipants = useCallback(
+    async (cursor: string | null, append: boolean): Promise<void> => {
+      const seq = (participantsLoadSeqRef.current += 1);
+      try {
+        const url = new URL(`/api/events/${eventId}/participants`, window.location.origin);
+        url.searchParams.set("filter", "all");
+        url.searchParams.set("limit", "100");
+        if (cursor !== null) url.searchParams.set("cursor", cursor);
+        const listResponse = await fetch(url.toString(), { method: "GET" });
+        if (!listResponse.ok || participantsLoadSeqRef.current !== seq) return;
+        const listBody = (await listResponse.json()) as {
+          participants: readonly ParticipantItem[];
+          nextCursor: string | null;
+        };
+        if (participantsLoadSeqRef.current !== seq) return;
+        setParticipants((prev) => (append ? [...prev, ...listBody.participants] : listBody.participants));
+        setParticipantsNextCursor(listBody.nextCursor);
+      } catch {
+        // 一覧が取れなくても配布導線自体は成立させる（催促文・リンク作成は participants に依存しない）。
+      }
+    },
+    [eventId],
+  );
+
+  const loadMoreParticipants = useCallback(async () => {
+    if (participantsNextCursor === null || loadingMoreParticipants) return;
+    setLoadingMoreParticipants(true);
+    try {
+      await fetchParticipants(participantsNextCursor, true);
+    } finally {
+      setLoadingMoreParticipants(false);
+    }
+  }, [participantsNextCursor, loadingMoreParticipants, fetchParticipants]);
 
   useEffect(() => {
     let cancelled = false;
@@ -120,17 +162,8 @@ export default function SharePage(): ReactNode {
       }
       setSummary((await summaryResponse.json()) as SummaryBody);
 
-      try {
-        const listResponse = await fetch(`/api/events/${eventId}/participants?filter=all&limit=100`, {
-          method: "GET",
-        });
-        if (listResponse.ok && !cancelled) {
-          const listBody = (await listResponse.json()) as { participants: readonly ParticipantItem[] };
-          setParticipants(listBody.participants);
-        }
-      } catch {
-        // 一覧が取れなくても配布導線自体は成立させる（催促文・リンク作成は participants に依存しない）。
-      }
+      await fetchParticipants(null, false);
+      if (cancelled) return;
 
       // 主導線に必須ではない補助判定なので、失敗しても画面は進める（fail-closed で false のまま）。
       try {
@@ -147,7 +180,7 @@ export default function SharePage(): ReactNode {
     return () => {
       cancelled = true;
     };
-  }, [eventId]);
+  }, [eventId, fetchParticipants]);
 
   const createLink = useCallback(async () => {
     if (csrfTokenRef.current === null || permanentLink === null) return;
@@ -236,6 +269,11 @@ export default function SharePage(): ReactNode {
         }}
         creatingLink={creatingLink}
         participants={shareSheetParticipants}
+        hasMoreParticipants={participantsNextCursor !== null}
+        loadingMoreParticipants={loadingMoreParticipants}
+        onLoadMoreParticipants={() => {
+          void loadMoreParticipants();
+        }}
         isApiAvailable={isPickerApiAvailable}
         onShareViaPicker={shareViaPicker}
       />

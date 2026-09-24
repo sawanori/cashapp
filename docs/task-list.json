@@ -1811,12 +1811,14 @@
       "completion_status": "DONE_WITH_CONCERNS",
       "concerns": [
         "[severity: medium] Playwright の既定 baseURL（127.0.0.1）だと next dev の allowedDevOrigins 制約でハイドレーションが永久に終わらない（O-4〜O-6 でも実測。task_022 に直撃する）/ 対応案: next.config.ts に allowedDevOrigins を足すか playwright.config.ts の既定 baseURL を localhost にする（対応予定: task_022）",
-        "[severity: medium] check_030 が e2e に期待する「ready フェーズで ShareSheet を実ブラウザ描画」は liff-mock に window 露出の上書きフックが無く今回組めなかった。isApiAvailable=false 時の描画固定は tests/unit/components/ShareSheet.test.tsx で担保済み / 対応案: src/lib/liff/mock.ts にテスト専用の事前注入フックを足す（対応予定: task_022）",
+        "[severity: medium] check_030 が e2e に期待する「ready フェーズで ShareSheet を実ブラウザ描画」は liff-mock に window 露出の上書きフックが無く今回組めなかった（修正ラウンドで外部レビューが再指摘したが src/lib/liff/mock.ts は task_016 の files_to_modify 外で本ラウンドも未対応）。isApiAvailable=false 時の描画固定は tests/unit/components/ShareSheet.test.tsx で担保済み / 対応案: src/lib/liff/mock.ts にテスト専用の事前注入フックを足す（対応予定: task_022）",
         "[severity: low] 参加者ごとの個別リンクは claim トークン単位のURLではなく、共通の招待リンク＋宛名入り催促文（claim トークンは発行応答の1度きりで再取得できないため。C-015-2の帰結。設計判断として実装）",
         "[severity: low] /events/:id/share へのナビゲーションリンクをO-4/O-6にまだ足していない（該当ページはfiles_to_modify外）。直接URLでは到達可能",
-        "[severity: low] npm run test:unit は task_016と無関係な2件（tests/unit/gate-check.test.ts、task_006所有）で失敗し、npm run gate:check の G4 が task_016 に対しても `run-log に npm run test:unit の exit 0 がありません` を出す。原因はtask_018が並行追加したtest:contractスクリプトとのフィクスチャ不整合で、task_018自身も同じG4違反を抱える既知の事象（docs/concerns/task_023.md §9と同一）。本タスクの新規テスト24件はすべてpass / 対応案: tests/unit/gate-check.test.ts のフィクスチャ修正はtask_006所有者が対応（対応予定: task_006）",
+        "[severity: low] npm run test:unit は task_016と無関係な2件（tests/unit/gate-check.test.ts、task_006所有）で失敗し、npm run gate:check の G4 が task_016 に対しても `run-log に npm run test:unit の exit 0 がありません` を出す。原因はtask_018が並行追加したtest:contractスクリプトとのフィクスチャ不整合で、task_018自身も同じG4違反を抱える既知の事象（docs/concerns/task_023.md §9と同一）。修正ラウンドで再確認したが未解消。本タスクの新規テストは27件（今回+3）すべてpass / 対応案: tests/unit/gate-check.test.ts のフィクスチャ修正はtask_006所有者が対応（対応予定: task_006）",
         "[severity: low] shareTargetPicker のミニアプリチャネルでの有効化手順は一次資料未特定（Q-LN7）。ミニアプリチャネル向けの一次資料は見つからずLINEログインチャネル向けの手順しか無いという未解決点をdocs/vendor-docs/line/share-target-picker.mdに退避した / 対応案: LINEヤフーからのQ-LN7回答を待つ（GATE-LINE-SHARE）。回答が無い間は isApiAvailable() による実行時判定のfail-closedを維持する（対応予定: task_037）",
-        "[severity: medium] Q-LN2（現実世界の役務の集金にアプリ内課金が必要か）未回答のまま (liff) の配布導線を実装した。完了時点のGATE-LINE-POLICY/GATE-LINE-SHAREの状態（いずれもunknown）はrun-logに記録済み / 対応案: クローズド β 限定（招待した幹事3〜5名）の免除に該当する前提で運用し、一般公開前にGATE-LINE-POLICYのpassedを必須にする（ADR-011。対応予定: task_029）"
+        "[severity: medium] Q-LN2（現実世界の役務の集金にアプリ内課金が必要か）未回答のまま (liff) の配布導線を実装した。完了時点のGATE-LINE-POLICY/GATE-LINE-SHAREの状態（いずれもunknown）はrun-logに記録済み / 対応案: クローズド β 限定（招待した幹事3〜5名）の免除に該当する前提で運用し、一般公開前にGATE-LINE-POLICYのpassedを必須にする（ADR-011。対応予定: task_029）",
+        "[severity: medium・修正済み] 外部レビュー是正 C-016-6: 参加者一覧が `limit=100` の1ページのみ取得され `nextCursor` を捨てていたため101人目以降が黙って消えていた / 対応: O-4と同じ `nextCursor` 保持＋「さらに読み込む」導線をshare/page.tsxとShareSheet.tsxに実装し、ShareSheet.test.tsxに3件追加（既存24件は変更なし）。対応完了",
+        "[severity: low] npm run gate:constraints が task_016と無関係な1件（src/lib/reconcile.ts、W11違反）で失敗する。同ファイルはgit未追跡で他タスクの並行作業ツリー由来（task_016のfiles外。ソースは編集していない）/ 対応案: 所有タスクがadvisory lockパターンを追加するかコミットを完了させれば解消（対応予定: reconcile.tsの所有タスク）"
       ]
     },
     {
