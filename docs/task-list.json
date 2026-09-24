@@ -834,7 +834,7 @@
         "[severity: low・解消済み] 6 周目の修正: task-loop.ts が実効 high を直近 1 周分しか保持せず、high を出した経路が最終周で欠票になると high が消えて DONE で閉じていた（修正前 HEAD で status=DONE を実測）。未解消 high を周をまたいで持ち越し、欠票レーンは自分の過去の high を落とせない形に直した。併せて有効票 0 件の周では DONE 系で閉じない歯止めを追加（修正後は両ケースとも BLOCKED を実測。tests/unit/workflows/workflow-scripts.test.ts 44 件全緑）",
         "[severity: low・解消済み] 7 周目の修正（レビュー high）: 独立性の会計に封筒の自己申告 vendor を使っていたため、作者ベンダーのレーンが vendor: \"gemini\" と名乗るだけで独立票に化けられた。修正前 HEAD で task-loop=DONE（voting_vendors=[gemini]）・release-audit=go（independent=[gemini,gpt]）を実測。会計をレーン定数だけで行い、自己申告が食い違う封筒は invalid_envelope の欠票へ落とす形に直した（修正後は BLOCKED / verdict≠go を実測）（C-008-11）",
         "[severity: low・解消済み] 7 周目の修正（レビュー medium）: model_id_actual の無い封筒と findings 配列の無い封筒が「指摘 0 件の有効票」として数えられていた。票の採否に model_id_actual 非空・findings 配列・（release-audit は）verdict が enum 3 値のいずれか、を足して invalid_envelope の欠票へ落とした。テストは 44 → 49 件（expect の削減・skip 追加なし）（C-008-12）",
-        "[severity: low] 7 周目の G13 基準値再生成は、別タスクが未コミットで編集中の scripts/gate-env-scope.mjs を焼き込まないよう、当該ファイルだけ git show HEAD: の内容へ戻した木を --root に渡して書いた。結果 npm run gate:check は G13 のみ不合格（違反 1 件・出どころは別タスクの未コミット差分）で exit 1 / 所有タスクがコミット時に基準値を再生成すれば解消する（C-008-4 の 7 周目追記）"
+        "[severity: low] 7 周目の G13 基準値再生成は、別タスクが未コミットで編集中の G13 対象スクリプトを焼き込まないよう、当該ファイルだけ git show HEAD: の内容へ戻した木を --root に渡して書いた（diff は .claude/workflows/*.ts の 2 エントリと timestamp のみ）。結果 npm run gate:check は G13 のみ不合格で exit 1。最終コミット時点の不一致 2 件は task_004 が編集中の scripts/gate-constraints.sh / scripts/wording-lint.mjs で、task_008 の変更ではない / 所有タスクがコミット時に基準値を再生成すれば解消する（C-008-4 の 7 周目追記）"
       ]
     },
     {

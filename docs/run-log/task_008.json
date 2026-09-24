@@ -296,5 +296,167 @@
     "commit": "f8f0c8c8bd71e1b627b15e8bb749384e0198c314",
     "ran_at": "2026-09-24T12:51:09Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 45 file(s))\nok    L2 (forbid, 45 file(s))\nok    L3 (forbid, 45 file(s))\nok    L8 (forbid, 45 file(s))\nok    L12 (forbid, 45 file(s))\nok    P1 (forbid, 45 file(s))\ndefer P2 (0 targets; waiting on task_018)\nok    P9 (forbid, 7 file(s))\nok    W3 (forbid, 52 file(s))\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 43 file(s))\nok    N5 (forbid, 45 file(s))\nok    N7 (forbid, 45 file(s))\nok    N9 (forbid, 45 file(s))\nok    N11 (forbid, 45 file(s))\nok    I1 (require, 1 file(s))\nok    I2 (require, 1 file(s))\nok    I3 (forbid, 15 file(s))\nok    I4 (forbid, 2 file(s))\nok    X-TIME (forbid, 8 file(s))\nok    X-ID (forbid, 18 file(s))\nok    X-MONEY (forbid, 1 file(s))\nok    GC-XSS (forbid, 45 file(s))\nok    GC-ENV-PUBLIC (forbid, 50 file(s))\nok    GC-SERVER-ONLY (require, 1 file(s))\n\ngate:constraints — scanned 23 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "675ca439b4f257551f2c857167eb6ac1f7af003a",
+    "ran_at": "2026-09-24T12:53:22Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "3bdf5d4a5bf7f486adb9423d4aada8458748eb0e",
+    "ran_at": "2026-09-24T13:11:43Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run lint",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 lint\n> eslint .",
+    "commit": "3bdf5d4a5bf7f486adb9423d4aada8458748eb0e",
+    "ran_at": "2026-09-24T13:11:51Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 46 file(s) read)\nok    L2 (forbid, 46 file(s) read)\nok    L3 (forbid, 46 file(s) read)\nok    L8 (forbid, 46 file(s) read)\nok    L12 (forbid, 46 file(s) read)\nok    P1 (forbid, 46 file(s) read)\ndefer P2 (0 targets; waiting on task_018)\nok    P9 (forbid, 7 file(s) read)\nok    W3 (forbid, 53 file(s) read)\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 44 file(s) read)\nok    N5 (forbid, 46 file(s) read)\nok    N7 (forbid, 46 file(s) read)\nok    N9 (forbid, 46 file(s) read)\nok    N11 (forbid, 46 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 15 file(s) read)\nok    I4 (forbid, 2 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 18 file(s) read)\nok    X-MONEY (forbid, 1 file(s) read)\nok    GC-XSS (forbid, 46 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 51 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\n\ngate:constraints — scanned 23 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "3bdf5d4a5bf7f486adb9423d4aada8458748eb0e",
+    "ran_at": "2026-09-24T13:12:12Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 1,
+    "stdout_tail": "    449|\n    450|   it(\"passes on a clean tree\", () => {\n       |   ^\n    451|     const root = makeTempRepo();\n    452|     seedCleanTree(root);\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯\n\n FAIL  tests/unit/gate-constraints.test.ts > scripts/gate-constraints.sh (real docs/constraints.json against a fixture tree) > catches the real forbidden patterns\nError: Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n ❯ tests/unit/gate-constraints.test.ts:460:3\n    458|   });\n    459|\n    460|   it(\"catches the real forbidden patterns\", () => {\n       |   ^\n    461|     const root = makeTempRepo();\n    462|     seedCleanTree(root);\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯\n\n FAIL  tests/unit/gate-constraints.test.ts > scripts/gate-constraints.sh (real docs/constraints.json against a fixture tree) > flags a paid write whose rank column is assigned but never compared (W3)\nError: Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n ❯ tests/unit/gate-constraints.test.ts:495:3\n    493|   });\n    494|\n    495|   it(\"flags a paid write whose rank column is assigned but never compa…\n       |   ^\n    496|     const root = makeTempRepo();\n    497|     seedCleanTree(root);\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯\n\n\n Test Files  1 failed | 36 passed (37)\n      Tests  3 failed | 952 passed (955)\n   Start at  13:12:20\n   Duration  54.92s (tests 83%, environment 7%, setup 6%, import 2%, transform 1%)",
+    "commit": "3bdf5d4a5bf7f486adb9423d4aada8458748eb0e",
+    "ran_at": "2026-09-24T13:12:19Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 1,
+    "stdout_tail": "    524|\n    525|   it(\"flags a dynamic import() of a payment SDK outside the adapter di…\n       |   ^\n    526|     const root = makeTempRepo();\n    527|     seedCleanTree(root);\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯\n\n FAIL  tests/unit/gate-constraints.test.ts > scripts/gate-constraints.sh (real docs/constraints.json against a fixture tree) > still allows a dynamic import() inside src/lib/payments/providers (P1)\nError: Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n ❯ tests/unit/gate-constraints.test.ts:540:3\n    538|   });\n    539|\n    540|   it(\"still allows a dynamic import() inside src/lib/payments/provider…\n       |   ^\n    541|     const root = makeTempRepo();\n    542|     seedCleanTree(root);\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯\n\n FAIL  tests/unit/gate-constraints.test.ts > scripts/gate-constraints.sh (real docs/constraints.json against a fixture tree) > flags a date column and a bare timestamp declared on the CREATE TABLE line (X-TIME)\nError: Test timed out in 5000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n ❯ tests/unit/gate-constraints.test.ts:554:3\n    552|   });\n    553|\n    554|   it(\"flags a date column and a bare timestamp declared on the CREATE …\n       |   ^\n    555|     const root = makeTempRepo();\n    556|     seedCleanTree(root);\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯\n\n\n Test Files  1 failed | 36 passed (37)\n      Tests  6 failed | 949 passed (955)\n   Start at  13:17:38\n   Duration  82.34s (tests 89%, environment 4%, setup 4%, import 1%, transform 1%)",
+    "commit": "26eb3041231601518929c7b83cca83286a2d3e1c",
+    "ran_at": "2026-09-24T13:17:38Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx vitest run --project unit --testTimeout=30000",
+    "exit_code": 1,
+    "stdout_tail": "(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n⎯⎯⎯⎯⎯⎯⎯ Startup Error ⎯⎯⎯⎯⎯⎯⎯⎯\nError: No projects matched the filter \"unit\".\n    at Vitest._attachProjectServers (file:///Users/noritakasawada/AI_P/cashapp/node_modules/vitest/dist/chunks/index.DzobfTyw.js:20613:22)\n    at Vitest._start (file:///Users/noritakasawada/AI_P/cashapp/node_modules/vitest/dist/chunks/index.DzobfTyw.js:20468:3)\n    at createVitest (file:///Users/noritakasawada/AI_P/cashapp/node_modules/vitest/dist/chunks/cli-api.DcLieX4F.js:29:3)\n    at prepareVitest (file:///Users/noritakasawada/AI_P/cashapp/node_modules/vitest/dist/chunks/cli-api.DcLieX4F.js:421:14)\n    at startVitest (file:///Users/noritakasawada/AI_P/cashapp/node_modules/vitest/dist/chunks/cli-api.DcLieX4F.js:340:14)\n    at start (file:///Users/noritakasawada/AI_P/cashapp/node_modules/vitest/dist/chunks/cac.fSuRXrAx.js:2370:15)\n    at CAC.run (file:///Users/noritakasawada/AI_P/cashapp/node_modules/vitest/dist/chunks/cac.fSuRXrAx.js:2346:2)",
+    "commit": "ffe9f012170245da9191194148cf77769bf906a8",
+    "ran_at": "2026-09-24T13:19:10Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx vitest run tests/unit --testTimeout=30000",
+    "exit_code": 0,
+    "stdout_tail": "(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  37 passed (37)\n      Tests  955 passed (955)\n   Start at  22:19:17\n   Duration  103.68s (tests 86%, environment 7%, setup 5%, import 1%, transform 1%)",
+    "commit": "ffe9f012170245da9191194148cf77769bf906a8",
+    "ran_at": "2026-09-24T13:19:16Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:plan",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:plan\n> node scripts/validate-plan-json.mjs\n\n\ngate:plan — task 38 件 / check 133 件 / 制約 57 件を検査、0 件の構造違反",
+    "commit": "ffe9f012170245da9191194148cf77769bf906a8",
+    "ran_at": "2026-09-24T13:21:07Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:integrity",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:integrity\n> node scripts/gate-integrity.mjs\n\n      ハッシュ対象 43 ファイル（sha256）\nG13 不一致: scripts/gate-env-scope.mjs（基準値 208c5057e83b… / 実測 ac51d3088d9c…）\n\ngate:integrity — 43 ファイルを照合、1 件の不一致",
+    "commit": "ffe9f012170245da9191194148cf77769bf906a8",
+    "ran_at": "2026-09-24T13:23:37Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:plan",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:plan\n> node scripts/validate-plan-json.mjs\n\n\ngate:plan — task 38 件 / check 133 件 / 制約 57 件を検査、0 件の構造違反",
+    "commit": "ffe9f012170245da9191194148cf77769bf906a8",
+    "ran_at": "2026-09-24T13:25:18Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 46 file(s) read)\nok    L2 (forbid, 46 file(s) read)\nok    L3 (forbid, 46 file(s) read)\nok    L8 (forbid, 46 file(s) read)\nok    L12 (forbid, 46 file(s) read)\nok    P1 (forbid, 46 file(s) read)\ndefer P2 (0 targets; waiting on task_018)\nok    P9 (forbid, 7 file(s) read)\nok    W3 (forbid, 53 file(s) read)\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 44 file(s) read)\nok    N5 (forbid, 46 file(s) read)\nok    N7 (forbid, 46 file(s) read)\nok    N9 (forbid, 46 file(s) read)\nok    N11 (forbid, 46 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 15 file(s) read)\nok    I4 (forbid, 2 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 18 file(s) read)\nok    X-MONEY (forbid, 1 file(s) read)\nok    GC-XSS (forbid, 46 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 51 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\n\ngate:constraints — scanned 23 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "10b4e7fa8b2b1740cf6edb2b73e97d68097532d3",
+    "ran_at": "2026-09-24T13:27:27Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx vitest run tests/unit/workflows",
+    "exit_code": 0,
+    "stdout_tail": "(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  1 passed (1)\n      Tests  49 passed (49)\n   Start at  22:27:36\n   Duration  1.44s (transform 44%, setup 35%, tests 12%, import 8%, worker 1%)",
+    "commit": "10b4e7fa8b2b1740cf6edb2b73e97d68097532d3",
+    "ran_at": "2026-09-24T13:27:34Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "10b4e7fa8b2b1740cf6edb2b73e97d68097532d3",
+    "ran_at": "2026-09-24T13:27:50Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run lint",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 lint\n> eslint .",
+    "commit": "10b4e7fa8b2b1740cf6edb2b73e97d68097532d3",
+    "ran_at": "2026-09-24T13:28:01Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:plan",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:plan\n> node scripts/validate-plan-json.mjs\n\n\ngate:plan — task 38 件 / check 133 件 / 制約 57 件を検査、0 件の構造違反",
+    "commit": "10b4e7fa8b2b1740cf6edb2b73e97d68097532d3",
+    "ran_at": "2026-09-24T13:28:17Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:integrity",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:integrity\n> node scripts/gate-integrity.mjs\n\n      ハッシュ対象 43 ファイル（sha256）\nG13 不一致: scripts/gate-constraints.sh（基準値 b6e186accb68… / 実測 1bc41c9bf263…）\nG13 不一致: scripts/wording-lint.mjs（基準値 f934d2e63f2e… / 実測 95a38a110935…）\n\ngate:integrity — 43 ファイルを照合、2 件の不一致",
+    "commit": "12fc3b9565c9b0bddb1ea79f9d2e735ea5dda48f",
+    "ran_at": "2026-09-24T13:29:33Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:plan",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:plan\n> node scripts/validate-plan-json.mjs\n\n\ngate:plan — task 38 件 / check 133 件 / 制約 57 件を検査、0 件の構造違反",
+    "commit": "42e637869885bcd8fc71efcb12579d61f93257ac",
+    "ran_at": "2026-09-24T13:31:57Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]

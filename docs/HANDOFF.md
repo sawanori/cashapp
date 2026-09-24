@@ -1584,20 +1584,28 @@ task_006 側は「自分のファイルは既にコミット済み」として�
   理由を `reason` に残す。これは `scripts/validate-findings.mjs` / `scripts/review-gpt.mjs` /
   `.claude/agents/adversarial-reviewer-gemini.md` が既に採っている規律（§16-2 / R-TH-11）に揃えたもの。
   レビュア向けプロンプトにも同じ 3 条件を明記した。
-- **G13 基準値は他タスクの未コミット差分を焼き込まない形で書く**。今周は別タスクが
-  `scripts/gate-env-scope.mjs`（G13 対象）を未コミットで編集中だったので、`git ls-files` + `tar` で
-  作業ツリーの追跡ファイルを退避先へ複製し、**当該 1 ファイルだけ `git show HEAD:` の内容へ戻した木**を
-  `--root` に、リポジトリを `--base` に渡して `--write-baseline` した。task_004 / task_012 が
-  同じ手を取っている。差分は `.claude/workflows/*.ts` の 2 エントリと timestamp のみ（実測）。
+- **G13 基準値は他タスクの未コミット差分を焼き込まない形で書く**。今周は別タスクが G13 対象の
+  スクリプトを未コミットで編集中だったので、`git ls-files` + `tar` で作業ツリーの追跡ファイルを
+  退避先へ複製し、**当該ファイルだけ `git show HEAD:` の内容へ戻した木**を `--root` に、
+  リポジトリを `--base` に渡して `--write-baseline` した。task_004 / task_012 が同じ手を取っている。
+  差分は `.claude/workflows/*.ts` の 2 エントリと timestamp のみ（実測）。退避対象は周回中に
+  変わっており（HEAD `ffe9f01` 時点は `scripts/gate-env-scope.mjs` 1 件、最終コミット時点
+  HEAD `12fc3b9` は `scripts/gate-constraints.sh` / `scripts/wording-lint.mjs` の 2 件＝task_004）。
 
 ### 未解決
 
 - **[severity: medium] `done_definition` 第 1 項はまだ deferred**。7 周目のセッションでも
   `ToolSearch select:Workflow` は `No matching deferred tools found`。runId は 1 つも無い。
   **Workflow ツールを持つセッションで `dryRun: true` の 3 本を回すまで DONE へ昇格させない。** → C-008-1
-- **[severity: low] `npm run gate:check` は G13 のみ不合格（exit 1）**。出どころは別タスクが
-  未コミットで編集中の `scripts/gate-env-scope.mjs` 1 件。**所有タスクがコミット時に基準値を
-  再生成すれば解消する**。task_007 が 4 周目に「G13 は task_009 の未コミット差分」と記録したのと同じ扱い。
+- **[severity: low] `npm run gate:check` は G13 のみ不合格（exit 1）**。最終コミット時点の出どころは
+  **task_004 が未コミットで編集中の `scripts/gate-constraints.sh` / `scripts/wording-lint.mjs` の 2 件**で、
+  task_008 の変更ではない。**所有タスクがコミット時に基準値を再生成すれば解消する**。
+  task_007 が 4 周目に「G13 は task_009 の未コミット差分」と記録したのと同じ扱い。
+- **[severity: low] 共有台帳はファイル単位で他タスクに取り込まれる**。本周の
+  `docs/task-list.json` / `docs/PROGRESS.md` への追記は、並行していた task_012 のコミット
+  `10b4e7f` が先に取り込んだ（当人が共有ファイルを明示 `git add` した副作用）。内容は失われていないが、
+  **「自分の追記が自分のコミットに入る」とは限らない**。完了報告では commit SHA ではなく
+  ファイルの最終内容を根拠にすること。
 - **[severity: low] 持ち越し high の同一性キーは `reviewer + id`（`id` が無ければ
   `reviewer + file + summary`）のまま**。同じ指摘を毎周わずかに違う文言で返すレビュアがいると
   別件として積み上がり、逆に `id` を付けないレビュアが要約を変えただけでも持ち越しが切れる。
@@ -1837,3 +1845,4 @@ GPT-6 Astra の敵対レビュー（high 1 / medium 3）。**4 件すべて HEAD
 - 2026-09-24T13:28:21Z HEAD=10b4e7f 決まったこと: task_012(2周目): 敵対レビュー high 1 / medium 3 を再現してから塞ぐ（ログインCSRF・DB到達順・引用符キー・PEPPER分裂） / 未解決: 未コミット 38 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/concerns/task_008.md docs/concerns/task_013.md docs/constraints.json docs/review-log/task_004.json docs/review-log/task_013.json 
 - 2026-09-24T13:29:22Z HEAD=12fc3b9 決まったこと: task_012(2周目): HANDOFF に決まったこと / 未解決を追記（並行タスクのターンログ行を同梱） / 未解決: 未コミット 40 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_008.md docs/concerns/task_013.md docs/constraints.json docs/review-log/task_004.json 
 - 2026-09-24T13:29:59Z HEAD=12fc3b9 決まったこと: task_012(2周目): HANDOFF に決まったこと / 未解決を追記（並行タスクのターンログ行を同梱） / 未解決: 未コミット 42 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_008.md docs/concerns/task_013.md docs/constraints.json docs/decisions/ADR-009-id-token-single-use.md 
+- 2026-09-24T13:31:25Z HEAD=42e6378 決まったこと: task_013(4周目・2巡目): 保存値を優先したための打ち切り漏れと、上限を迂回する本文読みを塞ぐ / 未解決: 未コミット 35 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_008.md docs/constraints.json docs/decisions/ADR-009-id-token-single-use.md docs/gates/integrity-baseline.json 

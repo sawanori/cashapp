@@ -264,6 +264,17 @@ const SPEC_TESTS_RED = {
 
 const WORK_OK = { changed_files: ["src/example.ts"], summary: "実装した" };
 
+/**
+ * ベンダーごとの既定 model_id_actual。封筒に model_id_actual が無いと票に数えられない
+ * （§16-2 / R-TH-11）ので、既定を持たせて「普通に応答したレーン」を表す。欠落そのものを
+ * 検証したいテストは extra で空文字を渡して上書きする。
+ */
+const MODEL_ID_BY_VENDOR: Record<string, string> = {
+  claude: "claude-opus-5",
+  gemini: "gemini-2.5-pro",
+  gpt: "gpt-6-astra",
+};
+
 function envelope(
   reviewer: string,
   vendor: string,
@@ -271,7 +282,14 @@ function envelope(
   findings: Array<{ severity: string; summary: string }>,
   extra: Record<string, unknown> = {},
 ): Record<string, unknown> {
-  return { reviewer, vendor, reviewer_route: route, findings, ...extra };
+  return {
+    reviewer,
+    vendor,
+    reviewer_route: route,
+    findings,
+    model_id_actual: MODEL_ID_BY_VENDOR[vendor] ?? "unknown-model",
+    ...extra,
+  };
 }
 
 /** 3 周とも gemini が high を出し、gpt 経路は毎周不達、という応答表。 */
@@ -450,6 +468,88 @@ describe("task-loop.ts", () => {
     expect((loop.rounds ?? [])[0]?.voting_vendors).toEqual([]);
     expect(loop.audited_rounds).toEqual([]);
     expect(callsLabelled(calls, "final verify")).toHaveLength(0);
+  });
+
+  it("作者ベンダーのレーンが封筒で別ベンダーを名乗っても独立票に昇格しない", async () => {
+    // code-reviewer は claude レーンだが、封筒の vendor だけ "gemini" と自己申告する。
+    // 独立ベンダー数をレーン定数ではなく自己申告で数えていると、gemini / gpt が両方不達でも
+    // 「独立 1 ベンダーに監査された」ことになり 1 周で DONE が出る（R-TH-11 / F6）。
+    const { result, calls } = await run(SCRIPTS.taskLoop, { taskId: "task_003" }, (call) => {
+      const label = labelOf(call);
+      if (label.startsWith("a) code-reviewer"))
+        return envelope("code-reviewer", "gemini", "ok", []);
+      if (label.startsWith("b) adversarial-reviewer-gemini"))
+        return envelope("adversarial-reviewer-gemini", "gemini", "unavailable", [], {
+          attempted_command: "scripts/gemini-safe.sh -m gemini-3.8-flash",
+          unreachable_reason: "gemini CLI がタイムアウトした",
+        });
+      if (label.startsWith("status")) return { recorded_status: "DONE" };
+      return alwaysHighResponder(call);
+    });
+    const loop = result as LoopResult;
+
+    expect(loop.status).toBe("BLOCKED");
+    expect(loop.rounds_used).toBe(1);
+    expect((loop.rounds ?? [])[0]?.voting_vendors).toEqual([]);
+    expect((loop.rounds ?? [])[0]?.audited).toBe(false);
+    expect(loop.audited_rounds).toEqual([]);
+    expect(callsLabelled(calls, "final verify")).toHaveLength(0);
+
+    const forged = (loop.abstentions ?? []).find((a) => a.reviewer === "code-reviewer");
+    expect(forged?.reviewer_route).toBe("invalid_envelope");
+    expect(forged?.vendor).toBe("claude");
+    expect(forged?.reason).toContain("自己申告 vendor");
+  });
+
+  it("model_id_actual の無い封筒は有効票に数えない", async () => {
+    const { result, calls } = await run(SCRIPTS.taskLoop, { taskId: "task_003" }, (call) => {
+      const label = labelOf(call);
+      if (label.startsWith("b) adversarial-reviewer-gemini"))
+        return envelope("adversarial-reviewer-gemini", "gemini", "ok", [], {
+          model_id_actual: "",
+        });
+      if (label.startsWith("status")) return { recorded_status: "DONE" };
+      return alwaysHighResponder(call);
+    });
+    const loop = result as LoopResult;
+
+    expect(loop.status).toBe("BLOCKED");
+    expect((loop.rounds ?? [])[0]?.voting_vendors).toEqual([]);
+    expect((loop.rounds ?? [])[0]?.audited).toBe(false);
+    expect(callsLabelled(calls, "final verify")).toHaveLength(0);
+
+    const dropped = (loop.abstentions ?? []).find(
+      (a) => a.reviewer === "adversarial-gemini",
+    );
+    expect(dropped?.reviewer_route).toBe("invalid_envelope");
+    expect(dropped?.reason).toContain("model_id_actual");
+  });
+
+  it("findings 配列の無い封筒を『指摘 0 件の有効票』として数えない", async () => {
+    const { result, calls } = await run(SCRIPTS.taskLoop, { taskId: "task_003" }, (call) => {
+      const label = labelOf(call);
+      if (label.startsWith("b) adversarial-reviewer-gemini"))
+        return {
+          reviewer: "adversarial-reviewer-gemini",
+          vendor: "gemini",
+          reviewer_route: "ok",
+          model_id_actual: "gemini-2.5-pro",
+        };
+      if (label.startsWith("status")) return { recorded_status: "DONE" };
+      return alwaysHighResponder(call);
+    });
+    const loop = result as LoopResult;
+
+    expect(loop.status).toBe("BLOCKED");
+    expect((loop.rounds ?? [])[0]?.voting_vendors).toEqual([]);
+    expect((loop.rounds ?? [])[0]?.audited).toBe(false);
+    expect(callsLabelled(calls, "final verify")).toHaveLength(0);
+
+    const broken = (loop.abstentions ?? []).find(
+      (a) => a.reviewer === "adversarial-gemini",
+    );
+    expect(broken?.reviewer_route).toBe("invalid_envelope");
+    expect(broken?.reason).toContain("findings");
   });
 
   it("high が消えれば周回を打ち切って最終検証へ進み DONE を返す", async () => {
@@ -768,6 +868,12 @@ interface AuditResult {
   unavailable_vendors?: string[];
   unapproved_unavailable_vendors?: string[];
   approval_path?: string;
+  abstentions?: Array<{
+    lane: string;
+    vendor: string;
+    reviewer_route: string;
+    reason: string;
+  }>;
 }
 
 const EVIDENCE_CLEAN = {
@@ -795,7 +901,13 @@ function auditResponder(
     if (label.startsWith("evidence")) return evidence;
     if (label.startsWith("audit ")) {
       const key = label.slice("audit ".length);
-      return verdicts[key] ?? null;
+      const vote = verdicts[key];
+      if (!vote) return null;
+      // 封筒に model_id_actual が無いと票に数えられない（§16-2 / R-TH-11）。既定を補って
+      // 「普通に応答したレーン」を表す。欠落そのものを見るテストは明示的に "" を渡す。
+      if ("model_id_actual" in vote) return vote;
+      const vendor = typeof vote.vendor === "string" ? vote.vendor : "";
+      return { ...vote, model_id_actual: MODEL_ID_BY_VENDOR[vendor] ?? "unknown-model" };
     }
     throw new Error(`想定外の呼び出し: ${label}`);
   };
@@ -918,6 +1030,66 @@ describe("release-audit.ts", () => {
     expect((audit.conditions ?? []).find((c) => c.id === 3)?.pass).toBe(true);
     expect(audit.independent_go_vendors).toEqual(["gemini", "gpt"]);
     expect(audit.unavailable_vendors).toEqual(["claude"]);
+  });
+
+  it("release-auditor が封筒で別ベンダーを名乗っても独立 go に数えない", async () => {
+    // 作者ベンダーのレーンが vendor: "gemini" と自己申告し、本物の gemini は不達（PO 承認済み）、
+    // 本物の独立 go は gpt の 1 件だけ。自己申告で数えていると独立 2 件に見えて go が出る。
+    const { result } = await run(
+      SCRIPTS.releaseAudit,
+      { version: "v0.1.0" },
+      auditResponder({ ...EVIDENCE_CLEAN, approved_unavailable_vendors: ["gemini"] }, {
+        "release-auditor": { vendor: "gemini", reviewer_route: "ok", verdict: "go", reasons: [] },
+        gemini: {
+          vendor: "gemini",
+          reviewer_route: "unavailable",
+          verdict: "UNKNOWN",
+          reasons: [],
+          unreachable_reason: "gemini CLI がタイムアウトした",
+        },
+        gpt: { vendor: "gpt", reviewer_route: "ok", verdict: "go", reasons: [] },
+      }),
+    );
+    const audit = result as AuditResult;
+    expect(audit.verdict).not.toBe("go");
+    expect(audit.independent_go_vendors).toEqual(["gpt"]);
+    expect((audit.conditions ?? []).find((c) => c.id === 1)?.pass).toBe(false);
+
+    const forged = (audit.abstentions ?? []).find((a) => a.lane === "release-auditor");
+    expect(forged?.reviewer_route).toBe("invalid_envelope");
+    expect(forged?.vendor).toBe("claude");
+    expect(forged?.reason).toContain("自己申告 vendor");
+  });
+
+  it("model_id_actual の無い封筒と verdict が enum 外の封筒を票に数えない", async () => {
+    const { result } = await run(
+      SCRIPTS.releaseAudit,
+      { version: "v0.1.0" },
+      auditResponder(EVIDENCE_CLEAN, {
+        "release-auditor": { vendor: "claude", reviewer_route: "ok", verdict: "go", reasons: [] },
+        gemini: {
+          vendor: "gemini",
+          reviewer_route: "ok",
+          verdict: "go",
+          reasons: [],
+          model_id_actual: "",
+        },
+        gpt: { vendor: "gpt", reviewer_route: "ok", verdict: "たぶん go", reasons: [] },
+      }),
+    );
+    const audit = result as AuditResult;
+    expect(audit.verdict).not.toBe("go");
+    expect(audit.go_vendors).toEqual(["claude"]);
+    expect(audit.independent_go_vendors).toEqual([]);
+    expect((audit.conditions ?? []).find((c) => c.id === 1)?.pass).toBe(false);
+
+    const noModel = (audit.abstentions ?? []).find((a) => a.lane === "gemini");
+    expect(noModel?.reviewer_route).toBe("invalid_envelope");
+    expect(noModel?.reason).toContain("model_id_actual");
+
+    const badVerdict = (audit.abstentions ?? []).find((a) => a.lane === "gpt");
+    expect(badVerdict?.reviewer_route).toBe("invalid_envelope");
+    expect(badVerdict?.reason).toContain("verdict");
   });
 
   it("no-go が 1 件でもあれば no-go", async () => {

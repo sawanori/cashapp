@@ -217,6 +217,51 @@ function abstentionOf(round, reviewer, vendor, envelope) {
   };
 }
 
+/**
+ * 票として成立しない封筒の理由を返す（成立していれば null）。reviewer_route が "ok" の
+ * 封筒だけを見る。
+ *
+ * ここが独立性の関門である。レーンがどのベンダーかはスクリプト側の定数（lane.vendor）で
+ * 決まっており、封筒の vendor は自己申告にすぎない。自己申告を会計に使うと、作者ベンダーの
+ * レーンが vendor: "gemini" と書くだけで独立票に化けられる（R-TH-11 / F6）。よって
+ * 「自己申告がレーン定数と一致すること」だけを確かめ、数える値には lane.vendor を使う。
+ * model_id_actual の無い封筒を数えないのは §16-2 と R-TH-11、findings 配列を要求するのは
+ * 壊れた封筒を「レビューして指摘 0 件」と同義にしないためである。
+ */
+function invalidEnvelopeReasonOf(lane, envelope) {
+  const declared = typeof envelope.vendor === "string" ? envelope.vendor.trim() : "";
+  if (declared !== lane.vendor) {
+    return (
+      "封筒の自己申告 vendor がレーン定数と一致しない（lane=" +
+      lane.vendor +
+      " / envelope=" +
+      (declared || "（空）") +
+      "）。独立性の会計はレーン定数で行う（R-TH-11）"
+    );
+  }
+  const modelId =
+    typeof envelope.model_id_actual === "string" ? envelope.model_id_actual.trim() : "";
+  if (!modelId) {
+    return "封筒に model_id_actual が無い。どのモデルが答えたか分からない票は数えない（§16-2 / R-TH-11）";
+  }
+  if (!Array.isArray(envelope.findings)) {
+    return "封筒に findings 配列が無い。壊れた封筒を『指摘 0 件』として数えない（REVIEW_SCHEMA の required）";
+  }
+  return null;
+}
+
+/** 形が不正な封筒を欠票 1 件にする。route は invalid_envelope で固定する。 */
+function invalidEnvelopeAbstentionOf(round, lane, envelope, reason) {
+  return {
+    round: round,
+    reviewer: lane.key,
+    vendor: lane.vendor,
+    reviewer_route: "invalid_envelope",
+    attempted_command: envelope && envelope.attempted_command ? envelope.attempted_command : "",
+    reason: reason,
+  };
+}
+
 function highFindingsOf(envelope) {
   if (!envelope || !Array.isArray(envelope.findings)) return [];
   return envelope.findings.filter(function (f) {
@@ -272,7 +317,12 @@ function reviewerPrompt(spec, round, work) {
     "- reviewer_route は実際の経路の結果を書く。経路が通らなかったら 'unavailable' とし、",
     "  attempted_command と unreachable_reason を必ず埋める。通らなかったことを findings 0 件の",
     "  'ok' に見せかけてはならない（F6 / R-TH-06）。",
-    "- vendor は実際に応答したベンダー名（claude / gemini / gpt）。",
+    "- vendor は実際に応答したベンダー名（claude / gemini / gpt）。このレーンは '" +
+      spec.vendor +
+      "' レーンである。",
+    "  自己申告がレーン定数と食い違う封筒、model_id_actual が空の封筒、findings 配列の無い封筒は、",
+    "  invalid_envelope として欠票に落とす（票には数えない）。model_id_actual / cli_version /",
+    "  backend を必ず埋めること（§16-2 / R-TH-11）。",
     "- 断定できない指摘は severity: 'unknown' にし、unknown_ratio を実数で返す。",
     "",
     FINAL_SCHEMA_NOTE,
@@ -627,8 +677,22 @@ for (let round = 1; round <= MAX_ROUNDS && terminal === null; round++) {
       roundAbstentions.push(abstentionOf(round, lane.key, lane.vendor, env));
       continue;
     }
+    const invalidReason = invalidEnvelopeReasonOf(lane, env);
+    if (invalidReason) {
+      roundAbstentions.push(invalidEnvelopeAbstentionOf(round, lane, env, invalidReason));
+      log(
+        "round " +
+          round +
+          ": " +
+          lane.key +
+          " の封筒を invalid_envelope として欠票に落とした — " +
+          invalidReason,
+      );
+      continue;
+    }
     if (votingLanes.indexOf(lane.key) === -1) votingLanes.push(lane.key);
-    const vendor = typeof env.vendor === "string" && env.vendor ? env.vendor : lane.vendor;
+    // 独立性の会計はレーン定数で行う。env.vendor は上で一致を確かめただけで、数える値には使わない。
+    const vendor = lane.vendor;
     if (vendor !== AUTHOR_VENDOR && votingVendors.indexOf(vendor) === -1) {
       votingVendors.push(vendor);
     }

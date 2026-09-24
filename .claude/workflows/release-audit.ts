@@ -108,6 +108,44 @@ const VENDOR_SCHEMA = {
   required: ["vendor", "reviewer_route", "verdict", "reasons"],
 };
 
+const VERDICT_VALUES = ["go", "no-go", "UNKNOWN"];
+
+/**
+ * 票として成立しない封筒の理由を返す（成立していれば null）。reviewer_route が "ok" の
+ * 封筒だけを見る。
+ *
+ * task-loop.ts の invalidEnvelopeReasonOf と同じ理由でここに置く。独立ベンダー数は
+ * レーン定数（lane.vendor）で数える値であって、封筒の自己申告で決めてよいものではない。
+ * 自己申告を使うと release-auditor（作者ベンダー）のレーンが vendor: "gemini" と書くだけで
+ * 成立条件 1「独立した 2 ベンダー以上が go」を 1 票で通せる（R-TH-11 / F6）。
+ */
+function invalidVendorEnvelopeReasonOf(lane, res) {
+  const declared = typeof res.vendor === "string" ? res.vendor.trim() : "";
+  if (declared !== lane.vendor) {
+    return (
+      "封筒の自己申告 vendor がレーン定数と一致しない（lane=" +
+      lane.vendor +
+      " / envelope=" +
+      (declared || "（空）") +
+      "）。独立ベンダー数はレーン定数で数える（R-TH-11）"
+    );
+  }
+  const modelId = typeof res.model_id_actual === "string" ? res.model_id_actual.trim() : "";
+  if (!modelId) {
+    return "封筒に model_id_actual が無い。どのモデルが答えたか分からない票は数えない（§16-2 / R-TH-11）";
+  }
+  if (VERDICT_VALUES.indexOf(res.verdict) === -1) {
+    return (
+      "verdict が " +
+      VERDICT_VALUES.join(" / ") +
+      " のいずれでもない（" +
+      String(res.verdict) +
+      "）。判定できない封筒を票に数えない"
+    );
+  }
+  return null;
+}
+
 const VENDOR_LANES = [
   {
     key: "release-auditor",
@@ -222,6 +260,9 @@ const vendorResults = await parallel(
           "- 判定材料が揃わないときに「たぶん問題ない」で go を出さない。UNKNOWN を返す。",
           "- 経路が通らなかったら reviewer_route を unavailable にし、attempted_command と",
           "  unreachable_reason を埋める。不達を findings 0 件の go に見せかけない。",
+          "- vendor はこのレーンのベンダー '" + lane.vendor + "' を書く。自己申告がレーン定数と",
+          "  食い違う封筒、model_id_actual が空の封筒、verdict が go / no-go / UNKNOWN 以外の封筒は、",
+          "  invalid_envelope として欠票に落とし、独立ベンダー数には数えない（§16-2 / R-TH-11）。",
           "",
           READ_ONLY_RULES,
           "",
@@ -255,11 +296,24 @@ for (let i = 0; i < VENDOR_LANES.length; i++) {
     });
     continue;
   }
+  const invalidReason = invalidVendorEnvelopeReasonOf(lane, res);
+  if (invalidReason) {
+    abstentions.push({
+      lane: lane.key,
+      vendor: lane.vendor,
+      reviewer_route: "invalid_envelope",
+      attempted_command: res.attempted_command ? res.attempted_command : "",
+      reason: invalidReason,
+    });
+    log("lane " + lane.key + " の封筒を invalid_envelope として欠票に落とした — " + invalidReason);
+    continue;
+  }
   vendors.push({
     lane: lane.key,
-    vendor: typeof res.vendor === "string" && res.vendor ? res.vendor : lane.vendor,
+    // 自己申告ではなくレーン定数。上で一致は確かめてある。
+    vendor: lane.vendor,
     verdict: res.verdict,
-    model_id_actual: res.model_id_actual || "",
+    model_id_actual: res.model_id_actual,
     reasons: res.reasons || [],
     blocking_findings: res.blocking_findings || [],
   });

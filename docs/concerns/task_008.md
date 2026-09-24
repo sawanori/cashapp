@@ -120,6 +120,68 @@ frontmatter が使っている値をそのまま使った。
 
 **対応予定タスク**: task_038
 
+**7 周目の追記**: 今周も `.claude/workflows/*.ts` を 2 本直したため基準値を再生成したが、同時に
+別タスクが G13 対象のスクリプトを未コミットで編集していた。作業ツリー全体で
+`--write-baseline` を走らせると他タスクの未コミット差分まで基準値に焼き込まれ、そのタスクの
+レビュアから G13 の信号が消える。これを避けるため、**`git ls-files` + `tar` で作業ツリーの追跡
+ファイルを退避先へ複製し、他タスクが編集中の G13 対象ファイルだけを `git show HEAD:` の内容へ
+戻した木**を `--root` に渡し、`--base` をリポジトリにして基準値を書いた
+（`node scripts/gate-integrity.mjs --root <退避先> --base <repo> --write-baseline`）。結果の diff は
+`.claude/workflows/release-audit.ts` / `task-loop.ts` の 2 エントリと `generated_at` /
+`generated_at_commit` だけである（実測）。
+
+並行タスクのコミットが相次いだため、退避対象は周回中に変わった。最初の再生成時（HEAD `ffe9f01`）は
+`scripts/gate-env-scope.mjs` 1 件、**最終コミット時点（HEAD `12fc3b9`）は
+`scripts/gate-constraints.sh` / `scripts/wording-lint.mjs` の 2 件**（いずれも task_004 が編集中）。
+最終状態の `npm run gate:integrity` は「43 ファイル照合・不一致 2 件」で exit 1 になり、
+`npm run gate:check` は G13 のみ不合格になる。**2 件とも task_008 の変更ではなく、所有タスクが
+コミット時に基準値を再生成すれば解消する。** task_007 が 4 周目に「G13 は task_009 の未コミット差分」と
+記録したのと同じ扱いである。
+
+---
+
+## C-008-11 [low・解消済み] 独立性の会計に封筒の自己申告 `vendor` を使っており、作者ベンダーのレーンが独立票に化けられた
+
+**指摘（7 周目のレビュー high）**: `task-loop.ts` と `release-audit.ts` は、スクリプト自身が持つ
+レーン定数 `lane.vendor`（`code-reviewer` / `release-auditor` = `"claude"`）を、レビュア自身が返した
+`env.vendor` / `res.vendor` で上書きしてから `AUTHOR_VENDOR` 判定をしていた。作者ベンダーのレーンが
+封筒に `vendor: "gemini"` と書くだけで独立ベンダーの票として数えられる（R-TH-11 / F6）。
+
+修正前 HEAD（3bdf5d4）の本体を `git show` で取り出して同じ応答表で走らせた実測:
+
+- `task-loop`: gemini / gpt の両レーンが不達でも `code-reviewer` が `vendor:"gemini"` と名乗ると
+  `status=DONE` / `voting_vendors=["gemini"]` / `audited=true` / final verify 1 回。
+- `release-audit`: `release-auditor` が `vendor:"gemini"` と名乗り、本物の gemini は不達（PO 承認済み）、
+  本物の独立 go は gpt だけ、という表で `verdict=go` / `independent_go_vendors=["gemini","gpt"]` /
+  成立条件 1 pass。
+
+**対応**: 独立性の会計をレーン定数だけで行うようにした。封筒の自己申告 `vendor` は
+「レーン定数と一致するか」の照合にのみ使い、食い違う封筒は `reviewer_route: "invalid_envelope"` の
+欠票（`abstentions`）へ落とす。修正後は上の 2 ケースがそれぞれ `BLOCKED`（`voting_vendors=[]` /
+`audited=false` / final verify 0 回）と `verdict≠go`（`independent_go_vendors=["gpt"]` /
+成立条件 1 fail）になる（実測）。
+
+**対応予定タスク**: 完了（task_008 7 周目）
+
+---
+
+## C-008-12 [low・解消済み] `model_id_actual` の無い封筒・`findings` 配列の無い封筒が有効票として数えられた
+
+**指摘（7 周目のレビュー medium）**: `task-loop.ts` の票の採否は `reviewer_route` しか見ておらず、
+`highFindingsOf` は `Array.isArray(envelope.findings)` が偽なら黙って `[]` を返していた。壊れた封筒・
+途中で切れた封筒が「レビューして指摘 0 件」と同義になる。`model_id_actual` は
+`REVIEW_SCHEMA` / `VENDOR_SCHEMA` の `required` に入っておらず、存在確認も無かった
+（§16-2「封筒に `model_id_actual` 必須」/ `scripts/validate-findings.mjs` /
+`scripts/review-gpt.mjs` / `.claude/agents/adversarial-reviewer-gemini.md` が既に採っている規律との齟齬）。
+
+**対応**: 票として数える条件に「`vendor` がレーン定数と一致」「`model_id_actual` が非空」
+「`findings` が配列」を足し、満たさない封筒は `invalid_envelope` の欠票へ落とす。`release-audit.ts`
+側は加えて `verdict` が `go` / `no-go` / `UNKNOWN` のいずれかであることを確かめる。
+レビュア向けプロンプトにもこの 3 条件を明記した。修正前 HEAD ではいずれのケースも
+`status=DONE` / `audited=true` になることを対照実験で実測している。
+
+**対応予定タスク**: 完了（task_008 7 周目）
+
 ---
 
 ## C-008-5 [low] `premortem.ts` の `platform` レンズはエージェント定義の 3 本目と名前が一致しない

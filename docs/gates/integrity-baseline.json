@@ -2,9 +2,9 @@
   "$comment": "G13 の基準値。docs/gates/** は PO 専管のため、このファイルの唯一の書き込み経路は `node scripts/gate-integrity.mjs --write-baseline` である（scripts/deny-test-weakening.sh / deny-dangerous-bash.sh が Edit / Write / Bash 経由の直接書き込みを遮断する）。ゲート対象領域を意図して変更したときだけ再生成し、差分を PR で人間に見せること。",
   "schema_version": 1,
   "algorithm": "sha256",
-  "generated_at": "2026-09-24T13:25:07Z",
+  "generated_at": "2026-09-24T13:29:27Z",
   "generated_by": "scripts/gate-integrity.mjs --write-baseline",
-  "generated_at_commit": "ffe9f012170245da9191194148cf77769bf906a8",
+  "generated_at_commit": "12fc3b9565c9b0bddb1ea79f9d2e735ea5dda48f",
   "patterns": [
     {
       "kind": "dir",
@@ -76,8 +76,8 @@
     ".claude/agents/release-auditor.md": "96d16d3e1076854c034b3521cdd5883ecd98fc8f3adaa4192724d7ee064f543f",
     ".claude/settings.json": "1fbad2d901b3b7b94bdbc950d8abc756da72e52b895909d5a0e1dbaa5e31f8c8",
     ".claude/workflows/premortem.ts": "c988484808469c16bcc9b38a9e5715f0dbaa448c989176577f2c8ceb791fc9f8",
-    ".claude/workflows/release-audit.ts": "7778e75ff65eaa88382f2b77ae018f61834ad5bb79b4497d4f48f216f13d447d",
-    ".claude/workflows/task-loop.ts": "d2b0d240a0d6dba8b42c5485d92a1fd66c5b6b0796f351e3b7e11533c7da03be",
+    ".claude/workflows/release-audit.ts": "1583e4abd1d23aa185615ae1fca89ee7a91d911ce24fda9fa396f0b38db369e0",
+    ".claude/workflows/task-loop.ts": "52f6f5907b8f4546a8c45994d4df31cde1f5e4a078886d6de4cda404c123d70d",
     ".github/workflows/e2e.yml": "16ca324445593638bed83185febd36f56cab04d91569af5bf3dfca96c901878d",
     ".github/workflows/gate-integration.yml": "f55d1e3144dd29e27dce2d8f19e9ab457dab1e6aae5071e1b21ad499e3300c50",
     ".github/workflows/gate-tamper.yml": "a350ef3fc226b8b685c5d85d3e5a33894395555d90a95aaa27475f5840a94be6",
