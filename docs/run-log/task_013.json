@@ -405,5 +405,32 @@
     "commit": "ddc291ae7e3cf24150ea13236944a8a1b5ac91a9",
     "ran_at": "2026-09-24T10:29:46Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run build:web-only",
+    "exit_code": 0,
+    "stdout_tail": "build:web-only: import グラフを 24 ファイル走査しました（起点: src/app/** の (liff) 以外 と src/middleware.ts）\n▲ Next.js 16.3.6 (Turbopack)\n✓ Running next.config.ts took 1079ms\n\n⚠ The \"middleware\" file convention is deprecated. Please use \"proxy\" instead.\n\n  To migrate automatically, run:\n  npx @next/codemod@canary middleware-to-proxy .\n\n  Learn more: https://nextjs.org/docs/messages/middleware-to-proxy\n  Creating an optimized production build ...\n✓ Compiled successfully in 1105ms\n  Running TypeScript ...\n  Finished TypeScript in 6.7s ...\n  Collecting page data using 9 workers ...\n  Generating static pages using 9 workers (0/8) ...\n  Generating static pages using 9 workers (2/8) \r\n  Generating static pages using 9 workers (4/8) \r\n  Generating static pages using 9 workers (6/8) \r\n✓ Generating static pages using 9 workers (8/8) in 1379ms\n  Finalizing page optimization ...\n\nRoute (app)\n┌ ○ /\n├ ○ /_not-found\n├ ƒ /api/auth/line\n├ ƒ /api/consent\n├ ƒ /api/health\n├ ƒ /api/me\n└ ƒ /api/telemetry/client-error\n\n\nƒ Proxy (Middleware)\n\n○  (Static)   prerendered as static content\nƒ  (Dynamic)  server-rendered on demand\n\nbuild:web-only: 注意 — .next/static に LIFF 由来の文字列が 1 つも無い。まだ (liff) のページが bootLiff() を呼んでいないため、モック混入の grep は現時点では空振りに近い。(liff) 画面が入る task_014 / task_015 で再確認すること。\nbuild:web-only: .next/static を検査しました（禁止マーカー 4 件）\nbuild:web-only: OK（(web) は LINE SDK に依存せず、バンドルにモックも dev LIFF ID も無い）",
+    "commit": "f77ac631bf4122658a7279336f608020bfad0c3c",
+    "ran_at": "2026-09-24T10:30:49Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "f77ac631bf4122658a7279336f608020bfad0c3c",
+    "ran_at": "2026-09-24T10:31:05Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 28 file(s))\nok    L2 (forbid, 28 file(s))\nok    L3 (forbid, 28 file(s))\nok    L8 (forbid, 28 file(s))\nok    L12 (forbid, 28 file(s))\nok    P1 (forbid, 28 file(s))\ndefer P2 (0 targets; waiting on task_018)\nok    P9 (forbid, 3 file(s))\nok    W3 (forbid, 35 file(s))\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 26 file(s))\nok    N5 (forbid, 28 file(s))\nok    N7 (forbid, 28 file(s))\nok    N9 (forbid, 28 file(s))\nok    N11 (forbid, 28 file(s))\nok    I1 (require, 1 file(s))\nok    I2 (require, 1 file(s))\nok    I3 (forbid, 7 file(s))\nok    I4 (forbid, 2 file(s))\nok    X-TIME (forbid, 8 file(s))\nok    X-ID (forbid, 9 file(s))\ndefer X-MONEY (0 targets; waiting on task_017)\nok    GC-XSS (forbid, 28 file(s))\nok    GC-ENV-PUBLIC (forbid, 33 file(s))\nok    GC-SERVER-ONLY (require, 1 file(s))\n\ngate:constraints — scanned 22 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "f77ac631bf4122658a7279336f608020bfad0c3c",
+    "ran_at": "2026-09-24T10:31:11Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]
