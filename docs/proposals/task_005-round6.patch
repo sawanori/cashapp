@@ -1,0 +1,1192 @@
+diff --git a/scripts/deny-dangerous-bash.sh b/scripts/deny-dangerous-bash.sh
+index d54866f..41af73a 100755
+--- a/scripts/deny-dangerous-bash.sh
++++ b/scripts/deny-dangerous-bash.sh
+@@ -73,6 +73,13 @@ SELF="deny-dangerous-bash.sh"
+ MAX_DEPTH=5
+ RISKY_SCRIPT_NAME_RE='deploy|secret|publish|reset|push|prod'
+ 
++# Commands that write or delete whatever operand they are handed. Used where the
++# operand never appears on the command line itself (`find … -exec <verb>`,
++# `xargs <verb>`): there the verb is the only thing the guard can see, so any of
++# these after such a feeder is refused fail-closed. Shells and interpreters are
++# in the list because `xargs -I{} sh -c 'echo x > {}'` is the same hole.
++WRITE_VERB_RE='rm|rmdir|unlink|shred|truncate|mv|cp|install|rsync|tee|sponge|sed|perl|awk|gawk|dd|chmod|chown|ln|patch|git|ed|ex|vi|vim|nvim|nano|sh|bash|zsh|dash|node|nodejs|python[0-9.]*|ruby|php|deno|bun'
++
+ mask() {
+   # Redact credential-shaped text before it reaches stderr. The literal
+   # prefixes are split across string concatenations so that this file does not
+@@ -117,8 +124,34 @@ if [ -z "$ROOT" ]; then
+ fi
+ PKG="${DENY_BASH_PACKAGE_JSON:-$ROOT/package.json}"
+ 
++# 6 周目（GPT-6 Astra F-7）。いま走査している npm スクリプト本体が属する
++# package.json のディレクトリ（リポジトリ相対。空 = ルート）。
++# `cd tests/unit/hooks/fixtures && npm run release` を常にルートの
++# package.json で解決していたため、ルートに無い名前は「解決不能かつ
++# 危険語でもない」として通り、実際には wrangler deploy --env production に
++# 届くスクリプトが素通りしていた。
++PKG_REL=""
++
+ SEP=$(printf '\001')
+ 
++# 6 周目（GPT-6 Astra F-8 / F-6）。節区切りのうち、開き括弧と閉じ括弧は
++# 区別が要る: サブシェル・ブレースグループの中の `cd` は閉じた時点で元に戻る。
++# NLP は行継続（バックスラッシュ + 改行）を畳む間だけ改行の代わりに使う。
++# 以前は `(`・`)`・`\` をどれも消すか同じ区切りに潰していたので、
++# `cd .claude && (cd ..)` が外側まで戻ったことになり、
++# `wrangler \<改行>deploy` は別々の節として判定されていた。
++SUB_OPEN=$(printf '\002')
++SUB_CLOSE=$(printf '\003')
++NLP=$(printf '\004')
++
++# 6 周目（GPT-6 Astra F-1）。コマンド名の前に付きうる絶対パス・相対パス。
++# 規則集 B は動詞を「行頭か空白の直後」に錨づけしていたので、
++# `/bin/cp /dev/null .claude/settings.json` はどの動詞にも一致しなかった。
++# 規則集 A は同じ理由で basename_clause() を持つが、書き込み規則はそれを
++# 使えない（オペランドのディレクトリまで落ちて保護対象が見えなくなる）。
++# 動詞側に前置パスを許す形にする。
++CMD_PFX='([^ ]*/)?'
++
+ # Paths whose contents must not be written from a Bash command.
+ PROTECTED_RE='(docs/run-log/|docs/gates/|docs/acceptance-checks\.json|tests/|scripts/deny-|scripts/record-run\.sh|\.claude/|\.github/workflows/)'
+ 
+@@ -140,6 +173,25 @@ CWD_REL=""
+ # repository and keeps the flag clear.
+ CWD_UNKNOWN=0
+ 
++# 6 周目（GPT-6 Astra F-8）。サブシェル・ブレースグループに入るときに
++# (CWD_REL, CWD_UNKNOWN) を積み、抜けるときに戻す。
++# `cd .claude && (cd ..) && printf x > settings.json` は、内側の `cd ..` が
++# 外へ漏れてリポジトリ直下で判定されていた。実際のシェルは .claude に留まる
++# ので、書き込み先は .claude/settings.json になる。
++# `|` は normalize() を通った時点で残らないので、項目内の区切りに使える。
++CWD_STACK=""
++
++push_cwd() { CWD_STACK="${CWD_REL}|${CWD_UNKNOWN}${SEP}${CWD_STACK}"; }
++
++pop_cwd() {
++  local head
++  [ -n "$CWD_STACK" ] || return 0
++  head="${CWD_STACK%%"$SEP"*}"
++  CWD_STACK="${CWD_STACK#*"$SEP"}"
++  CWD_REL="${head%|*}"
++  CWD_UNKNOWN="${head##*|}"
++}
++
+ # ---------------------------------------------------------------- normalize --
+ # Collapse quoting and whitespace, then turn &&, ||, |, ; and newlines into a
+ # single subcommand separator so each clause can be matched on its own.
+@@ -152,15 +204,27 @@ CWD_UNKNOWN=0
+ # subshell, a brace group or a background job — `(cd docs/run-log && echo x >
+ # y.json)` — never appeared at the head of a clause, so the cd tracker below
+ # never fired and the relative destination was judged at the repository root.
++#
++# 行継続（バックスラッシュ + 改行）はシェルでは 1 つのコマンドになる。
++# バックスラッシュを先に消してから改行を節区切りに変えていたので、
++# `wrangler \<改行>deploy --env production` は `wrangler` と
++# `deploy --env production` の 2 節になり、禁止パターンが消えていた
++# （6 周目 / GPT-6 Astra F-6）。改行をいったん NLP に退避し、
++# `\<NLP>` を畳んでから節区切りに変える。
++#
++# `(` / `{` と `)` / `}` は同じ区切りではなく開閉の目印にする。
++# そうしないとサブシェルを抜けたときに `cd` を巻き戻せない（F-8）。
+ normalize() {
+   printf '%s' "$1" \
++    | tr '\n\r' "$NLP$NLP" \
++    | sed -e "s/\\\\${NLP}//g" \
+     | tr -d '"'"'"'`' \
+     | tr -d '\\' \
+-    | tr '\n\r' "$SEP$SEP" \
++    | tr "$NLP" "$SEP" \
+     | sed -e 's/>|/>/g' \
+     | sed -e "s/&&/$SEP/g" -e "s/||/$SEP/g" -e "s/|/$SEP/g" -e "s/;/$SEP/g" \
+     | sed -e "s/&/$SEP/g" \
+-    | tr '(){}' "$SEP$SEP$SEP$SEP" \
++    | sed -e "s/[({]/$SEP$SUB_OPEN$SEP/g" -e "s/[)}]/$SEP$SUB_CLOSE$SEP/g" \
+     | tr '\t' ' ' \
+     | tr -s ' '
+ }
+@@ -271,6 +335,61 @@ basename_clause() {
+   printf '%s' "${out# }"
+ }
+ 
++git_opt_value() {
++  # git のグローバルオプションのうち「どのディレクトリで動くか」を決めるもの
++  # （-C <dir> / --git-dir[=<dir>] / --work-tree[=<dir>] / --namespace）の値を
++  # echo する。無ければ何も出さない。
++  local sub="$1" tok want="" val=""
++  for tok in $sub; do
++    if [ -n "$want" ]; then
++      val="$tok"; want=""; continue
++    fi
++    case "$tok" in
++      -C|--git-dir|--work-tree|--namespace) want=1 ;;
++      --git-dir=*|--work-tree=*|--namespace=*) val="${tok#*=}" ;;
++    esac
++  done
++  printf '%s' "$val"
++}
++
++strip_git_opts() {
++  # 6 周目（GPT-6 Astra F-5）。git は サブコマンドの前に自分のグローバル
++  # オプションを読む。`git -C . reset --hard HEAD` や
++  # `git -c core.pager=cat reset --hard` は同じ破壊的操作だが、
++  # `git +reset` の形でしか見ていなかった規則には 1 つも一致しなかった。
++  # `git` の直後に続くオプション（値を取るものはその値も）を落とした変種を
++  # 作り、呼び出し側が元の節と両方を判定する。
++  local sub="$1" tok out="" ingit=0 skip=0
++  for tok in $sub; do
++    if [ "$skip" -eq 1 ]; then skip=0; continue; fi
++    if [ "$ingit" -eq 1 ]; then
++      case "$tok" in
++        -C|-c|--git-dir|--work-tree|--namespace|--exec-path|--config-env)
++          skip=1; continue ;;
++        -*) continue ;;
++        *) ingit=0 ;;
++      esac
++    fi
++    case "$tok" in
++      git|*/git) ingit=1 ;;
++    esac
++    out="$out $tok"
++  done
++  printf '%s' "${out# }"
++}
++
++git_global_unresolved() {
++  # $1 = グローバルオプションを落とした節、$2 = -C / --git-dir / --work-tree の値。
++  # 値が変数展開で解決できないのに書き込み系のサブコマンドが続く場合は、
++  # どのディレクトリを壊すのか判定できないので fail-closed で遮断する。
++  local gsub="$1" gdir="$2"
++  [ -n "$gdir" ] || return 1
++  unresolvable_dest "$gdir" || return 1
++  printf '%s' "$gsub" | grep -Eq "(^| )${CMD_PFX}git +(rm|mv|restore|checkout|clean|reset|stash|revert|apply|am)( |\$)" || return 1
++  echo "git のグローバルオプション（-C / --git-dir / --work-tree）の値 ${gdir} を解決できません"
++  return 0
++}
++
+ opt_value() {
+   # Echoes the value of a `--option=value` / `-o=value` token (nothing otherwise).
+   # `cp --target-directory=docs/gates` hides the destination behind the `=`, where
+@@ -289,6 +408,30 @@ broad_target() {
+   return 1
+ }
+ 
++protected_parent() {
++  # A directory that *contains* a protected tree without being one itself:
++  # `docs` holds docs/run-log and docs/gates, and the repository root (also as an
++  # absolute path) holds everything. `find docs -delete` names no protected
++  # path yet reaches every run-log entry, so these operands count as protected
++  # for search-and-write commands. `docs/research` and other siblings stay
++  # outside on purpose.
++  local p="$1"
++  case "$p" in
++    docs|docs/|./docs|./docs/) return 0 ;;
++  esac
++  if [ -n "$ROOT" ]; then
++    case "$p" in
++      "$ROOT"|"$ROOT/"|"$ROOT/docs"|"$ROOT/docs/") return 0 ;;
++    esac
++  fi
++  if [ -n "$CWD_REL" ]; then
++    case "$(join_path "$CWD_REL" "$p")" in
++      docs|docs/) return 0 ;;
++    esac
++  fi
++  return 1
++}
++
+ cwd_unresolved_rel() {
+   # A relative destination written while the current directory is unknown.
+   [ "${CWD_UNKNOWN:-0}" -eq 1 ] || return 1
+@@ -317,10 +460,8 @@ is_rm_rf() {
+   # `rm --recursive --force` walked straight through. They are checked
+   # separately, and either spelling satisfies either half.
+   local s="$1" flags rec=1 force=1
+-  case " $s " in
+-    *" rm "*) ;;
+-    *) return 1 ;;
+-  esac
++  # 6 周目（F-1）: `/bin/rm -rf …` も同じコマンド。
++  printf '%s' "$s" | grep -Eq "(^| )${CMD_PFX}rm( |\$)" || return 1
+   flags="$(printf '%s' "$s" | grep -oE '(^| )-[a-zA-Z]+' | tr -d ' -' | tr -d '\n')"
+   case "$flags" in
+     *r*|*R*) rec=0 ;;
+@@ -383,29 +524,58 @@ raw_rules_hit() {
+   if is_rm_rf "$sub"; then
+     echo "rm -rf"; return 0
+   fi
++
++  # History operations that put *content* back without naming a file:
++  # `git stash push tests/x.test.ts` parks a test edit and `git stash pop`
++  # brings a rewritten one back, `git revert` and `git reset <commit>` move the
++  # tree to an older state — every one of them a way to undo a guard or a test
++  # from Bash (docs/concerns/task_005.md §2, closed in the 5th round). Only the
++  # read-only stash forms pass, and only the index-only `git reset [--] <paths>`
++  # / `git reset HEAD -- <paths>` (unstaging) is left open: with an explicit
++  # `--` no HEAD moves, and unstaging a protected path changes nothing on disk.
++  # Like the other git rules here, the match is clause-wide, so a commit message
++  # that spells out `git stash` is refused too — write "stash" in prose.
++  if printf '%s' "$sub" | grep -Eqi '(^| )git +stash( |$)' &&
++     ! printf '%s' "$sub" | grep -Eqi '(^| )git +stash +(list|show)( |$)'; then
++    echo "git stash（作業ツリーの退避・復元。list / show 以外）"; return 0
++  fi
++  if printf '%s' "$sub" | grep -Eqi '(^| )git +revert( |$)'; then
++    echo "git revert"; return 0
++  fi
++  if printf '%s' "$sub" | grep -Eqi '(^| )git +reset( |$)' &&
++     ! printf '%s' "$sub" | grep -Eq '(^| )--( |$)'; then
++    if printf '%s' "$sub" | grep -Eqi '(^| )--(hard|merge|keep|soft|mixed)( |$)' ||
++       printf '%s' "$sub" | grep -Eq '(^| )(HEAD|ORIG_HEAD|FETCH_HEAD|MERGE_HEAD)([~^@][^ ]*)?( |$)' ||
++       printf '%s' "$sub" | grep -Eq '(^| )[0-9a-f]{7,40}( |$)' ||
++       printf '%s' "$sub" | grep -Eq '(^| )(origin|upstream)/[^ ]+( |$)' ||
++       printf '%s' "$sub" | grep -Eq '(^| )(main|master|develop)( |$)' ||
++       printf '%s' "$sub" | grep -Eq '(^| )@\{[^ ]*\}( |$)'; then
++      echo "git reset（HEAD の巻き戻し。-- 付きのパス指定以外）"; return 0
++    fi
++  fi
+   return 1
+ }
+ 
+ # --------------------------------------------------------------- rule set B --
++# 6 周目（GPT-6 Astra F-2）: 正規化した形でも必ず照合する。
++# join_path() は `.` と `..` を畳むので、`scripts/./deny-dangerous-bash.sh` の
++# ように同じファイルを別の綴りで指す形が閉じる。CWD_REL が空でも通す必要が
++# あるため、以前の `[ -n "$CWD_REL" ]` の条件は外してある。
+ protected() {
+   printf '%s' "$1" | grep -Eq "$PROTECTED_RE" && return 0
+-  if [ -n "$CWD_REL" ]; then
+-    printf '%s' "$(join_path "$CWD_REL" "$1")" | grep -Eq "$PROTECTED_RE" && return 0
+-  fi
++  printf '%s' "$(join_path "$CWD_REL" "$1")" | grep -Eq "$PROTECTED_RE" && return 0
+   return 1
+ }
+ 
+ protected_tree() {
+   printf '%s' "$1" | grep -Eq "$PROTECTED_TREE_RE" && return 0
+-  if [ -n "$CWD_REL" ]; then
+-    printf '%s' "$(join_path "$CWD_REL" "$1")" | grep -Eq "$PROTECTED_TREE_RE" && return 0
+-  fi
++  printf '%s' "$(join_path "$CWD_REL" "$1")" | grep -Eq "$PROTECTED_TREE_RE" && return 0
+   return 1
+ }
+ 
+ write_rules_hit() {
+   # $1 = one normalized subcommand. Echoes a description when it matches.
+-  local sub="$1" target tok seen_tee val
++  local sub="$1" target tok seen_tee seen_xargs val
+ 
+   for target in $(printf '%s' "$sub" | grep -oE '>>?[[:space:]]*[^[:space:]]+' | sed -E 's/^>>?[[:space:]]*//'); do
+     if unresolvable_dest "$target"; then
+@@ -419,7 +589,7 @@ write_rules_hit() {
+     fi
+   done
+ 
+-  if printf '%s' "$sub" | grep -Eq '(^| )tee( |$)'; then
++  if printf '%s' "$sub" | grep -Eq "(^| )${CMD_PFX}tee( |\$)"; then
+     seen_tee=0
+     for tok in $sub; do
+       if [ "$seen_tee" -eq 1 ]; then
+@@ -436,14 +606,16 @@ write_rules_hit() {
+           echo "tee の出力先 $tok"; return 0
+         fi
+       fi
+-      [ "$tok" = "tee" ] && seen_tee=1
++      case "$tok" in
++        tee|*/tee) seen_tee=1 ;;
++      esac
+     done
+   fi
+ 
+   # `sed -i` / `sed --in-place` rewrite in place: any protected path in the
+   # clause blocks. GNU sed (what CI runs) accepts the long spelling, and the
+   # short-only test let `sed --in-place … tests/x.test.ts` through.
+-  if printf '%s' "$sub" | grep -Eq '(^| )sed( |$)' &&
++  if printf '%s' "$sub" | grep -Eq "(^| )${CMD_PFX}sed( |\$)" &&
+      printf '%s' "$sub" | grep -Eq '(^| )(-i|--in-place)'; then
+     for tok in $sub; do
+       if protected "$tok"; then
+@@ -464,10 +636,10 @@ write_rules_hit() {
+   # `cp x .claude`, `mv -t docs/run-log x`) matched nothing. protected_tree() —
+   # which rm has always used — covers the bare directory form, and opt_value()
+   # digs the destination out of `--target-directory=<dir>`.
+-  if printf '%s' "$sub" | grep -Eq '(^| )(cp|mv|rsync|install)( |$)'; then
++  if printf '%s' "$sub" | grep -Eq "(^| )${CMD_PFX}(cp|mv|rsync|install)( |\$)"; then
+     for tok in $sub; do
+       case "$tok" in
+-        cp|mv|rsync|install) continue ;;
++        cp|mv|rsync|install|*/cp|*/mv|*/rsync|*/install) continue ;;
+       esac
+       if protected "$tok" || protected_tree "$tok"; then
+         echo "cp/mv の対象 $tok"; return 0
+@@ -490,8 +662,8 @@ write_rules_hit() {
+   # do all of that without naming anything: the operand is the current
+   # directory, which at the repository root *contains* docs/run-log, tests and
+   # .claude. Those operands are refused outright.
+-  if printf '%s' "$sub" | grep -Eq '(^| )(rm|unlink|shred|truncate)( |$)' ||
+-     printf '%s' "$sub" | grep -Eq '(^| )git +(rm|restore|checkout|clean)( |$)'; then
++  if printf '%s' "$sub" | grep -Eq "(^| )${CMD_PFX}(rm|unlink|shred|truncate)( |\$)" ||
++     printf '%s' "$sub" | grep -Eq "(^| )${CMD_PFX}git +(rm|restore|checkout|clean)( |\$)"; then
+     for tok in $sub; do
+       if protected "$tok" || protected_tree "$tok"; then
+         echo "削除・復元の対象 $tok"; return 0
+@@ -505,7 +677,7 @@ write_rules_hit() {
+   # `git clean -f` / `git clean -fdx` deletes every untracked file under the
+   # current directory — new run-log entries, gate drafts, test files not yet
+   # committed — and never names a path at all. Only an explicit dry run passes.
+-  if printf '%s' "$sub" | grep -Eq '(^| )git +clean( |$)'; then
++  if printf '%s' "$sub" | grep -Eq "(^| )${CMD_PFX}git +clean( |\$)"; then
+     if ! printf '%s' "$sub" | grep -Eq '(^| )(-n|--dry-run)( |$)'; then
+       echo "git clean（未追跡ファイルの一括削除）"; return 0
+     fi
+@@ -515,7 +687,7 @@ write_rules_hit() {
+   # thoroughly as deleting it, and `ln -sf /dev/null .claude/settings.json`
+   # empties the hook registration. Only the file form is checked here — a
+   # `chmod +x scripts/ci/foo.sh` on an unprotected script must stay possible.
+-  if printf '%s' "$sub" | grep -Eq '(^| )(chmod|chown|ln)( |$)'; then
++  if printf '%s' "$sub" | grep -Eq "(^| )${CMD_PFX}(chmod|chown|ln)( |\$)"; then
+     for tok in $sub; do
+       if protected "$tok"; then
+         echo "権限・リンク変更の対象 $tok"; return 0
+@@ -524,7 +696,7 @@ write_rules_hit() {
+   fi
+ 
+   # `dd if=… of=<保護対象>` truncates the destination exactly like a redirect.
+-  if printf '%s' "$sub" | grep -Eq '(^| )dd( |$)'; then
++  if printf '%s' "$sub" | grep -Eq "(^| )${CMD_PFX}dd( |\$)"; then
+     for tok in $sub; do
+       case "$tok" in
+         of=*)
+@@ -536,6 +708,65 @@ write_rules_hit() {
+     done
+   fi
+ 
++  # ---- 5th round (docs/concerns/task_005.md §2, adversarial review F-BASH-01) ----
++  # Editors and in-place tools whose write target is an operand: `ed`, `ex`,
++  # `vim -es` (batch mode), `sponge`, `awk -i inplace` / `gawk -i`. None of them
++  # was in the verb list, so `ed -s scripts/deny-dangerous-bash.sh` rewrote the
++  # guard itself. Same clause-wide policy as cp/mv: a protected operand anywhere
++  # blocks. `awk` without `-i` only reads, so it is left alone.
++  if printf '%s' "$sub" | grep -Eq "(^| )${CMD_PFX}(ed|ex|vi|vim|nvim|view|nano|sponge)( |\$)" ||
++     { printf '%s' "$sub" | grep -Eq "(^| )${CMD_PFX}(awk|gawk)( |\$)" &&
++       printf '%s' "$sub" | grep -Eq '(^| )(-i|--in-place|--inplace)( |=|$)'; }; then
++    for tok in $sub; do
++      if protected "$tok" || protected_tree "$tok"; then
++        echo "編集系コマンド（ed / ex / vim / sponge / awk -i）の対象 ${tok}"; return 0
++      fi
++    done
++  fi
++
++  # `find … -delete` / `find … -exec <write verb>`: the files it touches never
++  # appear on the command line — only the search root does, and an omitted root
++  # means `.` (the repository, at the root). The root is refused when it is a
++  # protected tree, a directory holding one (`docs`, the repo root), the current
++  # directory, or a value this guard cannot resolve. `find /tmp/x -delete` and a
++  # read-only `-exec grep` stay possible.
++  if printf '%s' "$sub" | grep -Eq "(^| )${CMD_PFX}find( |\$)" &&
++     { printf '%s' "$sub" | grep -Eq '(^| )-delete( |$)' ||
++       printf '%s' "$sub" | grep -Eq "(^| )-(exec|execdir|ok|okdir) +${CMD_PFX}($WRITE_VERB_RE)( |\$)"; }; then
++    if ! printf '%s' "$sub" | grep -Eq "(^| )${CMD_PFX}find +[^-]"; then
++      echo "find の書き込み動作（-delete / -exec）で探索元が省略されています（= カレントディレクトリ全体）"; return 0
++    fi
++    for tok in $sub; do
++      case "$tok" in
++        find|*/find|-*|"{}"|";"|"\\;"|"+") continue ;;
++      esac
++      if unresolvable_dest "$tok"; then
++        echo "find の書き込み動作の探索元 ${tok}（変数展開で判定できないため遮断）"; return 0
++      fi
++      if cwd_unresolved_rel "$tok"; then
++        echo "find の書き込み動作の探索元 ${tok}（解決できない cd の後の相対パス）"; return 0
++      fi
++      if protected "$tok" || protected_tree "$tok" || protected_parent "$tok" || broad_target "$tok"; then
++        echo "find の書き込み動作（-delete / -exec）の探索元 ${tok}（保護対象を含みうる）"; return 0
++      fi
++    done
++  fi
++
++  # `xargs <write verb>`: the operands arrive on stdin and are unknowable here,
++  # so any write verb (or a shell / interpreter) after `xargs` is refused.
++  # `xargs grep` / `xargs wc` / `xargs cat` keep working.
++  if printf '%s' "$sub" | grep -Eq "(^| )${CMD_PFX}xargs( |\$)"; then
++    seen_xargs=0
++    for tok in $sub; do
++      if [ "$seen_xargs" -eq 1 ] && printf '%s' "$tok" | grep -Eq "^${CMD_PFX}($WRITE_VERB_RE)\$"; then
++        echo "xargs 経由の書き込み・削除（${tok}。入力リストを判定できないため遮断）"; return 0
++      fi
++      case "$tok" in
++        xargs|*/xargs) seen_xargs=1 ;;
++      esac
++    done
++  fi
++
+   return 1
+ }
+ 
+@@ -550,12 +781,12 @@ patch_rules_hit() {
+   # guard cannot read — the destination is unknowable and the clause is refused
+   # fail-closed.
+   local sub="$1" tok cand found=0
+-  printf '%s' "$sub" | grep -Eq '(^| )git +(apply|am)( |$)' ||
+-    printf '%s' "$sub" | grep -Eq '(^| )patch( |$)' || return 1
++  printf '%s' "$sub" | grep -Eq "(^| )${CMD_PFX}git +(apply|am)( |\$)" ||
++    printf '%s' "$sub" | grep -Eq "(^| )${CMD_PFX}patch( |\$)" || return 1
+ 
+   for tok in $sub; do
+     case "$tok" in
+-      git|apply|am|patch|-*|"<"|">") continue ;;
++      git|*/git|apply|am|patch|*/patch|-*|"<"|">") continue ;;
+     esac
+     if protected "$tok" || protected_tree "$tok"; then
+       echo "パッチ適用の対象 $tok"; return 0
+@@ -598,12 +829,31 @@ interpreter_write_hit() {
+   # loose `-e` elsewhere made prose that merely lists interpreter names (a
+   # commit message, a --help text) collide with an unrelated `--force`.
+   local whole="$1"
+-  printf '%s' "$whole" | grep -Eq '(^| )(python[0-9.]*|node|nodejs|deno|bun|perl|ruby|php)( +-[^ ]*)* +(-{1,2}[A-Za-z]*(c|e|m)|--eval|--exec|--print|eval)([ =]|$)' || return 1
++  printf '%s' "$whole" | grep -Eq "(^| )${CMD_PFX}(python[0-9.]*|node|nodejs|deno|bun|perl|ruby|php)( +-[^ ]*)* +(-{1,2}[A-Za-z]*(c|e|m)|--eval|--exec|--print|eval)([ =]|\$)" || return 1
+   printf '%s' "$whole" | grep -Eq "$PROTECTED_RE" || return 1
+   echo "インタプリタのワンライナー（-c / -e / -m 等）が保護対象パスを参照しています"
+   return 0
+ }
+ 
++feeder_write_hit() {
++  # $1 = the whole normalized command with separators flattened back to spaces.
++  # Two 5th-round classes hide their operand from the per-clause scan because
++  # normalize() treats `{` / `}` as clause separators: `awk -i inplace '{print}'
++  # <path>` lands the path in a clause of its own, and `xargs -I{} sh -c '…'`
++  # loses the verb's clause. Both are judged on the flattened line instead.
++  local whole="$1"
++  if printf '%s' "$whole" | grep -Eq "(^| )${CMD_PFX}(awk|gawk)( +-[^ ]*)* +(-i|--in-place|--inplace)([ =]|\$)" &&
++     printf '%s' "$whole" | grep -Eq "$PROTECTED_RE"; then
++    echo "awk -i（インプレース編集）が保護対象パスを参照しています"; return 0
++  fi
++  # The verb has to follow xargs and its options directly, so a later clause on
++  # the same line (`… | xargs wc -l && git commit …`) does not trip it.
++  if printf '%s' "$whole" | grep -Eq "(^| )${CMD_PFX}xargs( +-[^ ]+( +[^- ][^ ]*)?)* +${CMD_PFX}($WRITE_VERB_RE)( |\$)"; then
++    echo "xargs 経由の書き込み・削除（入力リストを判定できないため遮断）"; return 0
++  fi
++  return 1
++}
++
+ # -------------------------------------------------------------- script refs --
+ script_names() {
+   # Flags may appear before `run` (npm --silent run X), after it
+@@ -631,11 +881,37 @@ script_names() {
+     | sed -E 's/.*--run[= ]+//'
+ }
+ 
++pkg_dir_for_cwd() {
++  # 6 周目（GPT-6 Astra F-7）。npm は「コマンドが動くディレクトリから上へ辿って
++  # 最初に見つかった package.json」の scripts を使う。追跡している cd が
++  # どの package.json を指すのかを返す（リポジトリ相対。空 = ルート、
++  # つまり DENY_BASH_PACKAGE_JSON のテストフックが効く場所）。
++  local d="$CWD_REL"
++  [ -n "$d" ] || d="$PKG_REL"
++  while [ -n "$d" ]; do
++    if [ -f "$ROOT/$d/package.json" ]; then
++      printf '%s' "$d"; return 0
++    fi
++    case "$d" in
++      */*) d="${d%/*}" ;;
++      *) d="" ;;
++    esac
++  done
++  printf '%s' ""
++}
++
++pkg_for_cwd() {
++  local d
++  d="$(pkg_dir_for_cwd)"
++  if [ -n "$d" ]; then printf '%s' "$ROOT/$d/package.json"; else printf '%s' "$PKG"; fi
++}
++
+ resolve_script() {
+   # $1 = script name. Echoes the body, or nothing when unresolvable.
+-  local body
+-  [ -f "$PKG" ] || return 1
+-  body="$(jq -r --arg n "$1" 'if type == "object" then (.scripts[$n] // "") else "" end' "$PKG" 2>/dev/null)"
++  local body pkg
++  pkg="$(pkg_for_cwd)"
++  [ -f "$pkg" ] || return 1
++  body="$(jq -r --arg n "$1" 'if type == "object" then (.scripts[$n] // "") else "" end' "$pkg" 2>/dev/null)"
+   [ -n "$body" ] || return 1
+   printf '%s' "$body"
+ }
+@@ -645,19 +921,23 @@ scan_text() {
+   # $1 = raw command text, $2 = depth, $3 = chain of already-visited names
+   local text="$1" depth="$2" chain="$3"
+   local norm whole hit sub name body subs_file saved_cwd saved_unknown stripped
++  local saved_stack saved_pkg_rel gsub gdir saved_git_cwd saved_git_unknown
+ 
+   # An npm script body always runs from the package directory, so a `cd` in the
+   # calling clause must not leak into it, and whatever the body does with `cd`
+   # must not leak back out.
+   saved_cwd="$CWD_REL"
+   saved_unknown="$CWD_UNKNOWN"
++  saved_stack="$CWD_STACK"
+   CWD_REL=""
+   CWD_UNKNOWN=0
++  CWD_STACK=""
+ 
+   norm="$(normalize "$text")"
+-  whole="$(printf '%s' "$norm" | tr "$SEP" ' ' | tr -s ' ')"
++  whole="$(printf '%s' "$norm" | tr "$SEP$SUB_OPEN$SUB_CLOSE" '   ' | tr -s ' ')"
+ 
+   hit="$(interpreter_write_hit "$whole")" && block "${hit}（${whole}）" "保護対象ファイルへの Bash 経由の書き込みは禁止です（R-TH-02）"
++  hit="$(feeder_write_hit "$whole")" && block "${hit}（${whole}）" "保護対象ファイルへの Bash 経由の書き込み・削除は禁止です（R-TH-02 / R-SEC-07）"
+ 
+   subs_file="$(mktemp)"
+   # The trailing newline matters: `read` returns non-zero on a final line that
+@@ -668,12 +948,50 @@ scan_text() {
+     sub="$(printf '%s' "$sub" | sed -e 's/^ *//' -e 's/ *$//')"
+     [ -n "$sub" ] || continue
+ 
++    # 6 周目（F-8）: サブシェル・ブレースグループの境界。中の cd は閉じた時点で
++    # 元に戻る。
++    case "$sub" in
++      "$SUB_OPEN") push_cwd; continue ;;
++      "$SUB_CLOSE") pop_cwd; continue ;;
++    esac
++
++    # 6 周目（F-5）: git のグローバルオプションを落とした変種も判定する。
++    # -C / --work-tree / --git-dir の値は「そのサブコマンドが動くディレクトリ」
++    # として CWD_REL に一時的に反映する。
++    gsub="$(strip_git_opts "$sub")"
++    gdir=""
++    if [ "$gsub" != "$sub" ]; then
++      gdir="$(git_opt_value "$sub")"
++    fi
++
+     hit="$(raw_rules_hit "$sub")"
+     [ -n "$hit" ] || hit="$(raw_rules_hit "$(basename_clause "$sub")")"
++    if [ -z "$hit" ] && [ "$gsub" != "$sub" ]; then
++      hit="$(raw_rules_hit "$gsub")"
++      [ -n "$hit" ] || hit="$(raw_rules_hit "$(basename_clause "$gsub")")"
++    fi
+     [ -n "$hit" ] && { rm -f "$subs_file"; block "${hit}（${sub}）" "破壊的操作・本番デプロイ・本番決済はローカルから実行できません（L11 / R-TH-02。デプロイは CI のみ）"; }
+     hit="$(write_rules_hit "$sub")" && { rm -f "$subs_file"; block "${hit}（${sub}）" "docs/run-log/** ・docs/gates/** ・docs/acceptance-checks.json ・tests/** ・scripts/deny-* ・scripts/record-run.sh ・.claude/** ・.github/workflows/** への Bash 経由の書き込み・削除は禁止です（R-TH-02 / R-SEC-07）"; }
+     hit="$(patch_rules_hit "$sub")" && { rm -f "$subs_file"; block "${hit}（${sub}）" "パッチ適用は適用先を事前に判定できないため、保護対象を含みうる限り遮断します（R-TH-02 / R-SEC-07）"; }
+ 
++    if [ "$gsub" != "$sub" ]; then
++      saved_git_cwd="$CWD_REL"
++      saved_git_unknown="$CWD_UNKNOWN"
++      if [ -n "$gdir" ]; then
++        if unresolvable_dest "$gdir"; then
++          CWD_REL=""; CWD_UNKNOWN=1
++        else
++          set_cwd "$gdir"
++        fi
++      fi
++      hit="$(write_rules_hit "$gsub")"
++      [ -n "$hit" ] || hit="$(patch_rules_hit "$gsub")"
++      [ -n "$hit" ] || hit="$(git_global_unresolved "$gsub" "$gdir")"
++      CWD_REL="$saved_git_cwd"
++      CWD_UNKNOWN="$saved_git_unknown"
++      [ -n "$hit" ] && { rm -f "$subs_file"; block "${hit}（${sub}）" "git のグローバルオプション（-C / -c / --git-dir / --work-tree）を読み飛ばした形にも同じ規則を適用します（R-TH-02 / R-SEC-07）"; }
++    fi
++
+     for name in $(script_names "$sub"); do
+       [ -n "$name" ] || continue
+       case "$chain" in
+@@ -684,7 +1002,10 @@ scan_text() {
+           rm -f "$subs_file"
+           block "npm run $name" "スクリプトの入れ子が深すぎて解決できません（安全側に倒して遮断）"
+         fi
++        saved_pkg_rel="$PKG_REL"
++        PKG_REL="$(pkg_dir_for_cwd)"
+         scan_text "$body" $((depth + 1)) "$chain$name|"
++        PKG_REL="$saved_pkg_rel"
+       else
+         if printf '%s' "$name" | grep -Eqi "$RISKY_SCRIPT_NAME_RE"; then
+           rm -f "$subs_file"
+@@ -705,6 +1026,7 @@ scan_text() {
+   rm -f "$subs_file"
+   CWD_REL="$saved_cwd"
+   CWD_UNKNOWN="$saved_unknown"
++  CWD_STACK="$saved_stack"
+ }
+ 
+ scan_text "$CMD" 0 "|"
+diff --git a/scripts/deny-test-weakening.sh b/scripts/deny-test-weakening.sh
+index f8a02ea..6a2151d 100755
+--- a/scripts/deny-test-weakening.sh
++++ b/scripts/deny-test-weakening.sh
+@@ -41,10 +41,14 @@
+ #
+ # Exit codes: 0 allow, 2 block (or the guard itself could not run safely).
+ #
+-# Compatible with bash 3.2. External dependencies: jq, grep, sed, wc, and —
+-# only for the .claude/settings.json structural check — node.
++# Compatible with bash 3.2. External dependencies: jq, grep, sed, wc, and — for
++# the .claude/settings.json structural check AND for rebuilding the post-edit
++# text of a tests/** file (6th round, F-4) — node.
+ 
+ set -uo pipefail
++# 6 周目（F-2）: パスを `/` で分解して正規化するので、`*` を含むパスが
++# その途中でグロブ展開されないようにしておく。
++set -f
+ 
+ SELF="deny-test-weakening.sh"
+ 
+@@ -100,6 +104,36 @@ if [ -z "$ROOT" ]; then
+   ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+ fi
+ 
++norm_path() {
++  # 6 周目（GPT-6 Astra F-2）。`.` / `..` / 連続スラッシュを畳む。
++  # 以下の判定はすべてパスに対する正規表現なので、
++  # `scripts/./deny-dangerous-bash.sh` はガード本体そのものを指しながら
++  # `scripts/deny-` に一致せず、Write で丸ごと書き換えられた。
++  local p="$1" out="" part oldifs abs=""
++  case "$p" in
++    /*) abs=1 ;;
++  esac
++  oldifs="$IFS"
++  IFS='/'
++  for part in $p; do
++    case "$part" in
++      ""|.) continue ;;
++      ..) out="${out%/*}" ;;
++      *) out="$out/$part" ;;
++    esac
++  done
++  IFS="$oldifs"
++  if [ -n "$abs" ]; then
++    printf '%s' "${out:-/}"
++  else
++    printf '%s' "${out#/}"
++  fi
++}
++
++# 判定はすべて正規化した形で行う。$FILE そのものは遮断メッセージに残す
++# （操作者が「何を要求したか」を読めるようにするため）。
++FILE_N="$(norm_path "$FILE")"
++
+ TMP_OLD="$(mktemp)"
+ TMP_NEW="$(mktemp)"
+ TMP_PAYLOAD="$(mktemp)"
+@@ -162,24 +196,24 @@ case "$TOOL" in
+     # .claude/settings.json の構造検査は Edit / Write / MultiEdit の差分形式しか
+     # 組み立てられない。編集後の姿を作れないまま通すとフック登録を外せてしまう
+     # ので、MCP 経由の .claude/** はまとめて拒否する。
+-    if printf '%s' "$FILE" | grep -Eq '(^|/)\.claude/'; then
++    if printf '%s' "$FILE_N" | grep -Eq '(^|/)\.claude/'; then
+       block "$FILE" ".claude/** は MCP のファイル編集ツールからは書き換えられません（R-SEC-07 / R-TH-02）。編集後のフック登録を検査できないため、Edit / Write ツールを使ってください"
+     fi
+     ;;
+ esac
+ 
+ # ---------------------------------------------------------- protected paths --
+-if printf '%s' "$FILE" | grep -Eq '(^|/)docs/run-log/'; then
++if printf '%s' "$FILE_N" | grep -Eq '(^|/)docs/run-log/'; then
+   block "$FILE" "docs/run-log/** に書けるのは scripts/record-run.sh だけです（R-TH-02）。scripts/record-run.sh <task_id> <command...> 経由で実行してください"
+ fi
+ 
+-if printf '%s' "$FILE" | grep -Eq '(^|/)docs/gates/'; then
++if printf '%s' "$FILE_N" | grep -Eq '(^|/)docs/gates/'; then
+   block "$FILE" "docs/gates/** は PO 専管のゲート定義の正本です（R-SEC-07 / F13）。AI は読むだけで書き換えられません"
+ fi
+ 
+ # The guards themselves. scripts/deny-dangerous-bash.sh already refuses every
+ # Bash-side write to these paths; this is the Edit/Write half of the same rule.
+-if printf '%s' "$FILE" | grep -Eq '(^|/)scripts/(deny-[^/]*|record-run\.sh)$'; then
++if printf '%s' "$FILE_N" | grep -Eq '(^|/)scripts/(deny-[^/]*|record-run\.sh)$'; then
+   block "$FILE" "ハーネスのガード本体（scripts/deny-* ・scripts/record-run.sh）は Edit/Write で書き換えられません（R-SEC-07 / R-TH-02）。変更が要るなら task_005 の scope として起票し、人間のレビューを通してください"
+ fi
+ 
+@@ -187,22 +221,30 @@ fi
+ # Every registration that must survive an edit: the hook event, the tool names
+ # the matcher has to keep covering (empty = the event takes no matcher), and a
+ # substring the registered command must still contain.
++# `kind` は「その名前がコマンド行のどこに現れれば実際に動くのか」を決める。
++# script = スクリプトファイル（そのまま実行するか bash / node に渡す）、
++# npm = package.json の scripts 名（npm run の引数）。
++# 6 周目（GPT-6 Astra F-3）まで、検査は名前が command に含まれるかしか見て
++# いなかったので、`true deny-dangerous-bash.sh` のようにガードを起動しない
++# コマンドの引数に名前を残すだけで通過できた。
+ EXPECTED_HOOKS='[
+-  {"event":"SessionStart","tokens":[],"cmd":"session-brief.mjs"},
+-  {"event":"UserPromptSubmit","tokens":[],"cmd":"gate-status.mjs"},
+-  {"event":"PreToolUse","tokens":["Bash"],"cmd":"deny-dangerous-bash.sh"},
+-  {"event":"PreToolUse","tokens":["Edit","Write","MultiEdit"],"cmd":"deny-test-weakening.sh"},
+-  {"event":"PostToolUse","tokens":["Edit","Write","MultiEdit"],"cmd":"typecheck"},
+-  {"event":"PostToolUse","tokens":["Edit","Write","MultiEdit"],"cmd":"lint:changed"},
+-  {"event":"PostToolUse","tokens":["Edit","Write","MultiEdit"],"cmd":"gate:constraints"},
+-  {"event":"Stop","tokens":[],"cmd":"append-handoff.sh"},
+-  {"event":"SubagentStop","tokens":[],"cmd":"assert-diff-exists.sh"}
++  {"event":"SessionStart","tokens":[],"cmd":"session-brief.mjs","kind":"script"},
++  {"event":"UserPromptSubmit","tokens":[],"cmd":"gate-status.mjs","kind":"script"},
++  {"event":"PreToolUse","tokens":["Bash"],"cmd":"deny-dangerous-bash.sh","kind":"script"},
++  {"event":"PreToolUse","tokens":["Edit","Write","MultiEdit"],"cmd":"deny-test-weakening.sh","kind":"script"},
++  {"event":"PostToolUse","tokens":["Edit","Write","MultiEdit"],"cmd":"typecheck","kind":"npm"},
++  {"event":"PostToolUse","tokens":["Edit","Write","MultiEdit"],"cmd":"lint:changed","kind":"npm"},
++  {"event":"PostToolUse","tokens":["Edit","Write","MultiEdit"],"cmd":"gate:constraints","kind":"npm"},
++  {"event":"Stop","tokens":[],"cmd":"append-handoff.sh","kind":"script"},
++  {"event":"SubagentStop","tokens":[],"cmd":"assert-diff-exists.sh","kind":"script"}
+ ]'
+ 
+-settings_result() {
+-  # Writes the file as it would look AFTER this edit into $TMP_RESULT.
+-  # A Write carries the whole file; an Edit / MultiEdit carries fragments, so
+-  # they are applied to the copy on disk the same way the tool would apply them.
++edit_result() {
++  # $1 = the file the edit targets. Writes the file as it would look AFTER this
++  # edit into $TMP_RESULT. A Write carries the whole file; an Edit / MultiEdit
++  # carries fragments, so they are applied to the copy on disk the same way the
++  # tool would apply them. Used by the .claude/settings.json structural check and
++  # — since the 6th round (F-4) — by the tests/** comparison.
+   cat > "$TMP_JS" <<'NODE'
+ const fs = require("node:fs");
+ const [payloadFile, target, outFile] = process.argv.slice(2);
+@@ -244,19 +286,19 @@ NODE
+   node "$TMP_JS" "$TMP_PAYLOAD" "$1" "$TMP_RESULT"
+ }
+ 
+-if printf '%s' "$FILE" | grep -Eq '(^|/)\.claude/settings\.json$'; then
++if printf '%s' "$FILE_N" | grep -Eq '(^|/)\.claude/settings\.json$'; then
+   command -v node >/dev/null 2>&1 || {
+     block "$FILE" ".claude/settings.json の構造検査に node が必要ですが見つかりません（安全側に倒して遮断します）"
+   }
+ 
+-  ABS="$FILE"
+-  case "$FILE" in
++  ABS="$FILE_N"
++  case "$FILE_N" in
+     /*) ;;
+-    *) ABS="$ROOT/$FILE" ;;
++    *) ABS="$ROOT/$FILE_N" ;;
+   esac
+ 
+   printf '%s' "$INPUT" > "$TMP_PAYLOAD"
+-  settings_result "$ABS" || block "$FILE" "編集後の .claude/settings.json を組み立てられませんでした（安全側に倒して遮断します）"
++  edit_result "$ABS" || block "$FILE" "編集後の .claude/settings.json を組み立てられませんでした（安全側に倒して遮断します）"
+ 
+   jq -e . "$TMP_RESULT" >/dev/null 2>&1 || {
+     block "$FILE" "編集後の .claude/settings.json が JSON として解釈できません（R-SEC-07 / R-TH-02）。壊れた settings.json はフックを 1 つも登録しないので、ガードを全部外すのと同じです"
+@@ -265,18 +307,29 @@ if printf '%s' "$FILE" | grep -Eq '(^|/)\.claude/settings\.json$'; then
+   # `present` takes the document explicitly: inside `$expect[] | select(...)`
+   # the input is the expectation object, not the settings document.
+   MISSING="$(jq -r --argjson expect "$EXPECTED_HOOKS" '
+-    def present($doc; $e; $t; $c):
++    # 正規表現に入れる前にメタ文字を殺す（ガード名の `.` など）。
++    def rx($c): $c | gsub("\\."; "\\.") | gsub("\\+"; "\\+") | gsub("\\*"; "\\*");
++    # 名前が「含まれる」だけでは動いたことにならない（6 周目 / F-3）。
++    # script: 直接実行するか、bash / sh / node などのインタプリタの引数である。
++    # npm:    npm / yarn / pnpm の run の引数である。
++    # どちらも `#` より前だけを見るので、コメントに名前を残す形も通らない。
++    def runs($cmdline; $c; $kind):
++      ($cmdline | split("#")[0]) as $head
++      | if $kind == "npm" then
++          $head | test("(^|[^A-Za-z0-9_./-])(npm|yarn|pnpm)([[:space:]]+-[^[:space:]]+)*[[:space:]]+(run|run-script)([[:space:]]+-[^[:space:]]+)*[[:space:]]+" + rx($c) + "([[:space:]]|$)")
++        else
++          $head | test("^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]+[[:space:]]+)*((env|exec|command)[[:space:]]+)*((bash|sh|zsh|dash|node|nodejs)[[:space:]]+(-[^[:space:]]+[[:space:]]+)*)?[^[:space:]]*" + rx($c))
++        end;
++    def present($doc; $e; $t; $c; $kind):
+       [ ($doc.hooks[$e]? // [])[]
+         | select((($t - ((.matcher // "") | split("|"))) | length) == 0)
+         | (.hooks? // [])[]
+         | (.command // "")
+       ]
+-      # Only the part before a `#` counts, so commenting the guard out
+-      # (`true # deny-dangerous-bash.sh`) does not satisfy the expectation.
+-      | map(split("#")[0] | contains($c)) | any;
++      | map(runs(.; $c; $kind)) | any;
+     . as $doc
+     | [ $expect[]
+-        | select((present($doc; .event; .tokens; .cmd)) | not)
++        | select((present($doc; .event; .tokens; .cmd; .kind)) | not)
+         | "\(.event)[\(.tokens | join("|"))] -> \(.cmd)"
+       ] | join(" / ")
+   ' "$TMP_RESULT" 2>/dev/null)" || block "$FILE" "編集後の .claude/settings.json のフック登録を検査できませんでした（安全側に倒して遮断します）"
+@@ -284,7 +337,7 @@ if printf '%s' "$FILE" | grep -Eq '(^|/)\.claude/settings\.json$'; then
+   if [ -n "$MISSING" ]; then
+     block "$FILE" "フック登録が失われています: ${MISSING}（R-SEC-07 / R-TH-02）。.claude/** へのフック追加・matcher の拡張は通りますが、登録済みのガードを外す・event を変える・matcher を狭める編集はできません"
+   fi
+-elif printf '%s' "$FILE" | grep -Eq '(^|/)\.claude/'; then
++elif printf '%s' "$FILE_N" | grep -Eq '(^|/)\.claude/'; then
+   # Other .claude/** files carry no hook structure; the name-count rule is all
+   # that can be said about them.
+   for guard in \
+@@ -303,14 +356,14 @@ elif printf '%s' "$FILE" | grep -Eq '(^|/)\.claude/'; then
+   done
+ fi
+ 
+-if printf '%s' "$FILE" | grep -Eq '(^|/)docs/acceptance-checks\.json$'; then
++if printf '%s' "$FILE_N" | grep -Eq '(^|/)docs/acceptance-checks\.json$'; then
+   if matches "$TMP_NEW" '"?evidence"?' || matches "$TMP_OLD" '"?evidence"?'; then
+     block "$FILE" "acceptance-checks.json の evidence は検証コマンドの実行結果から機械的に書かれるものです（G9 / R-TH-02）。直接編集はできません"
+   fi
+ fi
+ 
+ # ------------------------------------------------------------- tests/** 弱体化 --
+-if printf '%s' "$FILE" | grep -Eq '(^|/)tests/'; then
++if printf '%s' "$FILE_N" | grep -Eq '(^|/)tests/'; then
+   case "$TOOL" in
+     mcp__*)
+       # jq -r always emits a trailing newline, so an "empty" TMP_OLD is one
+@@ -341,6 +394,47 @@ if printf '%s' "$FILE" | grep -Eq '(^|/)tests/'; then
+   if [ "$new_expects" -lt "$old_expects" ]; then
+     block "$FILE" "アサーション（expect）が ${old_expects} 件から ${new_expects} 件に減っています（F3）。テストを通すためにアサーションを削らないでください"
+   fi
++
++  # 6 周目（GPT-6 Astra F-4）。上の比較は old_string / new_string という
++  # 「断片」どうしの比較なので、編集範囲の外に `it` を残したまま `.skip` を
++  # 足す Edit は、修飾子もケース数も変えずに通過できた（replace_all を付ければ
++  # 1 回の Edit でファイル中の遮断ケース登録をまとめて無効化できる）。
++  # 編集後のファイル全体を組み立て直し、ディスク上の現物と数を比べる。
++  # Write は元から全文どうしの比較なので対象外。
++  case "$TOOL" in
++    Edit|MultiEdit)
++      command -v node >/dev/null 2>&1 || {
++        block "$FILE" "tests/** の編集後の姿を組み立てるのに node が必要ですが見つかりません（安全側に倒して遮断します）"
++      }
++      ABS_T="$FILE_N"
++      case "$FILE_N" in
++        /*) ;;
++        *) ABS_T="$ROOT/$FILE_N" ;;
++      esac
++      printf '%s' "$INPUT" > "$TMP_PAYLOAD"
++      edit_result "$ABS_T" || block "$FILE" "編集後の tests/** を組み立てられませんでした（安全側に倒して遮断します）"
++      if [ -f "$ABS_T" ]; then cat "$ABS_T" > "$TMP_OLD"; else : > "$TMP_OLD"; fi
++      cat "$TMP_RESULT" > "$TMP_NEW"
++
++      file_skip_old="$(count_of "$TMP_OLD" "$SKIP_RE")"
++      file_skip_new="$(count_of "$TMP_NEW" "$SKIP_RE")"
++      if [ "$file_skip_new" -gt "$file_skip_old" ]; then
++        block "$FILE" "編集後のファイル全体で .skip / .todo / .only が ${file_skip_old} 件から ${file_skip_new} 件に増えています（F3）。編集断片の外に it を残す形でも無効化はできません"
++      fi
++
++      file_cases_old="$(count_of "$TMP_OLD" "$CASE_RE")"
++      file_cases_new="$(count_of "$TMP_NEW" "$CASE_RE")"
++      if [ "$file_cases_new" -lt "$file_cases_old" ]; then
++        block "$FILE" "編集後のファイル全体でテストケース（it/test）が ${file_cases_old} 件から ${file_cases_new} 件に減っています（F3）"
++      fi
++
++      file_expects_old="$(count_of "$TMP_OLD" "$EXPECT_RE")"
++      file_expects_new="$(count_of "$TMP_NEW" "$EXPECT_RE")"
++      if [ "$file_expects_new" -lt "$file_expects_old" ]; then
++        block "$FILE" "編集後のファイル全体でアサーション（expect）が ${file_expects_old} 件から ${file_expects_new} 件に減っています（F3）"
++      fi
++      ;;
++  esac
+ fi
+ 
+ exit 0
+diff --git a/tests/unit/hooks/deny-dangerous-bash.test.ts b/tests/unit/hooks/deny-dangerous-bash.test.ts
+index ae0e5a6..8c5130a 100644
+--- a/tests/unit/hooks/deny-dangerous-bash.test.ts
++++ b/tests/unit/hooks/deny-dangerous-bash.test.ts
+@@ -149,6 +149,28 @@ const blockedWrites: string[] = [
+   "mv -t docs/run-log /tmp/a.json",
+   "cp --target-directory=docs/gates /tmp/a.json",
+   "cp -t .claude /tmp/settings.json",
++  // 5 周目（docs/concerns/task_005.md §2 / 敵対レビュー F-BASH-01）: 動詞の列挙に無かった
++  // 編集系コマンド。ガード本体・フック登録・テストを 1 コマンドで書き換えられた。
++  "awk -i inplace '{print}' scripts/deny-dangerous-bash.sh",
++  "gawk -i inplace '{print}' .claude/settings.json",
++  "ed -s scripts/deny-dangerous-bash.sh",
++  "ex -sc wq scripts/deny-dangerous-bash.sh",
++  "vim -es tests/contract/duplicate.test.ts",
++  "sponge scripts/deny-dangerous-bash.sh",
++  "echo '{}' | sponge docs/gates/legal-clearance.json",
++  // 6 周目（GPT-6 Astra F-1）: 動詞を「行頭か空白の直後」で錨づけしていたため、
++  // 絶対パス・相対パスで起動した同じコマンドが書き込み規則を素通りしていた。
++  "/bin/cp /dev/null .claude/settings.json",
++  "/bin/rm scripts/deny-dangerous-bash.sh",
++  "/usr/bin/sed -i '' s/x/y/ scripts/record-run.sh",
++  "/usr/bin/tee docs/run-log/task_005.json",
++  "/bin/chmod -x scripts/deny-test-weakening.sh",
++  "/usr/local/bin/rsync -a /tmp/logs/ docs/run-log/",
++  // 6 周目（GPT-6 Astra F-2）: ./ や .. を挟むと同じファイルを別の綴りで指せる。
++  "cp /dev/null scripts/./deny-dangerous-bash.sh",
++  "rm ./scripts/deny-test-weakening.sh",
++  "echo x > docs/./run-log/task_005.json",
++  "echo x > docs/gates/../gates/legal-clearance.json",
+ ];
+ 
+ const blockedAliases: string[] = [
+@@ -242,6 +264,44 @@ const blockedEvasions: string[] = [
+   "git am /tmp/evil.patch",
+   "git am < /tmp/evil.patch",
+   "git am --3way /tmp/evil.patch",
++  // (7) 5 周目: 宛先がコマンド行に現れない削除。探索元が保護対象を含みうるなら遮断。
++  "find tests -name '*.test.ts' -delete",
++  "find . -name '*.json' -delete",
++  "find -name '*.test.ts' -delete",
++  "find docs -type f -delete",
++  "find scripts -name 'deny-*' -exec rm {} \\;",
++  "find $DIR -name '*.json' -delete",
++  "cd $TARGET && find . -name '*.json' -delete",
++  "xargs rm < /tmp/list.txt",
++  "cat /tmp/list.txt | xargs -0 rm -f",
++  "xargs -I{} sh -c 'echo x > {}' < /tmp/list.txt",
++  // (8) 5 周目: 履歴操作で内容を巻き戻す経路。list / show と `--` 付きのパス指定だけ通す。
++  "git stash push tests/unit/hooks/deny-dangerous-bash.test.ts",
++  "git stash",
++  "git stash pop",
++  "git revert --no-edit HEAD",
++  "git reset HEAD~1",
++  "git reset --soft HEAD~1",
++  "git reset --keep origin/main",
++  // (9) 6 周目（GPT-6 Astra F-5）: git はサブコマンドの前に自分のグローバル
++  // オプションを読む。-C / -c / --git-dir を挟むだけで判定が外れていた。
++  "git -C . reset --hard HEAD",
++  "git -c core.pager=cat reset --hard HEAD",
++  "git --git-dir=.git reset --hard HEAD",
++  "git --no-pager reset --hard HEAD~1",
++  "git -C docs/run-log checkout .",
++  "git -C . clean -fdx",
++  "git -C . stash",
++  "git -C $DIR restore src/app/page.tsx",
++  // (10) 6 周目（GPT-6 Astra F-6）: 行継続はシェルでは 1 つのコマンド。
++  "wrangler \\\ndeploy --env production",
++  "npm run \\\ndeploy:production",
++  "rm -f \\\n-r /tmp/probe-dir",
++  // (11) 6 周目（GPT-6 Astra F-8）: サブシェル・ブレースグループの中の cd は
++  // 閉じた時点で元に戻る。検査だけルートに戻ると相対の書き込みが通ってしまう。
++  "cd .claude && (cd ..) && printf x > settings.json",
++  "cd docs/run-log && (cd /tmp) && echo x > y.json",
++  "cd tests && { cd ..; } && echo x > smoke.test.ts",
+ ];
+ 
+ const allowed: string[] = [
+@@ -301,6 +361,29 @@ const allowed: string[] = [
+   "git push origin main",
+   "scripts/record-run.sh task_005 npm run gate:constraints",
+   "scripts/record-run.sh --manual task_005 'SessionStart の注入を目視で確認した'",
++  // 5 周目の遮断が、読むだけの find / xargs・保護対象の外の削除・退避の閲覧・
++  // インデックスだけ戻す git reset まで巻き込んでいないこと。
++  "find docs -name '*.md'",
++  "find /tmp/scratch -name '*.log' -delete",
++  "find src -name '*.tsx' -exec grep -l useState {} \\;",
++  "ls tests/unit | xargs wc -l",
++  "git stash list",
++  "git stash show -p",
++  "git reset",
++  "git reset -- src/app/page.tsx",
++  "git reset HEAD -- src/app/page.tsx",
++  "awk '{print $1}' docs/run-log/task_005.json",
++  // 6 周目の遮断が、git のグローバルオプション付きの読み取り・行継続を挟んだ
++  // 無害なコマンド・サブシェルを抜けた後の通常の書き込みまで巻き込んでいないこと。
++  "git -C . status --porcelain",
++  "git -C src log --oneline -5",
++  "git --no-pager diff --stat",
++  "git -c core.pager=cat log -1",
++  "git status \\\n--porcelain",
++  "cd src && (cd ../docs) && echo x > page.tsx",
++  "(cd src && echo x > page.tsx) && echo done",
++  "/bin/ls tests/unit/hooks",
++  "/usr/bin/grep -rn expect tests/unit",
+ ];
+ 
+ describe("deny-dangerous-bash.sh — 破壊的・本番系コマンド", () => {
+@@ -419,6 +502,22 @@ describe("deny-dangerous-bash.sh — package.json.scripts の別名呼び出し"
+       expect(run(command).status).toBe(2);
+     });
+   }
++
++  // 6 周目（GPT-6 Astra F-7）: cd の先にある package.json を見ずに、常に
++  // ルートの package.json で解決していた。ルートに release は無いが、
++  // フィクスチャの release は build -> deploy:production ->
++  // wrangler deploy --env production に届く。
++  it("cd の先の package.json で npm スクリプトを解決する", () => {
++    const result = run(
++      "cd tests/unit/hooks/fixtures && npm run release",
++      path.join(repoRoot, "package.json"),
++    );
++    expect(result.status).toBe(2);
++  });
++
++  it("cd の先に package.json が無ければ従来どおり上位で解決する", () => {
++    expect(run("cd src && npm run deploy:production").status).toBe(2);
++  });
+ });
+ 
+ describe("deny-dangerous-bash.sh — 通常の作業は通す", () => {
+diff --git a/tests/unit/hooks/deny-test-weakening.test.ts b/tests/unit/hooks/deny-test-weakening.test.ts
+index 1c27f2d..6b5d421 100644
+--- a/tests/unit/hooks/deny-test-weakening.test.ts
++++ b/tests/unit/hooks/deny-test-weakening.test.ts
+@@ -24,6 +24,12 @@ const ONLY = ["describe", "only"].join(".");
+ const TODO = ["test", "todo"].join(".");
+ const LIVE_SECRET = ["sk", "live", "51ABCdefGHIjkl"].join("_");
+ 
++// 6 周目（GPT-6 Astra F-4）の見本。`it` を編集範囲の外に残したまま `.skip` を
++// 足す Edit。修飾子をリテラルで書くとこのファイル自身が同じフックに
++// 引っかかるので、実行時に組み立てる。
++const F4_OLD = '(`exit 2: ${command}`, () => {';
++const F4_NEW = ["", "skip"].join(".") + F4_OLD;
++
+ interface RunResult {
+   status: number;
+   stderr: string;
+@@ -43,16 +49,26 @@ function write(filePath: string, content: string): RunResult {
+   return runHook({ tool_name: "Write", tool_input: { file_path: filePath, content } });
+ }
+ 
+-function edit(filePath: string, oldString: string, newString: string): RunResult {
++function edit(
++  filePath: string,
++  oldString: string,
++  newString: string,
++  replaceAll = false,
++): RunResult {
+   return runHook({
+     tool_name: "Edit",
+-    tool_input: { file_path: filePath, old_string: oldString, new_string: newString },
++    tool_input: {
++      file_path: filePath,
++      old_string: oldString,
++      new_string: newString,
++      replace_all: replaceAll,
++    },
+   });
+ }
+ 
+ function multiEdit(
+   filePath: string,
+-  edits: { old_string: string; new_string: string }[],
++  edits: { old_string: string; new_string: string; replace_all?: boolean }[],
+ ): RunResult {
+   return runHook({ tool_name: "MultiEdit", tool_input: { file_path: filePath, edits } });
+ }
+@@ -142,6 +158,35 @@ describe("deny-test-weakening.sh — tests/** の弱体化", () => {
+   it("新しいテストファイルの作成は通す", () => {
+     expect(write("tests/unit/new-thing.test.ts", TWO_ASSERTIONS).status).toBe(0);
+   });
++
++  // 6 周目（GPT-6 Astra F-4）: Edit は old_string / new_string だけを突き合わせる
++  // ので、`it` を編集範囲の外に残したまま `.skip` を足すと、断片の比較では
++  // 修飾子もケース数も変わらない。編集後のファイル全体を組み立てて数え直す。
++  it("断片の外に it を残した replace_all の skip 追加は exit 2", () => {
++    const result = edit(
++      "tests/unit/hooks/deny-dangerous-bash.test.ts",
++      F4_OLD,
++      F4_NEW,
++      true,
++    );
++    expect(result.status).toBe(2);
++  });
++
++  it("同じ形の MultiEdit も exit 2", () => {
++    const result = multiEdit("tests/unit/hooks/deny-dangerous-bash.test.ts", [
++      { old_string: F4_OLD, new_string: F4_NEW, replace_all: true },
++    ]);
++    expect(result.status).toBe(2);
++  });
++
++  it("編集後の全体で数えても、ケースを増やす Edit は通す", () => {
++    const result = edit(
++      "tests/unit/hooks/deny-dangerous-bash.test.ts",
++      "const allowed: string[] = [",
++      'const allowed: string[] = [\n  "echo added",',
++    );
++    expect(result.status).toBe(0);
++  });
+ });
+ 
+ describe("deny-test-weakening.sh — ハーネス自身の保全", () => {
+@@ -161,6 +206,36 @@ describe("deny-test-weakening.sh — ハーネス自身の保全", () => {
+     expect(write(path.join(repoRoot, "scripts/deny-dangerous-bash.sh"), "exit 0\n").status).toBe(2);
+   });
+ 
++  // 6 周目（GPT-6 Astra F-2）: パスに ./ や .. を挟むと、同じファイルを指しながら
++  // 保護パターンに一致しなくなっていた。判定は正規化した形で行う。
++  it("scripts/./deny-… の形でもガード本体は遮断する", () => {
++    expect(write("scripts/./deny-dangerous-bash.sh", "exit 0\n").status).toBe(2);
++  });
++
++  it("./scripts/deny-… の形でもガード本体は遮断する", () => {
++    expect(edit("./scripts/deny-test-weakening.sh", "exit 2", "exit 0").status).toBe(2);
++  });
++
++  it("scripts/../scripts/ の形でも record-run.sh は遮断する", () => {
++    expect(write("scripts/../scripts/record-run.sh", "exit 0\n").status).toBe(2);
++  });
++
++  it("docs/./run-log/ の形でも run-log は遮断する", () => {
++    expect(write("docs/./run-log/task_005.json", "[]").status).toBe(2);
++  });
++
++  it("docs/gates/../gates/ の形でも gates は遮断する", () => {
++    expect(write("docs/gates/../gates/legal-clearance.json", "{}").status).toBe(2);
++  });
++
++  it("tests/./ の形でも tests/** の弱体化を見る", () => {
++    expect(edit("tests/./contract/duplicate.test.ts", TWO_ASSERTIONS, ONE_ASSERTION).status).toBe(2);
++  });
++
++  it("正規化は src 配下の通常の Write まで巻き込まない", () => {
++    expect(write("src/./app/page.tsx", "export default null;\n").status).toBe(0);
++  });
++
+   it("ガード以外の scripts/ は通す", () => {
+     expect(write("scripts/session-brief.mjs", "process.exit(0);\n").status).toBe(0);
+   });
+@@ -250,6 +325,64 @@ describe("deny-test-weakening.sh — .claude/settings.json の構造検査", ()
+     ).toBe(2);
+   });
+ 
++  // 6 周目（GPT-6 Astra F-3）: 期待する名前が command に「含まれるか」しか見て
++  // いなかったので、ガードを起動しない無処理コマンドの引数に名前を残すだけで
++  // 検査を通過できた。名前は実際に実行される位置になければならない。
++  it("無処理コマンドの引数にガード名を残しても exit 2", () => {
++    expect(
++      write(
++        ".claude/settings.json",
++        rewritten(
++          'bash \\"$CLAUDE_PROJECT_DIR/scripts/deny-dangerous-bash.sh\\"',
++          "true deny-dangerous-bash.sh",
++        ),
++      ).status,
++    ).toBe(2);
++  });
++
++  it("echo の引数にガード名を残しても exit 2", () => {
++    expect(
++      write(
++        ".claude/settings.json",
++        rewritten(
++          'bash \\"$CLAUDE_PROJECT_DIR/scripts/deny-test-weakening.sh\\"',
++          "echo deny-test-weakening.sh",
++        ),
++      ).status,
++    ).toBe(2);
++  });
++
++  it("npm スクリプト名を echo の引数にしても exit 2", () => {
++    expect(
++      write(".claude/settings.json", rewritten("npm run --silent lint:changed", "echo lint:changed"))
++        .status,
++    ).toBe(2);
++  });
++
++  it("インタプリタのオプションを挟んだ正規の登録は通す", () => {
++    expect(
++      write(
++        ".claude/settings.json",
++        rewritten(
++          'node \\"$CLAUDE_PROJECT_DIR/scripts/session-brief.mjs\\"',
++          'node --no-warnings \\"$CLAUDE_PROJECT_DIR/scripts/session-brief.mjs\\"',
++        ),
++      ).status,
++    ).toBe(0);
++  });
++
++  it("インタプリタを介さない直接実行の登録も通す", () => {
++    expect(
++      write(
++        ".claude/settings.json",
++        rewritten(
++          'bash \\"$CLAUDE_PROJECT_DIR/scripts/append-handoff.sh\\"',
++          '\\"$CLAUDE_PROJECT_DIR/scripts/append-handoff.sh\\"',
++        ),
++      ).status,
++    ).toBe(0);
++  });
++
+   it("JSON として壊れた settings.json は exit 2", () => {
+     expect(write(".claude/settings.json", settings.slice(0, -20)).status).toBe(2);
+   });
