@@ -89,7 +89,14 @@
   「未処理（NULL）」に改める。どちらもスキーマ / 受入チェックの所有者の判断。
 - **対応予定タスク**: task_020（apply-pending の実装時に確定）
 
-## C-018-4 `tests/unit/gate-check.test.ts` の 2 件が `test:contract` の実在で赤
+## C-018-4 `tests/unit/gate-check.test.ts` の 2 件が `test:contract` の実在で赤（解消）
+
+- **解消**: 2026-09-24 のコミット `90c8968` が当該フィクスチャの placeholder を
+  `test:contract` から `bench:models`（どのタスクも定義しない名前）へ替えた。最終 HEAD で
+  `npm run test:unit` は **51 ファイル 1214/1214 pass・exit 0**（`docs/run-log/task_018.json`）。
+- 以下は解消前の記録。
+
+### （記録）当時の指摘
 
 - **指摘**: task_006 の `tests/unit/gate-check.test.ts`「G2 の 3 分岐」2 件が、
   **`test:contract` が package.json に無いこと**を前提にフィクスチャを組んでいる。

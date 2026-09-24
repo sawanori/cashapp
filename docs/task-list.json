@@ -2080,7 +2080,7 @@
         "[severity: medium] sortKeysDeep が __proto__ キーを落とし監査ハッシュの死角になる。src/lib/audit.ts と写しの同時修正が必要で本タスクの files_to_modify 外 / src/lib/audit.ts の所有タスク（C-018-12）",
         "[severity: medium] 返金では payment_attempt.status が更新されない（閉じた試行には書かない仕様のため succeeded のまま残る） / 試行にもランクを入れる案を task_020 で（C-018-13）",
         "[severity: medium] 適用保留に専用の apply_result 値が無い（CHECK に held が無いため NULL＝未処理で表す） / CHECK への held 追加か check_095 の文言改訂を task_020 で確定する",
-        "[severity: medium] tests/unit/gate-check.test.ts の G2 2 件が test:contract の実在で赤（task_006 のフィクスチャが未定義であることを前提にしている） / フィクスチャの placeholder を替えるのは当該テストの所有者（task_006）",
+        "[severity: low] tests/unit/gate-check.test.ts の G2 2 件が test:contract の実在で赤だった件は解消（コミット 90c8968 が placeholder を bench:models へ変更。最終 HEAD で test:unit は 1214/1214 pass・exit 0） / 対応不要",
         "[severity: medium] trust='unverified' は applyToLedger で適用せず apply_result='ignored' にする（再照会のアダプタを持たないため） / task_020 の reconcile が getPaymentStatus で reverified にして流し直す",
         "[severity: low] audit:verify のローカル実行は rowsChecked=0（統合テストが全てロールバックするため） / 連鎖破壊の検出は verifyChain の合成行テストと写し一致テストで担保、実データは task_035 以降",
         "[severity: low] WEBHOOK_IP_ALLOWLIST / WEBHOOK_SIGNING_SECRETS を env 雛形に未記載（未設定なら fail-closed） / task_035 / task_024 の env 台帳整備で登録する",
@@ -2422,14 +2422,17 @@
       "optional": false,
       "completion_status": "DONE_WITH_CONCERNS",
       "concerns": [
-        "[severity: high] createDbClient（src/lib/db/client.ts）がdrizzle()の副作用でdb.sqlのtimestamp列を壊す（読み取りは文字列化・Date書き込みは例外）。appendAuditLog/runIdempotent/resolveEventByJoinTokenを含む書き込み系ルート全般と参加者向けルート全般に波及する task_021 発見の横断的不具合 / 対応案: drizzle()を呼ばない(db.dbは未使用のため削除可)かoptionsを複製する。repro固定先はtests/integration/_debug_admin.test.ts",
+        "[severity: high] createDbClient（src/lib/db/client.ts）がdrizzle()の副作用でdb.sqlのtimestamp列を壊す（読み取りは文字列化・Date書き込みは例外）。appendAuditLog/runIdempotent/resolveEventByJoinTokenを含む書き込み系ルート全般と参加者向けルート全般に波及する task_021 発見の横断的不具合 / 対応案: drizzle()を呼ばない(db.dbは未使用のため削除可)かoptionsを複製する。repro固定先はtests/integration/_debug_admin.test.ts。task_011所有でtask_021のスコープ外のため未修正",
+        "[severity: high→修正済み] G5敵対レビュー（docs/review-log/task_021.json、コミット82dda92）はreject（実効high 3）。gpt F-1（admin-auth.ts:336 proposalIdに先頭ゼロを付けると承認済み申請を再承認できる）とgpt F-2（admin-auth.ts:210 loginの大小文字違いで同一管理者が二人承認を偽装できる）は本ラウンドで修正済み（ADMIN_PROPOSAL_ID_REを先頭ゼロ無しの正規形のみに限定／adminIdをlogin.toLowerCase()で正規化。回帰テスト2件をtests/integration/admin.test.tsに追加、test:integration 251/251 pass）。gemini F-1は上のdb/client.ts不具合と同一事象でスコープ外・対応不可。規約により再レビューはしない",
         "[severity: medium] 幹事あたりの合計請求額上限（サーバー強制）は対象ファイルがfiles_to_modifyに無く未実装。abuse-limits.test.tsはPOST /api/e/reportのレート制限（429）でスコープの一部をカバー / 対応案: files_to_modifyにinvoices関連を追加する後続タスクで実装",
         "[severity: medium] O-9要対応インボックスの10種別自動分類は参加者一覧APIの内訳不足により部分実装（confirmationMethod=mixedとrosterStatus=canceledのみ機械分類、他は要確認に丸め）/ 対応案: 参加者一覧APIに分類用内訳を追加する後続タスク",
         "[severity: medium] docs/incident-response.mdの個人情報保護委員会報告期限（速報/確報）はWebFetch 404・WebSearch予算超過で一次資料未取得のため暫定値 / 対応案: 一次資料取得後に弁護士確認とあわせて確定",
+        "[severity: medium] abuse-limits.test.ts / admin.test.tsのルート経由成功系テストは上のdb/client.ts不具合が原因でHTTPルート直呼びできず、withRollbackのtx経由のlibrary-levelテストで代替している（G5レビューで再指摘）/ 対応案: db/client.tsの修正後にPOST /api/e/report・POST /api/admin/flags(approve)等をルート関数の直接呼び出しに置き換える",
         "[severity: low] (web)/layout.tsxへの法務リンク差し込みはfiles_to_modify対象外のため未実施（法務情報はsettings/legal/page.tsxに集約）/ 対応案: files_to_modifyにlayout.tsxを追加する後続タスク",
         "[severity: low] POST /api/invoices/:id/refundの自動アダプタ経路はPhase1にmanual_confirm(capabilities.refund='none')しか無く統合テストで未到達 / 対応案: Phase2の自動アダプタ実装タスクで検証",
         "[severity: low] GET /api/me/export.zipは依存追加なしの手書きZIP（無圧縮STORE・export.json単一エントリ）/ 対応案: 必要になればzipライブラリ追加で拡張",
-        "[severity: low] npm run test:unitでtests/unit/gate-check.test.tsの2件が既存失敗（task_018のtest:contract追加とtask_006側フィクスチャの食い違い、task_021のファイルとは無関係）/ 対応案: task_006所有側でフィクスチャの参照スクリプト名を差し替え"
+        "[severity: low] npm run test:unitでtests/unit/gate-check.test.tsの2件が既存失敗（task_018のtest:contract追加とtask_006側フィクスチャの食い違い、task_021のファイルとは無関係）/ 対応案: task_006所有側でフィクスチャの参照スクリプト名を差し替え",
+        "[severity: low] npm run gate:constraintsがsrc/lib/reconcile.ts（W11 advisory lock欠落）1件でexit 1。所有はtask_020でcompletion_statusがnull（未着手）のためtask_021では対応不可 / 対応案: task_020側での実装完了を待つ"
       ]
     },
     {

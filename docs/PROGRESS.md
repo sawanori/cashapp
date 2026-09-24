@@ -687,9 +687,31 @@
   連鎖破壊を成功として返していた** → `id` カーソルで全件走査し、`--limit` 指定時だけ `truncated` を
   出力に明示。併せて medium 2 件（`webhook_delivery` が適用ループの例外時に 1 行も残らない／CIDR の
   `203.0.113.0/` が `/0`＝全 IPv4 許可として通る）も修正。**実測**: `scripts/record-run.sh task_018`
-  経由で `typecheck` exit 0、`test:contract` 8/8 pass、`test:integration` 21 ファイル 249/249 pass、
-  `audit:verify` exit 0。`test:unit` は 1212/1214 pass で **exit 1**（失敗 2 件は task_006 所有の
-  `tests/unit/gate-check.test.ts`。`test:contract` が実在することを前提にできないフィクスチャ）、
-  `gate:constraints` は他タスク未追跡の `src/lib/reconcile.ts` の W11 1 件で exit 1。G5 は規約により
+  経由で最終 HEAD（`d54a8a0`）にて `typecheck` exit 0、`test:contract` 8/8 pass、`test:unit` 51 ファイル
+  **1214/1214 pass**（並行コミット `90c8968` が `gate-check.test.ts` の placeholder を替えたため、
+  前回まで赤だった 2 件も解消）、`test:integration` 251/251 pass、`audit:verify` exit 0。
+  `gate:constraints` のみ他タスク未追跡の `src/lib/reconcile.ts` の W11 1 件で exit 1。G5 は規約により
   再レビューせず、残る medium 3 件（dedupe 既定鍵・`__proto__`・試行の終端状態）は
   `docs/concerns/task_018.md` C-018-10〜13 に記録。
+- task_021（G5 修正ラウンド）: DONE_WITH_CONCERNS — `docs/review-log/task_021.json`
+  （コミット `82dda92`）の G5 敵対レビューが reject（実効 high 3）だったため、規律に従い
+  ファイルを所有する範囲だけを修正した。**修正した 2 件（いずれも `src/lib/admin-auth.ts`）**:
+  (1) gpt F-1「`proposalId` に先頭ゼロを付けると承認済み申請を再承認できる」→
+  `ADMIN_PROPOSAL_ID_RE` を先頭ゼロ無しの正規形のみ許可する形に変更（`id = ...::bigint` の
+  数値キャストと `detail->>'proposalId' = ...` の文字列完全一致という 2 つの比較のずれを、
+  入力を正規形に限定することで解消）。(2) gpt F-2「GitHub login の大小文字違いで同一管理者が
+  二人承認を偽装できる」→ `verifyAdmin` が返す `adminId` を `login.toLowerCase()` で正規化
+  （GitHub は同一アカウントで login の表示上の大小文字を変更できるため、正規化前は
+  `approveAdminAction` の同一人物判定を大小文字だけで回避し A23 縮退の 24 時間クーリングを
+  すり抜けられた）。両方に回帰テストを `tests/integration/admin.test.ts` へ追加。
+  **修正しなかった 1 件**: gemini F-1（`src/lib/db/client.ts` の timestamp 破壊。既知の
+  横断的不具合）は task_011 所有で task_021 の files_to_modify 外のため、規約（他タスクの
+  ファイルを変更しない）に従い触れていない。abuse-limits.test.ts / admin.test.ts のルート
+  経由成功系テストが `withRollback` の tx 直呼びで代替している根本原因も同じで、未解消のまま
+  `docs/concerns/task_021.md` に記録した。**verify_commands 7 本すべて
+  `scripts/record-run.sh task_021` 経由で再実行**: `typecheck` exit 0 / `test:integration`
+  21 ファイル 251/251 pass（新規回帰テスト 2 件を含む）/ `gate:wording` 0 violation /
+  `gate:terms` 5/5 / `gate:privacy-policy` 9/9 はすべて exit 0。`test:unit` は exit 1
+  （`tests/unit/gate-check.test.ts` の既存 2 件のみ、task_006 所有で task_021 と無関係）、
+  `gate:constraints` も exit 1（`src/lib/reconcile.ts` W11 の 1 件のみ、task_020 所有かつ
+  task_020 は未着手）で、いずれも前回セッションから変化なし。G5 は規約により再レビューしない。

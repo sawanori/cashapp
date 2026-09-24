@@ -2409,8 +2409,8 @@ GPT-6 Astra 7 件のうち重複を除く 7 件を**全件修正**した（詳�
 
 ### 未解決
 
-- `npm run test:unit` は exit 1 のまま。原因は task_006 の `tests/unit/gate-check.test.ts` が
-  「`test:contract` は未定義」を前提にしたフィクスチャで、本タスク側に打つ手が無い（C-018-4）。
+- verify_commands は最終 HEAD `d54a8a0` で 5/6 が exit 0（`test:unit` は並行コミット `90c8968` で
+  解消し 1214/1214）。残る `gate:constraints` の exit 1 は未追跡の `src/lib/reconcile.ts`（W11）由来。
 - fixture 5 本の `captured_at` 欠落は、task_019 の `tests/conformance/fixture-provider.conformance.test.ts`
   が「欠落していること」を検査しているため**同時に直す必要がある**（片方だけ直すと赤になる）。
 
@@ -2663,3 +2663,6 @@ GPT-6 Astra 7 件のうち重複を除く 7 件を**全件修正**した（詳�
 - 2026-09-24T18:33:14Z HEAD=82dda92 決まったこと: task_021: 敵対レビュー記録（G5） / 未解決: 未コミット 40 件: .claude/settings.json docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json 
 - 2026-09-24T18:34:15Z HEAD=82dda92 決まったこと: task_021: 敵対レビュー記録（G5） / 未解決: 未コミット 43 件: .claude/settings.json docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json 
 - 2026-09-24T18:36:17Z HEAD=82dda92 決まったこと: task_021: 敵対レビュー記録（G5） / 未解決: 未コミット 48 件: .claude/settings.json docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_019.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json 
+- 2026-09-24T18:41:57Z HEAD=5228946 決まったこと: task_016: ShareSheet が src/lib/liff/** を型 import していた違反を解消（結果型を src/lib/share-outcome.ts へ切り出し。build:web-only 違反 0 件） / 未解決: 未コミット 30 件: docs/concerns/task_021.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json docs/run-log/task_019.json 
+- 2026-09-24T18:42:21Z HEAD=5228946 決まったこと: task_016: ShareSheet が src/lib/liff/** を型 import していた違反を解消（結果型を src/lib/share-outcome.ts へ切り出し。build:web-only 違反 0 件） / 未解決: 未コミット 32 件: docs/HANDOFF.md docs/concerns/task_021.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json 
+- 2026-09-24T18:43:21Z HEAD=5228946 決まったこと: task_016: ShareSheet が src/lib/liff/** を型 import していた違反を解消（結果型を src/lib/share-outcome.ts へ切り出し。build:web-only 違反 0 件） / 未解決: 未コミット 34 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_021.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json 
