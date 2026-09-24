@@ -1,0 +1,8 @@
+# OSV-Scanner の無視設定（CI の deps ジョブが --config で読む）。
+# 計画（docs/implementation-plan.md §16-6）の閾値は「high 以上で fail」。medium 以下の開発専用依存は
+# 理由と見直し期限を明記したうえでここに記録する。期限を過ぎると再び fail する。
+
+[[IgnoredVulns]]
+id = "GHSA-67mh-4wv8-2f99"
+ignoreUntil = 2026-12-31
+reason = "esbuild 0.18.20 は drizzle-kit 0.31.11 → @esbuild-kit/esm-loader → @esbuild-kit/core-utils が固定する開発専用の推移依存（npm ls esbuild で確認、2026-09-24）。本番バンドル（@opennextjs/cloudflare 経由の esbuild 0.25.4）には含まれない。CVSS 5.3（medium、開発サーバーの CORS 設定に関する問題）で計画の閾値 high 未満。drizzle-kit の更新で解消され次第この項目を削除する。"

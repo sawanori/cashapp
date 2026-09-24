@@ -116,6 +116,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # tests/security/log-pii.test.ts はビルド成果物（.next/static / .open-next）を実際に走査したことを
+      # 合格条件にしている（走査対象ゼロで通さない fail-closed）。CI でもビルドしてから検査する。
+      - name: build（成果物の秘密値走査の対象を作る）
+        run: npm run build
       - name: test:security
         run: npm run test:security
       - name: gate:server-only
@@ -193,7 +197,8 @@ jobs:
             | sed 's/osv-scanner_linux_amd64$/osv-scanner/' > osv-scanner.sha256
           sha256sum --check osv-scanner.sha256
           chmod +x ./osv-scanner
-          ./osv-scanner scan source -L package-lock.json
+          # 無視設定は osv-scanner.toml（理由・期限つき。計画の閾値は high 以上で fail）
+          ./osv-scanner scan source --config osv-scanner.toml -L package-lock.json
           rm -f osv-scanner osv-scanner_SHA256SUMS osv-scanner.sha256
 
       # Phase 1 は決済なしで出す。決済 SDK が依存ツリーに入った時点で L11 の前提が崩れる。
@@ -233,38 +238,56 @@ jobs:
       - name: gate:acceptance（G3 / G4 / G9）
         run: npm run gate:acceptance
 
+      # ★ 台帳の文字列を `sh -c` に渡さない。
+      #   docs/task-list.json は誰でも書ける普通のファイルで、test-tamper-guard の保護対象
+      #   にも G13 のハッシュ対象にも入っていない。直前の G2（scripts/gate-check.mjs の
+      #   scriptNameOf）は先頭の `npm run <name>` しか見ないので、
+      #   `npm run gate:check || true` のように後ろへシェルを足した値は「実在スクリプト」
+      #   として G2 を通り、ここで `sh -c` に渡されて常に exit 0 になっていた。
+      #   F2（完了の過大申告）に対する唯一の対策が無音で外せる穴だったので、
+      #   ここでは形そのものを `^npm run <script>$` の完全一致に縛り、シェルを介さず
+      #   `npm run "<script>"` の引数として渡す（実測 2026-09-24、敵対レビューの指摘）。
       - name: 完了タスクの verify_commands を CI で再実行
         run: |
           set -uo pipefail
           # 実 Postgres が要るコマンドは gate-integration.yml が実 DB の上で走らせる。
           # ここで黙って飛ばすのではなく、飛ばした事実と担当ワークフローを必ず出力する
           # （静かなスキップは「緑だが何も検査していない」を作る）。
-          DB_ONLY="npm run test:integration|npm run gates:sync|npm run db:migrate|npm run db:diff:drizzle"
+          DB_ONLY_NAMES="test:integration|gates:sync|db:migrate|db:diff:drizzle"
           FAILED=0
           SKIPPED=0
           RAN=0
+          MALFORMED=0
           while IFS= read -r cmd; do
             [ -n "$cmd" ] || continue
-            if printf '%s' "$cmd" | grep -qE "^(${DB_ONLY})$"; then
+            if ! printf '%s' "$cmd" | grep -qE '^npm run [A-Za-z0-9][A-Za-z0-9:_.-]*$'; then
+              echo "acceptance FAIL: verify_command が \`npm run <script>\` の完全一致ではありません: ${cmd}" >&2
+              echo "  この位置ではシェルを介さないので、引数やパイプ・&&・|| を付けた値は実行せず違反にします。" >&2
+              MALFORMED=$((MALFORMED + 1))
+              continue
+            fi
+            name="${cmd#npm run }"
+            if printf '%s' "$name" | grep -qE "^(${DB_ONLY_NAMES})$"; then
               echo "SKIP  ${cmd}  … 実 Postgres が要るため gate-integration.yml（integration ジョブ）の担当"
               SKIPPED=$((SKIPPED + 1))
               continue
             fi
-            echo "RUN   ${cmd}"
-            if sh -c "$cmd"; then
+            echo "RUN   npm run ${name}"
+            if npm run "$name"; then
               RAN=$((RAN + 1))
             else
-              echo "FAIL  ${cmd}" >&2
+              echo "FAIL  npm run ${name}" >&2
               FAILED=$((FAILED + 1))
             fi
           done < <(jq -r '.tasks[] | select(.completion_status != null) | .verify_commands[]?' docs/task-list.json | sort -u)
 
           echo
-          echo "verify_commands 再実行 — 実行 ${RAN} / 委譲 ${SKIPPED} / 失敗 ${FAILED}"
+          echo "verify_commands 再実行 — 実行 ${RAN} / 委譲 ${SKIPPED} / 失敗 ${FAILED} / 形式違反 ${MALFORMED}"
           if [ "$((RAN + SKIPPED))" -eq 0 ]; then
             echo "acceptance FAIL: 再実行の対象が 0 件です（台帳の読み取りが壊れている可能性）" >&2
             exit 1
           fi
+          [ "$MALFORMED" -eq 0 ] || exit 1
           [ "$FAILED" -eq 0 ] || exit 1
 
   # ----------------------------------------------------- test-tamper-guard --

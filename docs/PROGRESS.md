@@ -86,6 +86,34 @@
   `npm run gate:acceptance` / `gate:check` / `gate:integrity` は `scripts/record-run.sh task_009`
   経由で再実行した（`gate:check` は G5 が非 0。**原因は task_004 / 005 / 006 / 011 / 012 に
   `docs/review-log/<task_id>.json` が無いことで、task_009 自身の review-log は本周で作成した**）。
+- task_009（レビュー修正・3 周目）: DONE_WITH_CONCERNS — 敵対レビューの medium 5 件のうち、
+  実装で直せる 3 件を「まず穴を再現し、直し、同じ手順で塞がったことを実測する」形で修正した。
+  (1) `scripts/ci/assert-release-gate.mjs` は `needs` グラフしか見ておらず、`deploy` に
+  `if: always()` を 1 行足すだけで「ゲートが赤でもデプロイが走る `release.yml`」を違反 0 件で
+  通していた（レビューの再現手順をそのまま実行して確認）。`release-gate` に `needs` で到達する
+  全ジョブの `if:` に状態関数（`always()` / `failure()` / `cancelled()` / `success()` の否定・比較）が
+  無いこと、`release-gate` のジョブと各ステップに `continue-on-error` が無いことをアサートに足し、
+  同じ仕込みが `check_051 FAIL` で exit 1 になることを実測した。`tests/unit/ci/assert-release-gate.test.ts`
+  は 18 → 31 件（偽陽性を出さない側の対照 3 件を含む）。
+  (2) `gate.yml` の acceptance ジョブが台帳の文字列を `sh -c "$cmd"` に渡していたため、
+  `npm run <script> || true` の形が G2（`scriptNameOf` は先頭しか見ない）を通ったうえで
+  再実行を常に exit 0 にできた。**旧実装で実測**（`exit 3` のスクリプトに `|| true` を付けて
+  `実行 1 / 失敗 0` の exit 0）してから、`^npm run <script>$` の完全一致を要求しシェルを介さず
+  `npm run "<script>"` に渡す形へ直した（同じ入力で `形式違反 1`・exit 1）。実ファイルの `run:` 本文を
+  YAML から取り出して走らせた 10 ケースで不一致 0 件。
+  (3) `scripts/ci/secrets-grep.sh` の群分けで、OpenNext がプリレンダ本文（ブラウザに配られる面）を
+  出す `.open-next/cache` がサーバー側に分類され、シークレット「名前」の走査から外れていた。
+  実ビルドの `.open-next/cache/<BUILD_ID>/` に `PEPPER` を含む `.cache` を仕込むと**旧実装は
+  違反 0 件・exit 0**、群 (A) へ移した修正後は exit 1 になることを実測。実ビルドに対する通常の
+  走査はクライアント 24 / サーバー 1186 ファイルで違反 0 件。`tests/unit/ci/secrets-grep.test.ts` は
+  23 → 26 件。
+  残る medium 2 件（`docs/gates/release-mode.json` の不在 = PO 専管で Write が遮断される／
+  branch protection と CI 実走 = `git remote -v` が空）は**この周でも解消できず deferred のまま**で、
+  `docs/concerns/task_009.md` の 1 / 2 / 3 に据え置いた。レビューの修正案にあった
+  「`docs/task-list.json` を `check-pr-checklist.mjs` の保護対象に加える」は、既存テストが
+  「保護対象ではない」を明示的に固定しており全 PR に影響するため採らず、task_006 との合意事項として
+  `docs/concerns/task_009.md` の 13 に起票した。`npm run gate:integrity` / `gate:check` /
+  `gate:acceptance` は `scripts/record-run.sh task_009` 経由で再実行した。
 
 ### 週 0 の 5 営業日判定（task_009 scope の最終項目）
 
