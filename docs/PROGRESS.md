@@ -20,6 +20,46 @@
 - task_012（レビュー修正・2 周目）: DONE_WITH_CONCERNS — レビュー指摘 high 1 件 / medium 2 件を修正し、担当範囲外の medium 3 件を deferred として記録した。(1) **nonce CSP が実際には機能していなかった**。`src/middleware.ts` は CSP をレスポンスにだけ載せ、nonce を独自ヘッダ `x-csp-nonce` でリクエストへ渡していたが、Next.js が自前の `<script>`（ブートストラップと `self.__next_f` のインラインデータ）へ nonce を付ける経路は**リクエストヘッダの `Content-Security-Policy` を読む 1 本だけ**で、独自ヘッダは見ない（`node_modules/next/dist/server/app-render/app-render.js:209-210` の `getScriptNonceFromHeader()` を Next 16.3.6 で確認）。配信 CSP は `script-src 'nonce-…' 'strict-dynamic'` で `'self'` も `'unsafe-inline'` も無いため、task_013 が LIFF フロントを載せた時点でアプリの JS が全部ブロックされる状態だった。`requestHeaders.set(CSP_HEADER, buildContentSecurityPolicy(nonce))` を追加して塞ぎ、再発検出のために **Next.js 自身の抽出関数**（`next/dist/server/app-render/get-script-nonce-from-header`）を直接呼ぶ検査を `tests/unit/security-headers.test.ts` に 7 ケース追加した（`x-middleware-override-headers` / `x-middleware-request-*` を解いてレンダラが受け取るリクエストヘッダを実検査）。修正行を外すと 6 ケースが落ちることを実測（負の対照）。(2) **`gate:env` が片側混入型の本番値混入を素通りしていた**。staging と production の値の衝突しか見ていなかったため、本番 ref を staging **だけ**に書く形（実リポジトリでは ref も LIFF ID も secret 側にあるので混入するならこの形になる）が exit 0 で通ることを再現したうえで、検査 (7) を追加した。`src/lib/config/env.ts` の `EXPECTED_SUPABASE_PROJECT_REF`（起動時アサートが使う同じ正本。値を書き写さず読む）と突き合わせ、ref が自分の environment の外に現れたら違反にする。フィクスチャ 2 本（`one-sided-leak` = exit 1 / `pinned-ok` = exit 0）で機械検査。実 ref が入った時点で自動的に実効化する。(3) **pending の文言が実際より広い範囲を検査したように読めた**ので、実走した 3 項目を列挙し「片側混入は検出できない」と明記する文言に置き換え、検出できない本番資源（LIFF ID / Hyperdrive id）を毎回名指しするようにした。(4) `.dev.vars.example` に起動時必須の 4 変数が無く `wrangler dev` / `next dev` の platform proxy 経路ではルートが 500 / 503 になる件は、同ファイルが task_003 所有のため追記せず、`gate:env` が毎回 pending で名指しする検査を足してテストで固定した（C-012-14 deferred）。verify_commands 5 本（`typecheck` / `test:unit` 499 → 510 件 / `test:integration` 73 件 / `gate:constraints` / `gate:env`）と追加の `test:security`(29) / `gate:server-only` / `gate:wording` / `lint` はすべて `scripts/record-run.sh task_012` 経由で exit 0。deferred は C-012-2（レート制限バインディング未追加＝デプロイ環境で `/api/auth/line` が 503。`wrangler.toml` は task_003 / 035 所有）・C-012-14（`.dev.vars.example`。task_003 / 035）・C-012-15（LIFF ID / Hyperdrive id の片側混入。task_035 / 024）・C-012-12（CI 実走。GitHub リモート未作成）・C-012-7（`tests/security/*` は task_022 所有）。
 - task_009: DONE_WITH_CONCERNS — `.github/workflows/gate.yml`（static / gate-meta / gate-integrity / labels / security / secrets / deps / acceptance / test-tamper-guard / date-boundary の 10 ジョブ ＋ required に入れない adversarial）・`e2e.yml`（nightly ＋ dispatch）・`release.yml`（先頭 2 段ゲート → `cloudflare/wrangler-action@v4` で `deploy --env production`）・`.github/PULL_REQUEST_TEMPLATE.md`・`.github/CODEOWNERS`（承認必須には使わない。A19 / R-TH-04）を作成。判定器 3 本 `scripts/ci/{check-pr-checklist.mjs,assert-release-gate.mjs,secrets-grep.sh}` を実装し、`tests/unit/ci/*` 44 件（release.yml を 14 通りに壊した fixture・PR 本文 26 ケース）で機械検証。`npm run gate:acceptance` / `gate:check` / `gate:integrity` はいずれも `scripts/record-run.sh task_009` 経由で exit 0。**`docs/gates/release-mode.json` は作成できなかった**（`scripts/deny-test-weakening.sh` が `docs/gates/**` への Write を新規作成でも遮断する。遮断ログは `docs/concerns/task_009.md` の 1）。`release.yml` は当該ファイルが無い場合に fail-closed で先頭終了する実装にしてあり、作成は PO に委ねる。**ブランチ保護と CI 実走は deferred**（`git remote -v` が空＝ GitHub にリポジトリが無い。`gh` は `sawanori` で認証済みだが対象リポジトリが無いため `gh api .../protection` を叩けない）。代替として 4 本のワークフロー YAML がパースでき、`run:` が呼ぶ `npm run <name>` がすべて `package.json.scripts` に実在し、`node`/`bash` が呼ぶ `scripts/**` が実在することを静的検証した（問題 0 件）。
 
+- task_007: DONE_WITH_CONCERNS — エージェント定義 7 本（`.claude/agents/`。敵対レビュー
+  Gemini / GPT・payment-contract-guard・compliance-gatekeeper・release-auditor・
+  premortem-facilitator・acceptance-test-generator-restricted）と、レビュー封筒の 5 本
+  （`scripts/build-review-packet.sh` / `review-gemini.mjs` / `review-gpt.mjs` /
+  `validate-findings.mjs` / `merge-review.sh`。npm からは `review:packet` / `review:gemini` /
+  `review:gpt` / `review:validate` / `review:merge`）を作成した。封筒は当該タスクの
+  `constraint_ids` に載っている制約だけを全文同梱し（R-TH-10。task_011 で作ると 57 件中
+  L3/W1/W2/W3/I3 の 5 件のみ・11143 bytes）、diff が触れたファイル全文と `./` `../` `@/` の
+  import 先 1 段を同梱する（R-TH-08）。`validate-findings.mjs` は repro の無い high を info へ、
+  `vendor: "gemini"` の citation 無し high/medium を unknown へ機械的に降格し、
+  `model_id_actual` / `cli_version` / `backend` を欠く封筒を無効にし、不達には
+  `unavailable_reason` / `attempted_command` を必須にして `verdict: "PASS"` を禁じる。
+  `merge-review.sh` は実効 high 1 件で exit 1、欠票は記録して通過、有効票 0 または無効封筒
+  ありで exit 3 を返し、`docs/review-log/<task_id>.json` に追記する（G5 が読む形）。
+  受入テストの生成役は `tools: Write` だけを持たせ、`Read` / `Grep` / `Glob` / `Bash` を
+  与えないことで `src/**` を読む手段を構造的に消した（R-TH-14）。
+  **経路の実測**: Gemini は通る（`gemini -o json` の `stats.models` で `roles.main` を持つ
+  キーが応答モデル ID。`-m gemini-2.5-pro` は反映され `reviewer_route: "verified"`。
+  プレモータム R-TH-11 の「model 指定は無視される」は CLI 0.38.1 では再現しない）。
+  **GPT-6 Astra は通らない**（`codex exec` は exit 0 のままエージェント応答を 1 件も返さない。
+  `--output-last-message` が 0 バイト、`turn.completed` のトークン 0。`~/.codex/hooks/
+  block-non-claude-model.sh` による遮断と一致）。`review-gpt.mjs` は終了コードではなく
+  応答本文の有無だけで成立を判定し、不達封筒を返す（exit 3 を record-run に記録済み）。
+  `npm run test:unit`（600 件。うち本タスク追加 35 件）/ `gate:constraints` / `typecheck` /
+  `lint` / `gate:integrity` / `test:gate-meta` / `gate:wording` はすべて
+  `scripts/record-run.sh task_007` 経由で exit 0。ただし**最終確認時の
+  `gate:constraints` は exit 1** で、違反 2 件は並行実行中の task_013 の未追跡ファイル
+  （`src/components/ConsentGate.tsx` / `src/lib/liff/client.ts` の「`localStorage` は使わない」
+  というコメント行が N7 の forbid grep に当たる）であり task_007 の成果物には違反 0 件。**本タスク自身の敵対レビューは
+  `docs/review-log/task_007.json` に 2 周ぶん記録した**（round 1 = 封筒 265KB で Gemini が
+  900 秒タイムアウト ＋ GPT 欠票 → `not_established`、round 2 = 封筒 76688 bytes で Gemini が
+  `verified` / `gemini-2.5-pro` → `pass`、実効 high 0）。round 2 の唯一の medium finding は
+  実ファイルでの反証により誤検出と判定した（修正せず）。**敵対レビューは実質 Gemini 単独で、
+  この状態を「3 ベンダー体制」とは呼べない。** 残懸念 11 件は `docs/concerns/task_007.md`
+  （high 2 / medium 8 / low 1）。**本タスクの完了で G5 がブロッキングに変わり、review-log を
+  持たない完了済み task_004 / 005 / 006 / 009 / 011 / 012 の 6 件が違反として列挙される**
+  （§15-2 が意図した強制力。`npm run gate:check` は現在この 1 ゲートで非 0）。
+  `docs/task-list.json` は `files_to_modify` 外だが、G4 の「PROGRESS.md の完了宣言と台帳の
+  一致」を満たすため task_007 の `completion_status` と `concerns[]` のみ同期した。
+
 ### 週 0 の 5 営業日判定（task_009 scope の最終項目）
 
 - **判定日時**: UTC 2026-09-24T08:59:49Z（JST 2026-09-24 17:59）。判定者: task_009 実装エージェント。

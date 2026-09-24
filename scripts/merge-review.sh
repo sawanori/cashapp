@@ -123,7 +123,7 @@ for f in "${ENVELOPES[@]}"; do
     exit 64
   fi
 
-  node "$VALIDATOR" "$f" --json ${ROOT:+--root "$ROOT"} > "$TMP_REPORT" 2>/dev/null
+  node "$VALIDATOR" "$f" --json --root "$ROOT" > "$TMP_REPORT" 2>/dev/null
   rc=$?
   if [ "$rc" -ne 0 ] && [ "$rc" -ne 1 ]; then
     echo "merge-review.sh: validate-findings.mjs が usage エラーで終了しました（$f, exit $rc）" >&2
@@ -178,7 +178,11 @@ for f in "${ENVELOPES[@]}"; do
            counts: $report[0].counts
          }
        })
-     ]' "$TMP_ENTRIES" > "$TMP_JSON" && mv "$TMP_JSON" "$TMP_ENTRIES"
+     ]' "$TMP_ENTRIES" > "$TMP_JSON" || {
+    echo "merge-review.sh: 封筒をエントリへ畳めませんでした（$f）" >&2
+    exit 70
+  }
+  mv "$TMP_JSON" "$TMP_ENTRIES"
 done
 
 blocking_invalid=$((invalid_envelopes + invalid_reviews))
@@ -222,13 +226,20 @@ jq -n \
      exit_code: $exit_code
    }' > "$TMP_REPORT"
 
-jq --slurpfile summary "$TMP_REPORT" '. + [$summary[0]]' "$TMP_ENTRIES" > "$TMP_JSON" \
-  && mv "$TMP_JSON" "$TMP_ENTRIES"
+jq --slurpfile summary "$TMP_REPORT" '. + [$summary[0]]' "$TMP_ENTRIES" > "$TMP_JSON" || {
+  echo "merge-review.sh: summary を畳めませんでした" >&2
+  exit 70
+}
+mv "$TMP_JSON" "$TMP_ENTRIES"
 
 if [ "$DRY_RUN" -eq 0 ]; then
   mkdir -p "$(dirname "$OUT")"
   if [ -f "$OUT" ] && jq -e 'type == "array"' "$OUT" >/dev/null 2>&1; then
-    jq --slurpfile add "$TMP_ENTRIES" '. + $add[0]' "$OUT" > "$TMP_JSON" && mv "$TMP_JSON" "$OUT"
+    jq --slurpfile add "$TMP_ENTRIES" '. + $add[0]' "$OUT" > "$TMP_JSON" || {
+      echo "merge-review.sh: 既存の review-log に追記できませんでした（$OUT）" >&2
+      exit 70
+    }
+    mv "$TMP_JSON" "$OUT"
   else
     cp "$TMP_ENTRIES" "$OUT"
   fi

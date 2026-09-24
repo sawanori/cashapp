@@ -23,12 +23,21 @@ G5 は task_007（本経路の実装）が完了状態になるまで warn、そ
 ## 生成の流れ
 
 ```
-scripts/build-review-packet.sh <task_id> --out packet.json   # 封筒を作る
+# 封筒を作る。--base / --head を必ず渡す（既定は「HEAD と作業ツリーの差分」なので、
+# 並行タスクの未コミットファイルまで混ざる）
+scripts/build-review-packet.sh <task_id> --base <親> --head <自分のコミット> --out packet.json
 node scripts/review-gemini.mjs --packet packet.json --out gemini.json
 node scripts/review-gpt.mjs    --packet packet.json --out gpt.json
 node scripts/validate-findings.mjs gemini.json --json        # 単体検証（任意）
 bash scripts/merge-review.sh <task_id> gemini.json gpt.json  # 判定して追記
 ```
+
+**封筒のサイズはレビューの成否に効く** [実測 2026-09-24]。265KB の封筒（同梱 17 ファイル /
+diff 150KB）は `gemini-2.5-pro` が 900 秒で応答を返さずタイムアウトし、76KB に絞ると
+同じモデルで返った。`--max-file-bytes`（既定 200000）と `--max-diff-bytes`（既定 120000）で
+切り詰められる。切り詰めた事実は `artifact.truncated_files` / `artifact.diff_truncated` /
+`artifact.diff_bytes_total` として封筒に残るので、黙って短くなることはない。
+同梱したバイト数は `metrics.payload_bytes` にある（R-TH-10 の代理指標）。
 
 `merge-review.sh` の終了コード: `0` = pass / `1` = 差し戻し（実効 high が 1 件以上）/
 `3` = レビュー不成立（有効票 0、または無効な封筒あり）/ `64` = usage。

@@ -864,6 +864,90 @@ task_006 側は「自分のファイルは既にコミット済み」として�
   意図せず他タスクの追加ぶんを含みうる（commit `597123e` と同種の事象）。履歴は書き換えない。
   以後、`git add` は自タスクのファイルを明示指定すること（`git add -A` を使わない規約の理由）。
 
+## task_007（エージェント定義 7 本とレビュー封筒スクリプト）
+
+### 決まったこと
+
+- **レビュー経路の入口は 5 本**: `scripts/build-review-packet.sh`（封筒生成）→
+  `scripts/review-gemini.mjs` / `scripts/review-gpt.mjs`（CLI ラッパー）→
+  `scripts/validate-findings.mjs`（封筒検証・降格）→ `scripts/merge-review.sh`（判定と review-log 追記）。
+  npm からは `review:packet` / `review:gemini` / `review:gpt` / `review:validate` / `review:merge`。
+- **封筒は `--base` / `--head` 付きで作る**。`--base` 無しは「HEAD と作業ツリーの差分＋未追跡」を
+  対象にするため、並行タスクの未コミットファイルが混ざる（実測で task_009 の `scripts/ci/*` が
+  混入した）。さらに並行タスクが先にコミットすると `HEAD` は自分のコミットではなくなるので、
+  `--head <自分のコミット>` も要る。task-loop（task_008）から呼ぶときは両方を必須引数として扱うこと。
+- **封筒のサイズはレビューの成否に効く** [実測]。265KB の封筒（同梱 17 ファイル / diff 150KB）は
+  `gemini-2.5-pro` が **900 秒で応答を返さずタイムアウト**した。76KB に絞ると同じモデルで返った。
+  `--max-file-bytes`（既定 200000）/ `--max-diff-bytes`（既定 120000）で切り詰められ、
+  切り詰めた事実は `artifact.truncated_files` / `diff_truncated` / `diff_bytes_total` に残る。
+  **既定値のままだと大きい変更で返ってこない**ので、既定は実測で見直すこと（task_008 / 010）。
+- **降格は機械で掛かる**。repro の無い `high` → `info`（R-TH-08）。`vendor: "gemini"` の
+  `high` / `medium` で citation が無ければ → `unknown`（§16-2 の「引用なしは UNKNOWN」）。
+  降格は握り潰しではなく `downgrades[]` として review-log に残る。
+- **`merge-review.sh` の終了コード**: `0` pass / `1` 差し戻し（実効 high ≥ 1）/
+  `3` レビュー不成立（有効票 0、または無効封筒あり）/ `64` usage。
+  **欠票（`reviewer_route: "unavailable"`）は判定をブロックしない**が、有効票が 1 つも
+  無ければ `3` になる。DONE 側で握り潰せないよう、不成立は 0 で返さない。
+- **Gemini 経路は通る** [実測 2026-09-24]。`gemini -o json` の `stats.models` のうち
+  `roles.main` を持つキーが応答モデル ID であり、これは自己申告ではなく CLI の出力である。
+  `-m gemini-2.5-pro` は実測で反映された（`reviewer_route: "verified"`）。
+  **プレモータム R-TH-11 が書いていた「model 指定は無視される」は CLI 0.38.1 では再現しない。**
+  ただし `-m` 無指定だと `gemini-3-flash-preview` が main、`gemini-2.5-flash-lite` が
+  utility_router になるので、**モデルは必ず明示する**。
+- **GPT-6 Astra 経路は通らない** [実測 2026-09-24]。`codex exec` は **exit 0 のまま
+  エージェント応答を 1 件も返さない**（`--output-last-message` が 0 バイト、
+  `turn.completed` のトークン 0、イベントは thread.started / turn.started /
+  item.completed(error=skills の警告) / turn.completed）。終了コードを成功の根拠にできないため、
+  `review-gpt.mjs` は**応答本文の有無だけ**で成立を判定する。
+- **codex の `--json` イベントに応答モデル ID は無い** [実測]。自己申告しか根拠が無いので、
+  自己申告のときは `reviewer_route: "cli-fallback"` ＋ `model_id_source: "self_report"` にして
+  `verified`（観測値）と区別する。
+- **`acceptance-test-generator-restricted` は `tools: Write` だけを持つ**。`Read` / `Grep` /
+  `Glob` / `Bash` を与えないことで `src/**` を読む手段を構造的に消してある（R-TH-14）。
+  そのぶん**呼び出し側が task-list エントリ・受入基準・禁止語ポリシーを本文に貼る義務**を負う。
+- **G5 の性質が変わる**。`scripts/gate-check.mjs` の G5 は「task_007 が完了状態になったら
+  ブロッキング」と実装されている（§15-2 の設計どおり）。本タスクの完了で、review-log を
+  持たない既存完了タスク **task_004 / 005 / 006 / 011 / 012 の 5 件が違反として列挙される**。
+
+### 未解決
+
+- **[severity: high] 敵対レビューは実質 1 ベンダー（Gemini 単独）**。GPT 経路の遮断解除は
+  PO の承認事項で、AI は解除してはならない。欠票は review-log に残すが、
+  **この状態を「3 ベンダー体制」と称さないこと**（F6 / R-TH-06）。→ task_010
+- **[severity: high] G5 が 5 件の違反を出す（`npm run gate:check` が非 0 になる）**。
+  これは事故ではなく計画が意図した強制力である。解消手順（封筒生成 → 2 経路 → merge）は
+  `docs/concerns/task_007.md` の 3 に書いた。**欠票で敷き詰めて緑にしないこと。**
+  Gemini 経路は通るので実レビューを取れる。→ 各タスク担当 / PO
+- **[severity: medium] CI の `adversarial` ジョブが存在しない入口を見ている**。
+  task_009 の `gate.yml` は `scripts/review/run-adversarial.{sh,mjs}` を探すが、実際の入口は
+  上記 5 本でパスが違う。`gate.yml` は task_009 の単独所有なので本タスクからは触っていない。
+  → task_010（task_009 と調整。どちらにしても required には入れない）
+- **[severity: medium] 合格モデルのホワイトリストが無い**。`validate-findings.mjs` は
+  `docs/metrics/model-bench.md` の `{"approved_models": [...]}` と照合する設計だが、
+  ファイルが無いため `model_mismatch` を検出できず `model_whitelist_unconfigured` の警告だけが出る。
+  → task_010
+- **[severity: medium] 本タスク自身の敵対レビューは 1 票しか取れていない**。
+  `docs/review-log/task_007.json` の round 1 は Gemini タイムアウト ＋ GPT 欠票で
+  `not_established`、round 2（封筒 76688 bytes）で Gemini が `verified` /
+  `model_id_actual: "gemini-2.5-pro"` で応答し `pass`（実効 high 0）。
+  **唯一の medium finding（import 走査が `export … from` を拾えない）は誤検出**で、
+  3 形式を実ファイルで走らせて反証した（修正していない）。R-TH-08 は誤検出率の集計を
+  求めているが、封筒スキーマに `false_positive` フィールドが無いので、この判定は
+  `docs/concerns/task_007.md` にしか残っていない。→ task_008（false_positive 台帳）/ task_010（2 票目）
+- **[severity: medium] G13 の基準値は task_007 の未コミット状態で焼かれた**。task_009 が
+  `--write-baseline` を走らせた時点で本タスクの 8 ファイルが未コミットのまま基準値に入った。
+  コミット後の `npm run gate:integrity` は 38 ファイル / 不一致 0 で通る [実測] が、
+  **全ハーネスタスク完了後にクリーンなチェックアウトで 1 度確認すること**。→ task_009 / PO
+- **[severity: low] 最終 HEAD では `npm run gate:constraints` が exit 1**。違反 2 件は
+  並行実行中の task_013 の未追跡ファイル（`src/components/ConsentGate.tsx:20` /
+  `src/lib/liff/client.ts:15` の「`localStorage` は使わない」というコメント行が N7 の
+  forbid grep に当たる）で、task_007 の成果物には違反 0 件。当該ファイルが無かった時刻の
+  同コマンドは exit 0 で run-log に残っている。→ task_013（または N7 の
+  `allow_if_line_matches` を持つ task_004）
+- **[severity: low] `docs/task-list.json` は本タスクの `files_to_modify` 外だが触った**。
+  G4 が「PROGRESS.md の完了宣言と台帳 `completion_status` の一致」を違反として見るため、
+  task_007 の `completion_status` だけを同期した（task_006 と同じ扱い）。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -931,3 +1015,7 @@ task_006 側は「自分のファイルは既にコミット済み」として�
 - 2026-09-24T08:35:43Z HEAD=34ec688 決まったこと: task_006(2周目): 最終 HEAD 564f759 での verify_commands 6 本の再実行ログ（全 exit 0） / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_006.json docs/run-log/task_012.json docs/vendor-docs/line/liff-sdk.md tests/gates/probe.test.ts 
 - 2026-09-24T09:00:06Z HEAD=1f4acfd 決まったこと: task_007: エージェント定義 7 本とレビュー封筒経路（Gemini 実走 / GPT 欠票） / 未解決: 未コミット 19 件: docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_006.json docs/run-log/task_012.json docs/task-list.json .github/CODEOWNERS .github/PULL_REQUEST_TEMPLATE.md .github/workflows/e2e.yml 
 - 2026-09-24T09:00:11Z HEAD=1f4acfd 決まったこと: task_007: エージェント定義 7 本とレビュー封筒経路（Gemini 実走 / GPT 欠票） / 未解決: 未コミット 19 件: docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_006.json docs/run-log/task_012.json docs/task-list.json .github/CODEOWNERS .github/PULL_REQUEST_TEMPLATE.md .github/workflows/e2e.yml 
+- 2026-09-24T09:08:06Z HEAD=b2addd3 決まったこと: task_009: 最終 HEAD a261bd9 での verify_commands 3 本の再実行ログ（全 exit 0） / 未解決: 未コミット 9 件: docs/HANDOFF.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_012.json docs/task-list.json scripts/merge-review.sh docs/concerns/task_007.md docs/vendor-docs/line/liff-sdk.md 
+- 2026-09-24T09:12:04Z HEAD=b2addd3 決まったこと: task_009: 最終 HEAD a261bd9 での verify_commands 3 本の再実行ログ（全 exit 0） / 未解決: 未コミット 13 件: docs/HANDOFF.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json docs/run-log/task_012.json docs/task-list.json scripts/merge-review.sh docs/concerns/task_007.md 
+- 2026-09-24T09:19:38Z HEAD=b2addd3 決まったこと: task_009: 最終 HEAD a261bd9 での verify_commands 3 本の再実行ログ（全 exit 0） / 未解決: 未コミット 22 件: docs/HANDOFF.md docs/PROGRESS.md docs/review-log/README.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json docs/run-log/task_012.json docs/task-list.json 
+- 2026-09-24T09:20:05Z HEAD=b2addd3 決まったこと: task_009: 最終 HEAD a261bd9 での verify_commands 3 本の再実行ログ（全 exit 0） / 未解決: 未コミット 23 件: docs/HANDOFF.md docs/PROGRESS.md docs/review-log/README.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json docs/run-log/task_012.json docs/task-list.json 

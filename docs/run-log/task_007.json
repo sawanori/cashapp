@@ -16,5 +16,159 @@
     "commit": "34ec6884c6ef88d0e842f303d1bc33a077e863ef",
     "ran_at": "2026-09-24T08:55:43Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "node scripts/review-gpt.mjs --packet /private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/packet7.json --out /private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/env-gpt.json",
+    "exit_code": 3,
+    "stdout_tail": "review-gpt: route=unavailable → /private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/env-gpt.json",
+    "commit": "1f4acfdb9a495323b65ea8ad3dc562f4c991b0c2",
+    "ran_at": "2026-09-24T09:02:38Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "node /private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/check-agents.mjs",
+    "exit_code": 0,
+    "stdout_tail": "ok   acceptance-test-generator-restricted.md  name=acceptance-test-generator-restricted model=sonnet tools=[Write]\nok   adversarial-reviewer-gemini.md  name=adversarial-reviewer-gemini model=sonnet tools=[Bash, Read]\nok   adversarial-reviewer-gpt.md  name=adversarial-reviewer-gpt model=sonnet tools=[Bash, Read]\nok   compliance-gatekeeper.md  name=compliance-gatekeeper model=opus tools=[Bash, Read, Grep, Glob]\nok   payment-contract-guard.md  name=payment-contract-guard model=sonnet tools=[Bash, Read, Grep, Glob]\nok   premortem-facilitator.md  name=premortem-facilitator model=opus tools=[Bash, Read, Grep, Glob]\nok   release-auditor.md  name=release-auditor model=opus tools=[Bash, Read, Grep, Glob]\nfrontmatter 7 本すべて妥当",
+    "commit": "1f4acfdb9a495323b65ea8ad3dc562f4c991b0c2",
+    "ran_at": "2026-09-24T09:03:32Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:wording",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:wording\n> node scripts/wording-lint.mjs\n\nok    W-AUTO (19 file(s))\nok    W-DONATION (19 file(s))\nok    W-SUPPORT (19 file(s))\nok    W-RECEIPT (19 file(s))\ndefer W-MERCHANT-GUIDE (0 targets; waiting on task_025)\nok    W-FEE-FIXED (19 file(s))\n\ngate:wording — scanned 5 pattern group(s), 0 violation(s), 0 empty gate(s)",
+    "commit": "1f4acfdb9a495323b65ea8ad3dc562f4c991b0c2",
+    "ran_at": "2026-09-24T09:04:02Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  18 passed (18)\n      Tests  600 passed (600)\n   Start at  09:04:35\n   Duration  29.48s (tests 94%, setup 3%, transform 1%, import 1%)",
+    "commit": "1f4acfdb9a495323b65ea8ad3dc562f4c991b0c2",
+    "ran_at": "2026-09-24T09:04:34Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 19 file(s))\nok    L2 (forbid, 19 file(s))\nok    L3 (forbid, 19 file(s))\nok    L8 (forbid, 19 file(s))\nok    L12 (forbid, 19 file(s))\nok    P1 (forbid, 19 file(s))\ndefer P2 (0 targets; waiting on task_018)\ndefer P9 (0 targets; waiting on task_017)\nok    W3 (forbid, 26 file(s))\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 19 file(s))\nok    N5 (forbid, 19 file(s))\nok    N7 (forbid, 19 file(s))\nok    N9 (forbid, 19 file(s))\nok    N11 (forbid, 19 file(s))\nok    I1 (require, 1 file(s))\nok    I2 (require, 1 file(s))\nok    I3 (forbid, 2 file(s))\nok    I4 (forbid, 2 file(s))\nok    X-TIME (forbid, 8 file(s))\nok    X-ID (forbid, 6 file(s))\ndefer X-MONEY (0 targets; waiting on task_017)\nok    GC-XSS (forbid, 19 file(s))\nok    GC-ENV-PUBLIC (forbid, 24 file(s))\nok    GC-SERVER-ONLY (require, 1 file(s))\n\ngate:constraints — scanned 21 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "1f4acfdb9a495323b65ea8ad3dc562f4c991b0c2",
+    "ran_at": "2026-09-24T09:05:08Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "bash scripts/build-review-packet.sh task_011 --base HEAD --out /private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/empty.json",
+    "exit_code": 0,
+    "stdout_tail": "build-review-packet: /private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/empty.json（11143 bytes / 制約 5 件 / ファイル 0 本）",
+    "commit": "b2addd370cf04e00f4f458dd7ae5539ecc7d1740",
+    "ran_at": "2026-09-24T09:08:53Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "manual_verification[0]: adversarial-reviewer-gemini の経路を小さな封筒（tests/…/small.json、88637 bytes / 22 ファイル）で起動し、返信封筒に model_id_actual='gemini-2.5-pro'（model_id_source='cli_stats' = gemini -o json の stats.models で roles.main を持つキーの実測値）、cli_version='0.38.1'、backend='gemini-cli'、reviewer_route='verified' が入ることを確認した。findings 2 件（high 1 / medium 1）はいずれも repro と citation を伴っており降格は 0 件。R-TH-10 の検証として、constraint_ids が 5 件の task_011 で封筒を作ると constraints に L3/W1/W2/W3/I3 の 5 件だけが入り（全 57 件ではない）、payload_bytes は 11143 だった。",
+    "commit": "b2addd370cf04e00f4f458dd7ae5539ecc7d1740",
+    "ran_at": "2026-09-24T09:08:53Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "b2addd370cf04e00f4f458dd7ae5539ecc7d1740",
+    "ran_at": "2026-09-24T09:10:02Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run lint",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 lint\n> eslint .",
+    "commit": "b2addd370cf04e00f4f458dd7ae5539ecc7d1740",
+    "ran_at": "2026-09-24T09:10:04Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:integrity",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:integrity\n> node scripts/gate-integrity.mjs\n\n      ハッシュ対象 38 ファイル（sha256）\n\ngate:integrity — 38 ファイルを照合、0 件の不一致",
+    "commit": "b2addd370cf04e00f4f458dd7ae5539ecc7d1740",
+    "ran_at": "2026-09-24T09:10:06Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:gate-meta",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:gate-meta\n> TZ=UTC vitest run tests/gates\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  2 passed (2)\n      Tests  33 passed (33)\n   Start at  09:10:10\n   Duration  12.78s (tests 99%, setup 1%)",
+    "commit": "b2addd370cf04e00f4f458dd7ae5539ecc7d1740",
+    "ran_at": "2026-09-24T09:10:10Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "review-gemini.mjs / review-gpt.mjs の不達パスを実測した。(1) --cli /nonexistent/gemini → reviewer_route=unavailable / unavailable_reason='gemini CLI が見つかりません（/nonexistent/gemini）' / exit 3。(2) --timeout-ms 2000 → unavailable / 'gemini CLI が 2000ms で応答しませんでした' / exit 3。(3) codex exec -m gpt-6-astra は exit 0 のままエージェント応答 0 バイト（イベントは thread.started / turn.started / item.completed(error=skills の警告) / turn.completed のみ）で、review-gpt.mjs は unavailable / exit 3 を返した。いずれの封筒も validate-findings.mjs で valid（route=unavailable・vote=false）と判定される。成功を偽装する経路は無い。",
+    "commit": "b2addd370cf04e00f4f458dd7ae5539ecc7d1740",
+    "ran_at": "2026-09-24T09:10:46Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "bash scripts/merge-review.sh task_007 --round 1 /private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/env-gemini.json /private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/env-gpt.json",
+    "exit_code": 3,
+    "stdout_tail": "merge-review: not_established task=task_007 round=1 有効票=0 欠票=2 無効封筒=0 無効レビュー=0 実効high=0\nmerge-review: review-log=/Users/noritakasawada/Ai_p/cashapp/docs/review-log/task_007.json",
+    "commit": "b2addd370cf04e00f4f458dd7ae5539ecc7d1740",
+    "ran_at": "2026-09-24T09:17:24Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "bash scripts/merge-review.sh task_007 --round 2 /private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/env-gemini2.json /private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/env-gpt.json",
+    "exit_code": 0,
+    "stdout_tail": "merge-review: pass task=task_007 round=2 有効票=1 欠票=1 無効封筒=0 無効レビュー=0 実効high=0\nmerge-review: review-log=/Users/noritakasawada/Ai_p/cashapp/docs/review-log/task_007.json",
+    "commit": "b2addd370cf04e00f4f458dd7ae5539ecc7d1740",
+    "ran_at": "2026-09-24T09:17:32Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  18 passed (18)\n      Tests  600 passed (600)\n   Start at  09:18:45\n   Duration  45.05s (tests 95%, setup 3%, import 1%, transform 1%)",
+    "commit": "b2addd370cf04e00f4f458dd7ae5539ecc7d1740",
+    "ran_at": "2026-09-24T09:18:44Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 28 file(s))\nok    L2 (forbid, 28 file(s))\nok    L3 (forbid, 28 file(s))\nok    L8 (forbid, 28 file(s))\nok    L12 (forbid, 28 file(s))\nok    P1 (forbid, 28 file(s))\ndefer P2 (0 targets; waiting on task_018)\nok    P9 (forbid, 3 file(s))\nok    W3 (forbid, 35 file(s))\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 26 file(s))\nok    N5 (forbid, 28 file(s))\nN7 src/components/ConsentGate.tsx:20 | * ★ `localStorage` に同意状態を持たない（制約 N7）。同意の真実はサーバーの `consent_log` だけ。\nN7 src/lib/liff/client.ts:15 | * ★ 試行回数は `sessionStorage` に持つ。`localStorage` は使わない（制約 N7）。\nok    N9 (forbid, 28 file(s))\nok    N11 (forbid, 28 file(s))\nok    I1 (require, 1 file(s))\nok    I2 (require, 1 file(s))\nok    I3 (forbid, 7 file(s))\nok    I4 (forbid, 2 file(s))\nok    X-TIME (forbid, 8 file(s))\nok    X-ID (forbid, 9 file(s))\ndefer X-MONEY (0 targets; waiting on task_017)\nok    GC-XSS (forbid, 28 file(s))\nok    GC-ENV-PUBLIC (forbid, 33 file(s))\nok    GC-SERVER-ONLY (require, 1 file(s))\n\ngate:constraints — scanned 22 grep entr(y|ies), 2 violation(s), 0 empty gate(s)",
+    "commit": "b2addd370cf04e00f4f458dd7ae5539ecc7d1740",
+    "ran_at": "2026-09-24T09:19:30Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "最終 HEAD での npm run gate:constraints は exit 1 になった。違反 2 件はいずれも並行実行中の task_013 の未追跡ファイル（src/components/ConsentGate.tsx:20 と src/lib/liff/client.ts:15。どちらも「localStorage は使わない」と書いたコメント行が N7 の forbid grep に当たっている）であり、task_007 の成果物（.claude/agents/** ・scripts/review-* ・scripts/validate-findings.mjs ・scripts/build-review-packet.sh ・scripts/merge-review.sh ・tests/unit/{merge-review,validate-findings}.test.ts ・docs/review-log/**）には 1 件も違反が無い。task_013 の当該ファイルが存在しなかった時刻（2026-09-24T08:55Z および 09:0xZ）の同コマンドは exit 0 で記録済み。",
+    "commit": "b2addd370cf04e00f4f458dd7ae5539ecc7d1740",
+    "ran_at": "2026-09-24T09:19:55Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "最終 HEAD での npm run gate:wording も exit 1（違反 2 件）。src/components/StateView.tsx:132 の「禁止語を使わない。とくに『自動で確認』『入金を確認しました』は」という説明コメント行が W-AUTO の禁止語に当たっている。これも並行実行中の task_013 の未追跡ファイルで、task_007 の成果物（docs/review-log/README.md ・docs/concerns/task_007.md ・.claude/agents/** を含む）には違反 0 件。",
+    "commit": "b2addd370cf04e00f4f458dd7ae5539ecc7d1740",
+    "ran_at": "2026-09-24T09:20:58Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]

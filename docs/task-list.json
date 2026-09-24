@@ -728,9 +728,13 @@
       "adversarial_review": "required",
       "evidence_label": "[設計]",
       "optional": true,
-      "completion_status": null,
+      "completion_status": "DONE_WITH_CONCERNS",
       "concerns": [
-        "GPT-6 Astra 経路は codex 側フックで遮断中 [実測]。解除まで欠票扱い"
+        "[severity: high] GPT-6 Astra 経路は codex 側フック（block-non-claude-model.sh）で遮断中 [実測]。codex exec は exit 0 のままエージェント応答を返さない。解除は PO 承認事項（task_010）で、それまで敵対レビューは Gemini 単独であり欠票を review-log に残し続ける。この状態を「3 ベンダー体制」と称さない。",
+        "[severity: high] task_007 の完了により G5 がブロッキングになり、review-log を持たない完了済み task_004 / 005 / 006 / 011 / 012 の 5 件が違反として列挙される（§15-2 の設計どおりの強制力）。解消手順は docs/concerns/task_007.md の 3 に記載。欠票で敷き詰めず Gemini 経路で実レビューを取ること。",
+        "[severity: medium] CI の adversarial ジョブ（task_009 の gate.yml）が scripts/review/run-adversarial.* を探すが、実際の入口は build-review-packet.sh / review-gemini.mjs / review-gpt.mjs / validate-findings.mjs / merge-review.sh の 5 本でパスが一致しない。入口名をそろえるかラッパーを足すかは task_010 が決める（required には入れない）。",
+        "[severity: medium] 合格モデルのホワイトリスト docs/metrics/model-bench.md が未作成のため model_mismatch を検出できず、validate-findings.mjs は model_whitelist_unconfigured の警告のみを出す。R-TH-11 の「名乗らせる」は効いているが「照合する」は未実装。task_010 のベンチで確定させる。",
+        "[severity: medium] 封筒のペイロードが大きい（本タスクの実レビューで 265KB / 同梱 17 ファイル）。制約の絞り込みは効いているが artifact 側が支配的で 1 往復に十数分かかる。metrics.payload_bytes を task-loop が 1 周ごとに run-log へ記録すること（task_008）。"
       ]
     },
     {

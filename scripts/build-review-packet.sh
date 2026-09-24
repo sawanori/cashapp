@@ -19,10 +19,17 @@
 # 使い方:
 #   scripts/build-review-packet.sh <task_id> [--base <git-ref>] [--out <file>]
 #                                  [--import-depth <n>] [--max-file-bytes <n>]
-#                                  [--root <dir>]
+#                                  [--max-diff-bytes <n>] [--root <dir>]
 #
 #   --base 未指定なら HEAD と作業ツリーの差分（未追跡ファイルを含む）を対象にする。
-#   --base <ref> を渡すと <ref>...HEAD の差分を対象にする。
+#   --base <ref> を渡すと <ref>...<head> の差分を対象にする（--head の既定は HEAD）。
+#   並行タスクが先にコミットすると HEAD は自分のコミットではなくなるので、
+#   自タスクだけを見せたいときは --base <親> --head <自分のコミット> を渡す。
+#
+# 上限は 2 つとも R-TH-10 のためにある。実測: 265KB の封筒（同梱 17 ファイル・
+# diff 150KB）を gemini-2.5-pro に渡すと 900 秒で応答が返らずタイムアウトした
+# （2026-09-24）。88KB の封筒は同じモデルで 2 分以内に返った。**封筒が大きいほど
+# レビューが返らなくなる**ので、上限は「切り詰めた事実を封筒に書いたうえで切る」。
 #
 # 終了コード: 0 = 生成した / 64 = usage / 65 = 入力（task-list 等）が読めない。
 
@@ -32,7 +39,8 @@ usage() {
   cat >&2 <<'EOF'
 Usage:
   scripts/build-review-packet.sh <task_id> [--base <git-ref>] [--out <file>]
-                                 [--import-depth <n>] [--max-file-bytes <n>] [--root <dir>]
+                                 [--import-depth <n>] [--max-file-bytes <n>]
+                                 [--max-diff-bytes <n>] [--root <dir>]
 EOF
   exit 64
 }
@@ -52,14 +60,17 @@ case "$TASK_ID" in
 esac
 
 BASE=""
+HEAD_REF="HEAD"
 OUT=""
 IMPORT_DEPTH=1
 MAX_FILE_BYTES=200000
+MAX_DIFF_BYTES=120000
 ROOT=""
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --base) shift; [ "$#" -ge 1 ] || usage; BASE="$1" ;;
+    --head) shift; [ "$#" -ge 1 ] || usage; HEAD_REF="$1" ;;
     --out) shift; [ "$#" -ge 1 ] || usage; OUT="$1" ;;
     --import-depth)
       shift; [ "$#" -ge 1 ] || usage; IMPORT_DEPTH="$1"
@@ -67,6 +78,9 @@ while [ "$#" -gt 0 ]; do
     --max-file-bytes)
       shift; [ "$#" -ge 1 ] || usage; MAX_FILE_BYTES="$1"
       case "$MAX_FILE_BYTES" in ''|*[!0-9]*) usage ;; esac ;;
+    --max-diff-bytes)
+      shift; [ "$#" -ge 1 ] || usage; MAX_DIFF_BYTES="$1"
+      case "$MAX_DIFF_BYTES" in ''|*[!0-9]*) usage ;; esac ;;
     --root) shift; [ "$#" -ge 1 ] || usage; ROOT="$1" ;;
     -h|--help) usage ;;
     *) usage ;;
@@ -99,9 +113,9 @@ DIFF_FILE="$TMP_DIR/diff.txt"
 CHANGED="$TMP_DIR/changed.txt"
 
 if [ -n "$BASE" ]; then
-  git -C "$ROOT" diff "$BASE...HEAD" > "$DIFF_FILE" 2>/dev/null || : > "$DIFF_FILE"
-  git -C "$ROOT" diff --name-only "$BASE...HEAD" 2>/dev/null | sed '/^$/d' > "$CHANGED" || : > "$CHANGED"
-  DIFF_SPEC="$BASE...HEAD"
+  git -C "$ROOT" diff "$BASE...$HEAD_REF" > "$DIFF_FILE" 2>/dev/null || : > "$DIFF_FILE"
+  git -C "$ROOT" diff --name-only "$BASE...$HEAD_REF" 2>/dev/null | sed '/^$/d' > "$CHANGED" || : > "$CHANGED"
+  DIFF_SPEC="$BASE...$HEAD_REF"
 else
   git -C "$ROOT" diff HEAD > "$DIFF_FILE" 2>/dev/null || : > "$DIFF_FILE"
   {
@@ -111,7 +125,21 @@ else
   DIFF_SPEC="HEAD..作業ツリー（未追跡ファイルを含む）"
 fi
 
+DIFF_BYTES="$(wc -c < "$DIFF_FILE" | tr -d ' ')"
+DIFF_TRUNCATED=false
+if [ "$DIFF_BYTES" -gt "$MAX_DIFF_BYTES" ]; then
+  head -c "$MAX_DIFF_BYTES" "$DIFF_FILE" > "$TMP_DIR/diff.head"
+  printf '\n…（diff はここで打ち切られました。全体 %s bytes のうち先頭 %s bytes のみ。触れたファイルの全文は artifact.files にあります）\n' \
+    "$DIFF_BYTES" "$MAX_DIFF_BYTES" >> "$TMP_DIR/diff.head"
+  mv "$TMP_DIR/diff.head" "$DIFF_FILE"
+  DIFF_TRUNCATED=true
+fi
+
 # ---- diff が触れたファイルの全文 -------------------------------------------
+#
+# 中身は**作業ツリーから**読む（ref からは読まない）。レビュアに見せたいのは
+# 「いま直そうとしている実物」だからである。--head に過去のコミットを渡した場合、
+# diff と全文がずれ得ることは承知のうえでこの選択にしている。
 
 FILES_JSON="$TMP_DIR/files.json"
 echo "[]" > "$FILES_JSON"
@@ -252,6 +280,8 @@ jq -n \
   --arg built_at "$BUILT_AT" \
   --argjson import_depth "$IMPORT_DEPTH" \
   --argjson truncated_files "$TRUNCATED" \
+  --argjson diff_truncated "$DIFF_TRUNCATED" \
+  --argjson diff_bytes_total "$DIFF_BYTES" \
   '{
      schema_version: 1,
      kind: "review-packet",
@@ -274,6 +304,8 @@ jq -n \
      artifact: {
        diff_spec: $diff_spec,
        diff: $diff,
+       diff_truncated: $diff_truncated,
+       diff_bytes_total: $diff_bytes_total,
        import_depth: $import_depth,
        truncated_files: $truncated_files,
        files: $files[0]
