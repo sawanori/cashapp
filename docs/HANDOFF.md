@@ -440,6 +440,49 @@
   （2026-09-24 に WebFetch で確認し `docs/vendor-docs/cloudflare/hyperdrive.md` に [不明] を追記）。
   クエリパラメータ許可リストが実 Hyperdrive の接続文字列で通るかも未検証（C-011-8。task_035）。
 
+## task_011（レビュー修正・5 周目）
+
+### 直したこと
+
+- **統合テストが間欠的に落ちていた真因を直した**（high ＋ 検証失敗。同一原因）。
+  `tests/integration/setup.ts` の `ensureAppRwLoginPassword()` は
+  `ALTER ROLE app_rw LOGIN PASSWORD …` を裸で撃っており、これを `schema.test.ts` と
+  `db-role.test.ts` の両方が `beforeAll` で呼ぶ。vitest はテストファイルを別ワーカーで
+  並列に走らせるため、同一の `pg_authid` 行への同時 UPDATE が
+  `PostgresError: tuple concurrently updated` になり、**`db-role.test.ts` のスイートが
+  起動前に落ちて 5 ケースが 1 件も走らない**（レビュー実測で 5 回中 2 回 exit 1・`5 skipped`）。
+  本セッションでの決定的再現: 2 本の psql から同時に同じ `ALTER ROLE` を撃つと **3/3 回**
+  `ERROR: tuple concurrently updated`。
+  対処は `pg_advisory_xact_lock(1101100001)` を張ったトランザクション内で `ALTER ROLE` を
+  1 文だけ実行する形への変更（同じ形を 3 本同時 × 5 回で **15/15 回 COMMIT** を実測）。
+  ロックは**トランザクションスコープのみ**を使う（セッションスコープの `pg_advisory_lock` は
+  接続がプールに戻っても解放されず別のテストを巻き込むため。task_011 scope の方針と同じ）。
+- **回帰テストを 1 件足した**（`db-role.test.ts`、58 → 59 ケース）。「独立した 4 接続から
+  `ensureAppRwLoginPassword()` を同時に呼んで全部成功する」を検査する。
+  **修正を外すと 3/3 回 fail**（4 本中 3 本が `tuple concurrently updated` で reject）、
+  戻すと pass することを実測してから採用した。
+- **安定性を実測で確かめた**。`npm run test:integration` を回帰テスト追加前に 10 連続
+  （10/10 exit 0・`Tests 58 passed`・skip 0）、追加後に 6 連続（6/6 exit 0・`Tests 59 passed`・
+  skip 0）実行した。
+- **前ラウンドの失敗 run を消さずに残した**（medium）。`docs/run-log/task_011.json` に
+  未コミットで残っていた HEAD `6a05a25` の `npm run test:integration` exit 1
+  （`53 passed | 5 skipped`）はそのまま保持し、修正後の最終 HEAD での再実行 4 本と一緒に
+  コミットした。run-log には失敗も残る。
+
+### 未解決
+
+- **CI の実走は deferred のまま**（`docs/concerns/task_011.md` の C-011-1）。本ラウンドでも
+  `.github/workflows/` は `gate-integration.yml` 1 本のみ・`gate.yml` 不在・
+  `docs/run-log/task_009.json` 不在を確認した。GitHub リモート未作成・`git push` 禁止のため
+  「PR で緑」「required status check への登録」は原理的に証明できない。task_009 の後に実施する。
+- **`payment_attempt` の cross-owner も deferred のまま**（C-011-7）。レビューの `fix` 自身が
+  「PO 裁定（task_017 / task_018）で (a) 列の追加 (b) 制約トリガ のどちらかを選ぶ」としており、
+  暫定策として指定された `createCheckout`（task_017）はまだ存在しない。
+- **`ALTER ROLE app_rw` の直列化はこのヘルパ内だけで閉じている**（C-011-10。low / accepted-risk）。
+  アドバイザリロックは同じ鍵を取る側にしか効かないので、将来ヘルパを経由せずに
+  `ALTER ROLE app_rw …` を撃つコードが増えると同じ失敗が再発する。後続の統合テストは
+  必ず `ensureAppRwLoginPassword()` を経由すること。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -475,3 +518,10 @@
 - 2026-09-24T06:01:58Z HEAD=136be6d 決まったこと: task_005(hardening): 名指ししない迂回路の遮断・settings.json の構造検査・lint:changed の空振り修正 / 未解決: 未コミット 7 件: docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json src/lib/db/client.ts tests/unit/db-client.test.ts supabase/migrations/0007_provider_binding_scope_fk.sql 
 - 2026-09-24T06:04:31Z HEAD=51b093a 決まったこと: task_005(hardening): 修正後の verify_commands を HEAD 136be6d で再実行したログ / 未解決: 未コミット 9 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_011.json src/lib/db/client.ts tests/integration/schema.test.ts tests/unit/db-client.test.ts supabase/migrations/0007_provider_binding_scope_fk.sql 
 - 2026-09-24T06:07:00Z HEAD=51b093a 決まったこと: task_005(hardening): 修正後の verify_commands を HEAD 136be6d で再実行したログ / 未解決: 未コミット 13 件: .dev.vars.example docs/HANDOFF.md docs/concerns/task_011.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json docs/vendor-docs/cloudflare/hyperdrive.md 
+- 2026-09-24T06:09:32Z HEAD=69935e5 決まったこと: task_011(4周目): 接続ロール検査を実効化し provider_binding のスコープを DB で縛る / 未解決: 未コミット 4 件: docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json 
+- 2026-09-24T06:12:01Z HEAD=6a05a25 決まったこと: task_011(4周目): 追記専用テーブルの所有者が postgres である残余リスクを記録 / 未解決: 未コミット 4 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json 
+- 2026-09-24T06:14:30Z HEAD=6a05a25 決まったこと: task_011(4周目): 追記専用テーブルの所有者が postgres である残余リスクを記録 / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json 
+- 2026-09-24T06:24:30Z HEAD=6a05a25 決まったこと: task_011(4周目): 追記専用テーブルの所有者が postgres である残余リスクを記録 / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json 
+- 2026-09-24T06:29:37Z HEAD=9172e63 決まったこと: task_005(4周目): 名前を経由した迂回路・MCP 編集ツールの入口を塞ぐ / 未解決: 未コミット 10 件: .claude/settings.json docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json package.json tests/integration/db-role.test.ts 
+- 2026-09-24T06:29:39Z HEAD=9172e63 決まったこと: task_005(4周目): 名前を経由した迂回路・MCP 編集ツールの入口を塞ぐ / 未解決: 未コミット 10 件: .claude/settings.json docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json package.json tests/integration/db-role.test.ts 
+- 2026-09-24T06:32:40Z HEAD=9172e63 決まったこと: task_005(4周目): 名前を経由した迂回路・MCP 編集ツールの入口を塞ぐ / 未解決: 未コミット 14 件: .claude/settings.json docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_011.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json 
