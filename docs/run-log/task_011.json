@@ -360,5 +360,41 @@
     "commit": "9f5f55dea788237eb948150386124df6e6dc02f5",
     "ran_at": "2026-09-24T04:45:37Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "913a45bca47873bdfd36dc801788d3d5cb8efc1a",
+    "ran_at": "2026-09-24T04:46:12Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:integration\n> TZ=UTC vitest run tests/integration --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  1 passed (1)\n      Tests  36 passed (36)\n   Start at  04:46:13\n   Duration  13.21s (tests 98%, import 1%)",
+    "commit": "913a45bca47873bdfd36dc801788d3d5cb8efc1a",
+    "ran_at": "2026-09-24T04:46:13Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gates:sync",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gates:sync\n> node scripts/gates-sync.mjs\n\ngates:sync OK — 10 gate(s) in docs/gates/compliance-gates.json match compliance_gate",
+    "commit": "913a45bca47873bdfd36dc801788d3d5cb8efc1a",
+    "ran_at": "2026-09-24T04:46:26Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 5 file(s))\nok    L2 (forbid, 5 file(s))\nok    L3 (forbid, 5 file(s))\nok    L8 (forbid, 5 file(s))\nok    L12 (forbid, 5 file(s))\nok    P1 (forbid, 5 file(s))\ndefer P2 (0 targets; waiting on task_018)\ndefer P9 (0 targets; waiting on task_017)\nok    W3 (forbid, 9 file(s))\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 5 file(s))\nok    N5 (forbid, 5 file(s))\nok    N7 (forbid, 5 file(s))\nok    N9 (forbid, 5 file(s))\nok    N11 (forbid, 5 file(s))\nok    I1 (require, 1 file(s))\nok    I2 (require, 1 file(s))\nok    I3 (forbid, 2 file(s))\nok    I4 (forbid, 2 file(s))\nok    X-TIME (forbid, 5 file(s))\nok    X-ID (forbid, 3 file(s))\ndefer X-MONEY (0 targets; waiting on task_017)\nok    GC-XSS (forbid, 5 file(s))\nok    GC-ENV-PUBLIC (forbid, 10 file(s))\nok    GC-SERVER-ONLY (require, 1 file(s))\n\ngate:constraints — scanned 21 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "913a45bca47873bdfd36dc801788d3d5cb8efc1a",
+    "ran_at": "2026-09-24T04:46:26Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]
