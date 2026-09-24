@@ -131,5 +131,125 @@
     "task_mismatches": 0,
     "effective_high": 0,
     "exit_code": 0
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_012",
+    "reviewer": "adversarial-reviewer-gpt",
+    "vendor": "gpt",
+    "reviewer_route": "cli-fallback",
+    "model_id_requested": "gpt-6-astra",
+    "model_id_actual": "gpt-6-astra",
+    "model_id_source": "self_report",
+    "cli_version": "codex-cli 0.154.0",
+    "backend": "codex",
+    "ran_at": "2026-09-24T12:52:22Z",
+    "commit": "906ba0a3f3dc699f3bf385ae90c61c0737e55b07",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "high",
+        "title": "クロスサイトのフォーム送信でログイン先を攻撃者のアカウントへ変更できる",
+        "detail": "認証ルートは Origin と Content-Type を検査せず request.json() を実行し、追加フィールドも許容する。攻撃者自身の未使用 ID トークンを被害者のブラウザから送信すると、そのアカウントのセッション Cookie が発行される。単回使用と IP レート制限は、この初回の送信を拒否しない。",
+        "file": "src/app/api/auth/line/route.ts",
+        "line": 43,
+        "repro": "1. 攻撃者のアカウント A について、対象アプリのチャネルに対応する未使用の有効な ID トークン T_A を取得する。2. アカウント B でログイン済みの被害者に、別オリジンのページから次のフォームをトップレベルで送信させる：<form method=\"POST\" action=\"https://app.example/api/auth/line\" enctype=\"text/plain\"><input name='{\"idToken\":\"T_A\",\"padding\":\"' value='\"}'><button>続行</button></form>。T_A は取得した実トークンに置換する。本文は有効な JSON の {\"idToken\":\"T_A\",\"padding\":\"=\"} となる。3. 認証成功応答の Set-Cookie により被害者のセッションが A に置き換わり、続く GET /api/me は A の userId を返す。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-2",
+        "severity": "medium",
+        "title": "レート制限で拒否するリクエストも先に DB へ接続する",
+        "detail": "POST ハンドラは authenticateWithLineIdToken() に入る前に createVerifiedDbClient() を呼ぶ。同梱の DB クライアントはここで接続と SELECT session_user を実行するため、制限超過後のリクエストでも DB 負荷が発生する。「DB に到達しない」という単体テストは認証関数だけを呼び、この前処理を検査していない。",
+        "file": "src/app/api/auth/line/route.ts",
+        "line": 64,
+        "repro": "有効な開発設定と app_rw 接続を用意し、AUTH_RATE_LIMITER.limit が {success:false} を返す状態で、同じ CF-Connecting-IP から本文 {\"idToken\":\"x\"} の POST /api/auth/line を100回送る。各要求は429判定の前に createVerifiedDbClient() と SELECT session_user を実行する。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-3",
+        "severity": "medium",
+        "title": "引用符付きの TOML キーで禁止環境変数の検査を回避できる",
+        "detail": "TOML の代入行を拾う正規表現が引用符付きキーに対応していない。禁止名を引用符で囲むと代入全体が読み飛ばされ、SUPABASE_SERVICE_ROLE_KEY がランタイムの vars にあっても違反にならない。",
+        "file": "scripts/gate-env-scope.mjs",
+        "line": 164,
+        "repro": "同梱の tests/unit/config/fixtures/env-scope/ok/wrangler.toml の [env.staging.vars] 内へ、\"SUPABASE_SERVICE_ROLE_KEY\" = \"synthetic-service-role-value-00000000\" を追加した入力を用意する。node scripts/gate-env-scope.mjs --root <その入力のディレクトリ> --no-live を実行すると、この禁止変数を検出せず終了コード0になる。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-4",
+        "severity": "medium",
+        "title": "PEPPER 切替中に旧設定が残ると同じ利用者のアカウントが分裂する",
+        "detail": "移行処理は旧版の参照値を上書きする。移行後に旧 PEPPER だけを持つ処理系へログインすると既存ユーザーを発見できず、別の app_user を作成する。新版の処理系は現行行を見つけた時点で戻るため、その後も二つのアカウントが残り、発行されるセッションの userId が設定によって変わる。",
+        "file": "src/lib/auth/pepper.ts",
+        "line": 177,
+        "repro": "同じ DB と同じ LINE sub に対し、同梱テストの CONFIG_V1 で未使用トークン T1 を認証して userId U1 を作る。次に CONFIG_V1_V2 で別トークン T2 を認証し U1 を新版へ移行する。続いて CONFIG_V1 で別トークン T3 を認証すると新しい userId U2 が作られる。最後に CONFIG_V1_V2 で T4 を認証すると U1 が返り、U2 は残る。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      }
+    ],
+    "diagnostics": {
+      "exit_code": 0,
+      "event_types": [
+        "thread.started",
+        "turn.started",
+        "item.completed",
+        "item.completed",
+        "turn.completed"
+      ],
+      "cli_errors": [
+        "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+      ],
+      "last_message_bytes": 2461,
+      "stderr_tail": "2026-09-24T12:48:25.119279Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T12:48:25.121097Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T12:48:25.391220Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer error=\\\"invalid_request\\\", error_description=\\\"No access token was provided in this request\\\", resource_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n"
+    },
+    "packet_bytes": 579764,
+    "validated_at": "2026-09-24T12:52:57Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/gpt-retry/gpt-012.json",
+    "merged_at": "2026-09-24T12:52:57Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gpt-6-astra を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 1,
+        "medium": 3,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 4,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "type": "summary",
+    "task_id": "task_012",
+    "round": 1,
+    "merged_at": "2026-09-24T12:52:57Z",
+    "decision": "reject",
+    "envelopes": 1,
+    "votes": 1,
+    "vendors": [
+      "gpt"
+    ],
+    "author_vendor": "claude",
+    "missing_votes": 0,
+    "invalid_envelopes": 0,
+    "invalid_reviews": 0,
+    "self_reviews": 0,
+    "task_mismatches": 0,
+    "effective_high": 1,
+    "exit_code": 1
   }
 ]

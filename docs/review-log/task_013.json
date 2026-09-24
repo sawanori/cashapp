@@ -107,5 +107,114 @@
     "self_reviews": 0,
     "effective_high": 0,
     "exit_code": 0
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_013",
+    "reviewer": "adversarial-reviewer-gpt",
+    "vendor": "gpt",
+    "reviewer_route": "cli-fallback",
+    "model_id_requested": "gpt-6-astra",
+    "model_id_actual": "gpt-6-astra",
+    "model_id_source": "self_report",
+    "cli_version": "codex-cli 0.154.0",
+    "backend": "codex",
+    "ran_at": "2026-09-24T12:51:33Z",
+    "commit": "740916f628cea9ad96eace6aa9a424c55c48ee52",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "high",
+        "title": "ストレージが使えないとログイン回数の上限が機能しない",
+        "detail": "storage が null の場合、readAttempts は毎回 0 を返し、writeAttempts は保存せず終了する。読み書きが例外になる場合も同様で、未ログインで戻り続けると3回目以降も login が呼ばれる。同梱テストは null での初回起動しか検査していない。",
+        "file": "src/lib/liff/client.ts",
+        "line": 302,
+        "repro": "init が即時成功、isInClient が true、isLoggedIn が false、login が呼出回数を加算、getIDToken が null を返す SDK を用意する。同じ SDK を返す loadLiff、storage:null、report:()=>{} を渡して bootLiff('2000000000-abcd1234', deps) を順に3回呼ぶ。コード上、3回とも redirecting_to_login、loginAttempts:1 となり、login の呼出回数は3になる。期待される3回目の auth_unavailable に到達しない。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-2",
+        "severity": "medium",
+        "title": "初期化が応答しない場合にタイムアウトもフォールバックも発生しない",
+        "detail": "タイムアウトが適用されるのは loadLiff() だけで、その完了時にタイマーは解除される。続く liff.init() は期限なしで待つため、初期化が未完了のままなら bootLiff は結果を返さず、テレメトリ送信にも静的フォールバック用の状態返却にも到達しない。",
+        "file": "src/lib/liff/client.ts",
+        "line": 283,
+        "repro": "loadLiff は即時に SDK を返し、その SDK の init を () => new Promise(() => {}) にする。report の呼出しを記録して bootLiff を開始し、3100ミリ秒待つ。SDK 読み込みは完了しているが、bootLiff は pending のままで report も呼ばれない。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-3",
+        "severity": "medium",
+        "title": "ボディ上限の検査前に任意長の本文を読み込む",
+        "detail": "Content-Length がないリクエストでは、request.text() が本文全体を読み終えるまで256バイト上限を検査しない。したがって、この上限は受信時のメモリ使用量や読み込み量を制限しない。レート制限の判定も本文読み込み後にある。",
+        "file": "src/app/api/telemetry/client-error/route.ts",
+        "line": 87,
+        "repro": "POST /api/telemetry/client-error に Content-Length を付けず、チャンク転送で257文字以上の ASCII 本文を送り、ストリームを開いたままにする。上限を超えても request.text() の待機が続く。さらに本文を1 MiBまで送り終える場合も、全体を読み込んだ後に初めて400を返す。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      }
+    ],
+    "diagnostics": {
+      "exit_code": 0,
+      "event_types": [
+        "thread.started",
+        "turn.started",
+        "item.completed",
+        "item.completed",
+        "turn.completed"
+      ],
+      "cli_errors": [
+        "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+      ],
+      "last_message_bytes": 1578,
+      "stderr_tail": "2026-09-24T12:48:25.119280Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T12:48:25.129203Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T12:48:25.400882Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer error=\\\"invalid_request\\\", error_description=\\\"No access token was provided in this request\\\", resource_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n"
+    },
+    "packet_bytes": 466356,
+    "validated_at": "2026-09-24T12:52:17Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/gpt-retry/gpt-013.json",
+    "merged_at": "2026-09-24T12:52:17Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gpt-6-astra を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 1,
+        "medium": 2,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 3,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "type": "summary",
+    "task_id": "task_013",
+    "round": 1,
+    "merged_at": "2026-09-24T12:52:17Z",
+    "decision": "reject",
+    "envelopes": 1,
+    "votes": 1,
+    "vendors": [
+      "gpt"
+    ],
+    "author_vendor": "claude",
+    "missing_votes": 0,
+    "invalid_envelopes": 0,
+    "invalid_reviews": 0,
+    "self_reviews": 0,
+    "task_mismatches": 0,
+    "effective_high": 1,
+    "exit_code": 1
   }
 ]

@@ -108,5 +108,114 @@
     "task_mismatches": 0,
     "effective_high": 0,
     "exit_code": 0
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_011",
+    "reviewer": "adversarial-reviewer-gpt",
+    "vendor": "gpt",
+    "reviewer_route": "cli-fallback",
+    "model_id_requested": "gpt-6-astra",
+    "model_id_actual": "gpt-6-astra",
+    "model_id_source": "self_report",
+    "cli_version": "codex-cli 0.154.0",
+    "backend": "codex",
+    "ran_at": "2026-09-24T12:52:06Z",
+    "commit": "a344a18459f3df39299bb4398f18ac2219959cc1",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "medium",
+        "title": "別の幹事の受取先を参照する決済試行が受理される",
+        "detail": "payment_attempt_binding_provider_fk が検査するのは provider_key の一致だけで、請求の幹事とバインディング所有者の一致は検査しない。event_binding_owner_fk は event の参照だけを保護するため、payment_attempt には他人の受取先を指定できる。C-011-7 に延期事項として記載されているが、同梱コードにこの反例を拒否する担保はない。以下は静的レビューによる再現手順で、実行はしていない。",
+        "file": "supabase/migrations/0007_provider_binding_scope_fk.sql",
+        "line": 54,
+        "repro": "tests/integration/setup.ts の関数で app_rw の接続を準備する。withRollback(appRw, async tx => { const a = await insertBaseFixture(tx, 'review_owner_a'); const b = await insertBaseFixture(tx, 'review_owner_b'); await tx`INSERT INTO payment_attempt (invoice_id, provider_key, provider_binding_id, external_ref, amount_minor) VALUES (${a.invoiceId}, 'manual_confirm', ${b.bindingId}, 'review_cross_owner_attempt', 3000)`; }); この INSERT は全制約を満たすが、請求の幹事は a.userId、受取先の所有者は b.userId になる。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-2",
+        "severity": "medium",
+        "title": "幹事表示名を保持期限後に NULL 化できない",
+        "detail": "event.organizer_label は Drizzle と 0001_init.sql の双方で NOT NULL になっている。同梱の acceptance-checks.json の check_043 が要求する、保持期限経過後の organizer_label の NULL 化は、このスキーマでは拒否される。後続マイグレーションにも NULL を許容する変更はない。実行はしていない。",
+        "file": "src/lib/db/schema.ts",
+        "line": 112,
+        "repro": "withRollback(migrator, async tx => { const f = await insertBaseFixture(tx, 'review_retention'); await tx`UPDATE event SET retention_due_at = now() - interval '1 day' WHERE id = ${f.eventId}`; await tx`UPDATE event SET organizer_label = NULL WHERE id = ${f.eventId}`; }); 最後の UPDATE は NOT NULL 違反になる。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-3",
+        "severity": "medium",
+        "title": "異なる生成式への列再作成も差分なしと判定される",
+        "detail": "判定器は同じテーブル名・列名に DROP と ADD が存在すれば無条件に無視し、生成列かどうかも定義が同一かどうかも比較しない。そのため settlement_rank の生成式を定数に置き換える差分でも「no table/column drift」として成功する。同梱の列型・NOT NULL の一致検査では生成式の同一性は担保されない。以下の判定結果はコードから導いたもので、実行はしていない。",
+        "file": "scripts/db-diff-drizzle.mjs",
+        "line": 150,
+        "repro": "入力ディレクトリの meta/_journal.json を {\"entries\":[{\"idx\":0,\"tag\":\"0000_base\"},{\"idx\":1,\"tag\":\"0001_drift\"}]} とし、0000_base.sql は空、0001_drift.sql は「ALTER TABLE \"invoice\" DROP COLUMN \"settlement_rank\";\\n--> statement-breakpoint\\nALTER TABLE \"invoice\" ADD COLUMN \"settlement_rank\" smallint GENERATED ALWAYS AS (0) STORED NOT NULL;」にする。node scripts/db-diff-drizzle.mjs <入力ディレクトリ> を実行すると、全状態の rank を 0 にする差分があるにもかかわらず、drop+add 対として除外され exit 0 になる。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      }
+    ],
+    "diagnostics": {
+      "exit_code": 0,
+      "event_types": [
+        "thread.started",
+        "turn.started",
+        "item.completed",
+        "item.completed",
+        "turn.completed"
+      ],
+      "cli_errors": [
+        "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+      ],
+      "last_message_bytes": 2416,
+      "stderr_tail": "2026-09-24T12:48:25.121155Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T12:48:25.400578Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer error=\\\"invalid_request\\\", error_description=\\\"No access token was provided in this request\\\", resource_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n2026-09-24T12:48:25.410022Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n"
+    },
+    "packet_bytes": 417872,
+    "validated_at": "2026-09-24T12:52:57Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/gpt-retry/gpt-011.json",
+    "merged_at": "2026-09-24T12:52:57Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gpt-6-astra を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 0,
+        "medium": 3,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 3,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "type": "summary",
+    "task_id": "task_011",
+    "round": 1,
+    "merged_at": "2026-09-24T12:52:57Z",
+    "decision": "pass",
+    "envelopes": 1,
+    "votes": 1,
+    "vendors": [
+      "gpt"
+    ],
+    "author_vendor": "claude",
+    "missing_votes": 0,
+    "invalid_envelopes": 0,
+    "invalid_reviews": 0,
+    "self_reviews": 0,
+    "task_mismatches": 0,
+    "effective_high": 0,
+    "exit_code": 0
   }
 ]
