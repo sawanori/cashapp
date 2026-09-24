@@ -28,6 +28,11 @@ test-results/
 *.pem
 npm-debug.log*
 
+# Next.js が `next dev` 起動時にリポジトリ直下へ自動生成するエージェント規約ファイル。
+# 生成物であり、この リポジトリの規約（docs/ 配下）とは別物なので追跡しない。
+/AGENTS.md
+/CLAUDE.md
+
 # task harness locks (mkdir-based exclusive locks; never committed)
 .locks/
 

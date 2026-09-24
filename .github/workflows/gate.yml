@@ -265,7 +265,10 @@ jobs:
           # 実 Postgres が要るコマンドは gate-integration.yml が実 DB の上で走らせる。
           # ここで黙って飛ばすのではなく、飛ばした事実と担当ワークフローを必ず出力する
           # （静かなスキップは「緑だが何も検査していない」を作る）。
-          DB_ONLY_NAMES="test:integration|gates:sync|db:migrate|db:diff:drizzle"
+          # 実 Postgres が要るもの（gate-integration.yml / gate-contract.yml の担当）と、
+          # ブラウザ＋dev サーバーが要るもの（e2e.yml / gate-a11y.yml の担当）はここでは走らせない。
+          # 黙って飛ばすのではなく SKIP 行で担当ワークフローを出力する（下のループ）。
+          DB_ONLY_NAMES="test:integration|gates:sync|db:migrate|db:diff:drizzle|test:contract|test:conformance|test:gate|test:e2e|test:a11y"
           FAILED=0
           SKIPPED=0
           RAN=0
