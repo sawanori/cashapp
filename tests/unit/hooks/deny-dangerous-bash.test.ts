@@ -9,6 +9,8 @@
 // 行う（実 package.json の scripts が変わってもこのテストの意味が変わらない）。
 
 import { spawnSync } from "node:child_process";
+import { copyFileSync, mkdtempSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
@@ -17,7 +19,8 @@ import { describe, expect, it } from "vitest";
 
 const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const script = path.join(repoRoot, "scripts", "deny-dangerous-bash.sh");
-const fixturePkg = path.join(repoRoot, "tests", "unit", "hooks", "fixtures", "package.json");
+const fixtureDir = path.join(repoRoot, "tests", "unit", "hooks", "fixtures");
+const fixturePkg = path.join(fixtureDir, "package.json");
 
 // 本番鍵・本番環境フラグの見本はリテラルで書かない。このファイル自身が
 // scripts/deny-test-weakening.sh の本番鍵検出に引っかかって書けなくなるため。
@@ -153,6 +156,52 @@ const blockedAliases: string[] = [
   "npm run --silent prod-push",
 ];
 
+// 保護対象パスを「名指ししない」形の迂回路。いずれも修正前は exit 0 だった。
+const blockedEvasions: string[] = [
+  // (1) `>|` は noclobber を無視する上書きリダイレクト。normalize() が `|` を
+  // 節区切りに変える前に `>` へ畳まないと、リダイレクト先が消えて素通りする。
+  "echo x >| docs/run-log/task_005.json",
+  "echo x >|docs/gates/legal-clearance.json",
+  "cat /tmp/a.json >| .claude/settings.json",
+  "echo x >| tests/unit/hooks/deny-dangerous-bash.test.ts",
+  // (2) カレントディレクトリ・ワイルドカードを対象にした削除と復元。
+  // リポジトリ直下の `.` は docs/run-log も tests も .claude も含む。
+  "rm -r .",
+  "rm -r ./",
+  "rm -rf ./",
+  "rm -r *",
+  "git checkout .",
+  "git restore .",
+  "git checkout -- .",
+  "git checkout HEAD -- .",
+  // git clean はパスを 1 つも書かずに未追跡ファイルを全部消す。
+  "git clean -fdx",
+  "git clean -f",
+  "git clean -fd",
+  "git clean -xdf",
+  "cd docs && git checkout .",
+  // (3) パッチ適用。書き換え先は diff の中にしか書かれていない。
+  "git apply /tmp/evil.patch",
+  "git apply -p1 /tmp/evil.patch",
+  "patch -p1 < /tmp/evil.patch",
+  "git apply",
+  "cat /tmp/evil.patch | patch -p1",
+  // (4) cd 後の相対パスと、変数展開されたリダイレクト先。
+  "cd docs/run-log && echo x > y.json",
+  "cd docs/gates; echo x > legal-clearance.json",
+  "cd docs && cd run-log && echo x > y.json",
+  "cd docs/run-log && cat > y.json",
+  "cd .claude && echo x > settings.json",
+  "cd tests && echo x > smoke.test.ts",
+  "cd docs/run-log && rm y.json",
+  "cd docs/../docs/gates && echo x > a.json",
+  "cd docs/run-log && echo x | tee y.json",
+  "F=docs/run-log/x.json; echo x > $F",
+  "echo x > ${F}",
+  "OUT=$HOME/x; echo y > $OUT",
+  "echo x | tee $DEST",
+];
+
 const allowed: string[] = [
   "npm run test:unit",
   // フラグ読み飛ばしが安全なスクリプトまで巻き込まないこと
@@ -186,6 +235,16 @@ const allowed: string[] = [
   // インタプリタ自身のオプションでないと遮断しない（実際に自分の
   // コミットメッセージがこれで弾かれた）。
   "git commit -m 'node / deno / bun / perl の迂回を塞ぐ。tests と docs/run-log は --force でも触らない'",
+  // 迂回路を塞いだ副作用で普通の作業まで止めていないこと。
+  "git clean -n",
+  "git clean --dry-run",
+  "cd src && echo x > page.tsx",
+  "cd /tmp && echo x > y.json",
+  "cd src/app && rm page.tsx",
+  "cd docs && ls run-log",
+  "git diff --name-only --diff-filter=ACMR HEAD -- '*.ts'",
+  "scripts/record-run.sh task_005 npm run gate:constraints",
+  "scripts/record-run.sh --manual task_005 'SessionStart の注入を目視で確認した'",
 ];
 
 describe("deny-dangerous-bash.sh — 破壊的・本番系コマンド", () => {
@@ -243,6 +302,59 @@ describe("deny-dangerous-bash.sh — 保護対象への Bash 経由の書き込�
       expect(run(command).status).toBe(2);
     });
   }
+});
+
+describe("deny-dangerous-bash.sh — 保護対象を名指ししない迂回路", () => {
+  for (const command of blockedEvasions) {
+    it(`exit 2: ${command}`, () => {
+      expect(run(command).status).toBe(2);
+    });
+  }
+
+  // パッチファイルは保護対象の外（一時ディレクトリ）に置いて渡す。フック自身が
+  // コマンドラインに現れる保護対象パスを先に弾くため、tests/ 配下のフィクスチャを
+  // そのまま渡すと「中身を読んだ結果」なのか「パスを見た結果」なのか区別できない。
+  const tmpPatchDir = mkdtempSync(path.join(os.tmpdir(), "deny-bash-patch-"));
+  const patchAt = (name: string): string => {
+    const dest = path.join(tmpPatchDir, name);
+    copyFileSync(path.join(fixtureDir, name), dest);
+    return dest;
+  };
+
+  it("読めるパッチの中身まで見て、保護対象を書き換えるパッチは遮断する", () => {
+    const result = run(`git apply ${patchAt("touches-protected.patch")}`);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain("パッチ本体が保護対象パスを含みます");
+  });
+
+  it("保護対象を含まないと示せるパッチは通す（無条件の fail-closed ではない）", () => {
+    const result = run(`git apply ${patchAt("touches-src-only.patch")}`);
+    expect({ status: result.status, stderr: result.stderr }).toEqual({ status: 0, stderr: "" });
+  });
+
+  it("コマンドラインが保護対象パスを名指しするパッチ適用も遮断する", () => {
+    const result = run(`git apply ${path.join(fixtureDir, "touches-protected.patch")}`);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain("BLOCKED");
+  });
+
+  it("適用先を示せないパッチ（stdin）は fail-closed で遮断する", () => {
+    const result = run("git apply < /tmp/unknown.patch");
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain("BLOCKED");
+  });
+
+  it("cd を追跡して宛先を解決していることを理由文で示す", () => {
+    const result = run("cd docs/run-log && echo x > y.json");
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain("リダイレクト先");
+  });
+
+  it("変数展開された宛先は解決不能として遮断する", () => {
+    const result = run("F=docs/run-log/x.json; echo x > $F");
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain("変数展開");
+  });
 });
 
 describe("deny-dangerous-bash.sh — package.json.scripts の別名呼び出し", () => {

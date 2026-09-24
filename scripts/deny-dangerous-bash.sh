@@ -17,9 +17,10 @@
 #   B. Bash-side writes into files that are supposed to be machine-written or
 #      human-only: docs/run-log/**, docs/gates/**, docs/acceptance-checks.json,
 #      tests/**, scripts/deny-*, scripts/record-run.sh, .claude/**,
-#      .github/workflows/**. Blocked mechanisms: `>` / `>>` redirects, `tee`,
-#      `sed -i` / `sed --in-place`, any operand of `cp` / `mv` / `rsync` /
-#      `install`, `dd of=`, an interpreter one-liner (`python -c`, `node -e`,
+#      .github/workflows/**. Blocked mechanisms: `>` / `>>` / `>|` redirects,
+#      `tee`, `sed -i` / `sed --in-place`, any operand of `cp` / `mv` /
+#      `rsync` / `install`, `dd of=`, patch application (`git apply` /
+#      `patch`), an interpreter one-liner (`python -c`, `node -e`,
 #      `perl -i -pe`, …) naming a protected path, and — just as important —
 #      DELETION and RESTORE: `rm`, `unlink`, `shred`, `truncate`, `chmod`,
 #      `chown`, `ln`, `git rm`, `git restore`, `git checkout -- <path>`,
@@ -29,6 +30,23 @@
 #      a record-run.sh invocation carries none of those mechanisms, so it is
 #      allowed by construction rather than by a carve-out an attacker could
 #      imitate.
+#
+#      Three ways of *not naming* a protected path are handled explicitly,
+#      because each of them used to walk straight through rule set B:
+#
+#        * `cd docs/run-log && echo x > y.json` — the destination is relative
+#          to a directory chosen in an earlier clause. Clauses are scanned in
+#          order and `cd` is tracked (CWD_REL), so every operand is resolved
+#          against the current directory before it is matched.
+#        * `F=docs/run-log/x.json; echo x > $F` — the destination only exists
+#          after parameter expansion, which this guard cannot perform. A
+#          redirect or `tee` destination containing `$` is unresolvable and is
+#          therefore blocked fail-closed.
+#        * `rm -r .` / `git checkout .` / `git clean -fdx` — the whole current
+#          directory (or every untracked file under it) is destroyed without a
+#          protected path ever appearing. `.`, `./`, `*`, `..`, `/` and friends
+#          are treated as "everything here", and `git clean` is blocked unless
+#          it is an explicit dry run.
 #
 # `npm run <script>` / `yarn <script>` / `npx <bin>` are resolved through
 # package.json.scripts and the resolved body is scanned with the same rules,
@@ -110,17 +128,105 @@ PROTECTED_RE='(docs/run-log/|docs/gates/|docs/acceptance-checks\.json|tests/|scr
 # guards included — did not match it at all.
 PROTECTED_TREE_RE='(^|/)(docs/run-log|docs/gates|tests|scripts|\.claude|\.github)(/|$)'
 
+# Directory the *current* clause runs in, relative to the repository root.
+# Empty = the repository root. Advanced by every `cd` clause (set_cwd) and
+# consulted by protected() / protected_tree() so that a relative operand is
+# matched at the place it actually lands.
+CWD_REL=""
+
 # ---------------------------------------------------------------- normalize --
 # Collapse quoting and whitespace, then turn &&, ||, |, ; and newlines into a
 # single subcommand separator so each clause can be matched on its own.
+#
+# `>|` (the noclobber override) has to be folded into `>` BEFORE `|` becomes a
+# separator, or `echo x >| docs/run-log/a.json` is split into `echo x >` and a
+# bare path, and no redirect destination is ever seen.
 normalize() {
   printf '%s' "$1" \
     | tr -d '"'"'"'`' \
     | tr -d '\\' \
     | tr '\n\r' "$SEP$SEP" \
+    | sed -e 's/>|/>/g' \
     | sed -e "s/&&/$SEP/g" -e "s/||/$SEP/g" -e "s/|/$SEP/g" -e "s/;/$SEP/g" \
     | tr '\t' ' ' \
     | tr -s ' '
+}
+
+# ------------------------------------------------------------- path helpers --
+join_path() {
+  # $1 = base (repo-relative, possibly empty), $2 = operand.
+  # Echoes the operand resolved against the base with `.` and `..` collapsed.
+  local base="$1" p="$2" joined out part oldifs
+  case "$p" in
+    /*) joined="$p" ;;
+    *)
+      if [ -n "$base" ]; then joined="$base/$p"; else joined="$p"; fi
+      ;;
+  esac
+  out=""
+  oldifs="$IFS"
+  IFS='/'
+  for part in $joined; do
+    case "$part" in
+      ""|.) continue ;;
+      ..) out="${out%/*}" ;;
+      *) out="$out/$part" ;;
+    esac
+  done
+  IFS="$oldifs"
+  printf '%s' "${out#/}"
+}
+
+set_cwd() {
+  # $1 = the operand of a `cd` clause. Anything this guard cannot resolve to a
+  # repository-relative directory resets the tracker to the root rather than
+  # inventing a prefix: an invented prefix would produce false matches on
+  # unrelated commands (`cd "$CLAUDE_PROJECT_DIR" && npm run typecheck` is this
+  # repository's own PostToolUse hook).
+  local t="$1"
+  case "$t" in
+    ""|-|'~'*|*'$'*) CWD_REL=""; return ;;
+    "$ROOT") CWD_REL=""; return ;;
+    "$ROOT"/*) CWD_REL="${t#"$ROOT"/}"; return ;;
+    /*) CWD_REL=""; return ;;
+  esac
+  CWD_REL="$(join_path "$CWD_REL" "$t")"
+}
+
+cd_target() {
+  # $1 = a clause that starts with `cd`. Echoes its first non-flag operand
+  # (nothing for a bare `cd`, which means "go home" and is treated as unknown).
+  local sub="$1" tok seen=0
+  for tok in $sub; do
+    if [ "$seen" -eq 1 ]; then
+      case "$tok" in
+        -*) continue ;;
+      esac
+      printf '%s' "$tok"
+      return 0
+    fi
+    [ "$tok" = "cd" ] && seen=1
+  done
+  return 0
+}
+
+broad_target() {
+  # An operand that means "this whole directory" or "everything". The patterns
+  # are quoted, so `"*"` matches the character itself, not any string.
+  case "$1" in
+    "."|"./"|".//"|".."|"../"|"*"|"*/"|"./*"|"/"|"/*") return 0 ;;
+  esac
+  return 1
+}
+
+unresolvable_dest() {
+  # A destination that only exists after parameter/command expansion. This
+  # guard cannot expand it, so it cannot show the write lands outside the
+  # protected areas.
+  case "$1" in
+    *'$'*) return 0 ;;
+  esac
+  return 1
 }
 
 # --------------------------------------------------------------- rule set A --
@@ -197,11 +303,19 @@ raw_rules_hit() {
 
 # --------------------------------------------------------------- rule set B --
 protected() {
-  printf '%s' "$1" | grep -Eq "$PROTECTED_RE"
+  printf '%s' "$1" | grep -Eq "$PROTECTED_RE" && return 0
+  if [ -n "$CWD_REL" ]; then
+    printf '%s' "$(join_path "$CWD_REL" "$1")" | grep -Eq "$PROTECTED_RE" && return 0
+  fi
+  return 1
 }
 
 protected_tree() {
-  printf '%s' "$1" | grep -Eq "$PROTECTED_TREE_RE"
+  printf '%s' "$1" | grep -Eq "$PROTECTED_TREE_RE" && return 0
+  if [ -n "$CWD_REL" ]; then
+    printf '%s' "$(join_path "$CWD_REL" "$1")" | grep -Eq "$PROTECTED_TREE_RE" && return 0
+  fi
+  return 1
 }
 
 write_rules_hit() {
@@ -209,6 +323,9 @@ write_rules_hit() {
   local sub="$1" target tok seen_tee
 
   for target in $(printf '%s' "$sub" | grep -oE '>>?[[:space:]]*[^[:space:]]+' | sed -E 's/^>>?[[:space:]]*//'); do
+    if unresolvable_dest "$target"; then
+      echo "変数展開されたリダイレクト先 ${target}（宛先を判定できないため遮断）"; return 0
+    fi
     if protected "$target"; then
       echo "リダイレクト先 $target"; return 0
     fi
@@ -221,6 +338,9 @@ write_rules_hit() {
         case "$tok" in
           -*) continue ;;
         esac
+        if unresolvable_dest "$tok"; then
+          echo "変数展開された tee の出力先 ${tok}（宛先を判定できないため遮断）"; return 0
+        fi
         if protected "$tok"; then
           echo "tee の出力先 $tok"; return 0
         fi
@@ -264,13 +384,30 @@ write_rules_hit() {
   # `git checkout HEAD -- tests/x.test.ts` silently reverts a test. The
   # directory form is checked as well as the file form, and the scan covers the
   # whole clause fail-closed, like cp/mv.
+  #
+  # `rm -r .` / `git checkout .` / `git restore .` / `git checkout HEAD -- .`
+  # do all of that without naming anything: the operand is the current
+  # directory, which at the repository root *contains* docs/run-log, tests and
+  # .claude. Those operands are refused outright.
   if printf '%s' "$sub" | grep -Eq '(^| )(rm|unlink|shred|truncate)( |$)' ||
      printf '%s' "$sub" | grep -Eq '(^| )git +(rm|restore|checkout|clean)( |$)'; then
     for tok in $sub; do
       if protected "$tok" || protected_tree "$tok"; then
         echo "削除・復元の対象 $tok"; return 0
       fi
+      if broad_target "$tok"; then
+        echo "カレントディレクトリ全体を対象にした削除・復元（${tok}）"; return 0
+      fi
     done
+  fi
+
+  # `git clean -f` / `git clean -fdx` deletes every untracked file under the
+  # current directory — new run-log entries, gate drafts, test files not yet
+  # committed — and never names a path at all. Only an explicit dry run passes.
+  if printf '%s' "$sub" | grep -Eq '(^| )git +clean( |$)'; then
+    if ! printf '%s' "$sub" | grep -Eq '(^| )(-n|--dry-run)( |$)'; then
+      echo "git clean（未追跡ファイルの一括削除）"; return 0
+    fi
   fi
 
   # Permission / symlink changes: `chmod -x` on a guard neutralises it just as
@@ -298,6 +435,48 @@ write_rules_hit() {
     done
   fi
 
+  return 1
+}
+
+patch_rules_hit() {
+  # `git apply` and `patch` write arbitrary files, and *which* files they write
+  # is stated inside the diff, not on the command line. That made them the one
+  # remaining way to rewrite a guard, a gate file or a test from Bash.
+  #
+  # The diff is inspected when it can be: a readable patch file named on the
+  # command line is scanned for protected paths. When no such file can be found
+  # — the patch arrives on stdin, from a heredoc or a pipe, or at a path this
+  # guard cannot read — the destination is unknowable and the clause is refused
+  # fail-closed.
+  local sub="$1" tok cand found=0
+  printf '%s' "$sub" | grep -Eq '(^| )git +apply( |$)' ||
+    printf '%s' "$sub" | grep -Eq '(^| )patch( |$)' || return 1
+
+  for tok in $sub; do
+    case "$tok" in
+      git|apply|patch|-*|"<"|">") continue ;;
+    esac
+    if protected "$tok" || protected_tree "$tok"; then
+      echo "パッチ適用の対象 $tok"; return 0
+    fi
+    cand=""
+    if [ -f "$tok" ]; then
+      cand="$tok"
+    elif [ -f "$ROOT/$tok" ]; then
+      cand="$ROOT/$tok"
+    fi
+    if [ -n "$cand" ]; then
+      found=1
+      if grep -Eq "$PROTECTED_RE" "$cand" 2>/dev/null; then
+        echo "パッチ本体が保護対象パスを含みます（${tok}）"; return 0
+      fi
+    fi
+  done
+
+  if [ "$found" -eq 0 ]; then
+    echo "git apply / patch の適用先を判定できません（stdin・ヒアドキュメント・読めないパッチ）"
+    return 0
+  fi
   return 1
 }
 
@@ -359,7 +538,13 @@ resolve_script() {
 scan_text() {
   # $1 = raw command text, $2 = depth, $3 = chain of already-visited names
   local text="$1" depth="$2" chain="$3"
-  local norm whole hit sub name body subs_file
+  local norm whole hit sub name body subs_file saved_cwd
+
+  # An npm script body always runs from the package directory, so a `cd` in the
+  # calling clause must not leak into it, and whatever the body does with `cd`
+  # must not leak back out.
+  saved_cwd="$CWD_REL"
+  CWD_REL=""
 
   norm="$(normalize "$text")"
   whole="$(printf '%s' "$norm" | tr "$SEP" ' ' | tr -s ' ')"
@@ -377,6 +562,7 @@ scan_text() {
 
     hit="$(raw_rules_hit "$sub")" && { rm -f "$subs_file"; block "${hit}（${sub}）" "破壊的操作・本番デプロイ・本番決済はローカルから実行できません（L11 / R-TH-02。デプロイは CI のみ）"; }
     hit="$(write_rules_hit "$sub")" && { rm -f "$subs_file"; block "${hit}（${sub}）" "docs/run-log/** ・docs/gates/** ・docs/acceptance-checks.json ・tests/** ・scripts/deny-* ・scripts/record-run.sh ・.claude/** ・.github/workflows/** への Bash 経由の書き込み・削除は禁止です（R-TH-02 / R-SEC-07）"; }
+    hit="$(patch_rules_hit "$sub")" && { rm -f "$subs_file"; block "${hit}（${sub}）" "パッチ適用は適用先を事前に判定できないため、保護対象を含みうる限り遮断します（R-TH-02 / R-SEC-07）"; }
 
     for name in $(script_names "$sub"); do
       [ -n "$name" ] || continue
@@ -396,9 +582,16 @@ scan_text() {
         fi
       fi
     done
+
+    # `cd` takes effect for every LATER clause of the same command line, so the
+    # tracker is advanced only after this clause has been judged.
+    case "$sub" in
+      cd|"cd "*) set_cwd "$(cd_target "$sub")" ;;
+    esac
   done < "$subs_file"
 
   rm -f "$subs_file"
+  CWD_REL="$saved_cwd"
 }
 
 scan_text "$CMD" 0 "|"

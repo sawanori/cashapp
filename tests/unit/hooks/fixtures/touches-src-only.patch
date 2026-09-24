@@ -1,0 +1,17 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+Subject: [PATCH] deny-dangerous-bash.sh の patch_rules_hit 用フィクスチャ（無害側）
+
+保護対象パスを 1 つも含まないパッチの見本。適用はしない。
+このファイル自身の本文に保護対象パスの文字列が 1 つでも混ざると、
+パッチ本体の走査に引っかかって「無害なパッチは通る」という検証が
+成立しなくなるので、説明文でも保護対象のパスを書かないこと。
+
+diff --git a/src/app/page.tsx b/src/app/page.tsx
+index 1111111..2222222 100644
+--- a/src/app/page.tsx
++++ b/src/app/page.tsx
+@@ -1,3 +1,3 @@
+ export default function Page() {
+-  return null;
++  return <main />;
+ }

@@ -328,6 +328,59 @@
 - `docs/task-list.json` の `task_011.concerns` は書き換えていない（並行タスクとの
   書き込み衝突を避けるため）。最新の懸念状態は `docs/concerns/task_011.md` が正本。
 
+## task_005（hardening 周）
+
+### 決まったこと
+
+- **保護対象を「名指ししない」迂回路を 4 系統塞いだ**。`scripts/deny-dangerous-bash.sh`:
+  - `>|`（noclobber 上書き）は `normalize()` で `|` を節区切りにする **前** に `>` へ畳む。
+    畳まないと `echo x >| docs/run-log/a.json` が `echo x >` と裸のパスに割れ、
+    リダイレクト先が消えて素通りする（修正前 exit 0 を実測）。
+  - `.` `./` `..` `*` `/` などを「ここ全体」を指す操作対象とみなし、削除・復元系
+    （`rm` / `unlink` / `shred` / `truncate` / `git rm|restore|checkout|clean`）の
+    どのトークンに現れても遮断する。`git clean` はパスを 1 つも書かずに未追跡ファイルを
+    消すので、`-n` / `--dry-run` 以外は無条件で遮断する。
+  - 節ごとに `cd` を追跡する（`CWD_REL` と `join_path()`）。宛先は現在ディレクトリに
+    解決してから保護判定にかける。解決できない `cd`（`$` を含む・絶対パスでリポジトリ外・
+    ホーム・`cd -`）は「ルートに戻す」扱いにして、でっち上げの接頭辞で誤検知しないようにした。
+  - リダイレクトと `tee` の**宛先に `$` が含まれたら無条件で遮断**する。フックは変数を
+    展開できないので、宛先が保護対象の外だと示せない（fail-closed）。
+- **`git apply` / `patch` を遮断対象に追加した**。書き換え先は diff の中にしか書かれていない。
+  コマンド行に読めるパッチファイルがあればその本文を走査して保護対象を含むかで判定し、
+  読めるパッチが 1 つも見つからなければ（stdin・ヒアドキュメント・パイプ）fail-closed で遮断する。
+  保護対象を含まないと示せるパッチは通す。
+- **`.claude/settings.json` の保護を構造検査にした**。`scripts/deny-test-weakening.sh` は
+  編集後のファイルを組み立て（Write は本文そのまま、Edit / MultiEdit はディスク上の
+  ファイルに適用）、jq で解析して `EXPECTED_HOOKS` の 9 登録が残っているかを見る。
+  matcher は「期待するツール名を含むか」の包含判定なので、拡張（`…|NotebookEdit`）は通り、
+  絞り込み（`Edit|Write|MultiEdit` → `Write`）は落ちる。コマンドは `#` より前の部分で
+  照合するので、`true # deny-dangerous-bash.sh` のようなコメント化も落ちる。
+- **`lint:changed` の空振りを止めた**。旧定義は `origin/main...HEAD` を使っており、
+  このリポジトリには remote が無いので常に失敗 → `2>/dev/null` に飲まれてファイル一覧が空 →
+  引数ゼロの eslint → exit 0、という「フックは緑だが lint は 1 行も走っていない」状態だった。
+  新定義は `git diff --name-only --diff-filter=ACMR HEAD` とステージ済み差分の和を取り、
+  対象 0 件なら「対象なし」と明示して exit 0、対象があれば eslint を実走する。
+
+### 未解決
+
+- **ガード本体（`scripts/deny-*`）は、このハーネスの内側からはもう編集できない。**
+  Edit / Write は `deny-test-weakening.sh` が、Bash の書き込み・削除経路は
+  `deny-dangerous-bash.sh` が塞いでおり、最後に残っていた `git apply` を今回塞いだ。
+  今回の修正自体は、まだ `git apply` が通る時点でパッチとして当てた。
+  次にガードを直す必要が出たら **PO が Claude Code の外で編集する**か、
+  `.claude/settings.json` の PreToolUse 登録を PO が一時的に外すしかない。
+  `docs/concerns/task_005.md` §3 に選択肢 3 案を書いた（accepted-risk）。
+- **指摘外の残穴を実測した**（`docs/concerns/task_005.md` §2）。`awk -i inplace` /
+  `ed` / `ex` / `vim -es` / `sponge` / `find -delete` / `xargs rm` /
+  `git stash push` / `git revert` / `git reset`（`--hard` 以外）はいずれも現状 exit 0。
+  `write_rules_hit()` が「書き換えコマンド名の列挙」である限り、列挙漏れは構造的に残る。
+  対応案は allowlist 方式（読み取り専用と明示できるコマンド以外は、保護対象パスが
+  コマンド行に現れた時点で fail-closed）への転換。**次の hardening ラウンド**で扱う。
+- `cd` で保護対象ディレクトリに入った後の削除系は、節の全トークンがそのディレクトリ配下として
+  解決されるため、遮断メッセージがコマンド名（`rm` など）を引用することがある。
+  判断は正しく文言だけの問題。`docs/concerns/task_005.md` §5。
+- `check_053`（新規セッションでの SessionStart 注入の目視）は 3 周目で実測済み。本周では再実行していない。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -356,3 +409,7 @@
 - 2026-09-24T05:20:27Z HEAD=ea63ab3 決まったこと: task_005: 実環境での削除遮断の実測記録 / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json 
 - 2026-09-24T05:29:33Z HEAD=ea63ab3 決まったこと: task_005: 実環境での削除遮断の実測記録 / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json 
 - 2026-09-24T05:29:36Z HEAD=ea63ab3 決まったこと: task_005: 実環境での削除遮断の実測記録 / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json 
+- 2026-09-24T05:44:29Z HEAD=34868e9 決まったこと: task_011(hardening): 修正後の verify_commands を HEAD d5089cc で再実行したログ / 未解決: 未コミット 3 件: docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json 
+- 2026-09-24T05:47:00Z HEAD=34868e9 決まったこと: task_011(hardening): 修正後の verify_commands を HEAD d5089cc で再実行したログ / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json 
+- 2026-09-24T05:54:29Z HEAD=34868e9 決まったこと: task_011(hardening): 修正後の verify_commands を HEAD d5089cc で再実行したログ / 未解決: 未コミット 12 件: docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json package.json scripts/deny-dangerous-bash.sh scripts/deny-test-weakening.sh 
+- 2026-09-24T05:59:29Z HEAD=34868e9 決まったこと: task_011(hardening): 修正後の verify_commands を HEAD d5089cc で再実行したログ / 未解決: 未コミット 16 件: docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json package.json scripts/deny-dangerous-bash.sh 

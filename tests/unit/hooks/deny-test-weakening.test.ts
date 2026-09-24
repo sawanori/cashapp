@@ -193,6 +193,79 @@ describe("deny-test-weakening.sh — ハーネス自身の保全", () => {
   });
 });
 
+// スクリプト名の出現回数は構造の検査になっていない。`hooks` キーの改名・
+// matcher の差し替え・event の付け替えは、名前を 1 つも減らさずにガードを
+// 止められる。編集後のファイルを組み立てて jq で解析し、期待するイベント・
+// matcher・コマンドが残っているかを見る。
+describe("deny-test-weakening.sh — .claude/settings.json の構造検査", () => {
+  const settings = readFileSync(path.join(repoRoot, ".claude/settings.json"), "utf8");
+  const rewritten = (from: string, to: string): string => {
+    const next = settings.replace(from, to);
+    expect(next).not.toBe(settings);
+    return next;
+  };
+
+  it("hooks キーの改名は exit 2", () => {
+    expect(write(".claude/settings.json", rewritten('"hooks":', '"hooks_disabled":')).status).toBe(2);
+  });
+
+  it("PreToolUse の Bash matcher を別ツールに差し替えると exit 2", () => {
+    expect(
+      write(".claude/settings.json", rewritten('"matcher": "Bash"', '"matcher": "Task"')).status,
+    ).toBe(2);
+  });
+
+  it("matcher を狭めると exit 2", () => {
+    expect(
+      write(
+        ".claude/settings.json",
+        rewritten('"matcher": "Edit|Write|MultiEdit"', '"matcher": "Write"'),
+      ).status,
+    ).toBe(2);
+  });
+
+  it("イベント名を付け替えて登録を無効化すると exit 2", () => {
+    expect(
+      write(".claude/settings.json", rewritten('"Stop": [', '"StopDisabled": [')).status,
+    ).toBe(2);
+  });
+
+  it("PostToolUse の検査コマンドを 1 つ落とすと exit 2", () => {
+    expect(write(".claude/settings.json", rewritten("lint:changed", "true")).status).toBe(2);
+  });
+
+  it("ガード名をコメントに残して command を無効化しても exit 2", () => {
+    expect(
+      write(
+        ".claude/settings.json",
+        rewritten(
+          'bash \\"$CLAUDE_PROJECT_DIR/scripts/deny-dangerous-bash.sh\\"',
+          "true # deny-dangerous-bash.sh",
+        ),
+      ).status,
+    ).toBe(2);
+  });
+
+  it("JSON として壊れた settings.json は exit 2", () => {
+    expect(write(".claude/settings.json", settings.slice(0, -20)).status).toBe(2);
+  });
+
+  it("matcher の拡張（対象ツールを増やす）は通す", () => {
+    expect(
+      write(
+        ".claude/settings.json",
+        rewritten('"matcher": "Edit|Write|MultiEdit"', '"matcher": "Edit|Write|MultiEdit|NotebookEdit"'),
+      ).status,
+    ).toBe(0);
+  });
+
+  it("遮断時はどの登録が失われたかを stderr に書く", () => {
+    const result = write(".claude/settings.json", rewritten('"matcher": "Bash"', '"matcher": "Task"'));
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain("PreToolUse[Bash] -> deny-dangerous-bash.sh");
+  });
+});
+
 describe("deny-test-weakening.sh — 本番鍵", () => {
   it("本番シークレットを含む Write は exit 2", () => {
     expect(write("src/lib/payments/keys.ts", `export const KEY = "${LIVE_SECRET}";`).status).toBe(2);

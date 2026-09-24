@@ -5,7 +5,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "lint:changed": "eslint --max-warnings=0 $(git diff --name-only --diff-filter=ACMR origin/main...HEAD -- '*.ts' '*.tsx' 2>/dev/null | tr '\\n' ' ')",
+    "lint:changed": "files=$(git diff --name-only --diff-filter=ACMR HEAD -- \"*.ts\" \"*.tsx\"; git diff --cached --name-only --diff-filter=ACMR -- \"*.ts\" \"*.tsx\"); files=$(echo \"$files\" | grep -E \"[.]tsx?$\" | sort -u | tr \"\\n\" \" \"); if [ -z \"$files\" ]; then echo \"lint:changed: 対象なし（HEAD との差分・ステージ済み差分に .ts / .tsx がありません）\"; else echo \"lint:changed: $files\"; eslint --max-warnings=0 $files; fi",
     "build": "next build",
     "build:cf": "opennextjs-cloudflare build && node scripts/ci/record-worker-size.mjs",
     "cf:dev": "opennextjs-cloudflare build && wrangler dev",

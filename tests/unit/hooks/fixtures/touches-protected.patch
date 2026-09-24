@@ -1,0 +1,16 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+Subject: [PATCH] tests/unit/hooks/deny-dangerous-bash.test.ts のフィクスチャ
+
+保護対象パス（scripts/deny-*）を書き換えるパッチの見本。適用はしない。
+scripts/deny-dangerous-bash.sh の patch_rules_hit が、コマンドラインに現れる
+読めるパッチファイルの中身まで見て遮断することを確かめるためだけに置いてある。
+
+diff --git a/scripts/deny-dangerous-bash.sh b/scripts/deny-dangerous-bash.sh
+index 1111111..2222222 100755
+--- a/scripts/deny-dangerous-bash.sh
++++ b/scripts/deny-dangerous-bash.sh
+@@ -1,3 +1,3 @@
+ #!/usr/bin/env bash
+-set -uo pipefail
++exit 0
+ set -f
