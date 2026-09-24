@@ -10,6 +10,13 @@
 //   1. ジョブ `release-gate` が存在する。
 //   2. release.yml の他のすべてのジョブが、`needs` を辿ると必ず `release-gate` に到達する
 //      （= ゲートより先に走るジョブが 1 つも無い）。
+//   2b. その `needs` が実際に効いていること。GitHub Actions では `needs` があっても、
+//      ジョブの `if:` に状態関数（`always()` / `failure()` / `cancelled()` / `success()` の
+//      否定）を書くと「先行ジョブが落ちても走る」に変わる。`needs: [release-gate]` の
+//      1 行下に `if: always()` を足すだけで、ゲートが赤でもデプロイが走る release.yml が
+//      作れてしまう。同様に `release-gate` 側に `continue-on-error: true` を置くと、
+//      ステップが落ちてもジョブの結論が success になり `needs` が満たされる。
+//      この 2 つを塞がないと、1 行でこの検査そのものが無効化される（R-TH-01）。
 //   3. `release-gate` の最初の実行ステップ（`actions/checkout` を除く最初の `run`）が
 //      docs/gates/release-mode.json の payments_enabled を読んでいる。
 //   4. `release-gate` のどこかで (a) 段 = PAYMENTS_ENABLED が false であることの検証と
@@ -66,6 +73,45 @@ function reachesVia(jobs, from, target, seen = new Set()) {
 }
 
 /**
+ * ジョブの `if:` に書かれた状態関数のうち、「先行ジョブが落ちても走る」に変えるもの。
+ *
+ * GitHub Actions の既定では、`needs` の先行ジョブが失敗・スキップされたジョブは走らない。
+ * ただし `if:` に状態チェック関数を書くとその既定が置き換わる。`always()` は無条件、
+ * `failure()` / `cancelled()` は「落ちたとき／中断されたとき」に走る。`success()` の否定も
+ * 同じ穴になる。ここに当たったジョブは `needs` があっても関門の後ろにいない。
+ *
+ * @param {unknown} ifValue
+ * @returns {string[]} 見つかった危険な記述（無ければ空）
+ */
+export function neutralizingConditions(ifValue) {
+  if (ifValue === undefined || ifValue === null) return [];
+  const text = typeof ifValue === "string" ? ifValue : String(ifValue);
+  /** @type {{re: RegExp, label: string}[]} */
+  const probes = [
+    { re: /\balways\s*\(\s*\)/, label: "always()" },
+    { re: /\bfailure\s*\(\s*\)/, label: "failure()" },
+    { re: /\bcancelled\s*\(\s*\)/, label: "cancelled()" },
+    { re: /!\s*success\s*\(\s*\)/, label: "!success()" },
+    { re: /\bsuccess\s*\(\s*\)\s*(?:==|!=)\s*(?:false|true)/, label: "success() の比較" },
+  ];
+  return probes.filter((p) => p.re.test(text)).map((p) => p.label);
+}
+
+/**
+ * `continue-on-error` が「落ちても成功扱い」に効いているか。
+ * 未指定と literal の false だけを安全とみなす（`${{ … }}` の式は評価できないので違反扱い）。
+ *
+ * @param {unknown} v
+ * @returns {boolean}
+ */
+export function suppressesFailure(v) {
+  if (v === undefined || v === null) return false;
+  if (v === false) return false;
+  if (typeof v === "string" && v.trim().toLowerCase() === "false") return false;
+  return true;
+}
+
+/**
  * @param {string} yamlText
  * @returns {{status: "ok"|"violation", violations: string[], notes: string[]}}
  */
@@ -111,6 +157,39 @@ export function checkReleaseGate(yamlText) {
         `ジョブ \`${id}\` は needs を辿っても \`${GATE_JOB_ID}\` に到達しません（ゲートより先に走れてしまいます）`,
       );
     }
+  }
+
+  // --- 2b. その needs が無効化されていない ---------------------------------
+  //
+  // needs グラフだけを見ると `if: always()` を 1 行足すだけで素通りする。needs の
+  // 到達性と合わせて「落ちたら止まる」までを見ないと、この検査は形だけになる。
+  for (const id of jobIds) {
+    if (id === GATE_JOB_ID) continue;
+    const found = neutralizingConditions(jobs[id]?.if);
+    if (found.length > 0) {
+      violations.push(
+        `ジョブ \`${id}\` の \`if:\` が ${found.join(" / ")} を含みます（\`needs: [${GATE_JOB_ID}]\` があってもゲートが赤のまま走ります）`,
+      );
+    }
+  }
+
+  // ゲート自身が「落ちても成功扱い」になっていないこと。ジョブ単位の
+  // continue-on-error はジョブの結論を success に変えるので、needs を満たしてしまう。
+  if (suppressesFailure(gate["continue-on-error"])) {
+    violations.push(
+      `\`${GATE_JOB_ID}\` に \`continue-on-error\` が付いています（ゲートが落ちてもジョブの結論が success になり、\`needs\` が満たされます）`,
+    );
+  }
+  {
+    const gateSteps = Array.isArray(gate.steps) ? gate.steps : [];
+    gateSteps.forEach((step, i) => {
+      if (suppressesFailure(step?.["continue-on-error"])) {
+        const label = step?.name ?? step?.uses ?? `steps[${i}]`;
+        violations.push(
+          `\`${GATE_JOB_ID}\` のステップ \`${label}\` に \`continue-on-error\` が付いています（ゲートの判定が落ちてもジョブが緑になります）`,
+        );
+      }
+    });
   }
 
   // --- 3. 先頭ステップが release-mode.json を読む ---------------------------
@@ -199,7 +278,10 @@ export function checkReleaseGate(yamlText) {
     );
   }
 
-  notes.push(`(a) 段 / (b) 段 / デプロイジョブ ${deployIds.length} 件を検査`);
+  notes.push(
+    `(a) 段 / (b) 段 / デプロイジョブ ${deployIds.length} 件、` +
+      `後続ジョブ ${jobIds.length - 1} 件の if: と ${GATE_JOB_ID} の continue-on-error を検査`,
+  );
   return { status: violations.length > 0 ? "violation" : "ok", violations, notes };
 }
 

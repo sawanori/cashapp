@@ -181,6 +181,108 @@ describe("assert-release-gate: 壊した fixture は落ちる", () => {
   });
 });
 
+// needs グラフの到達性だけを見ていた頃は、`needs: [release-gate]` の下に `if: always()` を
+// 1 行足すだけで「ゲートが赤でもデプロイが走る release.yml」が違反 0 件で通った
+// [実測 2026-09-24、敵対レビューの指摘]。needs が実際に効いていることまで見る。
+describe("assert-release-gate: needs の無効化を検出する", () => {
+  /** deploy ジョブに `if:` を足した release.yml を作る。 */
+  function withDeployIf(expr: string): string {
+    return realWorkflowText.replace(
+      /^    needs: \[release-gate\]$/m,
+      `    needs: [release-gate]\n    if: ${expr}`,
+    );
+  }
+
+  const neutralizing: [string, string][] = [
+    ["always()", "always()"],
+    ["failure()", "failure()"],
+    ["cancelled()", "cancelled()"],
+    ["${{ !success() }}", "!success()"],
+    ["${{ success() == false }}", "success() の比較"],
+    ["${{ always() && github.ref == 'refs/heads/main' }}", "always()"],
+  ];
+
+  for (const [expr, label] of neutralizing) {
+    it(`deploy の if: ${expr} で落ちる`, () => {
+      const r = runOn(withDeployIf(expr));
+      expect(r.status).toBe(1);
+      const joined = r.violations.join("\n");
+      expect(joined).toContain("`deploy` の `if:`");
+      expect(joined).toContain(label);
+    });
+  }
+
+  it("状態関数を含まない if:（絞り込み条件）は通す（偽陽性を出さない）", () => {
+    const r = runOn(withDeployIf("${{ github.ref == 'refs/heads/main' }}"));
+    expect(r.violations).toEqual([]);
+    expect(r.status).toBe(0);
+  });
+
+  it("release-gate 自身の if: は見ない（先頭ジョブなので迂回路にならない）", () => {
+    const patched = realWorkflowText.replace(
+      /^  release-gate:\n    runs-on: ubuntu-latest$/m,
+      "  release-gate:\n    if: always()\n    runs-on: ubuntu-latest",
+    );
+    const r = runOn(patched);
+    expect(r.violations).toEqual([]);
+    expect(r.status).toBe(0);
+  });
+});
+
+describe("assert-release-gate: ゲートの失敗を握りつぶす記述を検出する", () => {
+  it("release-gate にジョブ単位の continue-on-error があれば落ちる", () => {
+    const broken = realWorkflowText.replace(
+      /^  release-gate:\n    runs-on: ubuntu-latest$/m,
+      "  release-gate:\n    runs-on: ubuntu-latest\n    continue-on-error: true",
+    );
+    const r = runOn(broken);
+    expect(r.status).toBe(1);
+    expect(r.violations.join("\n")).toContain("continue-on-error");
+  });
+
+  it("ゲートのステップに continue-on-error があれば落ちる", () => {
+    const broken = realWorkflowText.replace(
+      "        run: npm run gate:integrity",
+      "        run: npm run gate:integrity\n        continue-on-error: true",
+    );
+    const r = runOn(broken);
+    expect(r.status).toBe(1);
+    const joined = r.violations.join("\n");
+    expect(joined).toContain("continue-on-error");
+    expect(joined).toContain("ハッシュ照合");
+  });
+
+  it("2 段ゲートのステップ自身に continue-on-error があれば落ちる", () => {
+    const broken = realWorkflowText.replace(
+      /^      - name: 2 段ゲート(.*)$/m,
+      "      - name: 2 段ゲート$1\n        continue-on-error: true",
+    );
+    const r = runOn(broken);
+    expect(r.status).toBe(1);
+    expect(r.violations.join("\n")).toContain("continue-on-error");
+  });
+
+  it("評価できない式の continue-on-error も落とす（fail-closed）", () => {
+    const broken = realWorkflowText.replace(
+      "        run: npm run gate:integrity",
+      "        run: npm run gate:integrity\n        continue-on-error: ${{ github.actor == 'x' }}",
+    );
+    const r = runOn(broken);
+    expect(r.status).toBe(1);
+    expect(r.violations.join("\n")).toContain("continue-on-error");
+  });
+
+  it("continue-on-error: false は通す（偽陽性を出さない）", () => {
+    const patched = realWorkflowText.replace(
+      "        run: npm run gate:integrity",
+      "        run: npm run gate:integrity\n        continue-on-error: false",
+    );
+    const r = runOn(patched);
+    expect(r.violations).toEqual([]);
+    expect(r.status).toBe(0);
+  });
+});
+
 describe("assert-release-gate: CLI の契約", () => {
   it("読めないファイルを渡すと exit 2（使用法エラー）", () => {
     const proc = spawnSync(process.execPath, [asserter, "--file", "/nonexistent/release.yml"], {

@@ -317,5 +317,89 @@
     "commit": "0fd72c380d006e4b716a34dd6da9578419253dbc",
     "ran_at": "2026-09-24T09:45:04Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:acceptance",
+    "exit_code": 127,
+    "stdout_tail": "scripts/record-run.sh: line 120: npm run gate:acceptance: command not found",
+    "commit": "62e31be78af6976727d91aa22c5ca6854cc2b400",
+    "ran_at": "2026-09-24T09:47:30Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:acceptance",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:acceptance\n> node scripts/assert-acceptance.mjs\n\n        G3 check 133 件 / 参照 133 件\n        G4 完了タスク 9 件を検査\n        G4 docs/PROGRESS.md の完了宣言 10 件 / 台帳との食い違い 1 件\n        G9 evidence 記入済みの check がまだ 0 件です（HEAD=62e31be78af6…）\n   warn G4 task_002: manual_verification[0]「python3 で JSON を検査し record-run」は、どの項目の記録か名乗っていない manual エントリで充当しました。観察結果の先頭に `manual_verification[<索引>]` を書いてください\n   FAIL G4 task_013: docs/PROGRESS.md は DONE_WITH_CONCERNS を宣言していますが docs/task-list.json の completion_status が null です（台帳が追随していないぶん G4 / G5 / G6 の対象から落ちます）\n\ngate:acceptance — 対象 152 件（evidence 付き 0 件）、違反 1 件 / warn 1 件",
+    "commit": "62e31be78af6976727d91aa22c5ca6854cc2b400",
+    "ran_at": "2026-09-24T09:47:35Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:check",
+    "exit_code": 1,
+    "stdout_tail": "   warn G4 task_002: manual_verification[0]「python3 で JSON を検査し record-run」は、どの項目の記録か名乗っていない manual エントリで充当しました。観察結果の先頭に `manual_verification[<索引>]` を書いてください\n   FAIL G4 task_013: docs/PROGRESS.md は DONE_WITH_CONCERNS を宣言していますが docs/task-list.json の completion_status が null です（台帳が追随していないぶん G4 / G5 / G6 の対象から落ちます）\nFAIL  G5 high × adversarial_review=required の完了に敵対レビュー記録 — 対象 7 件\n        対象 7 件。task_007 が DONE のため G5 はブロッキング\n   FAIL G5 task_004: docs/review-log/task_004.json がありません\n   FAIL G5 task_005: docs/review-log/task_005.json がありません\n   FAIL G5 task_006: docs/review-log/task_006.json がありません\n   FAIL G5 task_011: docs/review-log/task_011.json がありません\n   FAIL G5 task_012: docs/review-log/task_012.json がありません\nok    G6 DONE_WITH_CONCERNS の concerns に severity と対応案 — 対象 8 件\n        DONE_WITH_CONCERNS 8 件を検査\n        task_004: 台帳の concerns[] は空。docs/HANDOFF.md の 5 件で判定\n        task_005: 台帳の concerns[] は空。docs/concerns/task_005.md / docs/HANDOFF.md の 24 件で判定\n        task_012: 台帳の concerns[] は空。docs/concerns/task_012.md の 13 件で判定\ndefer G7 tests/contract のファイル数が減っていない — 対象 0 件\n        tests/contract/ はまだ存在しません（task_018 で作成。基準値 0 と一致）\nok    G8 差分に実シークレットが含まれない — 対象 236 件\n        追加行 236 行を走査\ndefer G9 evidence.commit === HEAD — 対象 0 件\n        evidence 記入済みの check がまだ 0 件です（HEAD=62e31be78af6…）\nok    G10 [設計] / [不明] 依存の ADR が accepted になっていない — 対象 5 件\n        ADR 5 件を検査\nok    G11 severity=high の未解決 concerns 3 件以上で in_progress を禁止 — 対象 38 件\n        未解決 high concerns 31 件（task_005, task_006, task_007, task_009, task_011, task_012, task_013） / しきい値 3 件 / in_progress 0 件\n        集計元: docs/concerns/task_005.md=1 / docs/HANDOFF.md=11 / docs/task-list.json=8 / docs/concerns/task_006.md=1 / docs/concerns/task_007.md=2 / docs/concerns/task_009.md=4 / docs/concerns/task_012.md=2 / docs/concerns/task_013.md=2\ndefer G12 fixture の provenance（captured_from）と autoDetect の宣言 — 対象 0 件\n        tests/fixtures/<provider>/ がまだありません（task_018 / task_019 で作成）\nok    G13 ゲート定義ファイルのハッシュが基準値と一致 — 対象 40 件\n        ハッシュ対象 40 ファイル（sha256）\ndefer G14 直近 7 日の監査連鎖が audit:verify で検証済み — 対象 0 件\n        package.json に audit:verify がありません（task_018 で作成）\n\ngate:check — 15 ゲートを判定、2 ゲートが不合格（違反 6 件 / warn 19 件）\ngate:check — 15 ゲートを判定、2 ゲートが不合格（違反 6 件 / warn 19 件）\n   FAIL G4 task_013: docs/PROGRESS.md は DONE_WITH_CONCERNS を宣言していますが docs/task-list.json の completion_status が null です（台帳が追随していないぶん G4 / G5 / G6 の対象から落ちます）\n   FAIL G5 task_004: docs/review-log/task_004.json がありません\n   FAIL G5 task_005: docs/review-log/task_005.json がありません\n   FAIL G5 task_006: docs/review-log/task_006.json がありません\n   FAIL G5 task_011: docs/review-log/task_011.json がありません\n   FAIL G5 task_012: docs/review-log/task_012.json がありません",
+    "commit": "62e31be78af6976727d91aa22c5ca6854cc2b400",
+    "ran_at": "2026-09-24T09:47:37Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:integrity",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:integrity\n> node scripts/gate-integrity.mjs\n\n      ハッシュ対象 40 ファイル（sha256）\n\ngate:integrity — 40 ファイルを照合、0 件の不一致",
+    "commit": "62e31be78af6976727d91aa22c5ca6854cc2b400",
+    "ran_at": "2026-09-24T09:47:40Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "bash scripts/ci/secrets-grep.sh",
+    "exit_code": 0,
+    "stdout_tail": "secrets-grep: (A) クライアント配布物 .next/static .open-next/assets .open-next/cache（24 ファイル）\nsecrets-grep: (B) サーバーバンドル .open-next/.build .open-next/cloudflare .open-next/cloudflare-templates .open-next/dynamodb-provider .open-next/middleware .open-next/server-functions .open-next/worker.js（1186 ファイル）\nsecrets-grep — クライアント 24 ファイル / サーバー 1186 ファイルを走査、違反 0 件",
+    "commit": "0a060bf0771cdd5914580f7f0072259400868220",
+    "ran_at": "2026-09-24T10:06:54Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "bash scripts/ci/secrets-grep.sh",
+    "exit_code": 0,
+    "stdout_tail": "secrets-grep: (A) クライアント配布物 .next/static .open-next/assets .open-next/cache（24 ファイル）\nsecrets-grep: (B) サーバーバンドル .open-next/.build .open-next/cloudflare .open-next/cloudflare-templates .open-next/dynamodb-provider .open-next/middleware .open-next/server-functions .open-next/worker.js（1186 ファイル）\nsecrets-grep — クライアント 24 ファイル / サーバー 1186 ファイルを走査、違反 0 件",
+    "commit": "0a060bf0771cdd5914580f7f0072259400868220",
+    "ran_at": "2026-09-24T10:07:30Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx vitest run tests/unit/ci",
+    "exit_code": 0,
+    "stdout_tail": "(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  4 passed (4)\n      Tests  90 passed (90)\n   Start at  19:07:36\n   Duration  6.23s (tests 94%, setup 3%, transform 2%)",
+    "commit": "0a060bf0771cdd5914580f7f0072259400868220",
+    "ran_at": "2026-09-24T10:07:36Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "GitHub リモートが本セッション中に作成された（origin git@github.com:sawanori/cashapp.git・public・default branch main）ため、これまで deferred だった CI 実走を実測した。gate ワークフロー run 35985828343（commit b1bc328 = task_009 の acceptance 修正を含む、push トリガ）の結果: 9 ジョブ中 8 ジョブ success（gate-meta / gate-integrity / security / secrets / static / labels / date-boundary / deps）、adversarial は skipped（workflow_dispatch 限定・設計どおり）、acceptance のみ failure。acceptance の失敗内訳は『完了タスクの verify_commands を CI で再実行』ステップで 実行 13 / 委譲 2 / 失敗 1 / 形式違反 0、唯一の失敗は npm run gate:check（G5: task_004/005/006/011/012/013 に docs/review-log/*.json が無い）で他タスク由来。task_009 の判定器そのものは CI で緑（secrets ジョブは ubuntu ランナー上の実ビルドに対して success、static ジョブの assert-release-gate も success）。同 run で gate.yml の acceptance 再実行ループが 3 周目の修正どおり動いたことも確認（形式違反 0 の集計行が出力され、実際に落ちたコマンドをそのまま非 0 で伝播している）。",
+    "commit": "b1bc3289448c7bd1147204b24541ac44f9ced755",
+    "ran_at": "2026-09-24T10:16:54Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "release.yml を workflow_dispatch で実走させ、fail-closed を実測した（run 35986191784・ref main・reason 入力あり）。結果: release-gate = failure / deploy = skipped。release-gate の最初の run ステップの出力は『release-gate FAIL: docs/gates/release-mode.json がありません。』『このファイルはゲートの正本で、作成・変更は PO のみが行う』『既定値: {\"schema_version\":1,\"payments_enabled\":false,\"provider_keys\":[\"manual_confirm\"],\"basis\":null,\"approved_by\":null}』『無い状態を通すと『ゲートが無いから通った』になるので、fail-closed で落とします（L11）』で、##[error] Process completed with exit code 1。デプロイジョブは needs: [release-gate] により開始せず、cloudflare/wrangler-action は 1 度も実行されていない。done_definition の『cleared=false で release.yml が先頭で失敗』に相当する fail-closed の実測はこれで取れたが、『payments_enabled=false で (a) 段を通り、true かつ cleared=false で先頭で失敗』の 2 通りは docs/gates/release-mode.json を作れない（PO 専管）ため未実測のまま（check_130 は部分達成）。",
+    "commit": "b1bc3289448c7bd1147204b24541ac44f9ced755",
+    "ran_at": "2026-09-24T10:17:04Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "branch protection（check_039）と PR での test-tamper-guard 実測（check_131）は、リモートが出来た後も本周では実施していない。理由は環境ではなく判断: (1) branch protection に required status checks を入れると、現在 gate ワークフローが acceptance の G5（task_004/005/006/011/012/013 の review-log 不在）で赤なので、main への直 push が全面的に止まり、並行実行中の全タスクが commit を反映できなくなる。enforce_admins も同様。(2) PR を作るにはブランチの publish が要るが、本ハーネスの禁止コマンドに git push が明記されている。gh api 経由での branch 作成は禁止の趣旨（リモートへの publish）に当たると判断して行っていない。gh は sawanori で認証済み・token scope は repo/workflow を含むので、PO の合図があれば即実行できる。gh api repos/sawanori/cashapp/branches/main/protection は現在 404『Branch not protected』。設定内容の確定表は docs/concerns/task_009.md の 2。",
+    "commit": "b1bc3289448c7bd1147204b24541ac44f9ced755",
+    "ran_at": "2026-09-24T10:17:14Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]

@@ -134,6 +134,49 @@ describe("secrets-grep.sh — クライアント配布物にシークレット�
     expect(r.stderr).toContain("シークレット名 DATABASE_URL がクライアント配布物にあります");
   });
 
+  // .open-next/cache はプリレンダ済みページの**レスポンス本文**（ブラウザに配られる面）が
+  // 入る。名前は「サーバー側のキャッシュ」だが中身はクライアント配布物なので、群 (A) で
+  // 名前まで見る。2 周目の実装ではここが群 (B) に入っており、値パターン 5 種に当たらない
+  // 秘密値（PEPPER / SESSION_KEYS / CRON_SECRETS / APP_RW_PASSWORD の実値）が
+  // レンダリング結果に載っても緑のままだった。
+  it(".open-next/cache（プリレンダ本文）にシークレット名があると落ちる", () => {
+    const root = makeTree({
+      ...CLEAN_CLIENT,
+      ...SERVER_WITH_NAMES,
+      ".open-next/cache/BUILDID/index.cache":
+        '{"type":"app","html":"<!DOCTYPE html><script>self.__x={PEPPER:1}</script>"}\n',
+    });
+    const r = run(root);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("シークレット名 PEPPER がクライアント配布物にあります");
+    expect(r.stderr).toContain("index.cache");
+  });
+
+  it(".open-next/cache は群 (B) には数えない（同じ名前でサーバー側の違反にはならない）", () => {
+    const root = makeTree({
+      ...CLEAN_CLIENT,
+      ...SERVER_WITH_NAMES,
+      ".open-next/cache/BUILDID/index.cache": '{"type":"app","html":"<p>APP_RW_PASSWORD</p>"}\n',
+    });
+    const r = run(root);
+    expect(r.status).toBe(1);
+    // 群 (A) の違反として 1 度だけ報告される。サーバーバンドル側の見出しは出ない。
+    expect(r.stderr).toContain("シークレット名 APP_RW_PASSWORD がクライアント配布物にあります");
+    expect(r.stderr).not.toContain("サーバーバンドルにあります");
+  });
+
+  it(".open-next/cache が汚れていなければ通る（存在するだけでは落とさない）", () => {
+    const root = makeTree({
+      ...CLEAN_CLIENT,
+      ...SERVER_WITH_NAMES,
+      ".open-next/cache/BUILDID/index.cache": '{"type":"app","html":"<p>hello</p>"}\n',
+    });
+    const r = run(root);
+    expect(r.stderr).toBe("");
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("違反 0 件");
+  });
+
   it("違反ファイルの名前は出すが、行の中身（値）は出さない", () => {
     const root = makeTree({
       ...CLEAN_CLIENT,

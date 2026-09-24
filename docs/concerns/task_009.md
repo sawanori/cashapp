@@ -5,6 +5,42 @@ GitHub Actions CI・PR テンプレート・test-tamper-guard・release.yml の 
 
 ---
 
+## 0-b. 3 周目（2026-09-24）で直したこと
+
+敵対レビューの medium 3 件（実装で直せるもの）を直した。残る 2 件（`release-mode.json` の
+不在・CI 実走とブランチ保護）は環境の制約で deferred のまま。下の 1 / 2 / 3 を参照。
+
+| 指摘 | 対応 | 実測 |
+|---|---|---|
+| `scripts/ci/assert-release-gate.mjs` は `needs` グラフしか見ておらず、`deploy` に `if: always()` を 1 行足すと「ゲートが赤でもデプロイが走る」`release.yml` を違反 0 件で通す | `needs` で `release-gate` に到達する全ジョブの `if:` に状態関数（`always()` / `failure()` / `cancelled()` / `success()` の否定・比較）が無いことと、`release-gate` のジョブ・各ステップに `continue-on-error` が無いことをアサートに足した | レビューの再現手順（`sed` で `needs: [release-gate]` の下に `if: always()` を挿入）を実行 → 修正後は `check_051 FAIL ジョブ \`deploy\` の \`if:\` が always() を含みます`・exit 1。実物の `release.yml` は違反 0 件・exit 0 のまま。`tests/unit/ci/assert-release-gate.test.ts` を 18 → 31 件に増やし、状態関数 6 種・`continue-on-error` 4 形（ジョブ単位 / ステップ 2 か所 / 評価できない式）で落ちること、絞り込み条件の `if:` と `continue-on-error: false` では落ちないことを固定 |
+| `gate.yml` の acceptance ジョブが台帳の文字列を `sh -c "$cmd"` に渡すため、`npm run gate:check \|\| true` のように後ろへシェルを足した値が G2 を通り、再実行が常に exit 0 になる | 再実行ループで `^npm run <script>$` の完全一致を要求し、一致しない値は実行せず違反（`形式違反`）にする。実行はシェルを介さず `npm run "<script>"` の引数として渡す。委譲判定（DB 依存）もコマンド全文ではなくスクリプト名で行う | 旧実装（`git show HEAD:` の `gate.yml`）に `npm run bad \|\| true`（`bad` は `exit 3`）を食わせると `実行 1 / 失敗 0`・**exit 0**。同じ入力で修正後は `完全一致ではありません`・`形式違反 1`・exit 1。`scriptNameOf("npm run bad \|\| true")` が `"bad"` を返すこと（= G2 を通ること）も実測。実ファイルの `run:` 本文を YAML から取り出して走らせた 10 ケース（正常 2 / 仕込み 5 / 委譲 2 / 対象 0 件 1）で不一致 0 件 |
+| `scripts/ci/secrets-grep.sh` の 2 周目の分類で、OpenNext がプリレンダ本文を出す `.open-next/cache` が群 (B)（サーバー）に入り、シークレット「名前」の走査から外れていた。ブラウザに配られる面なのに値パターン 5 種でしか見ていない | `.open-next/cache` を群 (A)（クライアント配布物）へ移し、群 (B) の除外名 `CLIENT_DIRS=(assets cache)` と対で管理するようにした | 実ビルド（`npm run build && npm run build:cf`）に対して修正後 exit 0（クライアント 24 / サーバー 1186 ファイル、違反 0 件。修正前は 21 / 1190）。負の対照として `.open-next/cache/<BUILD_ID>/__probe.cache` に `PEPPER` を含むプリレンダ本文を仕込むと、**旧実装は違反 0 件・exit 0**、修正後は `シークレット名 PEPPER がクライアント配布物にあります` + ファイル名・exit 1。`tests/unit/ci/secrets-grep.test.ts` を 23 → 26 件にして固定（cache に名前 → 落ちる / cache の同じ名前をサーバー側の違反として二重計上しない / きれいな cache は通る） |
+
+**この周で状況が変わったこと（GitHub リモートの出現）**: 3 周目の作業中に
+`origin git@github.com:sawanori/cashapp.git`（public・default branch `main`）が作られ、
+`gate` / `gate-integration` / `gate-web-only` の各ワークフローが実際に走り始めた。
+1 / 2 周目の「CI を一度も実走していない」は**もう正しくない**ので、実測できた分を下に記録し、
+懸念 3 を書き換えた。実測できていない分（branch protection・PR での `test-tamper-guard`）は
+**理由が「リモートが無い」から「いま設定すると並行実行が止まる／`git push` が禁止コマンド」に
+変わった**だけで、未達であることは同じ。懸念 2 を参照。
+
+| 実測 | 結果 |
+|---|---|
+| `gate` ワークフロー run 35985828343（commit `b1bc328`・push トリガ。task_009 の acceptance 修正を含む） | 9 ジョブ中 **8 ジョブ success**（`gate-meta` / `gate-integrity` / `security` / `secrets` / `static` / `labels` / `date-boundary` / `deps`）、`adversarial` は skipped（`workflow_dispatch` 限定・設計どおり）、**`acceptance` のみ failure** |
+| `acceptance` が落ちた理由 | 「完了タスクの `verify_commands` を CI で再実行」ステップが `実行 13 / 委譲 2 / 失敗 1 / 形式違反 0`。唯一の失敗は `npm run gate:check`（G5: task_004 / 005 / 006 / 011 / 012 / 013 に `docs/review-log/*.json` が無い）で**他タスク由来**。3 周目で入れた形の縛りは `形式違反 0` として動き、実際に落ちたコマンドをそのまま非 0 で伝播している（F2 対策が CI で機能していることの実測） |
+| `secrets` ジョブ | ubuntu ランナー上で `npm run build` → `npm run build:cf` → `secrets-grep.sh` まで通って **success**。ローカルでしか確かめていなかった経路が実機で通った |
+| `release` ワークフロー run 35986191784（`workflow_dispatch`・ref `main`） | **`release-gate` = failure / `deploy` = skipped**。最初の run ステップの出力は `release-gate FAIL: docs/gates/release-mode.json がありません。`（以下、正本の所在・既定値・`fail-closed で落とします（L11）`）で `exit code 1`。`cloudflare/wrangler-action` は 1 度も実行されていない |
+
+**この周で残した判断**: レビューの修正案にあった「`docs/task-list.json` を
+`check-pr-checklist.mjs` の `GUARDED_PATTERNS` に加える」は**やっていない**。
+`tests/unit/ci/check-pr-checklist.test.ts` が「`docs/task-list.json` は保護対象ではない」を
+明示的に固定しており、変更すると全タスクが台帳を 1 行直すたびにゲート緩和チェックリストの
+記入を求められる。acceptance ジョブ側で形を縛ったことで注入経路そのものは塞がっているので、
+多重防御として入れるかどうかは task_006（`check-pr-checklist.mjs` の隣接ゲートの所有者）と
+の合意事項として下の 13 に残す。
+
+---
+
 ## 0. 2 周目（2026-09-24）で直したこと・直せなかったこと
 
 敵対レビューの指摘を受けた修正周。**直したもの**は以下で、この文書の該当節から
@@ -59,6 +95,13 @@ GitHub Actions CI・PR テンプレート・test-tamper-guard・release.yml の 
 - **2 周目（2026-09-24）の再確認**: 修正周でもう一度 Write を試み、同じ文面で遮断された
   （`deny-test-weakening.sh: BLOCKED / 理由: docs/gates/** は PO 専管のゲート定義の正本です
   （R-SEC-07 / F13）`）。迂回はしていない。**deferred: PO が作成する**。
+- **3 周目（2026-09-24）の実測**: GitHub リモートが出来たので `release.yml` を
+  `workflow_dispatch` で実際に走らせた（run 35986191784）。**`release-gate` = failure /
+  `deploy` = skipped** で、出力は設計どおり `release-gate FAIL: docs/gates/release-mode.json が
+  ありません。` → `fail-closed で落とします（L11）` → `exit code 1`。
+  つまり「正本が無い状態でリリースを起動すると必ず落ちる」ことは**実機で確認済み**であり、
+  危険な状態（ゲートを素通りしてデプロイ）にはなっていない。逆に言えば、
+  **PO がこのファイルを作るまで本番デプロイは 1 度も成功しない**。
 - **対応予定タスク**: PO（作成）／task_038（ハーネス規約の整理でこの衝突を台帳に反映）
 
 ---
@@ -66,10 +109,23 @@ GitHub Actions CI・PR テンプレート・test-tamper-guard・release.yml の 
 ## 2. ブランチ保護を設定していない（check_039 未達）
 
 - **指摘**: `scope` の「gh api で branch protection（required status checks、直 push 禁止、
-  承認必須なし）」は実施していない。`git remote -v` は空で、GitHub 上にリポジトリが存在しない
-  （PO 判断待ち）。`gh auth status` は `sawanori` で認証済みだが、対象リポジトリが無いので
-  `gh api repos/:owner/:repo/branches/main/protection` は叩けない。リポジトリ作成は本タスクの
-  スコープ外であり、`git push` は禁止コマンドである。
+  承認必須なし）」は実施していない。
+- **3 周目（2026-09-24）で理由が変わった**: 1 / 2 周目の理由は「`git remote -v` が空で
+  GitHub 上にリポジトリが無い」だったが、3 周目の作業中に
+  `origin git@github.com:sawanori/cashapp.git` が作られ、`gh api repos/sawanori/cashapp/...`
+  は叩ける状態になった（`gh auth status` = `sawanori`、token scope に `repo` / `workflow` を
+  含む。`gh api repos/sawanori/cashapp/branches/main/protection` は現在 404
+  `Branch not protected`）。**それでも本周では設定していない**。理由は 2 つで、どちらも
+  環境の制約ではなく判断である:
+  1. **いま required status checks を入れると並行実行が止まる**。`gate` ワークフローは
+     現在 `acceptance` が赤で、原因は他タスク（task_004 / 005 / 006 / 011 / 012 / 013）の
+     `docs/review-log/*.json` 不在（G5）である。required に入れた瞬間、その 6 タスクが
+     レビュー記録を出すまで `main` へ何も入らなくなる。`enforce_admins` も同じ。
+     これは R-TH-04（回避のために保護ごと解除される）を自分から作りに行く手順なので、
+     **G5 の残債が 0 になってから**設定する。
+  2. **PR を作るにはブランチの publish が要る**。本ハーネスの禁止コマンドに `git push` が
+     明記されており、`gh api` でブランチを作るのはその趣旨（リモートへの publish）に
+     当たると判断して行っていない。
 - **深刻度**: high。CI ジョブを書いただけでは「ローカルフックを迂回したコミットをリモートで
   止める」という本タスクの goal は成立しない。required status checks に載るまで、gate.yml は
   「走るが落ちても止められない」状態である。
@@ -94,8 +150,32 @@ GitHub Actions CI・PR テンプレート・test-tamper-guard・release.yml の 
 
 ---
 
-## 3. CI を一度も実走していない（done_definition の 3 項目と check_130 / check_131 が未達）
+## 3. CI の実走 — 3 周目で push 実走と release の dispatch は取れた。PR 経路だけが残る
 
+> **3 周目（2026-09-24）で状況が変わった。** 見出しの「一度も実走していない」は
+> もう正しくない。実測できた分と、まだ残っている分を先に書く。
+
+- **実測できた分**:
+  - `gate` ワークフローが `main` への push で実走し、**9 ジョブ中 8 ジョブが success**
+    （run 35985828343、commit `b1bc328`）。赤は `acceptance` だけで、原因は他タスクの
+    G5 残債（`docs/review-log/*.json` 不在 6 件）。ubuntu ランナー上でのみ走る経路
+    （`secrets` ジョブの `npm run build` → `build:cf` → `secrets-grep.sh`、`deps` ジョブの
+    OSV バイナリ取得）も含めて緑になった。
+  - `release` ワークフローを `workflow_dispatch` で実走させ、**`release-gate` = failure /
+    `deploy` = skipped** を確認（run 35986191784）。`cloudflare/wrangler-action` には
+    到達していない。
+- **まだ残っている分**:
+  1. 「**PR を 1 本作り** static / … / test-tamper-guard / date-boundary が緑」
+     — push 実走で 8 ジョブの緑は取れたが、`test-tamper-guard`（`gate-tamper.yml`）は
+     `on: pull_request` のみなので PR が無い限り 1 度も起動しない
+     （`gh run list --workflow gate-tamper.yml` は 0 件）。
+  2. 「tests/** に差分がありチェックリスト空の PR で `test-tamper-guard` が落ちることを実測」
+     （check_131）— 同上。PR が要る。
+  3. 「`payments_enabled=false` で (a) 段を通り、`true` かつ `cleared=false` で先頭で失敗」
+     （check_130）— `docs/gates/release-mode.json` を作れないので 2 通りとも未実測。
+     取れたのは「ファイル不在 → fail-closed」の 1 通りだけ。
+  4. branch protection（check_039）— 上の懸念 2 のとおり、いま入れると並行実行が止まる。
+- **以下は 1 / 2 周目の記録（リモートが無かった時点のもの。経緯として残す）**
 - **指摘**: 次の 4 項目は GitHub 上でしか確かめられず、リモートが無いので実施していない。
   1. 「PR を 1 本作り static / gate-meta / gate-integrity / secrets / deps / acceptance /
      test-tamper-guard / date-boundary が緑」
@@ -122,6 +202,8 @@ GitHub Actions CI・PR テンプレート・test-tamper-guard・release.yml の 
   2 周目では `npm run build && npm run build:cf` を実行してから測り直し、修正前 exit 1・
   修正後 exit 0 を両方実測した。**required に入れる前に、各ジョブを一度は実物のビルド
   成果物に対して走らせること**（リモート作成後の最初の PR で確認する）。
+- **3 周目の追記**: 上の「リモート作成後の最初の PR で確認する」は、PR ではなく push 実走で
+  果たされた。`secrets` ジョブは実ランナー上で success。残るのは PR 経路だけである。
 - **対応予定タスク**: task_010
 
 ---
@@ -228,8 +310,17 @@ GitHub Actions CI・PR テンプレート・test-tamper-guard・release.yml の 
   そこから導出する。`.env.example` は task_035 の所有なので、そのタスクで印を入れる。
   それまでは、秘密値を増やすタスクが `SECRET_NAMES` にも足す（PR テンプレートの
   ゲート緩和チェックリストが `scripts/**` の差分として記入を要求する）。
-- **2 周目で狭めた範囲（意図的）**: シークレット「名前」の走査対象を
-  `.next/static` と `.open-next/assets` に限った（上の 0 節）。したがって
+- **2 周目で狭めた範囲（意図的）／3 周目の訂正**: シークレット「名前」の走査対象を
+  クライアント配布物に限った（上の 0 節）。2 周目はこれを `.next/static` と
+  `.open-next/assets` の 2 つとしていたが、OpenNext はプリレンダ済みページの
+  **レスポンス本文**を `.open-next/cache/<BUILD_ID>/*.cache` に出す。ここはブラウザに
+  配られる面なのに群 (B) に入っていて名前の走査から外れていた（3 周目で群 (A) に移した。
+  実測: `PEPPER` を含む `.cache` を仕込むと旧実装は違反 0 件・exit 0、修正後は exit 1）。
+  現在の群 (A) は `.next/static` / `.open-next/assets` / `.open-next/cache` の 3 つで、
+  群 (B) の除外名は `CLIENT_DIRS=(assets cache)` として 1 か所で管理している。
+  **今後 OpenNext がブラウザ配布面の出力先を増やしたら、この 2 か所を同時に直すこと**
+  （片方だけ足すと二重走査か走査漏れになる）。
+  この限定の結果として、
   **サーバーバンドルに秘密値の「名前」が出ていても検出しない**。これは
   `src/lib/config/env.ts` が `process.env.PEPPER` を正当に読む以上どうしても必要な限定で、
   サーバー側は値のパターン（`sk_live_…` / 資格情報つき `postgres://` / `eyJhbGciOi…`）で
@@ -329,3 +420,28 @@ GitHub Actions CI・PR テンプレート・test-tamper-guard・release.yml の 
   と run-log の `--manual` エントリ（G4）で追跡する設計になっており、PR 本文は補助である。
 - **対応案**: 現状のままとし、G4 の manual 照合を正とする。
 - **対応予定タスク**: なし（記録のみ）
+
+---
+
+## 13. `docs/task-list.json` をゲート緩和チェックリストの保護対象にするか（task_006 との合意事項）
+
+- **指摘**: 台帳 `docs/task-list.json` は誰でも書けるファイルで、`test-tamper-guard` の
+  保護対象 7 パターンにも `docs/gates/integrity-baseline.json` の 40 ファイルにも入って
+  いない。3 周目で acceptance の再実行ループを `^npm run <script>$` の完全一致に縛った
+  ため、「`|| true` を足して再実行を無音で殺す」経路は塞がった。ただし台帳そのものは
+  依然として無記録で書き換えられる（例: `completion_status` を後から `null` に戻す、
+  `verify_commands` を 1 本削る）。
+- **深刻度**: medium。台帳は G1〜G5 の入力であり、ここを書き換えると複数のゲートの
+  判定対象が静かに減る。
+- **対応案**: 2 通りあり、どちらを取るかは `scripts/ci/check-pr-checklist.mjs` の隣接
+  ゲートを持つ task_006 との合意が要る。
+  1. `check-pr-checklist.mjs` の `GUARDED_PATTERNS` に `docs/task-list.json` を足す。
+     副作用として、台帳を 1 行直すだけの PR にもゲート緩和チェックリストの記入が要る
+     （各タスクが完了時に `completion_status` を書くので、ほぼ全 PR が対象になる）。
+     `tests/unit/ci/check-pr-checklist.test.ts` が「保護対象ではない」を明示的に固定して
+     いるので、そのテストの書き換えも同時に必要。
+  2. 台帳を `docs/gates/integrity-baseline.json` の対象に入れず、代わりに
+     「完了タスクの `verify_commands` が減っていないこと」を base との差分で見る専用の
+     判定を足す（緩和の事実だけを検知する）。
+  この周では 1 を採らず、acceptance 側の形の縛りだけで塞いだ。
+- **対応予定タスク**: task_006（`check-pr-checklist.mjs` の所有者）／task_010（ハーネス実測の締め）

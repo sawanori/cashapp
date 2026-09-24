@@ -114,6 +114,25 @@
   「保護対象ではない」を明示的に固定しており全 PR に影響するため採らず、task_006 との合意事項として
   `docs/concerns/task_009.md` の 13 に起票した。`npm run gate:integrity` / `gate:check` /
   `gate:acceptance` は `scripts/record-run.sh task_009` 経由で再実行した。
+  **加えて、3 周目の作業中に GitHub リモート（`origin git@github.com:sawanori/cashapp.git`）が
+  作られたため、1 / 2 周目に「リモート不在」を理由に deferred にしていた CI 実走を実測した。**
+  `gate` ワークフローは `main` への push で実走し **9 ジョブ中 8 ジョブ success**
+  （run 35985828343 / commit `b1bc328`。`gate-meta` / `gate-integrity` / `security` / `secrets` /
+  `static` / `labels` / `date-boundary` / `deps`。`adversarial` は `workflow_dispatch` 限定で
+  skipped）。赤は `acceptance` だけで、内訳は再実行ステップの `実行 13 / 委譲 2 / 失敗 1 /
+  形式違反 0`、唯一の失敗は `npm run gate:check`（G5: task_004 / 005 / 006 / 011 / 012 / 013 の
+  `docs/review-log/*.json` 不在）で**他タスク由来**。ubuntu ランナー上でしか走らない経路
+  （`secrets` の `build` → `build:cf` → `secrets-grep.sh`、`deps` の OSV バイナリ取得）も緑になった。
+  `release` ワークフローは `workflow_dispatch` で実走させ、**`release-gate` = failure /
+  `deploy` = skipped**（run 35986191784）。出力は `release-gate FAIL: docs/gates/release-mode.json が
+  ありません` → `fail-closed で落とします（L11）` → `exit code 1` で、`cloudflare/wrangler-action` には
+  到達していない。**残る未達は PR 経路だけ**で、`test-tamper-guard`（`gate-tamper.yml`）は
+  `on: pull_request` のみのため 1 度も起動していない（check_131）。branch protection（check_039）は
+  gh api を叩ける状態になったが**意図的に設定していない**: いま required status checks を入れると
+  `acceptance` が他タスクの G5 残債で赤いまま `main` への直 push が全面的に止まり、並行実行中の
+  全タスクが詰まる（R-TH-04 を自分から作る手順になる）。PR 作成に必要なブランチの publish も
+  `git push` が禁止コマンドであるため行っていない。いずれも `docs/concerns/task_009.md` の 2 / 3 に
+  理由つきで記録した。
 
 ### 週 0 の 5 営業日判定（task_009 scope の最終項目）
 

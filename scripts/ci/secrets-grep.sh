@@ -8,13 +8,20 @@
 #
 # ★ 走査は 2 群に分ける。混ぜると必ず偽陽性になる [実測 2026-09-24]。
 #
-#   (A) クライアント配布物 … .next/static ・ .open-next/assets
-#       ブラウザに配られる JS / CSS。ここに**シークレットの名前**が出てはいけない。
-#       名前が出るということは、クライアント側のコードがその環境変数を参照しようとして
-#       いる（= いずれ値が載る経路がある）ことを意味する。値のパターンも当然だめ。
+#   (A) クライアント配布物 … .next/static ・ .open-next/assets ・ .open-next/cache
+#       ブラウザに配られる JS / CSS / プリレンダ本文。ここに**シークレットの名前**が
+#       出てはいけない。名前が出るということは、クライアント側のコードがその環境変数を
+#       参照しようとしている（= いずれ値が載る経路がある）ことを意味する。値のパターンも
+#       当然だめ。
+#       ★ .open-next/cache は「サーバー側のキャッシュ置き場」という名前だが、中身は
+#         プリレンダ済みページの**レスポンス本文**（`{"type":"app", … "html":"<!DOCTYPE html>…"`）
+#         である。つまりブラウザに配られる面であり、ここに秘密値の名前が載るのは
+#         .next/static に載るのと同じ事故である。2 周目の実装では (B) に入っていて
+#         値のパターンでしか見ていなかった（PEPPER / SESSION_KEYS / CRON_SECRETS /
+#         APP_RW_PASSWORD の実値はどの値パターンにも当たらないので素通りしていた）。
 #
-#   (B) サーバーバンドル … .open-next の assets 以外（server-functions / worker.js /
-#       middleware / cloudflare / cache …）
+#   (B) サーバーバンドル … .open-next の assets / cache 以外（server-functions /
+#       worker.js / middleware / cloudflare …）
 #       ここは `process.env.PEPPER` を読む正当なコードが入る場所である。実際、
 #       src/lib/config/env.ts の検証エラーメッセージが PEPPER / SESSION_KEYS /
 #       CRON_SECRETS / DATABASE_URL という**名前**をバンドルに残す。名前で走査すると
@@ -70,17 +77,25 @@ cd "$ROOT" || { echo "$SELF: cd failed: $ROOT" >&2; exit 2; }
 CLIENT_TARGETS=()
 [ -d ".next/static" ] && CLIENT_TARGETS+=(".next/static")
 [ -d ".open-next/assets" ] && CLIENT_TARGETS+=(".open-next/assets")
+# プリレンダ済みページの本文（ブラウザ配布面）。下の CLIENT_DIRS と対にして管理する。
+[ -d ".open-next/cache" ] && CLIENT_TARGETS+=(".open-next/cache")
 
 # ------------------------------------------------------------ (B) サーバー --
-# .open-next 直下の assets 以外をすべて対象にする（将来 OpenNext が出力を増やしても
-# 名前を列挙し直さなくて済むように、除外リスト方式にする）。
+# .open-next 直下の「クライアント配布面」以外をすべて対象にする（将来 OpenNext が
+# 出力を増やしても名前を列挙し直さなくて済むように、除外リスト方式にする）。
+# ★ 除外名は CLIENT_TARGETS に足したものと必ず一致させること。片方だけ足すと
+#   同じディレクトリが両群に入る（重複走査）か、どちらからも漏れる。
+CLIENT_DIRS=(assets cache)
 SERVER_TARGETS=()
 if [ -d ".open-next" ]; then
   while IFS= read -r entry; do
     [ -n "$entry" ] || continue
-    case "$(basename "$entry")" in
-      assets) continue ;;
-    esac
+    base="$(basename "$entry")"
+    skip=0
+    for c in "${CLIENT_DIRS[@]}"; do
+      [ "$base" = "$c" ] && { skip=1; break; }
+    done
+    [ "$skip" -eq 0 ] || continue
     SERVER_TARGETS+=("$entry")
   done < <(find .open-next -mindepth 1 -maxdepth 1 2>/dev/null | sort)
 fi
@@ -96,7 +111,7 @@ EOF
 fi
 if [ "${#SERVER_TARGETS[@]}" -eq 0 ]; then
   cat >&2 <<'EOF'
-secrets-grep.sh: サーバーバンドルがありません（.open-next に assets 以外の出力がありません）。
+secrets-grep.sh: サーバーバンドルがありません（.open-next に assets / cache 以外の出力がありません）。
   `npm run build:cf` を先に実行してください（R-TH-01）。
 EOF
   missing=1
