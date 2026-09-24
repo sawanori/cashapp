@@ -4,7 +4,14 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+// The subject under test is a shell script that shells out to jq / grep / xargs
+// once per constraint entry: one `runRealGate` against the real 57-entry ledger
+// measures ~4s on this repo's CI-class hardware, which sits right on vitest's
+// 5000ms default and made this file flake (reported by task_007 / task_013 as
+// "Test timed out in 5000ms"). The budget is raised; no assertion is relaxed.
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
 
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 const gateScript = path.join(repoRoot, "scripts", "gate-constraints.sh");
@@ -391,6 +398,37 @@ describe("scripts/gate-constraints.sh", () => {
     expect(res.stderr).not.toContain("UNREADABLE T-PART");
   });
 
+  it("exits 2 on a grep pattern that grep itself refuses to compile", () => {
+    const root = makeTempRepo();
+    writeConstraints(root, [
+      { id: "T-REGEX", grep_patterns: ["("], globs: ["src/**/*.ts"] },
+    ]);
+    writeFile(root, "src/a.ts", "export const value = 1;\n");
+
+    const res = runGate(root);
+
+    expect(res.status).toBe(2);
+    expect(res.stderr).toContain("CONFIG T-REGEX");
+  });
+
+  it("exits 2 on an allow_if_line_matches pattern grep refuses to compile", () => {
+    const root = makeTempRepo();
+    writeConstraints(root, [
+      {
+        id: "T-ALLOW-REGEX",
+        grep_patterns: ["forbiddenToken"],
+        globs: ["src/**/*.ts"],
+        allow_if_line_matches: ["a[b"],
+      },
+    ]);
+    writeFile(root, "src/a.ts", "export const value = 1;\n");
+
+    const res = runGate(root);
+
+    expect(res.status).toBe(2);
+    expect(res.stderr).toContain("CONFIG T-ALLOW-REGEX");
+  });
+
   it("exits 2 on a structurally invalid constraints file", () => {
     const root = makeTempRepo();
     writeFile(
@@ -626,6 +664,88 @@ describe("scripts/gate-constraints.sh (real docs/constraints.json against a fixt
     const res = runRealGate(root);
 
     expect(`${res.stdout}${res.stderr}`).not.toContain("I3 ");
+    expect(res.status).toBe(0);
+  });
+
+  it("flags a rank comparison that moves the state backwards (W3)", () => {
+    const root = makeTempRepo();
+    seedCleanTree(root);
+    writeFile(
+      root,
+      "src/lib/update.ts",
+      "export const query = \"UPDATE payments SET status = 'paid', status_rank = 2 WHERE status_rank > 2\";\n",
+    );
+
+    const res = runRealGate(root);
+
+    expect(res.status).toBe(1);
+    expect(res.stdout).toContain("W3 src/lib/update.ts:1");
+  });
+
+  it("still exempts a forward guard written with the rank on the right (W3)", () => {
+    const root = makeTempRepo();
+    seedCleanTree(root);
+    writeFile(
+      root,
+      "src/lib/apply2.ts",
+      "export const query = \"UPDATE payments SET status = 'paid' WHERE $2 > status_rank\";\n",
+    );
+
+    const res = runRealGate(root);
+
+    expect(`${res.stdout}${res.stderr}`).not.toContain("W3 ");
+    expect(res.status).toBe(0);
+  });
+
+  it("flags a side-effect import and a spaced dynamic import of a payment SDK (P1)", () => {
+    const root = makeTempRepo();
+    seedCleanTree(root);
+    writeFile(
+      root,
+      "src/lib/load-payment.ts",
+      "import 'stripe';\nexport const loadPayment = () => import ('stripe');\n",
+    );
+
+    const res = runRealGate(root);
+
+    expect(res.status).toBe(1);
+    expect(res.stdout).toContain("P1 src/lib/load-payment.ts:1");
+    expect(res.stdout).toContain("P1 src/lib/load-payment.ts:2");
+  });
+
+  it("flags timestamp(3) and an ALTER TABLE date column (X-TIME)", () => {
+    const root = makeTempRepo();
+    seedCleanTree(root);
+    writeFile(
+      root,
+      "supabase/migrations/003.sql",
+      "CREATE TABLE example (created_at timestamp(3));\nALTER TABLE example ADD COLUMN due_on date;\n",
+    );
+
+    const res = runRealGate(root);
+
+    expect(res.status).toBe(1);
+    expect(res.stdout).toContain("X-TIME supabase/migrations/003.sql:1");
+    expect(res.stdout).toContain("X-TIME supabase/migrations/003.sql:2");
+  });
+
+  it("still allows ALTER TABLE timestamptz and an English SQL comment (X-TIME)", () => {
+    const root = makeTempRepo();
+    seedCleanTree(root);
+    writeFile(
+      root,
+      "supabase/migrations/004.sql",
+      [
+        "-- the due date column is stored as timestamptz",
+        "ALTER TABLE example ADD COLUMN created_at timestamptz NOT NULL;",
+        "ALTER TABLE example ALTER COLUMN created_at TYPE timestamptz;",
+        "CREATE TABLE ok2 (a timestamptz(3), b timestamptz);",
+      ].join("\n") + "\n",
+    );
+
+    const res = runRealGate(root);
+
+    expect(`${res.stdout}${res.stderr}`).not.toContain("X-TIME ");
     expect(res.status).toBe(0);
   });
 

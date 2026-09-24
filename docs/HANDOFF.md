@@ -1736,6 +1736,51 @@ GPT-6 Astra の敵対レビュー（high 1 / medium 3）。**4 件すべて HEAD
   焼き込まないよう overlay を使っている。**後からコミットする側が再生成し直すこと**
   （いまの基準値は HEAD + 本コミットの `gate-env-scope.mjs` に一致する）。
 
+## task_014（イベント・参加者 API と幹事画面）
+
+### 決まったこと
+
+- **作業ツリーには着手前から本タスクの成果物 24 ファイル全てが前回セッションの中断分として
+  存在していた**。`docs/run-log/task_014.json` の最古の記録は `typecheck` 失敗・`test:unit`
+  1 件失敗（無関係な workflow-scripts.test.ts）だけで、`test:integration` は一度も走っていなかった。
+  今回それを引き継ぎ、初めて `test:integration` を最後まで通した。
+- **`src/lib/idempotency.ts` の `runIdempotent` を書き換えた（P-01 是正）**。予約
+  （`idempotency_key` の `in_flight`）・`handler`（業務書き込み）・`done` 更新を、呼び出し側が
+  開いた**同一トランザクション**にまとめる形にした（`runIdempotent` はもう自分で `sql.begin()`
+  を呼ばない。呼び出し側が `sql.begin(async (tx) => runIdempotent({ sql: tx, ... }, handler))`
+  の形で `tx` を渡す）。修正前は予約と `done` 更新が別文で、`handler` 失敗時は予約だけを
+  個別 DELETE していたため、業務がコミットされた後の経路で例外が起きると再送が業務処理を
+  もう一度実行しうる欠陥があった。3 つの route（`POST /api/events`・`PATCH /api/events/:id`・
+  `POST /api/events/:id/participants`）を書き換え済み。**この形を task_015/017 が同じ
+  `runIdempotent` を使うときも踏襲すること**（`sql: dbHandle.sql` を直接渡すと型エラーになる
+  よう `RunIdempotentOptions.sql` の型を `postgres.TransactionSql` にしてある）。
+- **`postgres`（npm）のパラメータ型推論に、文字列を `::timestamptz` へ直接キャストすると
+  ミリ秒精度へ切り詰められる罠がある**。`prepare: false` 下ではサーバーの
+  `ParameterDescription` が返す推論型（`timestamptz`）ごとに組み込みシリアライザを選び直し、
+  `timestamptz` は `new Date(x).toISOString()` を経由するため。`::text::timestamptz`
+  （二重キャスト）で回避する。**同じ罠を今後 timestamptz カーソル/パラメータを文字列で
+  扱うすべての箇所で踏む可能性がある**（`src/lib/db/repositories/participants.ts` の
+  `encodeCursor` 直前の docstring に実測込みで記録した）。
+- **JSONB のキー順は Postgres が正規化するため、ハッシュ計算に使う前に必ずソートする**。
+  `src/lib/audit.ts` の `appendAuditLog` は `detail`（jsonb）を挿入時のキー順のまま
+  ハッシュに含めていたため、読み直して再計算したハッシュが内容改変なしで不一致になっていた。
+  `sortDetailKeysDeep`（`src/lib/idempotency.ts` の `sortKeysDeep` と同方針）を追加して解決。
+  **jsonb 列を含む値をハッシュ化する箇所を今後追加するときは同じ対策が要る**。
+
+### 未解決
+
+- **[severity: medium] `event.retention_due_at` の起点（`closed_at`）を書く経路がまだ無い
+  （P-03）**。`closed_at` の追加は `supabase/migrations/0001_init.sql` への変更を要し、
+  task_014 の `files_to_modify` が空のため実装できない。PO が task_014 / task_020 のどちらの
+  所有にするか決めるまで保留（`docs/concerns/task_014.md` の C-014-1）。
+- **[severity: medium] O-2〜O-6.5 の 5 画面に e2e/a11y テストが 1 本も無い（P-11）**。
+  task_022 まで機械的な WCAG 2.2 AA 確認が無い（C-014-4）。
+- **[severity: low] 幹事あたりの「合計請求額」上限は意図的に未実装**。1 イベント人数・
+  同時イベント数の上限は実装済み。既存コード（`events.ts`）のコメントが task_021 の
+  `abuse-limits.test.ts` の所有と明記済みで、そのまま踏襲した（C-014-3）。
+- **[severity: low]** 監査連鎖のグローバルブロッキングロック（P-08）は §10-1 どおりの仕様
+  実装で対応不要。Hyperdrive 経由の実測（A21）は task_035 完了後に deferred（C-014-2 / C-014-5）。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -1871,3 +1916,6 @@ GPT-6 Astra の敵対レビュー（high 1 / medium 3）。**4 件すべて HEAD
 - 2026-09-24T13:38:33Z HEAD=96aca7d 決まったこと: task_008(7周目): 最終 HEAD 4f6c0e9 での verify_commands 再実行ログと、赤 2 件の出どころの記録 / 未解決: 未コミット 43 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/concerns/task_013.md docs/constraints.json docs/decisions/ADR-009-id-token-single-use.md docs/review-log/task_004.json docs/review-log/task_012.json 
 - 2026-09-24T13:40:23Z HEAD=e4d1bd2 決まったこと: task_005: 6 周目の修正案（GPT-6 Astra の high 8 件）を docs/proposals に起票 / 未解決: 未コミット 42 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/concerns/task_013.md docs/constraints.json docs/decisions/ADR-009-id-token-single-use.md docs/review-log/task_004.json docs/review-log/task_012.json 
 - 2026-09-24T13:42:06Z HEAD=e4d1bd2 決まったこと: task_005: 6 周目の修正案（GPT-6 Astra の high 8 件）を docs/proposals に起票 / 未解決: 未コミット 44 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/concerns/task_013.md docs/constraints.json docs/decisions/ADR-009-id-token-single-use.md docs/review-log/task_004.json docs/review-log/task_012.json 
+- 2026-09-24T13:42:51Z HEAD=7697e0e 決まったこと: task_005: concerns に 6 周目案（round6 累積パッチ）への参照を追記 / 未解決: 未コミット 44 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/concerns/task_013.md docs/constraints.json docs/decisions/ADR-009-id-token-single-use.md docs/review-log/task_004.json docs/review-log/task_012.json 
+- 2026-09-24T13:43:24Z HEAD=2d3db98 決まったこと: task_013(4周目・3巡目): 保存できた回も退避先に残し、null body で text() を呼ばない / 未解決: 未コミット 39 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/constraints.json docs/decisions/ADR-009-id-token-single-use.md docs/review-log/task_004.json docs/review-log/task_012.json docs/run-log/task_004.json 
+- 2026-09-24T13:45:26Z HEAD=2d3db98 決まったこと: task_013(4周目・3巡目): 保存できた回も退避先に残し、null body で text() を呼ばない / 未解決: 未コミット 42 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/concerns/task_012.md docs/constraints.json docs/decisions/ADR-009-id-token-single-use.md docs/gates/integrity-baseline.json docs/review-log/task_004.json 

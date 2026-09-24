@@ -1,0 +1,75 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`非自動バッジ（check_031） > autoDetected=false の行は非自動バッジを描画する（スナップショット固定） 1`] = `
+<div>
+  <ul>
+    <li
+      class="invoice-row"
+      data-status="paid"
+      data-tone="success"
+    >
+      <span
+        class="invoice-row__label tabular"
+      >
+        山田
+      </span>
+      <span
+        class="invoice-row__amount tabular"
+      >
+        ¥3,000
+      </span>
+      <span
+        class="invoice-row__status"
+      >
+        <svg
+          aria-hidden="true"
+          class="invoice-row__icon"
+          fill="none"
+          focusable="false"
+          height="16"
+          stroke="currentColor"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          viewBox="0 0 24 24"
+          width="16"
+        >
+          <path
+            d="M5 12.5l4.5 4.5L19 7"
+          />
+        </svg>
+        <span
+          class="invoice-row__status-text"
+        >
+          支払済み（手動確認・自動照合ではありません）
+        </span>
+      </span>
+      <span
+        class="invoice-row__badge"
+        data-testid="non-auto-badge"
+      >
+        <svg
+          aria-hidden="true"
+          class="invoice-row__icon invoice-row__badge-dot"
+          fill="none"
+          focusable="false"
+          height="16"
+          stroke="currentColor"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          viewBox="0 0 24 24"
+          width="16"
+        >
+          <circle
+            cx="12"
+            cy="12"
+            r="9"
+          />
+        </svg>
+        手動確認（自動照合ではありません）
+      </span>
+    </li>
+  </ul>
+</div>
+`;

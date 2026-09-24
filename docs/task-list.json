@@ -473,7 +473,8 @@
         "[severity: medium] GC-SERVER-ONLY の対象は明示列挙のまま。src/lib/db/** の glob に広げると server-only を持たない src/lib/db/schema.ts と他タスクが追加中の src/lib/db/repositories/** を巻き込み、task_004 の変更が他タスクを落とす / 必須モジュールの正本は scripts/assert-server-only.mjs の SERVER_ONLY_MODULES。docs/constraints.json 側はその部分集合という二重管理を解消する（C-004-2）",
         "[severity: medium] F-2 の修正で「対象にマッチしたパスが 1 つでも読めなければ違反」にしたため、別エージェントが同じワークツリーでファイルを移動・削除している最中は実害が無くても偽陽性が出る / fail-open より fail-closed を選んだ結果として意図どおり残す（C-004-3）",
         "[severity: low] パスに改行を含むリポジトリは走査せず exit 2 で落ちる。-z 化で引用問題は消えたが、改行入りパスは行指向の一覧に落とせない / 実際に必要になったら一覧全体を NUL 指向に作り直す（C-004-4）",
-        "[severity: medium] 本周の最終実測で npm run test:unit は exit 1（37 ファイル中 5 ファイル・950 件中 16 件が赤）、npm run typecheck は exit 2。赤はすべて他タスクが編集中の未コミットファイル（src/lib/auth/pepper.ts の AppError / ERROR_CODES 未 import など）に起因し、task_004 所有の 2 テストファイルは 44/44 緑（npx vitest run tests/unit/gate-constraints.test.ts tests/unit/wording-lint.test.ts = exit 0）/ 当該タスクの修正待ち（C-004-5）",
+        "[severity: medium] 3 周目の最終実測で npm run typecheck / lint / gate:constraints / gate:wording は exit 0、npm run test:unit だけ exit 1。赤は tests/unit/ci/acceptance-rerun.test.ts（task_009 所有）の Test timed out in 5000ms 1 件のみで、単独実行では 15/15 緑・4.33 秒（負荷由来）。task_004 所有の 2 テストファイルは 52/52 緑 / 当該タスクの修正待ち（C-004-5）",
+        "[severity: low] 回帰テストで実ゲートの起動回数が 3 → 12 回に増え、tests/unit/gate-constraints.test.ts 単体で 60〜85 秒かかる。vitest の並列実行中に CPU を奪うため、既定 5000ms で書かれた他タスクのテストがタイムアウトしやすくなる（C-004-5 の赤がこれ）。実ゲート 1 回 ~4 秒が下限で本タスク側ではこれ以上縮められない / vitest.config.ts（task_003 所有）の testTimeout 引き上げか poolOptions での並列度調整（C-004-7）",
         "[severity: medium] 行単位の grep はコメントを見分けられない: ブロックコメント内の import \"server-only\" が GC-SERVER-ONLY の必須検査を満たし（GPT 2 周目 F-2）、SQL 行コメント内の status_rank < 2 が W3 の免除条件を満たす（gemini 2 周目 F-1）。どちらも実測で exit 0。grep にコメント除去を足すと文字列リテラル中の // や /* で他タスクのファイルを誤検出するため直していない。同じ穴は scripts/assert-server-only.mjs（task_011 所有）にもあり、コメントアウトされた server-only を落とす検査はリポジトリに存在しない / TypeScript 側は assert-server-only.mjs を AST ベースにする、SQL 側は task_018 の台帳テストで担保する（C-004-6）",
         "[severity: low・解消済み] 2 周目の修正: GPT-6 Astra の high 2 件（core.quotePath による日本語パスの取りこぼし / 読めた対象 0 件での合格）と medium 5 件（W3 のランクガード条件・P1 の動的 import・X-TIME の date と裸 timestamp・GC-SERVER-ONLY のコメント素通り・I3 の対象範囲）を、7 件すべて実際に再現してから直し、同じ手順で塞がったことを実測した（docs/concerns/task_004.md）。回帰テストは gate 側 210 行・wording 側 62 行を追加し、既存の expect は 1 つも減らしていない",
         "[severity: low・解消済み] 3 周目の修正: コミット 26eb304 に対する G5 は pass（有効票 2 / 実効 high 0）だったが新たに medium 7 件が出たので、7 件すべてを再現したうえで 5 件を塞いだ（波括弧 glob が (?: の ? を潰して .ts を見逃す / 不正な正規表現を違反 0 件として合格させる / 後退方向のランク比較が W3 を免除する / 副作用 import と空白付き動的 import が P1 を通過する / timestamp(3) と ALTER TABLE ... date を見逃す）。残り 2 件は C-004-6。併せて task_007・task_013 から送られていた gate-constraints.test.ts の 5 秒タイムアウトを、実ゲート 1 回が実測 ~4 秒であることを測ったうえで vi.setConfig の testTimeout 引き上げで解消した（アサーションは 1 つも緩めていない。it 44 → 52 件）"
@@ -1381,7 +1382,8 @@
         "[severity: medium] 残懸念の一覧は docs/concerns/task_012.md に記録（C-012-1〜20。各項目に深刻度と対応案を付記）／対応案: 同ファイルの『対応案』欄に従い、対応予定タスクで解消する",
         "[severity: medium] GPT-6 Astra F-4（medium）は fail-closed で塞いだ: PEPPER 切替のロールアウト中、新しい PEPPER をまだ持たない処理系に新規ログイン（および移行済みユーザーのログイン）が当たると 503 CONFIG_INVALID になる（docs/concerns/task_012.md C-012-20）／対応案: 「全処理系へ新旧そろえて投入 → デプロイ完了を確認 → ログインを流す」の手順を docs/ops/key-rotation-drill.md（task_024）に書く",
         "[severity: medium] GPT-6 Astra F-3（medium）の修正後も scripts/gate-env-scope.mjs の TOML 読み取りは最小実装のままで、複数行文字列・インラインテーブル・ドット付きの quoted key は黙って読み飛ばす（docs/concerns/task_012.md C-012-19）／対応案: wrangler.toml の書き方を平易な形に限る運用規約にするか、TOML パーサを入れる（task_035 / task_024 で判断）",
-        "[severity: low] GPT-6 Astra F-1（high）の修正で使う「自サイト」の判定は Host ヘッダと request.url から導いており、Cloudflare Workers 以外のホスティングでは未検証（docs/concerns/task_012.md C-012-17）／対応案: ホスティングを変える場合は LIFF 実機で /api/auth/line の 403 が出ないことを確認してから移す（task_022）"
+        "[severity: low] GPT-6 Astra F-1（high）の修正で使う「自サイト」の判定は Host ヘッダと request.url から導いており、Cloudflare Workers 以外のホスティングでは未検証（docs/concerns/task_012.md C-012-17）／対応案: ホスティングを変える場合は LIFF 実機で /api/auth/line の 403 が出ないことを確認してから移す（task_022）",
+        "[severity: low] 2 周目レビュー F-1（high）の修正で、app_user の新規作成と pepper_version 移行を全体で 1 本の助言ロック（pg_advisory_xact_lock）で直列化した。通常ログインはロックを取らないが、招待リンク経由で新規ユーザーが一斉に初回ログインするとそこが直列点になる。どの程度の同時初回ログインが起きるかは未実測（docs/concerns/task_012.md C-012-21）／対応案: 負荷試験で同時初回ログインの待ち時間を実測する（task_022）"
       ]
     },
     {
@@ -1595,10 +1597,16 @@
       ],
       "gate_level": "phase1",
       "adversarial_review": "required",
-      "evidence_label": "[設計]",
+      "evidence_label": "[実測]",
       "optional": false,
-      "completion_status": null,
-      "concerns": []
+      "completion_status": "DONE_WITH_CONCERNS",
+      "concerns": [
+        "[severity: medium] event.retention_due_at の起点(closed_at)を書く経路が無い(P-03)。task_014のfiles_to_modifyがマイグレーションを含まないため実装不可 / 対応案: POがtask_014/task_020のどちらの所有か決めた後、status遷移時にclosed_at・retention_due_atを書く",
+        "[severity: medium] O-2〜O-6.5の5画面にe2e/a11yテストが1本も無い(P-11)。task_022まで機械的なWCAG 2.2 AA確認が無い / 対応案: task_022到達時にまとめて確認するか、各画面に最小1本を持たせる設計変更をするか未決定",
+        "[severity: low] 監査連鎖のグローバルブロッキングロック(pg_advisory_xact_lock)はimplementation-plan.md §10-1どおりの仕様実装(P-08)。並列書き込み時の待ちはtask_020のreconcile-load.test.tsで検知・対応する設計 / 対応案不要（仕様どおり）",
+        "[severity: low] 幹事あたりの合計請求額の上限は未実装（意図的）。1イベント人数・同時イベント数の上限は実装済み。合計請求額はinvoiceがまだ無いため厳密算出不可、既存コメントでtask_021のabuse-limits.test.ts所有と明記済み / 対応案: task_021で実装。推定値による前倒しは根拠となる閾値が文書に無いため見送った",
+        "[severity: low] Hyperdrive経由の実測(A21)は未実施。統合テストは全てローカル直結(app_rwロール) / 対応案: deferred: task_035完了後に実測"
+      ]
     },
     {
       "task_id": "task_015",

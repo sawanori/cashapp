@@ -30,7 +30,11 @@ const MARKER_BEGIN = "<!-- machine-readable:begin -->";
 const MARKER_END = "<!-- machine-readable:end -->";
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
 const GLOB_CHARS = /^[A-Za-z0-9_./*?{},-]+$/;
-// Private-use placeholders so `**` survives the `*` substitution below.
+// Private-use placeholders so `**` survives the `*` substitution below, and so
+// brace alternation survives the `?` substitution (GPT round 2, F-1).
+const BRACE_OPEN = String.fromCharCode(3);
+const BRACE_CLOSE = String.fromCharCode(4);
+const ALT = String.fromCharCode(5);
 const STAR_STAR_SLASH = "\u0001";
 const STAR_STAR = "\u0002";
 
@@ -96,7 +100,15 @@ function globToRegExp(glob) {
   }
   let g = glob.replace(/\./g, "\\.");
   if (g.includes("{")) {
-    g = g.replace(/,/g, "|").replace(/\{/g, "(?:").replace(/\}/g, ")");
+    // Alternation goes in as placeholders, not as "(?:". Emitting "(?:" here
+    // would feed a literal "?" to the `?` -> "[^/]" substitution below and
+    // turn `src/**/*.{ts,tsx}` into `([^/]:ts|tsx)`, which matches no .ts file
+    // at all while the .tsx half keeps the target count non-zero (GPT round 2,
+    // F-1).
+    g = g
+      .replace(/,/g, ALT)
+      .replace(/\{/g, BRACE_OPEN)
+      .replace(/\}/g, BRACE_CLOSE);
   }
   g = g
     .split("**/").join(STAR_STAR_SLASH)
@@ -104,7 +116,10 @@ function globToRegExp(glob) {
     .replace(/\*/g, "[^/]*")
     .replace(/\?/g, "[^/]")
     .split(STAR_STAR_SLASH).join("(?:.*/)?")
-    .split(STAR_STAR).join(".*");
+    .split(STAR_STAR).join(".*")
+    .split(ALT).join("|")
+    .split(BRACE_OPEN).join("(?:")
+    .split(BRACE_CLOSE).join(")");
   return new RegExp(`^(?:${g})$`);
 }
 

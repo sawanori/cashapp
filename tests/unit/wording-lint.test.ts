@@ -4,7 +4,13 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+// Every case spawns `node scripts/wording-lint.mjs` (and some also spawn git),
+// so the wall clock is dominated by process startup rather than by the
+// assertions. Same reason as tests/unit/gate-constraints.test.ts: the budget is
+// raised, no assertion is relaxed.
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
 
 const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
 const lintScript = path.join(repoRoot, "scripts", "wording-lint.mjs");
@@ -232,6 +238,28 @@ describe("scripts/wording-lint.mjs (fixture policy)", () => {
     const res = runLint(root, policyPath);
 
     expect(res.status).toBe(0);
+  });
+
+  it("expands a brace glob so both alternatives are scanned", () => {
+    const root = makeTempRepo();
+    const policyPath = writePolicy(root, {
+      ...basePolicy,
+      forbidden: [
+        {
+          id: "W-FIXTURE",
+          patterns: ["寄付"],
+          globs: ["src/**/*.{ts,tsx}"],
+          expect_targets: "now",
+        },
+      ],
+    });
+    writeFile(root, "src/ok.tsx", "export const ok = 1;\n");
+    writeFile(root, "src/bad.ts", 'export const label = "寄付";\n');
+
+    const res = runLint(root, policyPath);
+
+    expect(res.status).toBe(1);
+    expect(res.stdout).toContain("W-FIXTURE src/bad.ts:1");
   });
 
   it("exits 1 when an expect_targets=now group has zero files to scan", () => {

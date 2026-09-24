@@ -1,0 +1,110 @@
+[
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 2,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit\n\ntests/unit/record-evidence.test.ts(15,43): error TS7016: Could not find a declaration file for module '../../scripts/record-evidence.mjs'. '/Users/noritakasawada/AI_P/cashapp/scripts/record-evidence.mjs' implicitly has an 'any' type.",
+    "commit": "173ff4035e31b5d1bae4566d739f2a0d40ac9e98",
+    "ran_at": "2026-09-24T12:42:59Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run lint",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 lint\n> eslint .",
+    "commit": "173ff4035e31b5d1bae4566d739f2a0d40ac9e98",
+    "ran_at": "2026-09-24T12:43:42Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n ❯ tests/unit/workflows/workflow-scripts.test.ts (41 tests | 1 failed) 34ms\n   ❯ release-audit.ts (10)\n     × 不達ベンダーが PO 承認済みなら残りの条件だけで判定する 4ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  tests/unit/workflows/workflow-scripts.test.ts > release-audit.ts > 不達ベンダーが PO 承認済みなら残りの条件だけで判定する\nAssertionError: expected 'no-go' to be 'go' // Object.is equality\n\nExpected: \"go\"\nReceived: \"no-go\"\n\n ❯ tests/unit/workflows/workflow-scripts.test.ts:812:27\n    810|     );\n    811|     const audit = result as AuditResult;\n    812|     // 不達の PO 承認は効いている（条件 3 は YES）。\n       |                           ^\n    813|     expect((audit.conditions ?? []).find((c) => c.id === 3)?.pass).toB…\n    814|     // それでも go は出ない。作者ベンダー（claude）+ 独立 1 件では条件 1 を満たさない。\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\n\n\n Test Files  1 failed | 34 passed (35)\n      Tests  1 failed | 900 passed (901)\n   Start at  12:43:48\n   Duration  29.65s (tests 88%, environment 6%, setup 4%, import 1%, transform 1%)",
+    "commit": "173ff4035e31b5d1bae4566d739f2a0d40ac9e98",
+    "ran_at": "2026-09-24T12:43:48Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 45 file(s))\nok    L2 (forbid, 45 file(s))\nok    L3 (forbid, 45 file(s))\nok    L8 (forbid, 45 file(s))\nok    L12 (forbid, 45 file(s))\nok    P1 (forbid, 45 file(s))\ndefer P2 (0 targets; waiting on task_018)\nok    P9 (forbid, 7 file(s))\nok    W3 (forbid, 52 file(s))\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 43 file(s))\nok    N5 (forbid, 45 file(s))\nok    N7 (forbid, 45 file(s))\nok    N9 (forbid, 45 file(s))\nok    N11 (forbid, 45 file(s))\nok    I1 (require, 1 file(s))\nok    I2 (require, 1 file(s))\nok    I3 (forbid, 15 file(s))\nok    I4 (forbid, 2 file(s))\nok    X-TIME (forbid, 8 file(s))\nok    X-ID (forbid, 18 file(s))\nok    X-MONEY (forbid, 1 file(s))\nok    GC-XSS (forbid, 45 file(s))\nok    GC-ENV-PUBLIC (forbid, 50 file(s))\nok    GC-SERVER-ONLY (require, 1 file(s))\n\ngate:constraints — scanned 23 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "522d54347f1eedc4e94023e2d67e0719bef4d5a8",
+    "ran_at": "2026-09-24T12:45:16Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:wording",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:wording\n> node scripts/wording-lint.mjs\n\nok    W-AUTO (45 file(s))\nok    W-DONATION (45 file(s))\nok    W-SUPPORT (45 file(s))\nok    W-RECEIPT (45 file(s))\ndefer W-MERCHANT-GUIDE (0 targets; waiting on task_025)\nok    W-FEE-FIXED (45 file(s))\n\ngate:wording — scanned 5 pattern group(s), 0 violation(s), 0 empty gate(s)",
+    "commit": "522d54347f1eedc4e94023e2d67e0719bef4d5a8",
+    "ran_at": "2026-09-24T12:45:19Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit\n\nsrc/lib/auth/pepper.ts(182,45): error TS2304: Cannot find name 'APP_USER_WRITE_LOCK_KEY'.",
+    "commit": "96aca7d5e44e00afa08baee4578c43ce2b7c5970",
+    "ran_at": "2026-09-24T13:37:24Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "96aca7d5e44e00afa08baee4578c43ce2b7c5970",
+    "ran_at": "2026-09-24T13:38:04Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run lint",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 lint\n> eslint .",
+    "commit": "96aca7d5e44e00afa08baee4578c43ce2b7c5970",
+    "ran_at": "2026-09-24T13:38:12Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  37 passed (37)\n      Tests  971 passed (971)\n   Start at  13:38:50\n   Duration  145.82s (tests 86%, environment 6%, setup 5%, import 2%, transform 1%)",
+    "commit": "96aca7d5e44e00afa08baee4578c43ce2b7c5970",
+    "ran_at": "2026-09-24T13:38:49Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:integration\n> TZ=UTC vitest run tests/integration --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  6 passed (6)\n      Tests  92 passed (92)\n   Start at  13:41:28\n   Duration  22.14s (tests 75%, import 11%, setup 8%, transform 6%)",
+    "commit": "e4d1bd2d0e0daf10d687245601ff9f0557bb99fa",
+    "ran_at": "2026-09-24T13:41:28Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 46 file(s) read)\nok    L2 (forbid, 46 file(s) read)\nok    L3 (forbid, 46 file(s) read)\nok    L8 (forbid, 46 file(s) read)\nok    L12 (forbid, 46 file(s) read)\nok    P1 (forbid, 46 file(s) read)\ndefer P2 (0 targets; waiting on task_018)\nok    P9 (forbid, 7 file(s) read)\nok    W3 (forbid, 53 file(s) read)\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 44 file(s) read)\nok    N5 (forbid, 46 file(s) read)\nok    N7 (forbid, 46 file(s) read)\nok    N9 (forbid, 46 file(s) read)\nok    N11 (forbid, 46 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 15 file(s) read)\nok    I4 (forbid, 2 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 18 file(s) read)\nok    X-MONEY (forbid, 1 file(s) read)\nok    GC-XSS (forbid, 46 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 51 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\n\ngate:constraints — scanned 23 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "e4d1bd2d0e0daf10d687245601ff9f0557bb99fa",
+    "ran_at": "2026-09-24T13:41:57Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:wording",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:wording\n> node scripts/wording-lint.mjs\n\nok    W-AUTO (46 file(s) read)\nok    W-DONATION (46 file(s) read)\nok    W-SUPPORT (46 file(s) read)\nok    W-RECEIPT (46 file(s) read)\ndefer W-MERCHANT-GUIDE (0 targets; waiting on task_025)\nok    W-FEE-FIXED (46 file(s) read)\n\ngate:wording — scanned 5 pattern group(s), 0 violation(s), 0 empty gate(s)",
+    "commit": "e4d1bd2d0e0daf10d687245601ff9f0557bb99fa",
+    "ran_at": "2026-09-24T13:42:03Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  }
+]

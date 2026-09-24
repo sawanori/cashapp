@@ -2,9 +2,9 @@
   "$comment": "G13 の基準値。docs/gates/** は PO 専管のため、このファイルの唯一の書き込み経路は `node scripts/gate-integrity.mjs --write-baseline` である（scripts/deny-test-weakening.sh / deny-dangerous-bash.sh が Edit / Write / Bash 経由の直接書き込みを遮断する）。ゲート対象領域を意図して変更したときだけ再生成し、差分を PR で人間に見せること。",
   "schema_version": 1,
   "algorithm": "sha256",
-  "generated_at": "2026-09-24T13:29:27Z",
+  "generated_at": "2026-09-24T13:45:07Z",
   "generated_by": "scripts/gate-integrity.mjs --write-baseline",
-  "generated_at_commit": "12fc3b9565c9b0bddb1ea79f9d2e735ea5dda48f",
+  "generated_at_commit": "2d3db98d19fc07b5f6f9b7ba46edeb3ffa4ae26a",
   "patterns": [
     {
       "kind": "dir",
@@ -99,7 +99,7 @@
     "scripts/deny-dangerous-bash.sh": "3a188ca2465b0e20fe8c993b9439319fe8482d8a3d40c5783bd2462a8c984f3f",
     "scripts/deny-test-weakening.sh": "b344cda4b41bb173ade1aa308bfee801158e6380a225bec173efbee749b80146",
     "scripts/gate-check.mjs": "38afbc84e85af92e121e2df73820dac4fe39d94a0077e5f959ef4ef4c61ddb49",
-    "scripts/gate-constraints.sh": "b6e186accb68b16ffb295f38fa8b1e184a53d5efa9915cbaba17bead481ac78c",
+    "scripts/gate-constraints.sh": "a227c2a5166b01492af9f54647d50c25be7e1cf911975121b4171602a0829741",
     "scripts/gate-env-scope.mjs": "ac51d3088d9c5993c958d9de9fcc42f42c3f0c527c8c9b7e5b58e52e6aaca0a8",
     "scripts/gate-integrity.mjs": "881c9bd24f7bbbba222564dba3bebb7c4d3df9e9509763957ec73b5c334b2630",
     "scripts/gate-status.mjs": "72c9cc0f3f2140cec25213f473688ca6a2d1dcbef93394f8759b61aceb6f173f",
@@ -109,6 +109,6 @@
     "scripts/test-hook-enforcement.sh": "437e0abece7946ec8624332a917b41b26f754f008ab71bdf0e70ab1b6920b35d",
     "scripts/validate-findings.mjs": "29032edd500cd1d37a74bafe1ccfa5e48f1980beb1eea0b128ad2becf81364b3",
     "scripts/validate-plan-json.mjs": "93f7771bd507a7f2e40527f0d95a67157b95aa758c2c47efa9b36e286928637b",
-    "scripts/wording-lint.mjs": "f934d2e63f2e4fc5e118e187762bfdc075263d621fdeab1722b2a83cc5719ca4"
+    "scripts/wording-lint.mjs": "95a38a110935630be3fafc106f768c28363b8615271e9459b0a04b5a8dd5728a"
   }
 }

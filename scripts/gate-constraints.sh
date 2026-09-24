@@ -244,6 +244,28 @@ while IFS= read -r entry; do
     exit 2
   fi
 
+  # A pattern grep cannot compile finds nothing, and the scan below discards
+  # grep's stderr and exit status — so a typo like "(" used to read as
+  # "0 violations" (GPT round 2, F-6). Compile every pattern against empty
+  # input first: exit 1 means "valid regex, no match", >= 2 means grep refused
+  # the regex. One batched grep in the happy path; the per-pattern loop only
+  # runs when the batch failed, to name the offender.
+  ALL_PATS="$TMPDIR_GATE/allpats.txt"
+  printf '%s' "$entry" | jq -r '.grep_patterns[], (.allow_if_line_matches // [])[]' > "$ALL_PATS"
+  printf '' | grep -E -f "$ALL_PATS" >/dev/null 2>&1
+  if [ "$?" -ge 2 ]; then
+    while IFS= read -r pat; do
+      [ -n "$pat" ] || continue
+      printf '' | grep -E -- "$pat" >/dev/null 2>&1
+      if [ "$?" -ge 2 ]; then
+        echo "CONFIG $id: grep rejected the pattern: $pat" >&2
+        exit 2
+      fi
+    done < "$ALL_PATS"
+    echo "CONFIG $id: grep rejected the pattern set" >&2
+    exit 2
+  fi
+
   include_re="$(printf '%s' "$entry" | jq -r '.globs[]?' | globs_to_regex)"
   rc=$?
   if [ "$rc" -ne 0 ]; then

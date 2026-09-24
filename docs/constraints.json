@@ -240,8 +240,9 @@
       "match_mode": "forbid",
       "grep_patterns": [
         "from[[:space:]]*[\"'](@paypayopa/|paypayopa|stripe|@stripe/|payjp|@payjp/)",
-        "require\\([[:space:]]*[\"'](@paypayopa/|paypayopa|stripe|@stripe/|payjp|@payjp/)",
-        "import\\([[:space:]]*[\"'](@paypayopa/|paypayopa|stripe|@stripe/|payjp|@payjp/)"
+        "require[[:space:]]*\\([[:space:]]*[\"'](@paypayopa/|paypayopa|stripe|@stripe/|payjp|@payjp/)",
+        "import[[:space:]]*\\([[:space:]]*[\"'](@paypayopa/|paypayopa|stripe|@stripe/|payjp|@payjp/)",
+        "import[[:space:]]+[\"'](@paypayopa/|paypayopa|stripe|@stripe/|payjp|@payjp/)"
       ],
       "globs": [
         "src/**/*.ts",
@@ -425,11 +426,11 @@
         "src/lib/ledger/apply.ts"
       ],
       "allow_if_line_matches": [
-        "(status_rank|statusRank)[[:space:]]*(<=?|>=?)",
-        "(<=?|>=?)[[:space:]]*(status_rank|statusRank)"
+        "(status_rank|statusRank)[[:space:]]*<=?",
+        ">=?[[:space:]]*(status_rank|statusRank)"
       ],
       "expect_targets": "now",
-      "notes": "rank ガード（status_rank < $new_rank）と同一行に無い 'paid' 代入を違反とみなす。許可条件はランク名の出現ではなく**比較演算子を伴うランク比較**であること（ランクを無条件に代入するだけの UPDATE を免除しないため。GPT レビュー F-3）。状態遷移は src/lib/ledger/apply.ts 経由のみ。"
+      "notes": "rank ガード（status_rank < $new_rank）と同一行に無い 'paid' 代入を違反とみなす。許可条件はランク名の出現ではなく**前進方向のランク比較**であること: 現在ランクが左辺なら < / <=、右辺なら > / >= だけを免除する（ランクを無条件に代入するだけの UPDATE［GPT 1 周目 F-3］と、status_rank > 2 のような後退方向の比較［GPT 2 周目 F-4］のどちらも免除しない）。状態遷移は src/lib/ledger/apply.ts 経由のみ。"
     },
     {
       "id": "W4",
@@ -889,6 +890,9 @@
         "(^|[(,])[[:space:]]*[\"']?[A-Za-z_][A-Za-z0-9_]*[\"']?[[:space:]]+[dD][aA][tT][eE]([[:space:]]|,|\\)|;|$)",
         "[tT][iI][mM][eE][sS][tT][aA][mM][pP][[:space:]]+[wW][iI][tT][hH][oO][uU][tT][[:space:]]+[tT][iI][mM][eE][[:space:]]+[zZ][oO][nN][eE]",
         "(^|[(,])[[:space:]]*[\"']?[A-Za-z_][A-Za-z0-9_]*[\"']?[[:space:]]+[tT][iI][mM][eE][sS][tT][aA][mM][pP]([[:space:]]*(,|\\)|;|$)|[[:space:]]+[^wW[:space:]])",
+        "([aA][dD][dD]([[:space:]]+[cC][oO][lL][uU][mM][nN])?|[tT][yY][pP][eE])[[:space:]]+([\"']?[A-Za-z_][A-Za-z0-9_]*[\"']?[[:space:]]+)?[dD][aA][tT][eE]([[:space:]]|,|\\)|;|$)",
+        "([aA][dD][dD]([[:space:]]+[cC][oO][lL][uU][mM][nN])?|[tT][yY][pP][eE])[[:space:]]+([\"']?[A-Za-z_][A-Za-z0-9_]*[\"']?[[:space:]]+)?[tT][iI][mM][eE][sS][tT][aA][mM][pP]([[:space:]]*(,|\\)|;|$)|[[:space:]]+[^wW[:space:]])",
+        "[[:space:]][tT][iI][mM][eE][sS][tT][aA][mM][pP][[:space:]]*\\([[:space:]]*[0-9]+[[:space:]]*\\)",
         "(^|[^A-Za-z_])date\\([\"']",
         "(^|[^A-Za-z_])timestamp\\([\"'][^\"']*[\"'][[:space:]]*\\)"
       ],
@@ -899,7 +903,7 @@
       "exclude_globs": [],
       "allow_if_line_matches": [],
       "expect_targets": "from_task_011",
-      "notes": "drizzle では timestamp(..., { withTimezone: true }) を必須とする。date() は使わない。列定義は行頭に限らず CREATE TABLE と同一行でも検出する。裸の timestamp は『WITHOUT TIME ZONE 明記』に限定せず、timestamptz / timestamp with time zone 以外の形（timestamp, / timestamp) / timestamp NOT NULL など）を検出する（GPT レビュー F-5）。"
+      "notes": "drizzle では timestamp(..., { withTimezone: true }) を必須とする。date() は使わない。列定義は行頭に限らず CREATE TABLE と同一行でも検出する。裸の timestamp は『WITHOUT TIME ZONE 明記』に限定せず、timestamptz / timestamp with time zone 以外の形（timestamp, / timestamp) / timestamp NOT NULL / timestamp(3) など）を検出する（GPT 1 周目 F-5）。ALTER TABLE ... ADD COLUMN / ALTER COLUMN ... TYPE の宣言も同一行で検出する（GPT 2 周目 F-3）。列名の前を行頭・( ・, ・DDL キーワードに限るのは、SQL コメント中の英文（『the due date column』等）を違反にしないため。"
     },
     {
       "id": "X-ID",

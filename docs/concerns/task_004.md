@@ -130,6 +130,66 @@ exit 0。実リポジトリでは I3 の対象数は 15 件のまま変わらな
 
 ---
 
+## 3 周目（同じ周の G5 で新たに出た medium 7 件）
+
+コミット `26eb304` に対する G5（`scripts/review-drive.sh` → `scripts/merge-review.sh`）は
+**pass**（有効票 2 / 欠票 0 / 実効 high 0）だったが、gemini が medium 1 件・GPT が medium 6 件を
+挙げた。7 件すべてを実際に再現した（再現できなかった指摘は 0 件）。うち 5 件は同じ仕組みの中で
+塞ぎ、2 件は行単位 grep の原理的な限界なので下の C-004-6 に残した。
+
+### GPT F-1 [medium・解消済み] 波括弧付き glob が壊れて対象を見逃す
+
+**再現**: `globs: ["src/**/*.{ts,tsx}"]` の fixture ポリシーで `src/ok.tsx`（無害）と
+`src/bad.ts`（`"寄付"`）を置くと `ok W-FIXTURE (1 file(s) read)` / **exit 0**。
+`globToRegExp` が波括弧を `(?:` に変換した後に `?` → `[^/]` の置換を掛けるため、
+`(?:ts|tsx)` が `([^/]:ts|tsx)` になり `.ts` に一致しなくなっていた（`.tsx` 側は一致するので
+対象 0 件検査も通る）。bash 側の `glob_to_regex` は `(` を使うのでこの穴は無い。
+
+**修正**: 波括弧と `,` も私用領域のプレースホルダに退避し、`*` / `?` の置換が済んでから
+`(?:` / `)` / `|` に戻す。**実測（修正後）**: `W-FIXTURE src/bad.ts:1` / exit 1。
+
+### GPT F-6 [medium・解消済み] 正規表現エラーを「違反 0 件」として合格させる
+
+**再現**: `grep_patterns: ["("]` の fixture で `ok T-REGEX (forbid, 1 file(s) read)` / **exit 0**。
+forbid の走査は `2>/dev/null` で grep の stderr を捨て、パイプラインの終了コードも見ていない。
+
+**修正**: エントリごとに全パターン（`allow_if_line_matches` も含む）を空入力に対して 1 回
+コンパイルし、grep が拒否したら **exit 2**。失敗したときだけ 1 本ずつ試して該当パターンを名指しする。
+**実測（修正後）**: `CONFIG T-REGEX: grep rejected the pattern: (` / exit 2。
+`allow_if_line_matches: ["a[b"]` でも `CONFIG T-ALLOW-REGEX` / exit 2。
+
+### GPT F-4 [medium・解消済み] 後退方向のランク比較も W3 の免除条件になる
+
+**再現**: `UPDATE payments SET status = 'paid', status_rank = 2 WHERE status_rank > 2`
+（ランク 3 の refunded をランク 2 の paid へ戻す）で `ok W3` / **exit 0**。1 周目の修正が
+「比較演算子を伴うこと」までしか要求していなかった。
+
+**修正**: 前進方向だけを免除する（ランクが左辺なら `<` / `<=`、右辺なら `>` / `>=`）。
+**実測（修正後）**: 上記は `W3 src/lib/update.ts:1` / exit 1、
+`WHERE $2 > status_rank` は exit 0（回帰テスト 2 件）。
+
+### GPT F-5 [medium・解消済み] 副作用 import と空白付き動的 import が P1 を通過する
+
+**再現**: `import 'stripe';` と `export const loadPayment = () => import ('stripe');` の 2 行で
+`ok P1` / **exit 0**。**修正**: `import[[:space:]]+["']<sdk>`（副作用 import）を追加し、
+`require` / `import` と `(` の間に空白を許した。
+**実測（修正後）**: 1 行目・2 行目とも `P1 src/lib/load-payment.ts` / exit 1。
+
+### GPT F-3 [medium・解消済み] `timestamp(3)` と `ALTER TABLE ... date` を見逃す
+
+**再現**: `CREATE TABLE example (created_at timestamp(3));` と
+`ALTER TABLE example ADD COLUMN due_on date;` の 2 行で `ok X-TIME` / **exit 0**。
+**修正**: 精度付き `timestamp(<数字>)` のパターンと、`ADD [COLUMN]` / `TYPE` を起点にした
+列宣言のパターンを追加した。列名の前を行頭・`(`・`,`・DDL キーワードに限るのは、
+SQL コメント中の英文（`-- the due date column`）を違反にしないため。
+**実測（修正後）**: 両行とも `X-TIME supabase/migrations/003.sql` / exit 1。
+`ALTER TABLE ... ADD COLUMN created_at timestamptz NOT NULL;` /
+`ALTER COLUMN ... TYPE timestamptz;` / `CREATE TABLE ok2 (a timestamptz(3), b timestamptz);` /
+英文コメントは exit 0（回帰テスト 2 件）。実 `supabase/migrations/*.sql` 7 本と
+`src/lib/db/schema.ts` でも新パターンは 1 件も当たらない。
+
+---
+
 ## 残懸念
 
 ### C-004-1 [medium] I3 は「クライアントかどうか」をディレクトリで近似している
@@ -162,15 +222,65 @@ F-2 の修正で、対象にマッチしたパスが 1 つでも読めないと�
 **exit 2**（設定エラー）で止める形にした。そのようなパスを実際に扱う必要が出たら、
 一覧全体を NUL 指向に作り直す必要がある。
 
+### C-004-6 [medium] 行単位の grep はコメントを見分けられない（未修正・実測済み）
+
+3 周目の G5 で挙がった 2 件は、**行単位の grep では原理的に閉じられない**ので残す。どちらも
+実際に再現した（どちらも exit 0）。
+
+- **GPT F-2**: `src/lib/db/client.ts` を `/*\nimport "server-only";\n*/\nexport const db = null;`
+  にすると、ブロックコメントの中の 2 行目が GC-SERVER-ONLY の必須パターンに一致して合格する
+  （`ok GC-SERVER-ONLY (require, 1 file(s) read)` / exit 0）。1 周目の F-6 で塞いだのは
+  **行コメント**（`// import ...`）だけである。
+- **gemini F-1**: `UPDATE payments SET status = 'paid' WHERE id = 1; -- and status_rank < 2`
+  は、rank ガードが SQL コメントの中にあるだけで W3 の免除条件を満たす（exit 0）。
+
+**なぜ直さないか**: どちらもブロックコメントの開始・終了を行をまたいで追う（＝ 字句解析）か、
+行の途中でコメントが始まった位置を知る必要がある。grep にコメント除去を足すと、文字列リテラル中の
+`//` や `/*`（例: `"postgres://"`）で誤って切り落とし、**他タスクが所有するファイルを落とす**
+偽陽性を作る。fail-closed とはいえ、本タスクの変更で他タスクを止めるのは避ける。
+
+**同じ穴は `scripts/assert-server-only.mjs`（task_011 所有・`npm run gate:server-only`）にもある**:
+必須検査は `/^\s*import\s+["']server-only["'];?\s*$/m` で、これもブロックコメント内の行に一致する。
+つまり今のところ「コメントアウトされた `server-only`」を落とす検査はリポジトリに存在しない。
+
+**対応案**: TypeScript 側は `assert-server-only.mjs` に AST ベース（`typescript` の
+`createSourceFile` → `statements[0]`）の検査を入れる。SQL 側（W3）は行 grep ではなく
+task_018 の台帳テスト（`src/lib/ledger/apply.ts` 経由でしか状態遷移できないこと）で担保する。
+
 ### C-004-5 [medium] `npm run test:unit` が exit 1（本タスク起因 0 件）
 
-本周の最終実測（HEAD = 3bdf5d4 + 作業ツリー）で `npm run test:unit` は **exit 1**
-（37 ファイル中 5 ファイル・950 件中 16 件が赤）。赤は
-`tests/unit/auth/line-route.test.ts` / `tests/unit/auth/pepper.test.ts` /
-`tests/unit/auth/csrf.test.ts` / `tests/unit/config/env.test.ts` /
-`tests/unit/telemetry.test.ts` で、いずれも他タスクが編集中の未コミットファイル
-（`src/lib/auth/pepper.ts` は `AppError` / `ERROR_CODES` が未 import で `npm run typecheck` も
-**exit 2**）に起因する。**task_004 所有の 2 ファイルは 44/44 緑**
+**2 周目の実測**（HEAD = 3bdf5d4 + 作業ツリー）: `npm run test:unit` は exit 1
+（37 ファイル中 5 ファイル・950 件中 16 件が赤）。赤は `tests/unit/auth/line-route.test.ts` /
+`tests/unit/auth/pepper.test.ts` / `tests/unit/auth/csrf.test.ts` /
+`tests/unit/config/env.test.ts` / `tests/unit/telemetry.test.ts` で、いずれも他タスクが編集中の
+未コミットファイル（`src/lib/auth/pepper.ts` は `AppError` / `ERROR_CODES` が未 import で
+`npm run typecheck` も exit 2）に起因した。
+
+**3 周目の実測**（コミット `26eb304` + 3 周目の作業ツリー）: 上の 5 ファイルは他タスク側の修正で
+緑になり、`npm run typecheck` は **exit 0**、`npm run lint` / `gate:constraints` /
+`gate:wording` も exit 0。`npm run test:unit` は **まだ exit 1** だが、赤は
+`tests/unit/ci/acceptance-rerun.test.ts`（task_009 所有）の 1 件だけで、内容は
+`Test timed out in 5000ms`。同ファイルを単独で走らせると **15/15 緑・4.33 秒**（実測）なので、
+負荷由来のタイムアウトである。同ファイルは `gate-constraints` / `wording-lint` /
+`constraints.json` のいずれも参照していない（grep 0 件）。
+**task_004 所有の 2 ファイルは 52/52 緑**
 （`npx vitest run tests/unit/gate-constraints.test.ts tests/unit/wording-lint.test.ts` = exit 0）。
-3 周目までに報告されていた `gate-constraints.test.ts` の 5 秒タイムアウトは本周の実測では
-再現しなかった（単独実行・フルスイートとも当該ファイルは緑）。
+
+### C-004-7 [low] 本タスクのテストがスイート全体の実行時間を押し上げている
+
+回帰テストで実ゲートの起動回数が 3 回 → 12 回に増えた結果、
+`tests/unit/gate-constraints.test.ts` 単体で実測 60〜85 秒かかる。vitest はファイルを並列に
+走らせるので、このファイルが CPU を奪う間、**既定の 5000ms で書かれた他タスクのテストが
+タイムアウトしやすくなる**（C-004-5 の 3 周目の赤がこれ）。本タスク側では実ゲート 1 回の
+~4 秒が下限で、これ以上は縮められない。
+
+**対応案**: vitest.config.ts（task_003 所有）の `testTimeout` を既定 5000ms から引き上げるか、
+`poolOptions` で並列度を落とす。どちらも本タスクの所有ファイルではないので送り先として記録する。
+
+task_007 / task_013 から送られていた `gate-constraints.test.ts` の
+「Test timed out in 5000ms」は本周に再現した（回帰テストを足して実ゲートの起動回数が増えた
+3 周目の実行で 9 件が 5 秒超過）。原因はテストの誤りではなく、**実ゲート 1 回が実測 ~4 秒**
+（57 エントリ × jq / grep / xargs の起動）で vitest 既定の 5000ms とほぼ同じことなので、
+両テストファイルの先頭に `vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 })` を置いた。
+アサーションは 1 つも緩めていない（`it` 44 → 52 件 / `expect` は増加のみ）。
+併せて正規表現の事前検証を 1 エントリ 1 回のバッチに畳み、実行時間を 118 秒 → 64 秒にした。
