@@ -1,0 +1,34 @@
+# CODEOWNERS
+#
+# ★ このファイルは「承認を必須にする」ためには使わない。
+#   GitHub は単一アカウント（sawanori）では PR 作成者が自分の PR を承認できない
+#   （docs/implementation-plan.md A19 / R-TH-04）。`Require review from Code Owners`
+#   を有効にすると、最初の PR からマージ不能になり、その回避として branch protection
+#   ごと解除される。それが R-TH-04 の壊れ方である。
+#
+#   したがって branch protection の required approving reviews は **0** のままにし、
+#   このファイルは「レビュー依頼が自動で飛ぶ先」と「この領域の責任者は誰か」を
+#   明示するためだけに置く。ハーネスを緩める変更を機械的に止めるのは
+#   CI の test-tamper-guard（scripts/ci/check-pr-checklist.mjs）と G13
+#   （scripts/gate-integrity.mjs）の側である。
+#
+# 参照: docs/implementation-plan.md §16-6、docs/gates/README.md
+
+# 既定の所有者
+*                           @sawanori
+
+# ハーネス（テスト・ゲート・フック・CI）
+/tests/                     @sawanori
+/scripts/                   @sawanori
+/.claude/                   @sawanori
+/.github/                   @sawanori
+
+# ゲート定義の正本。変更は PO のみ（docs/gates/README.md）
+/docs/gates/                @sawanori
+
+# DB スキーマ
+/supabase/migrations/       @sawanori
+
+# 依存関係（サプライチェーン、R-SEC-13）
+/package.json               @sawanori
+/package-lock.json          @sawanori

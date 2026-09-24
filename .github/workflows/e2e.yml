@@ -1,0 +1,55 @@
+# .github/workflows/e2e.yml — E2E（Playwright）。nightly と手動起動のみ。
+#
+# docs/implementation-plan.md §16-6 の表: 「`e2e`（別 workflow）… nightly ＋ リリース前」。
+# required status checks には入れない。PR ごとに回すと `npx next dev` の起動と
+# ブラウザのダウンロードで PR のフィードバックが遅くなり、ハーネスの空振り待ち時間
+# （§16-8 F12）を増やすため。
+#
+# tests/a11y（axe-core）は task_022 が実体を作った時点で同タスクが別ファイルで足す。
+# ここでは tests/e2e（`npm run test:e2e`）だけを走らせる。
+
+name: e2e
+
+on:
+  schedule:
+    # 毎日 18:00 UTC = 翌 03:00 JST。cron は UTC 固定（GitHub Actions の仕様）。
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # playwright.config.ts の projects は chromium 1 つだけ（devices["Pixel 7"]）。
+      # 余分なブラウザを落とさない。
+      - name: Playwright ブラウザ（chromium）
+        run: npx playwright install --with-deps chromium
+
+      # playwright.config.ts の webServer が `npx next dev -p 3100` を起動する
+      # （CI では reuseExistingServer=false）。ここでサーバーを別途起動しない。
+      - name: E2E
+        run: npm run test:e2e
+
+      - name: レポートを残す
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+          if-no-files-found: ignore

@@ -789,6 +789,81 @@ task_006 側は「自分のファイルは既にコミット済み」として�
 - **（medium・deferred・変化なし）CI 実走が未証明**。GitHub リモート未作成のため
   `gate-meta` / `acceptance` / `gate-integrity` ジョブは一度も走っていない。task_009 の担当。
 
+## task_009（CI・PR テンプレート・test-tamper-guard・release.yml の 2 段ゲート）
+
+### 決まったこと
+
+- **`.github/workflows/gate.yml` は task_009 の単独所有**。他タスクが CI ジョブを足すときは
+  `.github/workflows/gate-<job>.yml` として独立ファイルで追加する（既存: `gate-integration.yml`
+  = task_011）。ジョブ名は `gate.yml` のジョブ ID をそのまま status check のコンテキスト名に
+  使う（`name:` を別に与えていない）。
+- **`gate.yml` の実装ジョブ（10 本＋1 本）**: `static`（typecheck / lint / test:unit /
+  gate:constraints / assert-release-gate）・`gate-meta`・`gate-integrity`・`labels`（gate:wording）・
+  `security`（test:security / gate:server-only / gate:env）・`secrets`（build → build:cf →
+  `scripts/ci/secrets-grep.sh`）・`deps`（lockfile 不動 / lockfile 差分レポート / npm audit high /
+  OSV v2.6.0 / 決済 SDK 不在）・`acceptance`（assert-verify-commands / gate:acceptance /
+  **完了タスクの verify_commands を CI で再実行**）・`test-tamper-guard`・`date-boundary`。
+  `adversarial` は**定義したが required に入れない**（R-TH-03）。`workflow_dispatch` のときだけ走り、
+  レビュー経路（`scripts/review/run-adversarial.*`）が無ければ**非 0 で落ちる**（「何もせず緑」を作らない）。
+- **§16-6 の表のうち未実装のジョブ**: `contract` / `a11y` / `legal` / `web-only` /
+  `gate:compliance-freshness` / `waf`。対応する npm スクリプトが `package.json` に無いため
+  job を書いていない（実在しないコマンドを CI に書かない）。各タスクが独立ファイルで追加する。
+- **`release.yml` の先頭は `release-gate` ジョブ**。他のすべてのジョブは `needs` で
+  `release-gate` に到達しなければならない。この構造は `scripts/ci/assert-release-gate.mjs` が
+  YAML パースで検査する（check_051、`static` ジョブと `npm run gate:release-gate`）。
+  判定は `uses` / `with` の**構造**から取る（ステップの `name:` に同じ文字列を書いても通らない）。
+- **追加した npm スクリプト**: `gate:release-gate` / `gate:pr-checklist` / `gate:secrets-grep`
+  （いずれも `npm pkg set` で追加）。
+- **`deps` ジョブの OSV はリリースバイナリ経路**。公式が案内する再利用可能ワークフローは
+  job レベルでしか呼べず §16-6 の「`deps` ジョブの中」に置けないため、v2.6.0 のバイナリを
+  `osv-scanner_SHA256SUMS` で検証して使う（一次資料 `docs/vendor-docs/osv/osv-scanner.md`）。
+- **`date-boundary` はユニットスイートの TZ を振れない**。`vitest.config.ts` の
+  `test.env.TZ = "UTC"` がワーカー env で `process.env` に勝つことを実装で確認した。
+  そのため `scripts/gate-check.mjs --json` と `scripts/gate-constraints.sh` の出力・終了コードを
+  2 つの TZ で突き合わせる構成にしてある。固定が外れたら自動でユニットスイートの 2 TZ 実行に
+  切り替わるステップを入れてある。
+- **G13 の基準値は、後から完了するタスクが必ず `node scripts/gate-integrity.mjs --write-baseline`
+  をやり直す**。`--write-baseline` は作業ツリー全体（未追跡ファイルを含む）を走査するため、
+  並行タスクの未コミットファイルが焼き込まれる。本タスクのコミット時点では task_007 の
+  `.claude/agents/*.md` や `scripts/review-*.mjs` が未コミットのまま基準値に入っている。
+  全ハーネスタスクの完了後に、クリーンなチェックアウトで `npm run gate:integrity` が exit 0 に
+  なることを 1 度確認すること。
+
+### 未解決
+
+- **[severity: high] `docs/gates/release-mode.json` を作成できなかった**。`scripts/deny-test-weakening.sh`
+  が `docs/gates/**` への Write を**新規作成でも**遮断する（実際の遮断ログは
+  `docs/concerns/task_009.md` の 1 に貼ってある）。`release.yml` はファイルが無い場合に
+  fail-closed で先頭終了する実装にしてあるので、**いまリリースを起動すると落ちる**。
+  → **PO が作成する**（既定値と手順は `docs/concerns/task_009.md` の 1）。
+  併せて `docs/gates/README.md` の「`release-mode.json` … task_009」という記述も PO が訂正する
+  （同じ理由で AI からは直せない）。
+- **[severity: high] branch protection 未設定（check_039 未達）・CI 実走ゼロ（check_130 / check_131 未達）**。
+  `git remote -v` は空で GitHub 上にリポジトリが無い。`gh` は `sawanori` で認証済みだが対象が無い。
+  → **deferred: GitHub リモート作成後に実施**。required に入れる status checks の一覧は
+  `docs/concerns/task_009.md` の 2 の表に確定済み（required approving reviews は **0**。
+  `gate-integration / integration` を必ず含める。`adversarial` と `e2e` は入れない）。
+  回収は task_010。
+- **[severity: medium] `acceptance` ジョブは DB 依存の `verify_commands` を `gate-integration.yml` に
+  委譲している**（`test:integration` / `gates:sync` / `db:migrate` / `db:diff:drizzle`）。
+  委譲は黙って飛ばさずログに出し、実行 0 件なら exit 1 にしてある。両ワークフローが required に
+  なって初めて「全 `verify_commands` が CI で再実行された」と言える。
+- **[severity: medium] `scripts/ci/secrets-grep.sh` の `SECRET_NAMES` は手書き**。秘密値を増やす
+  タスクはこの配列にも足すこと（`scripts/**` の差分なので PR のチェックリスト記入が要求される）。
+  自動導出は task_035 が `.env.example` に印を入れてから。
+- **[severity: medium] `test-tamper-guard` は記入内容を検証しない**。単一アカウントでは記入者と
+  マージ者が同一人物であり、承認の代替ではなく**緩和事実の記録強制**である。緑を
+  「レビュー済み」と読まないこと。
+- task_011 へ: 本タスクで `gate.yml` ができたので、`docs/concerns/task_011.md` の
+  「`gate.yml` に integration ジョブが追加され PR で緑」の**前半**（ワークフローの存在と
+  required への登録方針）は解消した。**後半（PR で緑）は GitHub リモート作成後**であり、
+  依然として未達である。required には `gate-integration / integration` を登録する。
+- **[記録] 本タスクが `npm pkg set` で足した 3 スクリプト（`gate:release-gate` /
+  `gate:pr-checklist` / `gate:secrets-grep`）は、task_007 のコミット `1f4acfd` に巻き込まれた**。
+  `package.json` は複数タスクが `npm pkg set` で触る共有ファイルで、コミット時に
+  意図せず他タスクの追加ぶんを含みうる（commit `597123e` と同種の事象）。履歴は書き換えない。
+  以後、`git add` は自タスクのファイルを明示指定すること（`git add -A` を使わない規約の理由）。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -851,3 +926,8 @@ task_006 側は「自分のファイルは既にコミット済み」として�
 - 2026-09-24T08:15:42Z HEAD=2269c91 決まったこと: task_012(2周目): 最終 HEAD での verify_commands 再実行ログと、test:unit が赤い原因の切り分け / 未解決: 未コミット 10 件: docs/run-log/task_006.json docs/task-list.json scripts/gate-check.mjs scripts/gate-integrity.mjs tests/gates/fixtures/violations/g11-high-concerns-only-in-concerns-files/ tests/gates/fixtures/violations/g4-done-without-runlog/docs/PROGRESS.md tests/gates/fixtures/violations/g4-manual-items-uncovered/ tests/gates/fixtures/violations/g4-progress-ledger-drift/ 
 - 2026-09-24T08:19:42Z HEAD=2269c91 決まったこと: task_012(2周目): 最終 HEAD での verify_commands 再実行ログと、test:unit が赤い原因の切り分け / 未解決: 未コミット 14 件: docs/HANDOFF.md docs/run-log/task_006.json docs/run-log/task_012.json docs/task-list.json scripts/gate-check.mjs scripts/gate-integrity.mjs tests/gates/fixtures/violations/README.md tests/unit/gate-check.test.ts 
 - 2026-09-24T08:23:42Z HEAD=564f759 決まったこと: task_006(2周目): G4 の manual 項目照合・gate-inputs の迂回路・台帳同期・残懸念の集計元・G13 の対象漏れ・Stop の出力先を直す / 未解決: 未コミット 2 件: docs/run-log/task_012.json tests/gates/probe.test.ts 
+- 2026-09-24T08:27:53Z HEAD=34ec688 決まったこと: task_006(2周目): 最終 HEAD 564f759 での verify_commands 6 本の再実行ログ（全 exit 0） / 未解決: 未コミット 3 件: docs/run-log/task_006.json docs/run-log/task_012.json tests/gates/probe.test.ts 
+- 2026-09-24T08:31:44Z HEAD=34ec688 決まったこと: task_006(2周目): 最終 HEAD 564f759 での verify_commands 6 本の再実行ログ（全 exit 0） / 未解決: 未コミット 4 件: docs/HANDOFF.md docs/run-log/task_006.json docs/run-log/task_012.json tests/gates/probe.test.ts 
+- 2026-09-24T08:35:43Z HEAD=34ec688 決まったこと: task_006(2周目): 最終 HEAD 564f759 での verify_commands 6 本の再実行ログ（全 exit 0） / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_006.json docs/run-log/task_012.json docs/vendor-docs/line/liff-sdk.md tests/gates/probe.test.ts 
+- 2026-09-24T09:00:06Z HEAD=1f4acfd 決まったこと: task_007: エージェント定義 7 本とレビュー封筒経路（Gemini 実走 / GPT 欠票） / 未解決: 未コミット 19 件: docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_006.json docs/run-log/task_012.json docs/task-list.json .github/CODEOWNERS .github/PULL_REQUEST_TEMPLATE.md .github/workflows/e2e.yml 
+- 2026-09-24T09:00:11Z HEAD=1f4acfd 決まったこと: task_007: エージェント定義 7 本とレビュー封筒経路（Gemini 実走 / GPT 欠票） / 未解決: 未コミット 19 件: docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_006.json docs/run-log/task_012.json docs/task-list.json .github/CODEOWNERS .github/PULL_REQUEST_TEMPLATE.md .github/workflows/e2e.yml 

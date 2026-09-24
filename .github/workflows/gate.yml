@@ -1,0 +1,382 @@
+# .github/workflows/gate.yml — ローカルフックを迂回したコミットをリモートで止める関門。
+#
+# docs/implementation-plan.md §16-6 の表がこのファイルの仕様である。
+# ローカルの PreToolUse フック（scripts/deny-*.sh）は「このセッションの Claude」しか縛れない。
+# 別のエージェント・別のマシン・`--dangerously-skip-permissions`・手作業のいずれでも
+# フックは通らないので、同じ判定をリモートでもう一度やる（R-TH-02 / R-SEC-07 / F3）。
+#
+# ★ 並行タスクの衝突回避規約: このファイルは task_009 が単独で所有する。
+#   他タスクが CI ジョブを足すときは .github/workflows/gate-<job>.yml として独立ファイルで
+#   追加する（現存: gate-integration.yml = task_011 の integration ジョブ）。
+#
+# ★ ここに書くコマンドは package.json.scripts に実在するものだけ。
+#   まだ存在しないスクリプト（test:contract / gate:terms / build:web-only 等）の
+#   ジョブは、それを作るタスクが独立ファイルで追加する（§16-6 の「該当スクリプトが
+#   実在するタスクで job を追加」）。
+
+name: gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # opennextjs-cloudflare / next のビルドで使う。ローカルの .env は読まない。
+  NODE_VERSION: "22"
+
+jobs:
+  # --------------------------------------------------------------- static --
+  static:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # .npmrc の ignore-scripts=true をそのまま活かす（R-SEC-13）。
+      - run: npm ci
+      - name: typecheck
+        run: npm run typecheck
+      - name: lint
+        run: npm run lint
+      - name: unit tests
+        run: npm run test:unit
+      - name: gate:constraints
+        run: npm run gate:constraints
+      # check_051: release.yml の先頭が 2 段ゲートであることの静的検査。
+      - name: assert-release-gate（check_051）
+        run: node scripts/ci/assert-release-gate.mjs
+
+  # ------------------------------------------------------------ gate-meta --
+  # ゲートが空振りしても緑になっていないこと（違反フィクスチャで各ゲートが非 0 終了する）。
+  gate-meta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: test:gate-meta（G0）
+        run: npm run test:gate-meta
+
+  # ------------------------------------------------------- gate-integrity --
+  # G13: ハーネスの判定を決めるファイル群のハッシュが基準値と一致すること。
+  gate-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: gate:integrity（G13）
+        run: npm run gate:integrity
+
+  # ---------------------------------------------------------------- labels --
+  # 非自動ラベルの文言。禁止語（docs/wording-policy.md）が UI 文言に混ざっていないこと。
+  # 「非自動バッジのスナップショット」は該当コンポーネントが task_022 で生まれるので、
+  # そのタスクが gate-labels.yml を足す（§16-6）。
+  labels:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: gate:wording
+        run: npm run gate:wording
+
+  # -------------------------------------------------------------- security --
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: test:security
+        run: npm run test:security
+      - name: gate:server-only
+        run: npm run gate:server-only
+      - name: gate:env（環境スコープの静的検査）
+        run: npm run gate:env
+
+  # --------------------------------------------------------------- secrets --
+  # 成果物そのものを実シークレット名で走査する（R-SEC-04）。
+  # server-only の import 検査（security ジョブ）とは別の層で、片方では代替できない。
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: next build（.next/static を作る）
+        run: npm run build
+      - name: opennext build（.open-next を作る）
+        run: npm run build:cf
+      - name: secrets-grep（.next/static ・ .open-next）
+        run: bash scripts/ci/secrets-grep.sh
+
+  # ------------------------------------------------------------------ deps --
+  # サプライチェーン（R-SEC-13）と、Phase 1 に決済 SDK が入り込んでいないこと（L11）。
+  deps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # npm ci が lockfile を書き換えていないこと（package.json と lockfile の不一致検知）。
+      - name: lockfile が npm ci で動かないこと
+        run: git diff --exit-code -- package-lock.json
+
+      - name: lockfile 差分レポート（PR のみ・報告のみで落とさない）
+        if: github.event_name == 'pull_request'
+        run: |
+          set -uo pipefail
+          BASE="${{ github.event.pull_request.base.sha }}"
+          echo "## lockfile 差分（${BASE}...HEAD）"
+          git diff --stat "$BASE"...HEAD -- package-lock.json package.json || true
+          echo
+          echo "### 追加・削除された依存の行"
+          git diff "$BASE"...HEAD -- package-lock.json \
+            | grep -E '^[+-] *"(name|version|resolved)"' \
+            | head -n 200 || true
+
+      - name: npm audit（high 以上）
+        run: npm audit --audit-level=high
+
+      # OSV。公式は再利用可能ワークフローしか案内していないが、それは job レベルでしか
+      # 呼べず §16-6 の「deps ジョブの中」に置けない。固定バージョンのリリースバイナリを
+      # チェックサム検証して使う（一次資料: docs/vendor-docs/osv/osv-scanner.md、取得日 2026-09-24）。
+      - name: OSV-Scanner
+        env:
+          OSV_VERSION: v2.6.0
+        run: |
+          set -euo pipefail
+          BASE="https://github.com/google/osv-scanner/releases/download/${OSV_VERSION}"
+          curl -sSfL -o osv-scanner "${BASE}/osv-scanner_linux_amd64"
+          curl -sSfL -o osv-scanner_SHA256SUMS "${BASE}/osv-scanner_SHA256SUMS"
+          grep ' osv-scanner_linux_amd64$' osv-scanner_SHA256SUMS \
+            | sed 's/osv-scanner_linux_amd64$/osv-scanner/' > osv-scanner.sha256
+          sha256sum --check osv-scanner.sha256
+          chmod +x ./osv-scanner
+          ./osv-scanner scan source -L package-lock.json
+          rm -f osv-scanner osv-scanner_SHA256SUMS osv-scanner.sha256
+
+      # Phase 1 は決済なしで出す。決済 SDK が依存ツリーに入った時点で L11 の前提が崩れる。
+      - name: 決済 SDK が依存ツリーに無いこと（Phase 1・L11）
+        run: |
+          set -uo pipefail
+          TREE="$(npm ls --all --parseable 2>/dev/null || true)"
+          if [ -z "$TREE" ]; then
+            echo "deps FAIL: npm ls の出力が空です（走査対象 0 件を緑にしません）" >&2
+            exit 1
+          fi
+          FOUND=0
+          for sdk in stripe payjp @paypayopa paypay square braintree omise komoju; do
+            if printf '%s\n' "$TREE" | grep -qE "/node_modules/${sdk}(/|$)"; then
+              echo "deps FAIL: 決済 SDK が依存ツリーにあります: ${sdk}（Phase 1 は決済なし。L11）" >&2
+              FOUND=1
+            fi
+          done
+          [ "$FOUND" -eq 0 ] || exit 1
+          echo "決済 SDK なし（走査対象 $(printf '%s\n' "$TREE" | wc -l | tr -d ' ') パッケージ）"
+
+  # ------------------------------------------------------------ acceptance --
+  # 実装者の自己申告（run-log）を信用せず、CI が verify_commands を自分で走らせ直す
+  # （§15-1 の 5、F2）。
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: assert-verify-commands（G1 / G2）
+        run: node scripts/assert-verify-commands.mjs
+      - name: gate:acceptance（G3 / G4 / G9）
+        run: npm run gate:acceptance
+
+      - name: 完了タスクの verify_commands を CI で再実行
+        run: |
+          set -uo pipefail
+          # 実 Postgres が要るコマンドは gate-integration.yml が実 DB の上で走らせる。
+          # ここで黙って飛ばすのではなく、飛ばした事実と担当ワークフローを必ず出力する
+          # （静かなスキップは「緑だが何も検査していない」を作る）。
+          DB_ONLY="npm run test:integration|npm run gates:sync|npm run db:migrate|npm run db:diff:drizzle"
+          FAILED=0
+          SKIPPED=0
+          RAN=0
+          while IFS= read -r cmd; do
+            [ -n "$cmd" ] || continue
+            if printf '%s' "$cmd" | grep -qE "^(${DB_ONLY})$"; then
+              echo "SKIP  ${cmd}  … 実 Postgres が要るため gate-integration.yml（integration ジョブ）の担当"
+              SKIPPED=$((SKIPPED + 1))
+              continue
+            fi
+            echo "RUN   ${cmd}"
+            if sh -c "$cmd"; then
+              RAN=$((RAN + 1))
+            else
+              echo "FAIL  ${cmd}" >&2
+              FAILED=$((FAILED + 1))
+            fi
+          done < <(jq -r '.tasks[] | select(.completion_status != null) | .verify_commands[]?' docs/task-list.json | sort -u)
+
+          echo
+          echo "verify_commands 再実行 — 実行 ${RAN} / 委譲 ${SKIPPED} / 失敗 ${FAILED}"
+          if [ "$((RAN + SKIPPED))" -eq 0 ]; then
+            echo "acceptance FAIL: 再実行の対象が 0 件です（台帳の読み取りが壊れている可能性）" >&2
+            exit 1
+          fi
+          [ "$FAILED" -eq 0 ] || exit 1
+
+  # ----------------------------------------------------- test-tamper-guard --
+  # ハーネスを緩められる場所に差分がある PR で、緩和事実がチェックリストとして
+  # PR 本文に残っていることを機械的に強制する（R-TH-04。人間の関門ではない）。
+  test-tamper-guard:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 変更ファイル一覧
+        run: |
+          set -euo pipefail
+          git diff --name-only "${{ github.event.pull_request.base.sha }}"...HEAD > changed-files.txt
+          echo "変更 $(wc -l < changed-files.txt | tr -d ' ') ファイル"
+      # PR 本文は環境変数で渡す。run の中に ${{ }} で展開するとスクリプト注入になる。
+      - name: チェックリスト検査
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: node scripts/ci/check-pr-checklist.mjs --changed-file changed-files.txt
+
+  # ---------------------------------------------------------- date-boundary --
+  # TZ=UTC と TZ=Asia/Tokyo で判定が一致すること（§16-6）。
+  #
+  # ★ 既知の限界: vitest.config.ts が test.env.TZ = "UTC" を固定しているため、
+  #   ホストの TZ を変えても vitest のワーカー内は常に UTC になる（実装を読んで確認:
+  #   worker env は {...process.env, ...config.env} の順でマージされ config.env が勝つ）。
+  #   つまり「ユニットスイートを 2 つの TZ で走らせる」だけでは空振りする。
+  #   ここでは TZ を実際に継承する Node スクリプト（ゲート判定器）の出力を 2 つの TZ で
+  #   突き合わせる。詳細と恒久対処は docs/concerns/task_009.md を参照。
+  date-boundary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # 判定そのものが赤いかどうかは他ジョブ（acceptance / static）の仕事なので、
+      # ここでは「2 つの TZ で結果が一致するか」だけを見る。終了コードも突き合わせる。
+      - name: ゲート判定が TZ に依存しないこと
+        run: |
+          set -uo pipefail
+          utc=0; TZ=UTC node scripts/gate-check.mjs --json > /tmp/gate-utc.json || utc=$?
+          jst=0; TZ=Asia/Tokyo node scripts/gate-check.mjs --json > /tmp/gate-jst.json || jst=$?
+          if [ "$utc" -ne "$jst" ]; then
+            echo "date-boundary FAIL: gate-check の終了コードが TZ で違います（UTC=${utc} / JST=${jst}）" >&2
+            exit 1
+          fi
+          if ! diff -u /tmp/gate-utc.json /tmp/gate-jst.json; then
+            echo "date-boundary FAIL: gate-check の判定が TZ=UTC と TZ=Asia/Tokyo で食い違います" >&2
+            exit 1
+          fi
+          echo "gate-check: TZ=UTC と TZ=Asia/Tokyo で一致（exit ${utc}）"
+
+      - name: 制約ゲートが TZ に依存しないこと
+        run: |
+          set -uo pipefail
+          utc=0; TZ=UTC bash scripts/gate-constraints.sh > /tmp/constraints-utc.txt 2>&1 || utc=$?
+          jst=0; TZ=Asia/Tokyo bash scripts/gate-constraints.sh > /tmp/constraints-jst.txt 2>&1 || jst=$?
+          if [ "$utc" -ne "$jst" ]; then
+            echo "date-boundary FAIL: gate:constraints の終了コードが TZ で違います（UTC=${utc} / JST=${jst}）" >&2
+            exit 1
+          fi
+          if ! diff -u /tmp/constraints-utc.txt /tmp/constraints-jst.txt; then
+            echo "date-boundary FAIL: gate:constraints の判定が TZ で食い違います" >&2
+            exit 1
+          fi
+          echo "gate:constraints: TZ=UTC と TZ=Asia/Tokyo で一致（exit ${utc}）"
+
+      - name: vitest の TZ 固定が残っているかを明示する
+        run: |
+          set -uo pipefail
+          if grep -qE 'TZ:\s*"UTC"' vitest.config.ts; then
+            echo "NOTICE: vitest.config.ts が test.env.TZ を UTC に固定しています。"
+            echo "        ユニットスイートの 2 TZ 実行は現状このジョブでは実効しません。"
+            echo "        docs/concerns/task_009.md（date-boundary の限界）を参照してください。"
+          else
+            echo "vitest.config.ts の TZ 固定が外れています。ユニットスイートを 2 つの TZ で走らせます。"
+            TZ=UTC npx vitest run tests/unit
+            TZ=Asia/Tokyo npx vitest run tests/unit
+          fi
+
+  # ---------------------------------------------------------- adversarial --
+  # 敵対レビュー経路（§16-3、task_007 / 010）。
+  #
+  # ★ required status checks には入れない。CI ランナーに CLI も認証も無い状態で
+  #   required にすると、最初の PR からマージ不能になる（R-TH-03）。
+  # ★ 経路が未実装のあいだ「何もせず緑」にはしない。それは R-TH-01 の壊れ方そのもの。
+  #   手動起動（workflow_dispatch）でのみ走り、経路が無ければ非 0 で落ちる。
+  adversarial:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: レビュー経路の実在確認
+        run: |
+          set -uo pipefail
+          if [ ! -x scripts/review/run-adversarial.sh ] && [ ! -f scripts/review/run-adversarial.mjs ]; then
+            echo "adversarial: レビュー経路（scripts/review/run-adversarial.*）がまだありません。" >&2
+            echo "  task_007 / task_010 が経路を実測で通すまで、このジョブは緑になりません。" >&2
+            echo "  required status checks には入れないこと（R-TH-03）。" >&2
+            exit 1
+          fi
+          echo "レビュー経路を検出しました。実行は task_010 の実装に委ねます。"

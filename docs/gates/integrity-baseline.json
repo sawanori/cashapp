@@ -2,9 +2,9 @@
   "$comment": "G13 の基準値。docs/gates/** は PO 専管のため、このファイルの唯一の書き込み経路は `node scripts/gate-integrity.mjs --write-baseline` である（scripts/deny-test-weakening.sh / deny-dangerous-bash.sh が Edit / Write / Bash 経由の直接書き込みを遮断する）。ゲート対象領域を意図して変更したときだけ再生成し、差分を PR で人間に見せること。",
   "schema_version": 1,
   "algorithm": "sha256",
-  "generated_at": "2026-09-24T08:20:07Z",
+  "generated_at": "2026-09-24T09:00:48Z",
   "generated_by": "scripts/gate-integrity.mjs --write-baseline",
-  "generated_at_commit": "2269c910d566d6502046bcf9d2f0a5fbadae251d",
+  "generated_at_commit": "1f4acfdb9a495323b65ea8ad3dc562f4c991b0c2",
   "patterns": [
     {
       "kind": "dir",
@@ -67,8 +67,18 @@
     "contract_test_min_count": 0
   },
   "files": {
+    ".claude/agents/acceptance-test-generator-restricted.md": "0e6405c690b56d861b4de185dd96cc925060c4efbb3f71f218a3768fc03e3876",
+    ".claude/agents/adversarial-reviewer-gemini.md": "56a0ba99df06def6495f621372c38fa9fd4f0e81f92447b0350e171774e5a267",
+    ".claude/agents/adversarial-reviewer-gpt.md": "25e0872c1fef7cd4c8b08531882b1533331724803c44058034c27b93e53055d1",
+    ".claude/agents/compliance-gatekeeper.md": "7290277852327fd97ebbae2f166a3ca48c9cac0e5aa8ae97f1d2ad9f3772f14c",
+    ".claude/agents/payment-contract-guard.md": "100f0d14fcadbc33580c3f5eb2684cdbd879c6c720ab8165da9ea1d757f68072",
+    ".claude/agents/premortem-facilitator.md": "21afe99253f49b167981ab6be4c2463a8cbab4fa5cb21d8f1ceadd23d397e7e8",
+    ".claude/agents/release-auditor.md": "96d16d3e1076854c034b3521cdd5883ecd98fc8f3adaa4192724d7ee064f543f",
     ".claude/settings.json": "1fbad2d901b3b7b94bdbc950d8abc756da72e52b895909d5a0e1dbaa5e31f8c8",
+    ".github/workflows/e2e.yml": "16ca324445593638bed83185febd36f56cab04d91569af5bf3dfca96c901878d",
     ".github/workflows/gate-integration.yml": "f55d1e3144dd29e27dce2d8f19e9ab457dab1e6aae5071e1b21ad499e3300c50",
+    ".github/workflows/gate.yml": "de6382fdfc95b23a472de03e9edb68b6ba3979740ccbce69ada43e00a61c50c8",
+    ".github/workflows/release.yml": "8991d4903a4e66253544d9efd310c34f0f5da33c6215026773f19218b2f7b11d",
     "docs/gates/README.md": "9476d41428d3968fc5feb41fc48b150711ac188869d309401ca9f673186f781c",
     "docs/gates/compliance-gates.json": "ea8d26b2f2631d69a1b55784ac1b720b18e5cf8700a8e70f337009e740b5efbe",
     "docs/gates/legal-clearance.json": "b4f069ab55b12df215bddffd943582fcb7116ed36144d146b598389c6e5c66ce",
@@ -77,7 +87,10 @@
     "scripts/assert-diff-exists.sh": "1c857124074e182e0ee91101c3cc899c839df3aae8d4a7211990144bb00ba96b",
     "scripts/assert-server-only.mjs": "581b7c1cb974d36c100a84dc5a75a1a4b69cdfd84b59de1d80384e6ab3ea217c",
     "scripts/assert-verify-commands.mjs": "62b4c598a0154d3307582b068b4ef3c0a67f0bd193cc223b7aaa02971de69582",
+    "scripts/ci/assert-release-gate.mjs": "a114bb2842a4b37408010eeb3f5d6ab2cff284f5be91b9dfba5fdfb087909d1d",
+    "scripts/ci/check-pr-checklist.mjs": "6ef60b6f5fecd1508547324fde416e08f47a62360662e27d05af49b13bcb185b",
     "scripts/ci/record-worker-size.mjs": "96fc2bb0e8227a96502a4a5a450c0c2a2f8b8a2bab3084f68340924ce0568998",
+    "scripts/ci/secrets-grep.sh": "4ae0bcb1d2cc4dddb4c60192996ddec3f20642d638c32fbc39ab35398ee69011",
     "scripts/deny-dangerous-bash.sh": "3a188ca2465b0e20fe8c993b9439319fe8482d8a3d40c5783bd2462a8c984f3f",
     "scripts/deny-test-weakening.sh": "b344cda4b41bb173ade1aa308bfee801158e6380a225bec173efbee749b80146",
     "scripts/gate-check.mjs": "38afbc84e85af92e121e2df73820dac4fe39d94a0077e5f959ef4ef4c61ddb49",
@@ -89,6 +102,7 @@
     "scripts/record-run.sh": "c9a5fdc155c9e949cba12ec71fded1eb02fc846179006b6f413cc50bea2c3260",
     "scripts/session-brief.mjs": "c5dce84b2978cf8fcb46474e7a32846322fe1be3128b6bf17c2907f0625bd839",
     "scripts/test-hook-enforcement.sh": "437e0abece7946ec8624332a917b41b26f754f008ab71bdf0e70ab1b6920b35d",
+    "scripts/validate-findings.mjs": "29032edd500cd1d37a74bafe1ccfa5e48f1980beb1eea0b128ad2becf81364b3",
     "scripts/validate-plan-json.mjs": "93f7771bd507a7f2e40527f0d95a67157b95aa758c2c47efa9b36e286928637b",
     "scripts/wording-lint.mjs": "9c0d41d886af6cf0e8c4b1b94ab97e157c98a414615a1d409c22bb6eca0108d7"
   }

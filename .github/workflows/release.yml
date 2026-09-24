@@ -1,0 +1,191 @@
+# .github/workflows/release.yml — 本番デプロイ。先頭は 2 段ゲート。
+#
+# docs/implementation-plan.md §16-6:
+#   (a) docs/gates/release-mode.json の payments_enabled が false なら、
+#       ビルド設定の PAYMENTS_ENABLED が false であることと npm ls に決済 SDK が
+#       無いことを検証して通す（Phase 1 の決済なし本番デプロイ）。
+#   (b) true なら jq -e '.cleared == true' docs/gates/legal-clearance.json を必須にする。
+#
+# この 2 ファイルは docs/gates/** として G13 のハッシュ照合対象であり、変更は PO のみ。
+# AI は読むだけで、Edit / Write / Bash 経由の書き込みはローカルのフックが遮断する。
+#
+# 先頭が 2 段ゲートであることは scripts/ci/assert-release-gate.mjs が YAML パースで
+# 静的検査する（check_051、gate.yml の static ジョブ）。ジョブ名 `release-gate` と、
+# 他のすべてのジョブが needs で release-gate に到達することがその検査の前提なので、
+# ジョブを足すときは必ず needs を張ること。
+#
+# 本番シークレット（CLOUDFLARE_API_TOKEN 等）は GitHub の environment: production に
+# のみ置く。ローカルの .env / dotenv は読まない（L11 / F8）。
+
+name: release
+
+on:
+  # 本番デプロイは必ず人間が明示的に起動する。push では走らせない。
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "このデプロイの理由（リリースノート・対象タスク）"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-production
+  cancel-in-progress: false
+
+jobs:
+  # =======================================================================
+  # 先頭の 2 段ゲート。ここを通らない限りデプロイジョブは開始しない。
+  # =======================================================================
+  release-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # ★ このワークフローで最初に走る run ステップ。
+      #   scripts/ci/assert-release-gate.mjs が「最初の run ステップが
+      #   docs/gates/release-mode.json の payments_enabled を読んでいること」を
+      #   静的検査する（check_051）。ステップの順番を入れ替えないこと。
+      - name: 2 段ゲート（release-mode.json → 決済なし本番 / 法務クリアランス）
+        run: |
+          set -uo pipefail
+
+          MODE_FILE="docs/gates/release-mode.json"
+          CLEARANCE_FILE="docs/gates/legal-clearance.json"
+
+          if [ ! -f "$MODE_FILE" ]; then
+            echo "release-gate FAIL: ${MODE_FILE} がありません。" >&2
+            echo "  このファイルはゲートの正本で、作成・変更は PO のみが行う（docs/gates/README.md）。" >&2
+            echo "  既定値: {\"schema_version\":1,\"payments_enabled\":false,\"provider_keys\":[\"manual_confirm\"],\"basis\":null,\"approved_by\":null}" >&2
+            echo "  無い状態を通すと『ゲートが無いから通った』になるので、fail-closed で落とします（L11）。" >&2
+            exit 1
+          fi
+
+          PAYMENTS_ENABLED_MODE="$(jq -r 'if has("payments_enabled") then (.payments_enabled | tostring) else "missing" end' "$MODE_FILE")"
+          echo "release-mode.json: payments_enabled=${PAYMENTS_ENABLED_MODE}"
+
+          case "$PAYMENTS_ENABLED_MODE" in
+            false)
+              echo "--- (a) 段: 決済なし本番デプロイ（Phase 1） ---"
+
+              # provider_keys は manual_confirm だけであること。
+              # 自動アダプタの鍵が並んでいるなら、それは「決済なし」ではない。
+              KEYS="$(jq -r '(.provider_keys // []) | sort | join(",")' "$MODE_FILE")"
+              if [ "$KEYS" != "manual_confirm" ]; then
+                echo "release-gate FAIL: payments_enabled=false なのに provider_keys が manual_confirm だけではありません: [${KEYS}]" >&2
+                exit 1
+              fi
+
+              # ビルド設定側で PAYMENTS_ENABLED が true になっていないこと。
+              # 値が書かれていない場合は false 扱い（src/lib/payments/registry.ts は
+              # フラグが厳密に "true" のときだけ自動アダプタを解決する）。
+              CONFIG_FILES=""
+              for f in wrangler.toml workers/cron/wrangler.toml next.config.ts open-next.config.ts .env.example; do
+                [ -f "$f" ] && CONFIG_FILES="${CONFIG_FILES} ${f}"
+              done
+              if [ -z "$CONFIG_FILES" ]; then
+                echo "release-gate FAIL: 走査対象のビルド設定が 1 つもありません（走査 0 件を緑にしません）" >&2
+                exit 1
+              fi
+              # shellcheck disable=SC2086
+              if grep -nEH 'PAYMENTS_ENABLED[[:space:]]*[:=][[:space:]]*"?[tT]rue"?' $CONFIG_FILES; then
+                echo "release-gate FAIL: ビルド設定が PAYMENTS_ENABLED を true にしています（payments_enabled=false と矛盾。L11）" >&2
+                exit 1
+              fi
+              echo "ビルド設定の PAYMENTS_ENABLED: true の記述なし（走査:${CONFIG_FILES}）"
+
+              # 決済 SDK が依存ツリーに無いこと。
+              npm ci
+              TREE="$(npm ls --all --parseable 2>/dev/null || true)"
+              if [ -z "$TREE" ]; then
+                echo "release-gate FAIL: npm ls の出力が空です（走査 0 件を緑にしません）" >&2
+                exit 1
+              fi
+              FOUND=0
+              for sdk in stripe payjp @paypayopa paypay square braintree omise komoju; do
+                if printf '%s\n' "$TREE" | grep -qE "/node_modules/${sdk}(/|\$)"; then
+                  echo "release-gate FAIL: 決済 SDK が依存ツリーにあります: ${sdk}" >&2
+                  FOUND=1
+                fi
+              done
+              [ "$FOUND" -eq 0 ] || exit 1
+              echo "npm ls: 決済 SDK なし"
+              echo "(a) 段を通過しました（決済なし本番デプロイ）。"
+              ;;
+
+            true)
+              echo "--- (b) 段: 決済あり本番デプロイ（法務クリアランス必須・L11） ---"
+              if [ ! -f "$CLEARANCE_FILE" ]; then
+                echo "release-gate FAIL: ${CLEARANCE_FILE} がありません" >&2
+                exit 1
+              fi
+              if ! jq -e '.cleared == true' "$CLEARANCE_FILE" > /dev/null; then
+                echo "release-gate FAIL: ${CLEARANCE_FILE} の cleared が true ではありません。" >&2
+                echo "  弁護士確認またはグレーゾーン解消制度の照会結果を得るまで、本番決済は有効化できません（L11）。" >&2
+                exit 1
+              fi
+              for field in basis approved_by approved_at; do
+                if ! jq -e --arg f "$field" '.[$f] != null and (.[$f] | tostring | length) > 0' "$CLEARANCE_FILE" > /dev/null; then
+                  echo "release-gate FAIL: ${CLEARANCE_FILE} の ${field} が空です（cleared=true では必須）" >&2
+                  exit 1
+                fi
+              done
+              echo "(b) 段を通過しました（cleared=true・根拠と承認者あり）。"
+              ;;
+
+            *)
+              echo "release-gate FAIL: ${MODE_FILE} の payments_enabled が true / false ではありません: ${PAYMENTS_ENABLED_MODE}" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: ゲート定義ファイルのハッシュ照合（G13）
+        run: npm run gate:integrity
+
+  # =======================================================================
+  # デプロイ。release-gate を needs で必ず後ろに置く。
+  # CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID は environment: production のみに置く。
+  # =======================================================================
+  deploy:
+    needs: [release-gate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: OpenNext ビルド
+        run: npm run build:cf
+
+      # 一次資料: docs/vendor-docs/cloudflare/wrangler-action.md（取得日 2026-09-24）
+      - name: wrangler deploy --env production
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager: npm
+          command: deploy --env production
+
+      # 人間が書いた文字列を run の中に ${{ }} で展開しない（スクリプト注入）。env 経由で渡す。
+      - name: デプロイ理由を記録に残す
+        env:
+          DEPLOY_REASON: ${{ inputs.reason }}
+          DEPLOY_COMMIT: ${{ github.sha }}
+        run: |
+          set -uo pipefail
+          {
+            echo "reason: ${DEPLOY_REASON}"
+            echo "commit: ${DEPLOY_COMMIT}"
+          } >> "$GITHUB_STEP_SUMMARY"

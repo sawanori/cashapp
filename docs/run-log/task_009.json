@@ -1,0 +1,147 @@
+[
+  {
+    "type": "command",
+    "command": "npm run gate:integrity",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:integrity\n> node scripts/gate-integrity.mjs\n\n      ハッシュ対象 38 ファイル（sha256）\n\ngate:integrity — 38 ファイルを照合、0 件の不一致",
+    "commit": "1f4acfdb9a495323b65ea8ad3dc562f4c991b0c2",
+    "ran_at": "2026-09-24T09:03:04Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:acceptance",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:acceptance\n> node scripts/assert-acceptance.mjs\n\n        G3 check 133 件 / 参照 133 件\n        G4 完了タスク 7 件を検査\n        G4 docs/PROGRESS.md の完了宣言 7 件 / 台帳との食い違い 0 件\n        G9 evidence 記入済みの check がまだ 0 件です（HEAD=1f4acfdb9a49…）\n   warn G4 task_002: manual_verification[0]「python3 で JSON を検査し record-run」は、どの項目の記録か名乗っていない manual エントリで充当しました。観察結果の先頭に `manual_verification[<索引>]` を書いてください\n\ngate:acceptance — 対象 147 件（evidence 付き 0 件）、違反 0 件 / warn 1 件",
+    "commit": "1f4acfdb9a495323b65ea8ad3dc562f4c991b0c2",
+    "ran_at": "2026-09-24T09:03:07Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:check",
+    "exit_code": 0,
+    "stdout_tail": "   warn G2 task_029: `gate:compliance-freshness` は未定義（未着手タスクなので warn）\n   warn G2 task_030: `test:conformance` は未定義（未着手タスクなので warn）\nok    G3 各 check が 1 つ以上の task から参照されている — 対象 133 件\n        check 133 件 / 参照 133 件\nok    G4 完了タスクの run-log（全 verify_commands exit 0 / manual 記録） — 対象 14 件\n        完了タスク 7 件を検査\n        docs/PROGRESS.md の完了宣言 7 件 / 台帳との食い違い 0 件\n   warn G4 task_002: manual_verification[0]「python3 で JSON を検査し record-run」は、どの項目の記録か名乗っていない manual エントリで充当しました。観察結果の先頭に `manual_verification[<索引>]` を書いてください\nwarn  G5 high × adversarial_review=required の完了に敵対レビュー記録 — 対象 5 件\n        対象 5 件。task_007（レビュー経路）が DONE になるまで G5 は warn（§15-2）\n   warn G5 task_004: docs/review-log/task_004.json がありません\n   warn G5 task_005: docs/review-log/task_005.json がありません\n   warn G5 task_006: docs/review-log/task_006.json がありません\n   warn G5 task_011: docs/review-log/task_011.json がありません\n   warn G5 task_012: docs/review-log/task_012.json がありません\nok    G6 DONE_WITH_CONCERNS の concerns に severity と対応案 — 対象 6 件\n        DONE_WITH_CONCERNS 6 件を検査\n        task_004: 台帳の concerns[] は空。docs/HANDOFF.md の 5 件で判定\n        task_005: 台帳の concerns[] は空。docs/concerns/task_005.md / docs/HANDOFF.md の 24 件で判定\n        task_012: 台帳の concerns[] は空。docs/concerns/task_012.md の 13 件で判定\ndefer G7 tests/contract のファイル数が減っていない — 対象 0 件\n        tests/contract/ はまだ存在しません（task_018 で作成。基準値 0 と一致）\nok    G8 差分に実シークレットが含まれない — 対象 2686 件\n        追加行 2686 行を走査\n        パターン定義ファイル・違反フィクスチャのため除外: scripts/ci/secrets-grep.sh\ndefer G9 evidence.commit === HEAD — 対象 0 件\n        evidence 記入済みの check がまだ 0 件です（HEAD=1f4acfdb9a49…）\nok    G10 [設計] / [不明] 依存の ADR が accepted になっていない — 対象 4 件\n        ADR 4 件を検査\nok    G11 severity=high の未解決 concerns 3 件以上で in_progress を禁止 — 対象 38 件\n        未解決 high concerns 21 件（task_005, task_006, task_007, task_009, task_011, task_012） / しきい値 3 件 / in_progress 0 件\n        集計元: docs/concerns/task_005.md=1 / docs/HANDOFF.md=5 / docs/task-list.json=6 / docs/concerns/task_006.md=1 / docs/concerns/task_007.md=2 / docs/concerns/task_009.md=4 / docs/concerns/task_012.md=2\ndefer G12 fixture の provenance（captured_from）と autoDetect の宣言 — 対象 0 件\n        tests/fixtures/<provider>/ がまだありません（task_018 / task_019 で作成）\nok    G13 ゲート定義ファイルのハッシュが基準値と一致 — 対象 38 件\n        ハッシュ対象 38 ファイル（sha256）\ndefer G14 直近 7 日の監査連鎖が audit:verify で検証済み — 対象 0 件\n        package.json に audit:verify がありません（task_018 で作成）\n\ngate:check — 15 ゲートを判定、0 ゲートが不合格（違反 0 件 / warn 25 件）",
+    "commit": "1f4acfdb9a495323b65ea8ad3dc562f4c991b0c2",
+    "ran_at": "2026-09-24T09:03:10Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:acceptance",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:acceptance\n> node scripts/assert-acceptance.mjs\n\n        G3 check 133 件 / 参照 133 件\n        G4 完了タスク 8 件を検査\n        G4 docs/PROGRESS.md の完了宣言 8 件 / 台帳との食い違い 0 件\n        G9 evidence 記入済みの check がまだ 0 件です（HEAD=1f4acfdb9a49…）\n   warn G4 task_002: manual_verification[0]「python3 で JSON を検査し record-run」は、どの項目の記録か名乗っていない manual エントリで充当しました。観察結果の先頭に `manual_verification[<索引>]` を書いてください\n\ngate:acceptance — 対象 149 件（evidence 付き 0 件）、違反 0 件 / warn 1 件",
+    "commit": "1f4acfdb9a495323b65ea8ad3dc562f4c991b0c2",
+    "ran_at": "2026-09-24T09:03:23Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:check",
+    "exit_code": 0,
+    "stdout_tail": "   warn G2 task_030: `test:conformance` は未定義（未着手タスクなので warn）\nok    G3 各 check が 1 つ以上の task から参照されている — 対象 133 件\n        check 133 件 / 参照 133 件\nok    G4 完了タスクの run-log（全 verify_commands exit 0 / manual 記録） — 対象 16 件\n        完了タスク 8 件を検査\n        docs/PROGRESS.md の完了宣言 8 件 / 台帳との食い違い 0 件\n   warn G4 task_002: manual_verification[0]「python3 で JSON を検査し record-run」は、どの項目の記録か名乗っていない manual エントリで充当しました。観察結果の先頭に `manual_verification[<索引>]` を書いてください\nwarn  G5 high × adversarial_review=required の完了に敵対レビュー記録 — 対象 6 件\n        対象 6 件。task_007（レビュー経路）が DONE になるまで G5 は warn（§15-2）\n   warn G5 task_004: docs/review-log/task_004.json がありません\n   warn G5 task_005: docs/review-log/task_005.json がありません\n   warn G5 task_006: docs/review-log/task_006.json がありません\n   warn G5 task_009: docs/review-log/task_009.json がありません\n   warn G5 task_011: docs/review-log/task_011.json がありません\n   warn G5 task_012: docs/review-log/task_012.json がありません\nok    G6 DONE_WITH_CONCERNS の concerns に severity と対応案 — 対象 7 件\n        DONE_WITH_CONCERNS 7 件を検査\n        task_004: 台帳の concerns[] は空。docs/HANDOFF.md の 5 件で判定\n        task_005: 台帳の concerns[] は空。docs/concerns/task_005.md / docs/HANDOFF.md の 24 件で判定\n        task_012: 台帳の concerns[] は空。docs/concerns/task_012.md の 13 件で判定\ndefer G7 tests/contract のファイル数が減っていない — 対象 0 件\n        tests/contract/ はまだ存在しません（task_018 で作成。基準値 0 と一致）\nok    G8 差分に実シークレットが含まれない — 対象 2705 件\n        追加行 2705 行を走査\n        パターン定義ファイル・違反フィクスチャのため除外: scripts/ci/secrets-grep.sh\ndefer G9 evidence.commit === HEAD — 対象 0 件\n        evidence 記入済みの check がまだ 0 件です（HEAD=1f4acfdb9a49…）\nok    G10 [設計] / [不明] 依存の ADR が accepted になっていない — 対象 4 件\n        ADR 4 件を検査\nok    G11 severity=high の未解決 concerns 3 件以上で in_progress を禁止 — 対象 38 件\n        未解決 high concerns 21 件（task_005, task_006, task_007, task_009, task_011, task_012） / しきい値 3 件 / in_progress 0 件\n        集計元: docs/concerns/task_005.md=1 / docs/HANDOFF.md=5 / docs/task-list.json=6 / docs/concerns/task_006.md=1 / docs/concerns/task_007.md=2 / docs/concerns/task_009.md=4 / docs/concerns/task_012.md=2\ndefer G12 fixture の provenance（captured_from）と autoDetect の宣言 — 対象 0 件\n        tests/fixtures/<provider>/ がまだありません（task_018 / task_019 で作成）\nok    G13 ゲート定義ファイルのハッシュが基準値と一致 — 対象 38 件\n        ハッシュ対象 38 ファイル（sha256）\ndefer G14 直近 7 日の監査連鎖が audit:verify で検証済み — 対象 0 件\n        package.json に audit:verify がありません（task_018 で作成）\n\ngate:check — 15 ゲートを判定、0 ゲートが不合格（違反 0 件 / warn 26 件）",
+    "commit": "1f4acfdb9a495323b65ea8ad3dc562f4c991b0c2",
+    "ran_at": "2026-09-24T09:03:27Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:integrity",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:integrity\n> node scripts/gate-integrity.mjs\n\n      ハッシュ対象 38 ファイル（sha256）\n\ngate:integrity — 38 ファイルを照合、0 件の不一致",
+    "commit": "1f4acfdb9a495323b65ea8ad3dc562f4c991b0c2",
+    "ran_at": "2026-09-24T09:03:27Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "1f4acfdb9a495323b65ea8ad3dc562f4c991b0c2",
+    "ran_at": "2026-09-24T09:03:34Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run lint",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 lint\n> eslint .",
+    "commit": "1f4acfdb9a495323b65ea8ad3dc562f4c991b0c2",
+    "ran_at": "2026-09-24T09:03:35Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  18 passed (18)\n      Tests  600 passed (600)\n   Start at  09:03:41\n   Duration  28.80s (tests 94%, setup 3%, import 1%, transform 1%)",
+    "commit": "1f4acfdb9a495323b65ea8ad3dc562f4c991b0c2",
+    "ran_at": "2026-09-24T09:03:41Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:gate-meta",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:gate-meta\n> TZ=UTC vitest run tests/gates\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  2 passed (2)\n      Tests  33 passed (33)\n   Start at  09:04:10\n   Duration  12.67s (tests 98%, setup 1%)",
+    "commit": "1f4acfdb9a495323b65ea8ad3dc562f4c991b0c2",
+    "ran_at": "2026-09-24T09:04:10Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "bash scripts/ci/secrets-grep.sh",
+    "exit_code": 0,
+    "stdout_tail": "secrets-grep: 走査対象 .next/static .open-next\nsecrets-grep — 1189 ファイルを走査、違反 0 件",
+    "commit": "1f4acfdb9a495323b65ea8ad3dc562f4c991b0c2",
+    "ran_at": "2026-09-24T09:04:26Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "node scripts/ci/assert-release-gate.mjs",
+    "exit_code": 0,
+    "stdout_tail": "      ジョブ 2 件: release-gate / deploy\n      (a) 段 / (b) 段 / デプロイジョブ 1 件を検査\n\nassert-release-gate — /Users/noritakasawada/AI_P/cashapp/.github/workflows/release.yml を検査、違反 0 件",
+    "commit": "1f4acfdb9a495323b65ea8ad3dc562f4c991b0c2",
+    "ran_at": "2026-09-24T09:04:30Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "node /private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/yamlcheck.mjs /Users/noritakasawada/AI_P/cashapp",
+    "exit_code": 0,
+    "stdout_tail": "OK   e2e.yml  jobs: e2e\nOK   gate-integration.yml  jobs: integration\nOK   gate.yml  jobs: static, gate-meta, gate-integrity, labels, security, secrets, deps, acceptance, test-tamper-guard, date-boundary, adversarial\nOK   release.yml  jobs: release-gate, deploy\n\nworkflow 静的検証 — 4 ファイル、問題 0 件",
+    "commit": "1f4acfdb9a495323b65ea8ad3dc562f4c991b0c2",
+    "ran_at": "2026-09-24T09:04:34Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "manual_verification[0] GitHub Actions のログ記録: 実施できず deferred。git remote -v の出力が空で GitHub 上にリポジトリが存在しない（PO 判断待ち）。gh auth status は sawanori（GITHUB_TOKEN・scopes: delete:packages, repo, workflow, write:packages）で認証済みだが対象リポジトリが無いため gh api repos/:owner/:repo/branches/main/protection を叩けない。したがって check_039（branch protection）・check_130（release.yml の workflow_dispatch 実測）・check_131（test-tamper-guard の実 PR 実測）と done_definition の『PR で緑』系 4 項目はすべて未達。deferred: GitHub リモート作成後に実施（回収は task_010）。required に入れる status check の確定一覧は docs/concerns/task_009.md の 2 の表。",
+    "commit": "1f4acfdb9a495323b65ea8ad3dc562f4c991b0c2",
+    "ran_at": "2026-09-24T09:04:41Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "docs/gates/release-mode.json の作成を Write ツールで試み、scripts/deny-test-weakening.sh に遮断された（出力: 'deny-test-weakening.sh: BLOCKED / 対象: /Users/noritakasawada/AI_P/cashapp/docs/gates/release-mode.json / 理由: docs/gates/** は PO 専管のゲート定義の正本です（R-SEC-07 / F13）。AI は読むだけで書き換えられません'）。遮断はパスだけで判定されるため新規作成にも効く。迂回（.claude/settings.json やガード本体の編集）は行っていない。release.yml は当該ファイルが無い場合に fail-closed で先頭 exit 1 する実装にしてある。作成は PO に委ねる（既定値は docs/concerns/task_009.md の 1）。",
+    "commit": "1f4acfdb9a495323b65ea8ad3dc562f4c991b0c2",
+    "ran_at": "2026-09-24T09:04:48Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "scripts/ci/secrets-grep.sh の負の対照を実測。(1) 仕込み検出: 一時ディレクトリに .next/static/leak.js（内容 'const x = process.env.PEPPER;'）を置いて --root 指定で実行し、'secrets-grep FAIL シークレット名 PEPPER がビルド成果物にあります: .next/static/leak.js' を出して exit 1。(2) 走査対象 0 件: .next/static も .open-next も無いディレクトリで実行し '走査対象がありません' を出して exit 1（0 件を緑にしない）。(3) 実リポジトリのビルド成果物 1189 ファイルでは違反 0 件・exit 0。",
+    "commit": "1f4acfdb9a495323b65ea8ad3dc562f4c991b0c2",
+    "ran_at": "2026-09-24T09:04:53Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "date-boundary ジョブの限界を実装で確認。node_modules/vitest の worker env は {...process.env, ...options.env, ...ctx.config.env, ...project.config.env} の順でマージされる（dist/chunks/index.DzobfTyw.js 付近）ため、vitest.config.ts の test.env.TZ='UTC' がホストの TZ に勝つ。したがって TZ=Asia/Tokyo npx vitest run tests/unit は空振りする。代替として TZ を継承する node スクリプトで 2 TZ 比較を実測: TZ=UTC / TZ=Asia/Tokyo の node scripts/gate-check.mjs --json 出力が diff で完全一致（IDENTICAL・両方 exit 0）。この比較を date-boundary ジョブの本体にした。",
+    "commit": "1f4acfdb9a495323b65ea8ad3dc562f4c991b0c2",
+    "ran_at": "2026-09-24T09:04:59Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  }
+]
