@@ -1781,6 +1781,41 @@ GPT-6 Astra の敵対レビュー（high 1 / medium 3）。**4 件すべて HEAD
 - **[severity: low]** 監査連鎖のグローバルブロッキングロック（P-08）は §10-1 どおりの仕様
   実装で対応不要。Hyperdrive 経由の実測（A21）は task_035 完了後に deferred（C-014-2 / C-014-5）。
 
+## task_012（レビュー修正・3 周目）
+
+2 周目の修正（`10b4e7f` / `12fc3b9`）に G5 を掛け直した。**Gemini 2.5 Pro は PASS（指摘 0 件）**、
+**GPT-6 Astra は FAIL（high 1 / medium 1）**、merge は `reject`（実効 high 1）。2 件とも再現してから直した。
+
+### 決まったこと
+
+- **[high] `app_user` の作成・移行だけを助言ロックで直列化する**。2 周目に塞いだのは*逐次*の分裂
+  （移行後に旧設定の処理系がログインを受ける形）だけで、**同時**の分裂が残っていた。行がまだ無い
+  状態では `FOR UPDATE` は何も守らず、一意制約にも `pepper_version` が入っているため、v1 と v2 の
+  処理系が同じ人の初回ログインを同時に処理すると両方が「見つからない」と判断して別々の行を作れる。
+  現行版の行が見つかる**通常ログインではロックを取らない**まま、見つからなかったときだけ
+  `pg_advisory_xact_lock`（固定鍵 1 本）を取り、**ロック取得後に現行版を引き直す**形にした。
+  鍵を人ごとにできない理由は `line_user_ref` が PEPPER ごとに変わること（生 `sub` を鍵にするのは
+  L7 違反）。Postgres 側の前提は実 DB に `app_rw` で 2 セッション繋いで実測（保持中は `lock_timeout`
+  で拒否、`COMMIT` 後は即取得）。→ C-012-21
+- **[high の派生] 未知バージョンの検査を両方向へ広げた**。「自分より新しい版の行」だけを見ていた
+  検査を「**自分の設定に無い版の行**」（`pepper_version <> ALL(設定の版)`）に変え、古い版を捨てた
+  処理系（設定が `[2]` だけなのに DB に v1 の行がある）も新規作成に進めないようにした。→ C-012-21
+- **[medium] `gate:env` は基本文字列のエスケープを復号してから突き合わせる**。TOML の `"…"` は
+  `\uXXXX` / `\UXXXXXXXX` を解釈するので `"SUPABASE_SERVICE_ROLE_\U0000004BEY"` はキーとして
+  `SUPABASE_SERVICE_ROLE_KEY` に等しく、復号しない実装では検査を回避できた（フィクスチャで
+  exit 0 を再現）。`decodeTomlBasicString()` をキーと値の両方に掛ける。未知のエスケープ・
+  範囲外のコードポイント・サロゲート値はそのまま残す。→ C-012-22
+
+### 未解決
+
+- **[severity: low] 助言ロックは新規作成・移行の直列点になる**。通常ログインは通らないが、招待リンク
+  経由で新規ユーザーが一斉に初回ログインするとそこで待つ。同時初回ログインの規模は未実測 [不明]。
+  負荷試験は task_022。→ C-012-21
+- **[severity: medium] `gate-env-scope.mjs` の TOML 読み取りは依然として最小実装**（複数行文字列・
+  インラインテーブル・ドット付き quoted key は未対応）。→ C-012-19 / C-012-22
+- **[severity: medium] PEPPER 切替の窓ではログインが落ちうる**（fail-closed の代償）。手順書は
+  task_024。→ C-012-20
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -1919,3 +1954,5 @@ GPT-6 Astra の敵対レビュー（high 1 / medium 3）。**4 件すべて HEAD
 - 2026-09-24T13:42:51Z HEAD=7697e0e 決まったこと: task_005: concerns に 6 周目案（round6 累積パッチ）への参照を追記 / 未解決: 未コミット 44 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/concerns/task_013.md docs/constraints.json docs/decisions/ADR-009-id-token-single-use.md docs/review-log/task_004.json docs/review-log/task_012.json 
 - 2026-09-24T13:43:24Z HEAD=2d3db98 決まったこと: task_013(4周目・3巡目): 保存できた回も退避先に残し、null body で text() を呼ばない / 未解決: 未コミット 39 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/constraints.json docs/decisions/ADR-009-id-token-single-use.md docs/review-log/task_004.json docs/review-log/task_012.json docs/run-log/task_004.json 
 - 2026-09-24T13:45:26Z HEAD=2d3db98 決まったこと: task_013(4周目・3巡目): 保存できた回も退避先に残し、null body で text() を呼ばない / 未解決: 未コミット 42 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/concerns/task_012.md docs/constraints.json docs/decisions/ADR-009-id-token-single-use.md docs/gates/integrity-baseline.json docs/review-log/task_004.json 
+- 2026-09-24T13:47:24Z HEAD=9d393be 決まったこと: task_014: イベント・参加者 API と幹事画面（O-2〜O-6.5） / 未解決: 未コミット 11 件: docs/concerns/task_012.md docs/decisions/ADR-009-id-token-single-use.md docs/review-log/task_012.json docs/run-log/task_008.json docs/run-log/task_012.json scripts/gate-env-scope.mjs src/lib/auth/pepper.ts tests/unit/auth/pepper.test.ts 
+- 2026-09-24T13:48:25Z HEAD=9d393be 決まったこと: task_014: イベント・参加者 API と幹事画面（O-2〜O-6.5） / 未解決: 未コミット 16 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_012.md docs/decisions/ADR-009-id-token-single-use.md docs/gates/integrity-baseline.json docs/review-log/task_012.json docs/review-log/task_013.json docs/run-log/task_008.json 

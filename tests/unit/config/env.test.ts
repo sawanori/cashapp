@@ -381,4 +381,18 @@ describe("npm run gate:env（scripts/gate-env-scope.mjs）", () => {
     expect(result.output).toContain("ALLOW_PRIVILEGED_DB_ROLE must never be a runtime var");
     expect(result.output).toContain("PEPPER is a secret");
   });
+
+  /**
+   * 2 周目の敵対レビュー F-2 の回帰。
+   *
+   * TOML の基本文字列（`"…"`）はエスケープを解釈するので、
+   * `"SUPABASE_SERVICE_ROLE_\U0000004BEY"` は **キーとして** `SUPABASE_SERVICE_ROLE_KEY` に等しい。
+   * 引用符を外すだけで復号しない実装だと、この書き方で検査を回避できる。
+   */
+  it("引用符付きキーの Unicode エスケープを復号してから突き合わせる（2 周目 F-2）", () => {
+    const result = runGateEnv(path.join(FIXTURES, "quoted-keys-escaped"));
+    expect(result.exitCode).not.toBe(0);
+    expect(result.output).toContain("SUPABASE_SERVICE_ROLE_KEY must never be a runtime var");
+    expect(result.output).toContain("PEPPER is a secret");
+  });
 });

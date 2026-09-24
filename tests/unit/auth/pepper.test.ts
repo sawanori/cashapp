@@ -82,10 +82,11 @@ function createFakeSql(respond: (query: Query) => unknown[]): {
 }
 
 function kindOf(query: Query): string {
+  if (query.text.includes("pg_advisory_xact_lock")) return "advisory-lock";
   if (query.text.includes("INSERT INTO app_user")) return "insert";
   if (query.text.includes("UPDATE app_user")) return "migrate";
   if (query.text.includes("UPDATE participant_claim")) return "migrate-claim";
-  if (query.text.includes("pepper_version >")) return "newer-version-probe";
+  if (query.text.includes("<> ALL")) return "unknown-version-probe";
   if (query.text.includes("FROM app_user")) return "lookup";
   return "other";
 }
@@ -106,10 +107,13 @@ describe("resolveAppUser — 現行バージョンの行が見つかる場合", 
 
 describe("resolveAppUser — 旧バージョンからの移行", () => {
   it("旧版の行を見つけたら claim と app_user の両方を新版へ書き換える", async () => {
+    let currentLookups = 0;
     const { sql, queries } = createFakeSql((query) => {
       if (kindOf(query) === "lookup") {
         // params は [identity_scope, pepper_version, line_user_ref]。
-        return query.params[1] === 1 ? [appUserRow({ pepper_version: 1 })] : [];
+        if (query.params[1] === 1) return [appUserRow({ pepper_version: 1 })];
+        currentLookups += 1;
+        return [];
       }
       if (kindOf(query) === "migrate") return [appUserRow({ pepper_version: 2 })];
       return [];
@@ -119,18 +123,27 @@ describe("resolveAppUser — 旧バージョンからの移行", () => {
 
     expect(result.migratedFromPepperVersion).toBe(1);
     expect(result.user.pepperVersion).toBe(2);
-    expect(queries.map(kindOf)).toEqual(["lookup", "lookup", "migrate-claim", "migrate"]);
+    // 現行版の検索はロックの前後で 2 回（2 回目は待っているあいだの作成を拾うため）。
+    expect(currentLookups).toBe(2);
+    expect(queries.map(kindOf)).toEqual([
+      "lookup",
+      "advisory-lock",
+      "lookup",
+      "lookup",
+      "migrate-claim",
+      "migrate",
+    ]);
   });
 });
 
 describe("F-4: 旧 PEPPER だけを持つ処理系がアカウントを分裂させない", () => {
-  it("DB に現行より新しい pepper_version の行があれば、新規作成せず CONFIG_INVALID で止まる", async () => {
+  it("DB に自分の設定に無い pepper_version の行があれば、新規作成せず CONFIG_INVALID で止まる", async () => {
     // 旧 PEPPER（v1）だけを持つ処理系。DB には移行済み（v2）の行がある状態。
     const { sql, queries } = createFakeSql((query) => {
       switch (kindOf(query)) {
         case "lookup":
           return []; // v1 の参照値では見つからない（移行で上書きされているため）。
-        case "newer-version-probe":
+        case "unknown-version-probe":
           return [{ pepper_version: 2 }];
         default:
           return [appUserRow({ id: "22222222-2222-4222-8222-222222222222" })];
@@ -151,12 +164,29 @@ describe("F-4: 旧 PEPPER だけを持つ処理系がアカウントを分裂さ
     expect(queries.map(kindOf)).not.toContain("insert");
   });
 
-  it("現行より新しい行が無ければ、これまでどおり新規作成する", async () => {
+  it("未知バージョンの検査は設定にある版の一覧を渡す（旧版を捨てた処理系も止まる）", async () => {
+    const probes: Query[] = [];
+    const { sql } = createFakeSql((query) => {
+      if (kindOf(query) === "unknown-version-probe") {
+        probes.push(query);
+        return [];
+      }
+      if (kindOf(query) === "insert") return [{ ...appUserRow(), inserted: true }];
+      return [];
+    });
+
+    await resolveAppUser(sql, CONFIG_V1_V2, SUB);
+
+    expect(probes).toHaveLength(1);
+    expect(probes[0]?.params).toContainEqual([2, 1]);
+  });
+
+  it("自分の設定に無い版が無ければ、これまでどおり新規作成する", async () => {
     const { sql, queries } = createFakeSql((query) => {
       switch (kindOf(query)) {
         case "lookup":
           return [];
-        case "newer-version-probe":
+        case "unknown-version-probe":
           return [];
         case "insert":
           return [{ ...appUserRow(), inserted: true }];
@@ -169,7 +199,13 @@ describe("F-4: 旧 PEPPER だけを持つ処理系がアカウントを分裂さ
 
     expect(result.created).toBe(true);
     expect(result.migratedFromPepperVersion).toBeNull();
-    expect(queries.map(kindOf)).toEqual(["lookup", "newer-version-probe", "insert"]);
+    expect(queries.map(kindOf)).toEqual([
+      "lookup",
+      "advisory-lock",
+      "lookup",
+      "unknown-version-probe",
+      "insert",
+    ]);
   });
 
   it("新版（v2）を持つ処理系は、v2 の行があっても新規作成できる", async () => {
@@ -177,8 +213,8 @@ describe("F-4: 旧 PEPPER だけを持つ処理系がアカウントを分裂さ
       switch (kindOf(query)) {
         case "lookup":
           return [];
-        case "newer-version-probe":
-          return []; // current = 2 なので「2 より大きい版」は無い。
+        case "unknown-version-probe":
+          return []; // 設定は [2,1] なので、この 2 つ以外の版は無い。
         case "insert":
           return [{ ...appUserRow({ pepper_version: 2 }), inserted: true }];
         default:
@@ -191,10 +227,69 @@ describe("F-4: 旧 PEPPER だけを持つ処理系がアカウントを分裂さ
     expect(result.created).toBe(true);
     expect(queries.map(kindOf)).toEqual([
       "lookup",
+      "advisory-lock",
       "lookup",
-      "newer-version-probe",
+      "lookup",
+      "unknown-version-probe",
       "insert",
     ]);
+  });
+});
+
+/**
+ * 2 周目の敵対レビュー（GPT-6 Astra）F-1（high）の回帰。
+ *
+ * 「新版の存在確認と INSERT は直列化されていない。既存行が無い場合 FOR UPDATE は競合を防がず、
+ *   ON CONFLICT の対象にも pepper_version が含まれるため、同じ sub に対する v1・v2 の行を
+ *   両方作れる」——つまり *逐次* の分裂（F-4）を塞いでも、*同時* の分裂が残っていた。
+ */
+describe("F-1(2周目): 同時初回ログインでもアカウントが分裂しない", () => {
+  it("新規作成の経路は助言ロックを取り、ロックの前には INSERT も検査もしない", async () => {
+    const { sql, queries } = createFakeSql((query) => {
+      if (kindOf(query) === "insert") return [{ ...appUserRow(), inserted: true }];
+      return [];
+    });
+
+    await resolveAppUser(sql, CONFIG_V1, SUB);
+
+    const kinds = queries.map(kindOf);
+    const lockAt = kinds.indexOf("advisory-lock");
+    expect(lockAt).toBeGreaterThanOrEqual(0);
+    expect(kinds.indexOf("unknown-version-probe")).toBeGreaterThan(lockAt);
+    expect(kinds.indexOf("insert")).toBeGreaterThan(lockAt);
+  });
+
+  it("ロック待ちのあいだに別トランザクションが作った行を拾い、2 つ目を作らない", async () => {
+    let currentLookups = 0;
+    const { sql, queries } = createFakeSql((query) => {
+      switch (kindOf(query)) {
+        case "lookup":
+          currentLookups += 1;
+          // 1 回目（ロック取得前）は空。ロックを待っているあいだに別トランザクションが
+          // 作って commit したので、2 回目（ロック取得後）は見える。
+          return currentLookups >= 2 ? [appUserRow()] : [];
+        case "insert":
+          return [{ ...appUserRow(), inserted: true }];
+        default:
+          return [];
+      }
+    });
+
+    const result = await resolveAppUser(sql, CONFIG_V1, SUB);
+
+    expect(result.created).toBe(false);
+    expect(result.migratedFromPepperVersion).toBeNull();
+    expect(queries.map(kindOf)).toEqual(["lookup", "advisory-lock", "lookup"]);
+  });
+
+  it("現行版の行が最初から見つかる経路では助言ロックを取らない（通常ログインを直列化しない）", async () => {
+    const { sql, queries } = createFakeSql((query) =>
+      kindOf(query) === "lookup" ? [appUserRow()] : [],
+    );
+
+    await resolveAppUser(sql, CONFIG_V1, SUB);
+
+    expect(queries.map(kindOf)).not.toContain("advisory-lock");
   });
 });
 

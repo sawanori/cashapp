@@ -1,0 +1,28 @@
+# gate:env の回帰フィクスチャ（2 周目の敵対レビュー F-2, 2026-09-24）。
+#
+# TOML の基本文字列（"…"）はエスケープを解釈する。したがって
+# "SUPABASE_SERVICE_ROLE_KEY" は TOML 上のキーとして SUPABASE_SERVICE_ROLE_KEY に等しい。
+# 引用符を外すだけでエスケープを復号しない実装だと、この書き方で禁止名の検査を回避できる。
+#
+# 値はすべて合成のダミーである（実在の資格情報ではない）。
+
+name = "fixture-escaped-dev"
+main = ".open-next/worker.js"
+compatibility_date = "2026-09-24"
+
+[vars]
+APP_ENV = "development"
+
+[env.staging]
+name = "fixture-escaped-staging"
+
+[env.staging.vars]
+APP_ENV = "staging"
+"SUPABASE_SERVICE_ROLE_\U0000004BEY" = "synthetic-service-role-value-00000000"
+
+[env.production]
+name = "fixture-escaped-production"
+
+[env.production.vars]
+APP_ENV = "production"
+"PEPPE\U00000052" = "synthetic-pepper-value-0000000000000000"

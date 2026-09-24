@@ -169,7 +169,13 @@ function readTomlAssignments(text) {
     const assignment =
       /^(?:"([^"]*)"|'([^']*)'|([A-Za-z0-9_.-]+))\s*=\s*(.+)$/.exec(withoutComment);
     if (assignment === null) continue;
-    const key = assignment[1] ?? assignment[2] ?? assignment[3];
+    // 基本文字列（"…"）はエスケープを解釈する。復号しないと
+    // `"SUPABASE_SERVICE_ROLE_KEY"` のような書き方で名前の突き合わせを回避できる。
+    // リテラル文字列（'…'）はエスケープを持たないので、そのまま使う。
+    const key =
+      assignment[1] !== undefined
+        ? decodeTomlBasicString(assignment[1])
+        : (assignment[2] ?? assignment[3]);
     if (key === undefined) continue;
     out.push({
       path: tablePath,
@@ -202,10 +208,51 @@ function stripTomlComment(line) {
   return line;
 }
 
-/** 値の引用符を外す（`"…"` / `'…'` の両方。TOML はどちらも文字列リテラル）。 */
+/**
+ * TOML の基本文字列（`"…"`）のエスケープを復号する。
+ *
+ * 対応するのは仕様の一覧そのまま（`\b \t \n \f \r \" \\ \uXXXX \UXXXXXXXX`）。
+ * 未知のエスケープはそのまま残す（勝手に文字を落とさない）。
+ * リテラル文字列（`'…'`）はエスケープを持たないので、この関数に通さない。
+ */
+function decodeTomlBasicString(text) {
+  return text.replace(/\\(u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8}|[btnfr"\\])/g, (match, escape) => {
+    const kind = escape[0];
+    if (kind === "u" || kind === "U") {
+      const code = Number.parseInt(escape.slice(1), 16);
+      if (!Number.isFinite(code) || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff)) {
+        return match;
+      }
+      return String.fromCodePoint(code);
+    }
+    switch (kind) {
+      case "b":
+        return "\b";
+      case "t":
+        return "\t";
+      case "n":
+        return "\n";
+      case "f":
+        return "\f";
+      case "r":
+        return "\r";
+      case '"':
+        return '"';
+      case "\\":
+        return "\\";
+      default:
+        return match;
+    }
+  });
+}
+
+/**
+ * 値の引用符を外す（`"…"` / `'…'` の両方。TOML はどちらも文字列リテラル）。
+ * 基本文字列はエスケープも復号する（値の突き合わせを書き方で回避されないため）。
+ */
 function unquote(value) {
   if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
-    return value.slice(1, -1);
+    return decodeTomlBasicString(value.slice(1, -1));
   }
   if (value.length >= 2 && value.startsWith("'") && value.endsWith("'")) {
     return value.slice(1, -1);

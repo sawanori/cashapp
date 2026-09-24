@@ -40,6 +40,20 @@ export const IDENTITY_SCOPE = "line-provider-v1";
 /** LINE の userId の形（`U` + 32 桁 hex）。 */
 export const LINE_USER_ID_RE = /^U[0-9a-f]{32}$/;
 
+/**
+ * `app_user` の**作成・移行**だけを直列化する助言ロックの鍵（固定値）。
+ *
+ * ★ 人ごとの鍵にはできない。鍵を `line_user_ref` から作ると、PEPPER が違う処理系どうしで
+ *   鍵も変わってしまい（それが参照値の設計そのものである）、まさに守りたい競合
+ *   「v1 の処理系と v2 の処理系が同じ人を同時に作る」を直列化できない。生の `sub` を
+ *   鍵にするのは L7（生 userId を DB へ渡さない）に反する。したがって**全体で 1 本**にする。
+ *
+ * ★ 代わりに、通常ログイン（現行版の行が見つかる経路）ではロックを取らない。
+ *   ロックが要るのは初回ログインと pepper_version 移行だけで、どちらも 1 人につき数えるほどしか
+ *   起きない。トランザクション終了で自動解放される（`pg_advisory_xact_lock`）。
+ */
+export const APP_USER_WRITE_LOCK_KEY = 1_012_070_500;
+
 /** `line_user_ref = HMAC-SHA256(sub, PEPPER[version])`。戻り値は 32 バイト。 */
 export async function computeLineUserRef(sub: string, pepper: PepperVersion): Promise<Uint8Array> {
   const key = await crypto.subtle.importKey(
@@ -120,19 +134,30 @@ export interface ResolveAppUserResult {
  * 行が無ければ作る。**1 トランザクションで行う**（同時ログインで重複行を作らない）。
  *
  * 手順:
- *   1. 現行 PEPPER で参照値を作り、その行を探す。あればそれ。
- *   2. 無ければ、古いバージョンの PEPPER を新しい順に試して行を探す。
+ *   1. 現行 PEPPER で参照値を作り、その行を探す。あればそれ（**ここまでにロックは取らない**）。
+ *   2. 無ければ `pg_advisory_xact_lock` を取り、**現行版をもう一度引く**。
+ *      ロックを待っているあいだに別トランザクションが作っていれば、それを返す。
+ *   3. それでも無ければ、古いバージョンの PEPPER を新しい順に試して行を探す。
  *      見つかったら `app_user` と `participant_claim` を現行バージョンへ書き換える。
- *   3. 作る前に、**DB に自分より新しい `pepper_version` の行が無いか**を確かめる。
- *      あればこの処理系の設定が古い（下記）。
- *   4. それでも無ければ新規作成（`ON CONFLICT DO UPDATE` で同時実行に耐える）。
+ *   4. 作る前に、**DB に自分の設定に無い `pepper_version` の行が無いか**を確かめる。
+ *      あればこの処理系の設定が DB と食い違っている（下記）。
+ *   5. それでも無ければ新規作成（`ON CONFLICT DO UPDATE` で同時実行に耐える）。
  *
- * ★ 手順 3 の理由（敵対レビュー F-4, 2026-09-24）
+ * ★ 手順 2 の理由（2 周目の敵対レビュー F-1, 2026-09-24）
+ *   行がまだ無い状態では `FOR UPDATE` は何も守らず、一意制約 `(identity_scope,
+ *   pepper_version, line_user_ref)` にも `pepper_version` が入っている。したがって
+ *   **v1 の処理系と v2 の処理系が同じ人の初回ログインを同時に処理すると、両方とも
+ *   「見つからない」と判断して別々の行を作れてしまう**（手順 4 の検査も、相手がまだ
+ *   commit していなければ空を返す）。作成・移行の経路だけを助言ロックで直列化し、
+ *   ロック取得後に必ず引き直すことで、後から入った側は相手が作った行を見つける。
+ *
+ * ★ 手順 4 の理由（敵対レビュー F-4, 2026-09-24）
  *   移行は `line_user_ref` を**上書き**する（旧参照値は残らない）。そのため PEPPER 切替の
- *   最中に、新しい PEPPER をまだ持っていない処理系（古いデプロイ・巻き戻したデプロイ・
- *   secret の投入漏れ）へログインが届くと、その処理系は移行済みの行を発見できず、
- *   **同じ人の app_user をもう 1 つ作ってしまう**。以後、発行されるセッションの userId が
- *   処理系ごとに変わり、請求・claim・監査ログが 2 つのアカウントに割れる。
+ *   最中に、その版の PEPPER を持っていない処理系（新しい版を持たない古いデプロイ・
+ *   巻き戻したデプロイ・secret の投入漏れ／逆に古い版を捨てたデプロイ）へログインが届くと、
+ *   その処理系は該当の行を発見できず、**同じ人の app_user をもう 1 つ作ってしまう**。
+ *   以後、発行されるセッションの userId が処理系ごとに変わり、
+ *   請求・claim・監査ログが 2 つのアカウントに割れる。
  *   割れたアカウントは事後に自動では併合できない（旧参照値が残っていない）ので、
  *   **新規作成の側を止める**（fail-closed）。旧設定の処理系で既存ユーザーがログインできない
  *   状態は 503 として表に出し、運用（secret の投入・デプロイのやり直し）で解消する。
@@ -152,18 +177,40 @@ export async function resolveAppUser(
     legacyRefs.push({ version: pepper.version, ref: await computeLineUserRef(sub, pepper) });
   }
 
+  const configuredVersions = config.peppers.map((pepper) => pepper.version);
+
   return runInTransaction(sql, async (tx) => {
-    const existing = await tx<AppUserDbRow[]>`
-      SELECT id, session_epoch, status, pepper_version, identity_scope, line_env
-      FROM app_user
-      WHERE identity_scope = ${IDENTITY_SCOPE}
-        AND pepper_version = ${current.version}
-        AND line_user_ref = ${currentRef}
-      FOR UPDATE
-    `;
-    const currentRow = existing[0];
+    const findCurrent = async (): Promise<AppUserDbRow | undefined> => {
+      const rows = await tx<AppUserDbRow[]>`
+        SELECT id, session_epoch, status, pepper_version, identity_scope, line_env
+        FROM app_user
+        WHERE identity_scope = ${IDENTITY_SCOPE}
+          AND pepper_version = ${current.version}
+          AND line_user_ref = ${currentRef}
+        FOR UPDATE
+      `;
+      return rows[0];
+    };
+
+    const currentRow = await findCurrent();
     if (currentRow !== undefined) {
+      // 既存ユーザーの通常ログイン。ここでは助言ロックを取らない（全ログインを直列化しない）。
       return { user: toAppUserRow(currentRow), migratedFromPepperVersion: null, created: false };
+    }
+
+    // ★ ここから先は「移行」か「新規作成」であり、**行がまだ無い**。行が無いので
+    //   `FOR UPDATE` は何も守らず、`ON CONFLICT` の一意制約にも `pepper_version` が
+    //   入っているため、**別々の pepper_version を持つ 2 つの処理系が同時に走ると
+    //   同じ人の行を両方作れてしまう**（2 周目の敵対レビュー F-1）。
+    //   作成・移行の経路だけを助言ロックで直列化する。ロックはトランザクション終了で
+    //   自動的に解放される（`pg_advisory_xact_lock`）。
+    await tx`SELECT pg_advisory_xact_lock(${APP_USER_WRITE_LOCK_KEY})`;
+
+    // ★ ロックを待っているあいだに、別のトランザクションがこの人の行を作って commit した
+    //   可能性がある。取り直してから判断する（取り直さないと 2 つ目を作ってしまう）。
+    const afterLock = await findCurrent();
+    if (afterLock !== undefined) {
+      return { user: toAppUserRow(afterLock), migratedFromPepperVersion: null, created: false };
     }
 
     for (const legacy of legacyRefs) {
@@ -202,26 +249,29 @@ export async function resolveAppUser(
       };
     }
 
-    // ★ 新規作成の直前に「自分より新しい pepper_version の行」を探す（F-4）。
-    //   1 行でも見つかれば、この処理系の PEPPER 設定は DB より古い。ここで新しい行を作ると
-    //   同じ人のアカウントが割れるので、作らずに落とす。
-    const newer = await tx<{ pepper_version: number }[]>`
+    // ★ 新規作成の直前に「自分の設定に無い pepper_version の行」を探す（F-4）。
+    //   1 行でも見つかれば、この処理系の PEPPER 設定は DB の中身と食い違っている
+    //   （新しい版を持っていない＝設定が古い／古い版を捨てた＝移行元を引けない）。
+    //   どちらの向きでも、その版の行はこの処理系からは**見つけられない**ので、
+    //   ここで作ると同じ人のアカウントが割れる。作らずに落とす。
+    const unknownVersion = await tx<{ pepper_version: number }[]>`
       SELECT pepper_version
       FROM app_user
       WHERE identity_scope = ${IDENTITY_SCOPE}
-        AND pepper_version > ${current.version}
+        AND pepper_version <> ALL (${configuredVersions}::int[])
       LIMIT 1
     `;
-    if (newer.length > 0) {
+    if (unknownVersion.length > 0) {
       throw new AppError(
         ERROR_CODES.CONFIG_INVALID,
         503,
         "ただいま受け付けできません。時間をおいてお試しください。",
         {
           detail:
-            `app_user has rows at pepper_version ${newer[0]?.pepper_version} but this runtime's ` +
-            `current PEPPER version is ${current.version}: refusing to create a second account ` +
-            "for the same person (add the newer PEPPER to this runtime)",
+            `app_user has rows at pepper_version ${unknownVersion[0]?.pepper_version} which this ` +
+            `runtime cannot compute (configured versions: ${configuredVersions.join(",")}): ` +
+            "refusing to create a second account for the same person " +
+            "(give this runtime the missing PEPPER version)",
         },
       );
     }
