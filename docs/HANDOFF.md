@@ -2157,6 +2157,37 @@ medium 指摘が出た。
   `FOR UPDATE` で掴むが、`removeParticipant` 側が同じ行を掴まないため、削除と試行作成の
   競合はなお開いている。`removeParticipant` は task_014 の担当ファイルなので触っていない。
 
+## task_015（G5 round1 の指摘反映）
+
+`2a17eb5` に対する G5 round1 は **reject（有効票 2・欠票 0・実効 high 1）**。gemini 1 件・
+GPT-6 Astra 7 件のうち重複を除く 7 件を**全件修正**した（詳細は `docs/concerns/task_015.md` の
+「本ラウンドで直した敵対レビュー（G5 round1）の指摘」）。
+
+### 決まったこと
+
+- **名簿選択（participantId）で到達してよいのは、幹事が氏名の共有を許可した行だけ**にした
+  （GPT F-1・high）。それ以外の行へ届く手段は個別リンク（claimToken）のみ。満たさない場合は
+  404 にして、その ID が存在するかを応答で区別しない。
+- **期限の無い招待トークンは無効**（fail-closed）。NULL を「期限なし」にすると、期限を書き忘れた
+  経路のトークンだけが永久に生きるという逆転が起きる。発行経路（`POST /api/events` /
+  rotate）が必ず期限を書く。
+- **追加リクエストはその場でリクエスト者に結び付ける**。`requestAdd` が participant と
+  `participant_claim` を同一トランザクションで作り、`approve-add` は「その claim を有効にする
+  操作」になる。これで承認後の行き止まり（organizer_only なので候補一覧にも出ず個別リンクも無い）が
+  消え、第三者がその行を横取りすることも `participant_claim` の部分一意で構造的にできない。
+  check_088 の「approve-add で claim 可能になる」は「承認によってその claim が有効になり、
+  請求が見える・請求発行の対象になる」と解釈した。
+- 参加者側の 3 画面の導線を繋いだ: P-1 は `c`（個別リンク）を P-2 へ引き継ぎ、P-2 は候補一覧の前に
+  `GET /api/e/me` を引いて claim 済みなら P-3 へ送り、P-3 の「自分に送る」は
+  `<permanentLink>/e?t=<joinToken>` を組み立てる。
+- **verify_commands 5 本と lint がすべて exit 0**（`test:unit` 1099/1099 /
+  `test:integration` 193/193）。
+
+### 未解決
+
+- C-015-1〜7（`docs/concerns/task_015.md`）。C-015-1（未承認リクエストの印が暗黙）は残るが、
+  round1 の F-6 修正で「誤判定しても他人がその行を取れない」ところまでは閉じた。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -2346,3 +2377,6 @@ medium 指摘が出た。
 - 2026-09-24T15:27:06Z HEAD=2a2de03 決まったこと: task_014(G5 round2 の指摘反映): 敵対レビュー round2 の medium 4件を修正、3件は concerns へ / 未解決: 未コミット 6 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/task-list.json tests/gates/probe.test.ts 
 - 2026-09-24T15:59:55Z HEAD=2a2de03 決まったこと: task_014(G5 round2 の指摘反映): 敵対レビュー round2 の medium 4件を修正、3件は concerns へ / 未解決: 未コミット 46 件: docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/task-list.json src/app/api/events/route.ts src/components/InvoiceRow.tsx 
 - 2026-09-24T16:03:04Z HEAD=2a17eb5 決まったこと: task_015: 請求発行・招待トークン・参加者単位 claim・preview・自己申告（P-1〜P-3） / 未解決: 未コミット 28 件: docs/PROGRESS.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/task-list.json src/components/SummaryBar.tsx src/lib/payments/capabilities-static.ts docs/concerns/task_017.md 
+- 2026-09-24T16:03:53Z HEAD=c79db44 決まったこと: task_017: PaymentProvider IF v2・レジストリ・ManualConfirmAdapter・非自動ラベル 8 層・O-0 / 未解決: 未コミット 4 件: docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json tests/gates/probe.test.ts 
+- 2026-09-24T16:04:45Z HEAD=c79db44 決まったこと: task_017: PaymentProvider IF v2・レジストリ・ManualConfirmAdapter・非自動ラベル 8 層・O-0 / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json tests/gates/probe.test.ts 
+- 2026-09-24T16:19:45Z HEAD=0d9edd2 決まったこと: task_017(G5 round1): PROGRESS に反映結果を 1 行追記 / 未解決: 未コミット 18 件: docs/HANDOFF.md docs/concerns/task_015.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json src/app/(liff)/e/claim/page.tsx src/app/(liff)/e/me/page.tsx 

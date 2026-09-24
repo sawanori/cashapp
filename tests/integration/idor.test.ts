@@ -44,6 +44,7 @@ const {
   buildEventPreview,
   claimParticipant,
   getMyInvoice,
+  listCandidates,
   selfReport,
   unclaimParticipant,
 } = await import("@/lib/db/repositories/claims");
@@ -220,6 +221,40 @@ describe("招待トークンの寿命とローテーション（check_084）", (
       });
       expect((error as InstanceType<typeof AppError>).status).toBe(404);
     });
+  });
+
+  it("期限が記録されていないトークンは無効（fail-closed。round1 GPT F-2）", async () => {
+    await withRollback(appRw, async (tx) => {
+      const organizer = await insertUser(tx, uniq());
+      const created = await createEvent(tx, organizer.id, baseEventInput());
+      // `createEvent`（task_014 所有）は期限を書かない。発行経路（POST /api/events）が
+      // 期限を入れるまでは、そのトークンでイベントを解決できてはならない。
+      const rows = await tx<{ join_token_expires_at: Date | null }[]>`
+        SELECT join_token_expires_at FROM event WHERE id = ${created.event.id}
+      `;
+      expect(rows[0]?.join_token_expires_at).toBeNull();
+
+      const error = await expectFailure(tx, async (sp) => {
+        await resolveEventByJoinToken(asSql(sp), created.joinToken);
+      });
+      expect((error as InstanceType<typeof AppError>).status).toBe(404);
+
+      // 期限を入れれば同じトークンで解決できる（POST /api/events がこれを行う）。
+      await tx`
+        UPDATE event SET join_token_expires_at = now() + interval '90 days' WHERE id = ${created.event.id}
+      `;
+      const resolved = await resolveEventByJoinToken(asSql(tx), created.joinToken);
+      expect(resolved.id).toBe(created.event.id);
+    });
+  });
+
+  it("POST /api/events のルートが作成直後に期限を書き込む（静的）", () => {
+    const source = fs.readFileSync(
+      path.join(REPO_ROOT, "src", "app", "api", "events", "route.ts"),
+      "utf8",
+    );
+    expect(source).toContain("join_token_expires_at");
+    expect(source).toContain("JOIN_TOKEN_TTL_DAYS");
   });
 
   it("他人はローテーションできない（404。存在を教えない）", async () => {
@@ -410,6 +445,49 @@ describe("claim と unclaim（IDOR の本体）", () => {
         input: target,
       });
       expect(reclaimed.participantId).toBe(target.participantId);
+    });
+  });
+
+  it("氏名を共有していない行は participantId 経路で claim できない（round1 GPT F-1・high）", async () => {
+    await withRollback(appRw, async (tx) => {
+      const fixture = await setupEvent(tx);
+      const attacker = await insertUser(tx, uniq());
+      const target = fixture.participants[0]!;
+
+      // 幹事が氏名の共有を取り消した（既定の organizer_only に戻した）行。
+      await tx`UPDATE participant SET name_visibility = 'organizer_only' WHERE id = ${target.id}`;
+
+      // 候補一覧には出てこない。
+      const candidates = await listCandidates(asSql(tx), fixture.eventId);
+      expect(candidates.map((c) => c.id)).not.toContain(target.id);
+
+      // UUID を知っていても名簿選択の経路では到達できない（404。存在を区別しない）。
+      const error = await expectFailure(tx, async (sp) => {
+        await claimParticipant(sp, {
+          eventId: fixture.eventId,
+          lineUserRef: attacker.ref,
+          pepperVersion: 1,
+          input: { participantId: target.id, confirmed: true },
+        });
+      });
+      expect(error).toBeInstanceOf(AppError);
+      expect((error as InstanceType<typeof AppError>).status).toBe(404);
+
+      // 誰にも claim されていないこと（＝上の呼び出しで行が押さえられていない）。
+      const claims = await tx<{ n: string }[]>`
+        SELECT count(*)::text AS n FROM participant_claim
+        WHERE participant_id = ${target.id} AND released_at IS NULL
+      `;
+      expect(Number(claims[0]?.n)).toBe(0);
+
+      // 本人（個別リンクの持ち主）は claimToken 経路で claim できる。
+      const claimed = await claimParticipant(tx, {
+        eventId: fixture.eventId,
+        lineUserRef: attacker.ref,
+        pepperVersion: 1,
+        input: { claimToken: target.claimToken },
+      });
+      expect(claimed.via).toBe("claim_token");
     });
   });
 

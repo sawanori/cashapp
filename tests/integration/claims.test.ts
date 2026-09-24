@@ -290,7 +290,12 @@ describe("候補一覧（GET /api/e/candidates）", () => {
     await withRollback(appRw, async (tx) => {
       const fixture = await setupEvent(tx);
       const user = await insertUser(tx, uniq());
-      await requestAdd(tx, fixture.eventId, { displayLabel: "田中" });
+      const requester = await insertUser(tx, uniq());
+      await requestAdd(tx, fixture.eventId, {
+        lineUserRef: requester.ref,
+        pepperVersion: 1,
+        input: { displayLabel: "田中" },
+      });
       await tx`UPDATE participant SET name_visibility = 'participants' WHERE event_id = ${fixture.eventId}`;
 
       await claimParticipant(tx, {
@@ -514,32 +519,112 @@ describe("claim の 3 本と unclaim（check_003 / check_085）", () => {
 // ============================================================================
 
 describe("追加リクエストと承認（check_088）", () => {
-  it("未承認のうちは claim できず、approve-add 後に claim できる", async () => {
+  it("リクエストした本人はその場で自分の行に結び付き、承認前は awaiting_approval・承認後に請求が見える", async () => {
     await withRollback(appRw, async (tx) => {
       const fixture = await setupEvent(tx);
-      const user = await insertUser(tx, uniq());
+      const requester = await insertUser(tx, uniq());
 
-      const requested = await requestAdd(tx, fixture.eventId, { displayLabel: "田中" });
+      const requested = await requestAdd(tx, fixture.eventId, {
+        lineUserRef: requester.ref,
+        pepperVersion: 1,
+        input: { displayLabel: "田中" },
+      });
       expect(requested.awaitingApproval).toBe(true);
+
+      // 敵対レビュー round1 GPT F-6: 承認後に自分の行へ辿り着けない行き止まりを作らないため、
+      // リクエストと同時に claim を作る。
+      const pending = await getMyInvoice(asSql(tx), fixture.eventId, requester.ref);
+      expect(pending.participantId).toBe(requested.participantId);
+      expect(pending.state).toBe("awaiting_approval");
+
+      await approveAdd(tx, fixture.organizerId, fixture.eventId, requested.participantId);
+      const approved = await getMyInvoice(asSql(tx), fixture.eventId, requester.ref);
+      expect(approved.state).toBe("not_issued");
+
+      await issueInvoices(tx, fixture.organizerId, fixture.eventId);
+      const issued = await getMyInvoice(asSql(tx), fixture.eventId, requester.ref);
+      expect(issued.state).toBe("unpaid");
+      expect(issued.amountMinor).toBe(3000);
+    });
+  });
+
+  it("第三者は未承認の追加リクエストの行を claim できない（AWAITING_APPROVAL）", async () => {
+    await withRollback(appRw, async (tx) => {
+      const fixture = await setupEvent(tx);
+      const requester = await insertUser(tx, uniq());
+      const stranger = await insertUser(tx, uniq());
+
+      const requested = await requestAdd(tx, fixture.eventId, {
+        lineUserRef: requester.ref,
+        pepperVersion: 1,
+        input: { displayLabel: "田中" },
+      });
+      // 第三者からは（氏名共有の有無に関わらず）辿れない。
+      await tx`UPDATE participant SET name_visibility = 'participants' WHERE id = ${requested.participantId}`;
 
       const error = await expectFailure(tx, async (sp) => {
         await claimParticipant(sp, {
           eventId: fixture.eventId,
-          lineUserRef: user.ref,
+          lineUserRef: stranger.ref,
           pepperVersion: 1,
           input: { participantId: requested.participantId, confirmed: true },
         });
       });
       expect((error as InstanceType<typeof AppError>).code).toBe("AWAITING_APPROVAL");
 
+      // 行はリクエストした本人に結び付いたままで、第三者には移らない。
+      const holder = await tx<{ line_user_ref: Buffer }[]>`
+        SELECT line_user_ref FROM participant_claim
+        WHERE participant_id = ${requested.participantId} AND released_at IS NULL
+      `;
+      expect(holder.length).toBe(1);
+      expect(Buffer.from(holder[0]!.line_user_ref).equals(requester.ref)).toBe(true);
+    });
+  });
+
+  it("承認済みでも氏名を共有していない行は第三者が名簿選択で claim できない（404）", async () => {
+    await withRollback(appRw, async (tx) => {
+      const fixture = await setupEvent(tx);
+      const requester = await insertUser(tx, uniq());
+      const stranger = await insertUser(tx, uniq());
+      const requested = await requestAdd(tx, fixture.eventId, {
+        lineUserRef: requester.ref,
+        pepperVersion: 1,
+        input: { displayLabel: "田中" },
+      });
       await approveAdd(tx, fixture.organizerId, fixture.eventId, requested.participantId);
-      const claimed = await claimParticipant(tx, {
+
+      const error = await expectFailure(tx, async (sp) => {
+        await claimParticipant(sp, {
+          eventId: fixture.eventId,
+          lineUserRef: stranger.ref,
+          pepperVersion: 1,
+          input: { participantId: requested.participantId, confirmed: true },
+        });
+      });
+      expect((error as InstanceType<typeof AppError>).status).toBe(404);
+    });
+  });
+
+  it("既にこのイベントで claim 済みの人は追加リクエストできない（409）", async () => {
+    await withRollback(appRw, async (tx) => {
+      const fixture = await setupEvent(tx);
+      const user = await insertUser(tx, uniq());
+      await claimParticipant(tx, {
         eventId: fixture.eventId,
         lineUserRef: user.ref,
         pepperVersion: 1,
-        input: { participantId: requested.participantId, confirmed: true },
+        input: { participantId: fixture.participants[0]!.id, confirmed: true },
       });
-      expect(claimed.participantId).toBe(requested.participantId);
+
+      const error = await expectFailure(tx, async (sp) => {
+        await requestAdd(sp, fixture.eventId, {
+          lineUserRef: user.ref,
+          pepperVersion: 1,
+          input: { displayLabel: "田中" },
+        });
+      });
+      expect((error as InstanceType<typeof AppError>).code).toBe("ALREADY_CLAIMED");
     });
   });
 
@@ -547,7 +632,12 @@ describe("追加リクエストと承認（check_088）", () => {
     await withRollback(appRw, async (tx) => {
       const fixture = await setupEvent(tx);
       const stranger = await insertUser(tx, uniq());
-      const requested = await requestAdd(tx, fixture.eventId, { displayLabel: "田中" });
+      const requester = await insertUser(tx, uniq());
+      const requested = await requestAdd(tx, fixture.eventId, {
+        lineUserRef: requester.ref,
+        pepperVersion: 1,
+        input: { displayLabel: "田中" },
+      });
       const error = await expectFailure(tx, async (sp) => {
         await approveAdd(sp, stranger.id, fixture.eventId, requested.participantId);
       });

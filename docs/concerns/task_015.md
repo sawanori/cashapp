@@ -5,6 +5,40 @@
 
 ---
 
+## 本ラウンドで直した敵対レビュー（G5 round1）の指摘 — 残懸念ではない
+
+`2a17eb5` に対する round1 は **reject（有効票 2・実効 high 1）**。gemini 1 件・GPT-6 Astra 7 件の
+うち重複を除く 7 件すべてを直した。
+
+1. **[high] 氏名を共有していない参加者を、個別リンクなしで claim できた**（GPT F-1）。
+   `listCandidates` は `name_visibility='participants'` に絞るのに、`claimParticipant` の
+   `participantId` 経路はその条件を見ていなかった。participant の UUID を知る第三者が、候補一覧に
+   出ない行を claim して氏名・金額・支払状況を読めた。→ 名簿選択の経路に
+   `name_visibility='participants'` を必須にし、満たさなければ 404（存在を区別しない）。
+   回帰: `tests/integration/idor.test.ts`「氏名を共有していない行は participantId 経路で
+   claim できない」。
+2. **[medium] イベント作成時の招待トークンに期限が付かなかった**（GPT F-2）。`createEvent`
+   （task_014 所有）は `join_token_expires_at` を書かず、`resolveEventByJoinToken` は NULL を
+   「期限なし」として受理していた（＝書き忘れたトークンだけが永久に生きる）。→ NULL は**無効**に
+   変更（fail-closed）し、発行経路である `POST /api/events` が作成と同じトランザクションで
+   `now() + 90 days` を書くようにした。回帰 2 本（実 DB ＋ ルートの静的検査）。
+3. **[medium] 同意画面から進むと個別 claim トークンが失われた**（GPT F-3）。P-1 → P-2 の遷移 URL が
+   `t` しか運んでいなかった。→ `c` も引き継ぐ。
+4. **[medium] claim 済みの人が招待リンクを開き直すと候補 0 件の袋小路に落ちた**（GPT F-4）。
+   → P-2 は候補一覧の前に `GET /api/e/me` を引き、成功したら P-3 へ送る。
+5. **[medium] 「自分に送る」リンクがイベントを失っていた**（GPT F-5）。`liffPermanentLink` は
+   LIFF の基底 URL しか返さない。→ `<permanentLink>/e?t=<joinToken>` を組み立ててコピーする。
+6. **[medium] 追加リクエストが承認されても本人が自分の行へ辿り着けなかった**（GPT F-6）。承認後も
+   `organizer_only` のままで候補一覧に出ず、個別リンクも無いため行き止まりだった。→ `requestAdd`
+   が**同じトランザクションでリクエスト者の claim も作る**。承認は「その claim を有効にする操作」に
+   なり、`GET /api/e/me` が `awaiting_approval` → `not_issued` → `unpaid` と遷移する。
+   第三者はその行を claim できない（`participant_claim` の部分一意）。
+7. **[medium/low] 追加リクエストの同時実行で名簿の上限を超えられた**（GPT F-7 / gemini F-1）。
+   COUNT と INSERT の間に排他が無かった。→ `createParticipants` と同じ advisory lock
+   （同じ名前空間 8_314_202。守る資源が同じ event の名簿枠だから）を COUNT の前に取る。
+
+---
+
 ## C-015-1 「未承認の追加リクエスト」の印が暗黙的である
 
 - **指摘**: 参加者が `POST /api/e/request-add` で作った行と、幹事が登録した行を、
@@ -15,7 +49,9 @@
   実際、`tests/integration/setup.ts` の `insertBaseFixture` が作る参加者（claim トークン無し）は
   この判定では「未承認」に分類される。
 - **深刻度**: medium（現在の経路では誤判定は起きないが、将来「個別リンクを発行しない参加者」を
-  幹事が作れるようにした瞬間、その行が請求発行と候補一覧から静かに外れる）
+  幹事が作れるようにした瞬間、その行が請求発行と候補一覧から静かに外れる）。round1 の F-6 修正で
+  リクエスト者の claim を同時に作るようにしたため、**誤判定しても他人がその行を取れることは無い**
+  （影響は「請求が発行されない」方向に限定される）。
 - **対応案**: `participant` に `origin text NOT NULL DEFAULT 'organizer' CHECK (origin IN
   ('organizer','participant_request'))` を追加し、判定をその列 1 本にする。
   マイグレーションを伴うため本タスクの files_to_create の外。

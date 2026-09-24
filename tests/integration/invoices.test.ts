@@ -159,7 +159,13 @@ describe("請求の一括発行（O-6）", () => {
       const organizerId = await insertOrganizer(tx, uniq());
       const event = await createEvent(tx, organizerId, baseEventInput());
       await createParticipants(tx, organizerId, event.event.id, [{ displayLabel: "山田" }]);
-      const requested = await requestAdd(tx, event.event.id, { displayLabel: "田中" });
+      const requester = await insertOrganizer(tx, uniq());
+      const requesterRef = Buffer.from(`requester-${requester}`);
+      const requested = await requestAdd(tx, event.event.id, {
+        lineUserRef: requesterRef,
+        pepperVersion: 1,
+        input: { displayLabel: "田中" },
+      });
 
       const first = await issueInvoices(tx, organizerId, event.event.id);
       expect(first.created).toBe(1);

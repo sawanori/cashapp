@@ -61,10 +61,10 @@ function formatDate(iso: string | null): string {
   return date.toLocaleDateString("ja-JP");
 }
 
-/** 招待リンクのクエリからトークンを 1 度だけ読む。 */
-function readJoinTokenFromLocation(): string | null {
+/** 招待リンクのクエリを 1 度だけ読む（`t` = イベントの招待トークン、`c` = 個別 claim トークン）。 */
+function readQuery(name: string): string | null {
   if (typeof window === "undefined") return null;
-  const value = new URL(window.location.href).searchParams.get("t");
+  const value = new URL(window.location.href).searchParams.get(name);
   if (value === null || value.trim().length === 0) return null;
   return value.trim();
 }
@@ -74,6 +74,7 @@ export default function ParticipantLandingPage(): ReactNode {
   const [phase, setPhase] = useState<Phase>("loading");
   const [preview, setPreview] = useState<PreviewBody["preview"] | null>(null);
   const [joinToken, setJoinToken] = useState<string | null>(null);
+  const [claimToken, setClaimToken] = useState<string | null>(null);
   const [permanentLink, setPermanentLink] = useState<string | null>(null);
   const [requestId, setRequestId] = useState<string | undefined>(undefined);
   const [agreed, setAgreed] = useState(false);
@@ -86,12 +87,17 @@ export default function ParticipantLandingPage(): ReactNode {
       const liffId = readLiffIdFromDocument();
       if (liffId !== null && !cancelled) setPermanentLink(liffPermanentLink(liffId));
 
-      const token = readJoinTokenFromLocation();
+      const token = readQuery("t");
       if (token === null) {
         if (!cancelled) setPhase("invalid_link");
         return;
       }
-      if (!cancelled) setJoinToken(token);
+      if (!cancelled) {
+        setJoinToken(token);
+        // 個別リンク（`c`）は P-2 へ引き継ぐ。落とすと個別リンクでの自動確定が成立しない
+        // （敵対レビュー round1 GPT F-3）。
+        setClaimToken(readQuery("c"));
+      }
 
       let response: Response;
       try {
@@ -190,8 +196,12 @@ export default function ParticipantLandingPage(): ReactNode {
       return;
     }
 
-    router.push(`/e/claim?t=${encodeURIComponent(joinToken)}`);
-  }, [agreed, joinToken, router]);
+    const next =
+      claimToken === null
+        ? `/e/claim?t=${encodeURIComponent(joinToken)}`
+        : `/e/claim?t=${encodeURIComponent(joinToken)}&c=${encodeURIComponent(claimToken)}`;
+    router.push(next);
+  }, [agreed, claimToken, joinToken, router]);
 
   if (phase === "loading" || phase === "joining") return <StateView state="loading" />;
   if (phase === "outside_line") {

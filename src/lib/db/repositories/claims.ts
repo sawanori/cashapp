@@ -338,6 +338,7 @@ interface ClaimTargetRow {
   readonly event_id: string;
   readonly display_label: string | null;
   readonly status: string;
+  readonly name_visibility: string;
   readonly claim_token_hash: Buffer | null;
   readonly confirmed_by_organizer_at: Date | null;
 }
@@ -377,7 +378,8 @@ export async function claimParticipant(
   if (input.claimToken !== undefined) {
     const hash = await hashToken(input.claimToken);
     const rows = await tx<ClaimTargetRow[]>`
-      SELECT id, event_id, display_label, status, claim_token_hash, confirmed_by_organizer_at
+      SELECT id, event_id, display_label, status, name_visibility, claim_token_hash,
+             confirmed_by_organizer_at
       FROM participant
       WHERE claim_token_hash = ${hash} AND event_id = ${eventId}
       FOR UPDATE
@@ -389,7 +391,8 @@ export async function claimParticipant(
       throw confirmationRequired("confirmed must be true when claiming by participantId");
     }
     const rows = await tx<ClaimTargetRow[]>`
-      SELECT id, event_id, display_label, status, claim_token_hash, confirmed_by_organizer_at
+      SELECT id, event_id, display_label, status, name_visibility, claim_token_hash,
+             confirmed_by_organizer_at
       FROM participant
       WHERE id = ${input.participantId ?? null} AND event_id = ${eventId}
       FOR UPDATE
@@ -400,13 +403,11 @@ export async function claimParticipant(
 
   if (target === undefined) throw participantNotFound();
   if (target.status !== "active") throw participantNotFound("participant is removed");
-  if (target.claim_token_hash === null && target.confirmed_by_organizer_at === null) {
-    // 追加リクエストの行。幹事が承認するまで claim できない（check_088）。
-    throw awaitingApproval("participant is a pending add request");
-  }
 
   // 同じ人が同じ参加者をもう一度 claim した場合は成功として扱う（応答を取りこぼした後の
   // 再送で 409 を返さないため）。他人の claim・別の参加者への claim は下の UNIQUE で落ちる。
+  // ★ この判定は下の 2 つのガードより**前**に置く: 追加リクエストの本人（`requestAdd` が
+  //   同時に claim を作る）が自分の行へ再送したとき、承認待ちでも 409 にしないため。
   const mine = await tx<{ participant_id: string }[]>`
     SELECT participant_id FROM participant_claim
     WHERE event_id = ${eventId} AND line_user_ref = ${lineUserRef} AND released_at IS NULL
@@ -418,6 +419,21 @@ export async function claimParticipant(
       return { participantId: target.id, displayLabel: target.display_label, via };
     }
     throw alreadyClaimed("this user already claimed another participant in this event");
+  }
+
+  if (target.claim_token_hash === null && target.confirmed_by_organizer_at === null) {
+    // 追加リクエストの行。本人（`requestAdd` が作った claim の持ち主）は上で返っているので、
+    // ここに来るのは第三者だけ。幹事が承認するまで claim できない（check_088）。
+    throw awaitingApproval("participant is a pending add request");
+  }
+
+  // ★ 敵対レビュー round1 GPT F-1（high）: 名簿選択（participantId）の経路は、幹事が氏名の共有を
+  //   許可した行にしか到達してはならない。許可していない行（既定の `organizer_only`）へ届く手段は
+  //   個別リンク（claimToken）だけである。この検査が無いと、participant の UUID を知った第三者が
+  //   `GET /api/e/candidates` に出てこない行を claim でき、氏名・金額・支払状況を読めてしまう。
+  //   404 にするのは「その ID が存在するか」を応答で区別しないため。
+  if (via === "roster" && target.name_visibility !== "participants") {
+    throw participantNotFound("participant is not selectable from the roster");
   }
 
   try {
@@ -468,17 +484,42 @@ export interface RequestAddResult {
 }
 
 /**
+ * `requestAdd` の COUNT → 上限判定 → INSERT を event 単位で直列化する advisory lock の名前空間
+ * （敵対レビュー round1 gemini F-1 / GPT F-7）。`createParticipants`
+ * （`PARTICIPANT_CREATE_LOCK_NAMESPACE`）と同じ理由・同じ方針だが、別の名前空間にすると
+ * 幹事の一括登録と参加者の追加リクエストが互いをブロックしないまま同じ残り枠を読めてしまうため、
+ * **`participants.ts` と同じ 8_314_202 を使う**（同じ資源 = event の名簿枠を守るロックである）。
+ */
+const PARTICIPANT_CREATE_LOCK_NAMESPACE = 8_314_202;
+
+/**
  * 名簿への追加をリクエストする（幹事承認制。P-2「候補 0 件」）。
  *
  * ★ 作る行は `claim_token_hash IS NULL` かつ `confirmed_by_organizer_at IS NULL`。
  *   幹事が登録した参加者は必ず `claim_token_hash` を持つ（task_014 の `createParticipants`）ので、
  *   この 2 つが同時に NULL であることが「未承認の追加リクエスト」の印になる。
+ *
+ * ★ **同じトランザクションでリクエストした本人に claim を結び付ける**
+ *   （敵対レビュー round1 GPT F-6）。こうしないと、承認後もその行は
+ *   `name_visibility='organizer_only'` のまま候補一覧に出ず、個別リンクも無いため、
+ *   本人が自分の行へ辿り着けない行き止まりになる。claim を先に作っておけば、承認は
+ *   「その claim を有効にする操作」になり、`GET /api/e/me` は承認前 `awaiting_approval`、
+ *   承認後 `not_issued` / `unpaid` と自然に遷移する。第三者はこの行を claim できない
+ *   （`participant_claim` の部分一意で participant ごとに 1 件しか持てない）。
  */
 export async function requestAdd(
   tx: postgres.TransactionSql,
   eventId: string,
-  input: RequestAddInput,
+  params: {
+    readonly lineUserRef: Buffer;
+    readonly pepperVersion: number;
+    readonly input: RequestAddInput;
+  },
 ): Promise<RequestAddResult> {
+  // COUNT の前に event 単位でブロッキングロックを取り、並行リクエストが同じ残り枠を
+  // 同時に読まないようにする（round1 gemini F-1 / GPT F-7）。
+  await tx`SELECT pg_advisory_xact_lock(${PARTICIPANT_CREATE_LOCK_NAMESPACE}::int4, hashtext((${eventId})::text))`;
+
   const countRows = await tx<{ n: string }[]>`
     SELECT count(*)::text AS n FROM participant WHERE event_id = ${eventId} AND status = 'active'
   `;
@@ -486,13 +527,28 @@ export async function requestAdd(
     throw rosterLimitExceeded(`roster already has ${MAX_PARTICIPANTS_PER_EVENT} participants`);
   }
 
+  const existing = await tx<{ participant_id: string }[]>`
+    SELECT participant_id FROM participant_claim
+    WHERE event_id = ${eventId} AND line_user_ref = ${params.lineUserRef} AND released_at IS NULL
+    LIMIT 1
+  `;
+  if (existing.length > 0) {
+    throw alreadyClaimed("this user already has an active claim in this event");
+  }
+
   const rows = await tx<{ id: string; display_label: string | null }[]>`
     INSERT INTO participant (event_id, display_label)
-    VALUES (${eventId}, ${input.displayLabel})
+    VALUES (${eventId}, ${params.input.displayLabel})
     RETURNING id, display_label
   `;
   const row = rows[0];
   if (row === undefined) throw new Error("participant insert returned no row");
+
+  await tx`
+    INSERT INTO participant_claim (event_id, participant_id, line_user_ref, pepper_version)
+    VALUES (${eventId}, ${row.id}, ${params.lineUserRef}, ${params.pepperVersion})
+  `;
+
   return { participantId: row.id, displayLabel: row.display_label, awaitingApproval: true };
 }
 

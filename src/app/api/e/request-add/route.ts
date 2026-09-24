@@ -104,7 +104,11 @@ export async function POST(request: Request): Promise<Response> {
     const dbHandle = db;
 
     const created = await dbHandle.sql.begin(async (tx) => {
-      const result = await requestAdd(tx, event.id, input);
+      const result = await requestAdd(tx, event.id, {
+        lineUserRef: userRef.lineUserRef,
+        pepperVersion: userRef.pepperVersion,
+        input,
+      });
       await appendAuditLog(tx, {
         actorType: "participant",
         actorRef: userRef.lineUserRef,

@@ -14,6 +14,7 @@ import { loadAppConfig, type RawEnv } from "@/lib/config/env";
 import { createEvent, listOrganizerEvents, parseCreateEventBody } from "@/lib/db/repositories/events";
 import { createVerifiedDbClient, type DbEnv } from "@/lib/db/client";
 import { AppError, ERROR_CODES, badRequest, csrfInvalid, newRequestId, toErrorResponse } from "@/lib/errors";
+import { JOIN_TOKEN_TTL_DAYS } from "@/lib/join-token";
 import {
   IDEMPOTENCY_HEADER,
   computeRequestHash,
@@ -62,6 +63,15 @@ export async function POST(request: Request): Promise<Response> {
         { sql: tx, userRef, endpoint: "POST /api/events", key: idempotencyKey, requestHash },
         async () => {
           const result = await createEvent(tx, session.userId, input);
+
+          // ★ 敵対レビュー round1 GPT F-2: `createEvent`（task_014 所有）は招待トークンを
+          //   期限なしで書く。`src/lib/join-token.ts` は期限の無いトークンを無効として扱う
+          //   （fail-closed）ので、発行経路であるここで必ず期限を入れる。
+          await tx`
+            UPDATE event
+            SET join_token_expires_at = now() + ${`${JOIN_TOKEN_TTL_DAYS} days`}::interval
+            WHERE id = ${result.event.id}
+          `;
 
           await appendAuditLog(tx, {
             actorType: "organizer",

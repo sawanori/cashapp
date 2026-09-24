@@ -198,8 +198,11 @@ interface JoinTokenEventRow {
 /**
  * 招待トークンからイベントを引く。無効・期限切れ・キャンセル済みはすべて 404。
  *
- * `join_token_expires_at` が NULL の行は「期限なし」とみなす（task_014 が作った既存イベントは
- * NULL のまま。以後 `mintJoinToken` / `rotateJoinToken` を通った行は必ず期限を持つ）。
+ * ★ `join_token_expires_at` が **NULL の行は無効**として扱う（fail-closed。敵対レビュー
+ *   round1 GPT F-2）。NULL を「期限なし」とすると、期限を書き忘れた経路のトークンだけが
+ *   永久に生き続ける — つまり**書き忘れが最も長寿命のトークンを作る**という逆転が起きる。
+ *   トークンを発行する経路（`POST /api/events` / `POST /api/events/:id/rotate-join-token`）は
+ *   必ず `join_token_expires_at` を書くこと。
  */
 export async function resolveEventByJoinToken(
   sql: postgres.Sql,
@@ -225,7 +228,10 @@ export async function resolveEventByJoinToken(
   if (!timingSafeEqualBytes(row.join_token_hash, hash)) {
     throw joinTokenInvalid("join token hash mismatch");
   }
-  if (row.join_token_expires_at !== null && row.join_token_expires_at.getTime() <= now.getTime()) {
+  if (row.join_token_expires_at === null) {
+    throw joinTokenInvalid("join token has no expiry recorded");
+  }
+  if (row.join_token_expires_at.getTime() <= now.getTime()) {
     throw joinTokenInvalid("join token has expired");
   }
   if (row.status === "canceled") {
@@ -323,8 +329,9 @@ export async function getJoinTokenStatus(
     eventId: row.id,
     expiresAt: row.join_token_expires_at,
     version: row.join_token_version,
+    // 期限が記録されていない行は「使えない＝期限切れ」として見せる（resolve 側と同じ fail-closed）。
     expired:
-      row.join_token_expires_at !== null &&
+      row.join_token_expires_at === null ||
       row.join_token_expires_at.getTime() <= now.getTime(),
     tokenRetrievable: false,
   };

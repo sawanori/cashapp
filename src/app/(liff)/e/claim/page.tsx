@@ -152,6 +152,23 @@ export default function ParticipantClaimPage(): ReactNode {
       }
       csrfTokenRef.current = authBody.csrfToken;
 
+      // 既に claim 済みなら自分の請求へ戻す（敵対レビュー round1 GPT F-4）。
+      // これが無いと、claim 済みの人が元の招待リンクを開き直したときに候補が 0 件になり、
+      // 「名簿への追加をリクエスト」という誤った案内に落ちる。
+      try {
+        const meResponse = await fetch("/api/e/me", {
+          method: "GET",
+          headers: { "X-Join-Token": token },
+        });
+        if (cancelled) return;
+        if (meResponse.ok) {
+          router.push(`/e/me?t=${encodeURIComponent(token)}`);
+          return;
+        }
+      } catch {
+        // 判定できなければ通常の候補一覧へ進む（claim 自体は 409 で守られる）。
+      }
+
       // 個別リンク（claim トークン）なら確認ダイアログ無しで確定する。
       const claimToken = readQuery("c");
       if (claimToken !== null) {
@@ -193,7 +210,7 @@ export default function ParticipantClaimPage(): ReactNode {
     return () => {
       cancelled = true;
     };
-  }, [claim]);
+  }, [claim, router]);
 
   const requestAdd = useCallback(async () => {
     if (joinToken === null || csrfTokenRef.current === null) return;
@@ -221,8 +238,11 @@ export default function ParticipantClaimPage(): ReactNode {
     setSubmitting(false);
 
     if (response.ok) {
+      // リクエストした時点で自分の行として押さえられている（サーバーが claim も作る）。
+      // 自分の請求画面へ送り、そこで「幹事の確認待ち」を見せる（round1 GPT F-6）。
       setAwaitingApproval(true);
       setMessage(null);
+      router.push(`/e/me?t=${encodeURIComponent(joinToken)}`);
       return;
     }
     const failure = (await response.json().catch(() => ({}))) as {
@@ -233,7 +253,7 @@ export default function ParticipantClaimPage(): ReactNode {
     setMessage(
       typeof failure.message === "string" ? failure.message : "受け付けられませんでした。",
     );
-  }, [joinToken, requestedLabel]);
+  }, [joinToken, requestedLabel, router]);
 
   if (phase === "loading") return <StateView state="loading" />;
   if (phase === "outside_line") {

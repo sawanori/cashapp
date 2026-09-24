@@ -187,15 +187,25 @@ export default function ParticipantInvoicePage(): ReactNode {
     [joinToken, load],
   );
 
+  /**
+   * 自分に送るリンク。**招待リンクそのもの**（`/e?t=...`）を渡す
+   * （敵対レビュー round1 GPT F-5: パーマネントリンクだけをコピーすると、どのイベントの
+   * どの画面かが失われて開き直せない）。着地先の P-1 は claim 済みなら P-3 へ送り返す。
+   */
+  const selfSendLink =
+    permanentLink === null || joinToken === null
+      ? null
+      : `${permanentLink}/e?t=${encodeURIComponent(joinToken)}`;
+
   const copyPermanentLink = useCallback(async () => {
-    if (permanentLink === null) return;
+    if (selfSendLink === null) return;
     try {
-      await navigator.clipboard.writeText(permanentLink);
+      await navigator.clipboard.writeText(selfSendLink);
       setCopied(true);
     } catch {
       setMessage("コピーできませんでした。リンクを長押しして選択してください。");
     }
-  }, [permanentLink]);
+  }, [selfSendLink]);
 
   if (phase === "loading") return <StateView state="loading" />;
   if (phase === "outside_line") {
@@ -281,7 +291,7 @@ export default function ParticipantInvoicePage(): ReactNode {
         <button
           type="button"
           className="tap-target"
-          disabled={permanentLink === null}
+          disabled={selfSendLink === null}
           onClick={() => {
             void copyPermanentLink();
           }}
@@ -291,9 +301,9 @@ export default function ParticipantInvoicePage(): ReactNode {
         {copied ? (
           <p role="status">リンクをコピーしました。LINE のトークに貼り付けて自分に送れます。</p>
         ) : null}
-        {permanentLink === null ? null : (
+        {selfSendLink === null ? null : (
           <p className="participant-invoice__permanent-link">
-            <a href={permanentLink} rel="noreferrer" target="_blank">
+            <a href={selfSendLink} rel="noreferrer" target="_blank">
               LINE で開く
             </a>
           </p>
