@@ -100,6 +100,28 @@ describe("record-evidence.mjs — evidence は実行結果から機械的に書�
     expect(wrong.status).toBe(2);
   });
 
+  it("同じ script を参照する複数の check は 1 回の実行結果を共有し、shared_with に元の check を残す", () => {
+    const fx = fixture();
+    const counter = path.join(fx.dir, "count.txt");
+    const pkg = JSON.parse(readFileSync(fx.pkg, "utf8"));
+    pkg.scripts["fx:count"] = `node -e "require('fs').appendFileSync(${JSON.stringify(counter)}, 'x')"`;
+    writeFileSync(fx.pkg, JSON.stringify(pkg));
+    const doc = JSON.parse(readFileSync(fx.checks, "utf8"));
+    doc.checks.push(
+      { id: "check_c1", manual_or_automated: "automated", verification_method: "npm run fx:count", evidence: null },
+      { id: "check_c2", manual_or_automated: "automated", verification_method: "npm run fx:count（別の観点）", evidence: null },
+    );
+    writeFileSync(fx.checks, JSON.stringify(doc));
+    const r = run(["--check", "check_c1", "--check", "check_c2"], fx);
+    expect(r.status).toBe(0);
+    expect(readFileSync(counter, "utf8")).toBe("x");
+    const [c1, c2] = r.doc.checks.filter((c: { id: string }) => c.id === "check_c1" || c.id === "check_c2");
+    expect(c1.evidence.commit).toBe(head);
+    expect(c1.evidence.shared_with).toBeUndefined();
+    expect(c2.evidence.shared_with).toBe("check_c1");
+    expect(c2.evidence.output_sha256).toBe(c1.evidence.output_sha256);
+  });
+
   it("--dry-run は何も書かない", () => {
     const fx = fixture();
     const r = run(["--check", "check_ok", "--dry-run"], fx);

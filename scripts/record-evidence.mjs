@@ -152,6 +152,7 @@ function main() {
   }
 
   const byId = new Map(doc.checks.map((c) => [c.id, c]));
+  const scriptRuns = new Map();
   let violations = 0;
   let failed = 0;
   let recorded = 0;
@@ -172,8 +173,17 @@ function main() {
     if (!name) { process.stderr.write(`record-evidence: ${id} の verification_method から npm run <script> を読み取れません: ${c.verification_method}\n`); violations += 1; continue; }
     if (!(name in scripts)) { process.stderr.write(`record-evidence: ${id} の npm script "${name}" が ${pkgPath} にありません（記録しない）\n`); violations += 1; continue; }
     if (o.dryRun) { process.stdout.write(`${id}: npm run ${name}（dry-run）\n`); continue; }
-    process.stdout.write(`${id}: npm run ${name} …`);
-    const r = runNpmScript(name, path.dirname(pkgPath));
+    // 同じ HEAD・同じ script の結果は 1 回の実行を共有する（133 件の check が十数種の script を参照
+    // するため、毎回走らせると test:unit だけで 1 時間以上かかる）。共有した事実は shared_with に残す。
+    let r = scriptRuns.get(name);
+    if (r) {
+      process.stdout.write(`${id}: npm run ${name}（同一 HEAD での ${r.first_check} の実行結果を共有）\n`);
+    } else {
+      process.stdout.write(`${id}: npm run ${name} …`);
+      r = { ...runNpmScript(name, path.dirname(pkgPath)), first_check: id };
+      scriptRuns.set(name, r);
+      process.stdout.write(` exit ${r.exit_code}（${r.duration_ms} ms）\n`);
+    }
     const masked = maskSecrets(r.output);
     const ev = {
       kind: "automated",
@@ -188,10 +198,10 @@ function main() {
       output_tail: masked.slice(-400),
     };
     if (r.error) ev.spawn_error = r.error;
+    if (r.first_check !== id) ev.shared_with = r.first_check;
     c.evidence = ev;
     recorded += 1;
     if (r.exit_code !== 0) failed += 1;
-    process.stdout.write(` exit ${r.exit_code}（${r.duration_ms} ms）\n`);
   }
 
   if (!o.dryRun && recorded > 0) {
