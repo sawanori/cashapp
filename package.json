@@ -36,7 +36,8 @@
     "review:validate": "node scripts/validate-findings.mjs",
     "review:merge": "bash scripts/merge-review.sh",
     "build:web-only": "node scripts/build-web-only.mjs",
-    "evidence:record": "node scripts/record-evidence.mjs"
+    "evidence:record": "node scripts/record-evidence.mjs",
+    "test:conformance": "TZ=UTC vitest run tests/conformance"
   },
   "private": true,
   "engines": {

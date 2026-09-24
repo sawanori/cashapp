@@ -21,9 +21,8 @@ export default defineConfig({
     // stay independently scoped — both dirs must be listed here so that
     // positional filter is discoverable at all. `tests/e2e/**` and
     // `tests/a11y/**` are Playwright's (`*.spec.ts`, different test runner);
-    // `tests/contract/**` / `tests/conformance/**` belong to later tasks
-    // (task_018/019) and are added to `include` there, not here.
-    // `tests/integration/**` was added by task_011.
+    // `tests/contract/**` belongs to task_018 and is added to `include` there,
+    // not here. `tests/integration/**` was added by task_011.
     include: [
       "tests/unit/**/*.test.ts",
       "tests/unit/**/*.test.tsx",
@@ -36,6 +35,8 @@ export default defineConfig({
       // vitest の位置指定フィルタは include に無いファイルを拾えないので、`vitest run tests/gates`
       // を成立させるにはここに載せる必要がある（task_011 の tests/integration と同じ理由）。
       "tests/gates/**/*.test.ts",
+      // task_019: `npm run test:conformance`（ProviderConformanceKit）。同じ理由で include に必要。
+      "tests/conformance/**/*.test.ts",
     ],
     exclude: [
       "node_modules/**",
@@ -45,7 +46,6 @@ export default defineConfig({
       "tests/e2e/**",
       "tests/a11y/**",
       "tests/contract/**",
-      "tests/conformance/**",
     ],
     // Belt-and-suspenders alongside the `TZ=UTC` prefix on the npm script:
     // date-boundary logic in this app must be independent of the host TZ.

@@ -14,5 +14,77 @@
     "commit": "692f24df09832dcc03512a29ed2da3cbbc161e6c",
     "ran_at": "2026-09-24T16:52:16Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 81 file(s) read)\nok    L2 (forbid, 81 file(s) read)\nok    L3 (forbid, 81 file(s) read)\nok    L8 (forbid, 81 file(s) read)\nok    L12 (forbid, 81 file(s) read)\nok    P1 (forbid, 80 file(s) read)\ndefer P2 (0 targets; waiting on task_018)\nok    P9 (forbid, 12 file(s) read)\nok    W3 (forbid, 88 file(s) read)\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 79 file(s) read)\nok    N5 (forbid, 81 file(s) read)\nok    N7 (forbid, 81 file(s) read)\nok    N9 (forbid, 81 file(s) read)\nok    N11 (forbid, 81 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 24 file(s) read)\nok    I4 (forbid, 2 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 43 file(s) read)\nok    X-MONEY (forbid, 6 file(s) read)\nok    GC-XSS (forbid, 81 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 86 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\nok    GC-RANK-NEGATION (forbid, 88 file(s) read)\nok    GC-LIB-CLIENT-DIRECTIVE (forbid, 31 file(s) read)\n\ngate:constraints — scanned 25 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "61b18a14f9f124f7a197213e547f21e1b3389c89",
+    "ran_at": "2026-09-24T16:55:26Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:conformance",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:conformance\n> TZ=UTC vitest run tests/conformance\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  1 passed (1)\n      Tests  11 passed (11)\n   Start at  17:22:45\n   Duration  520ms (transform 43%, setup 43%, import 7%, tests 4%, worker 2%)",
+    "commit": "0be169fb26ed7e3bf4f4f197c1ed88ff296fdb4a",
+    "ran_at": "2026-09-24T17:22:44Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 104 file(s) read)\nok    L2 (forbid, 104 file(s) read)\nL3 src/lib/outbox.ts:44 | /** 紛争（チャージバック）が発生した。 */\nok    L8 (forbid, 104 file(s) read)\nok    L12 (forbid, 104 file(s) read)\nok    P1 (forbid, 103 file(s) read)\nok    P2 (forbid, 1 file(s) read)\nok    P9 (forbid, 13 file(s) read)\nok    W3 (forbid, 109 file(s) read)\nok    W4 (forbid, 5 file(s) read)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 101 file(s) read)\nok    N5 (forbid, 104 file(s) read)\nok    N7 (forbid, 104 file(s) read)\nN9 src/components/ShareSheet.tsx:14 | *     2. `docs/constraints.json` N9（`sendMessages(` という並びの文字列を禁止）を\nN9 src/lib/liff/share.ts:11 | * ★ ここで呼ぶのは `liff.shareTargetPicker()` であって **`liff.sendMessages()` ではない**\nN9 src/lib/liff/share.ts:12 | *   （制約 N9。2 つは別の API で、引数の形が似ているだけ）。`sendMessages(` という並びの\nok    N11 (forbid, 104 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 26 file(s) read)\nok    I4 (forbid, 2 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 54 file(s) read)\nok    X-MONEY (forbid, 10 file(s) read)\nGC-XSS src/components/ShareSheet.tsx:302 | dangerouslySetInnerHTML={{ __html: qrSvg }}\nok    GC-ENV-PUBLIC (forbid, 109 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\nok    GC-RANK-NEGATION (forbid, 109 file(s) read)\nok    GC-LIB-CLIENT-DIRECTIVE (forbid, 42 file(s) read)\n\ngate:constraints — scanned 27 grep entr(y|ies), 5 violation(s), 0 empty gate(s)",
+    "commit": "0be169fb26ed7e3bf4f4f197c1ed88ff296fdb4a",
+    "ran_at": "2026-09-24T17:22:49Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:gate",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 test:gate\n> npm run test:contract && npm run test:conformance\n\n\n> cashapp@0.1.0 test:contract\n> TZ=UTC vitest run tests/contract --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\nNo test files found, exiting with code 1\n\nfilter: tests/contract\ninclude: tests/unit/**/*.test.ts, tests/unit/**/*.test.tsx, tests/security/**/*.test.ts, tests/integration/**/*.test.ts, tests/gates/**/*.test.ts, tests/conformance/**/*.test.ts, tests/contract/**/*.test.ts\nexclude:  node_modules/**, .next/**, .open-next/**, .wrangler/**, tests/e2e/**, tests/a11y/**",
+    "commit": "0be169fb26ed7e3bf4f4f197c1ed88ff296fdb4a",
+    "ran_at": "2026-09-24T17:23:21Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:conformance",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:conformance\n> TZ=UTC vitest run tests/conformance\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  1 passed (1)\n      Tests  11 passed (11)\n   Start at  17:27:40\n   Duration  592ms (setup 46%, transform 41%, import 8%, tests 3%, worker 1%, environment 1%)",
+    "commit": "b782d3d346680fb0603c820d05b14426da5fbb16",
+    "ran_at": "2026-09-24T17:27:39Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:gate",
+    "exit_code": 1,
+    "stdout_tail": "\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\nstdout | tests/contract/reorder.test.ts > C2 Webhook 順序逆転 > expired → succeeded の順（正順）でも最終状態は同じ paid になる\n{\"ts\":\"2026-09-24T17:27:45.771Z\",\"level\":\"info\",\"event\":\"webhook.received\",\"requestId\":\"req-reorder2-a\"}\n\n ❯ tests/contract/reorder.test.ts (2 tests | 1 failed) 1228ms\n   ❯ C2 Webhook 順序逆転 (2)\n     × expired → succeeded の順（正順）でも最終状態は同じ paid になる 1050ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  tests/contract/reorder.test.ts > C2 Webhook 順序逆転 > expired → succeeded の順（正順）でも最終状態は同じ paid になる\nPostgresError: deadlock detected\n ❯ ErrorResponse node_modules/postgres/src/connection.js:815:30\n ❯ handle node_modules/postgres/src/connection.js:489:6\n ❯ Socket.data node_modules/postgres/src/connection.js:324:9\n ❯ cachedError node_modules/postgres/src/query.js:170:23\n ❯ new Query node_modules/postgres/src/query.js:36:24\n ❯ sql node_modules/postgres/src/index.js:112:11\n ❯ insertPaymentEvent src/lib/db/repositories/events-log.ts:94:43\n     92| ): Promise<string | null> {\n     93|   const rawRedacted = JSON.parse(JSON.stringify(input.rawRedacted)) as…\n     94|   const rows = await sql<{ id: string }[]>`\n       |                                           ^\n     95|     INSERT INTO payment_event (\n     96|       provider_key, provider_event_id, event_type, kind, external_ref,…\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\n\n\n Test Files  1 failed | 2 passed (3)\n      Tests  1 failed | 6 passed (7)\n   Start at  17:27:44\n   Duration  2.32s (tests 50%, import 29%, transform 14%, setup 7%)",
+    "commit": "b782d3d346680fb0603c820d05b14426da5fbb16",
+    "ran_at": "2026-09-24T17:27:43Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 1,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 109 file(s) read)\nok    L2 (forbid, 109 file(s) read)\nL3 src/lib/outbox.ts:44 | /** 紛争（チャージバック）が発生した。 */\nok    L8 (forbid, 109 file(s) read)\nok    L12 (forbid, 109 file(s) read)\nok    P1 (forbid, 108 file(s) read)\nok    P2 (forbid, 1 file(s) read)\nok    P9 (forbid, 13 file(s) read)\nok    W3 (forbid, 114 file(s) read)\nok    W4 (forbid, 5 file(s) read)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 106 file(s) read)\nok    N5 (forbid, 109 file(s) read)\nok    N7 (forbid, 109 file(s) read)\nN9 src/components/ShareSheet.tsx:14 | *     2. `docs/constraints.json` N9（`sendMessages(` という並びの文字列を禁止）を\nN9 src/lib/liff/share.ts:11 | * ★ ここで呼ぶのは `liff.shareTargetPicker()` であって **`liff.sendMessages()` ではない**\nN9 src/lib/liff/share.ts:12 | *   （制約 N9。2 つは別の API で、引数の形が似ているだけ）。`sendMessages(` という並びの\nok    N11 (forbid, 109 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 31 file(s) read)\nok    I4 (forbid, 3 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 59 file(s) read)\nok    X-MONEY (forbid, 10 file(s) read)\nGC-XSS src/components/ShareSheet.tsx:302 | dangerouslySetInnerHTML={{ __html: qrSvg }}\nok    GC-ENV-PUBLIC (forbid, 114 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\nok    GC-RANK-NEGATION (forbid, 114 file(s) read)\nok    GC-LIB-CLIENT-DIRECTIVE (forbid, 42 file(s) read)\n\ngate:constraints — scanned 27 grep entr(y|ies), 5 violation(s), 0 empty gate(s)",
+    "commit": "b782d3d346680fb0603c820d05b14426da5fbb16",
+    "ran_at": "2026-09-24T17:29:39Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:gate",
+    "exit_code": 1,
+    "stdout_tail": "\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\nstdout | tests/contract/reorder.test.ts > C2 Webhook 順序逆転 > expired → succeeded の順（正順）でも最終状態は同じ paid になる\n{\"ts\":\"2026-09-24T17:29:51.531Z\",\"level\":\"info\",\"event\":\"webhook.received\",\"requestId\":\"req-reorder2-a\"}\n\n ❯ tests/contract/reorder.test.ts (2 tests | 1 failed) 1259ms\n   ❯ C2 Webhook 順序逆転 (2)\n     × expired → succeeded の順（正順）でも最終状態は同じ paid になる 1056ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  tests/contract/reorder.test.ts > C2 Webhook 順序逆転 > expired → succeeded の順（正順）でも最終状態は同じ paid になる\nPostgresError: deadlock detected\n ❯ ErrorResponse node_modules/postgres/src/connection.js:815:30\n ❯ handle node_modules/postgres/src/connection.js:489:6\n ❯ Socket.data node_modules/postgres/src/connection.js:324:9\n ❯ cachedError node_modules/postgres/src/query.js:170:23\n ❯ new Query node_modules/postgres/src/query.js:36:24\n ❯ sql node_modules/postgres/src/index.js:112:11\n ❯ insertPaymentEvent src/lib/db/repositories/events-log.ts:94:43\n     92| ): Promise<string | null> {\n     93|   const rawRedacted = JSON.parse(JSON.stringify(input.rawRedacted)) as…\n     94|   const rows = await sql<{ id: string }[]>`\n       |                                           ^\n     95|     INSERT INTO payment_event (\n     96|       provider_key, provider_event_id, event_type, kind, external_ref,…\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\n\n\n Test Files  1 failed | 2 passed (3)\n      Tests  1 failed | 6 passed (7)\n   Start at  17:29:49\n   Duration  2.71s (tests 44%, import 34%, transform 14%, setup 9%)",
+    "commit": "b782d3d346680fb0603c820d05b14426da5fbb16",
+    "ran_at": "2026-09-24T17:29:49Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]

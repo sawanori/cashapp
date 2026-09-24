@@ -524,3 +524,18 @@
   途中の他タスクファイルであり、規約（他タスクのファイルを変更しない）に従い対応していない。
   実装コミットは 0 件（BLOCKED のため）。残懸念は `docs/concerns/task_023.md`
   （high 3・medium 1・low 1）。
+- task_019（G5 round1 の指摘反映）: BLOCKED のまま — G5 round1（`docs/review-log/task_019.json`）
+  の high 指摘どおり、task_018 に依存しない部分（`captured_from` 欠落 fixture の登録拒否・
+  `synthesized` のみでの `autoDetect` 登録拒否・manual_confirm の C9/C10/C12）を実装した:
+  `tests/conformance/{provenance.ts,kit.ts,manual-confirm.conformance.test.ts}`・
+  `tests/fixtures/README.md` を新規作成、`package.json` に `test:conformance` を追加、
+  `vitest.config.ts` の `include` に `tests/conformance/**/*.test.ts` を追加。
+  `npm run test:conformance` は `scripts/record-run.sh task_019` 経由で実測 **exit 0（11/11
+  pass）**。本ターン中に task_018 が並行して `test:contract` / `test:gate` スクリプトと
+  `tests/contract/{duplicate,signature,reorder}.test.ts` の実体を追加し、終盤の再実行では
+  7 件中 6 件 pass まで進んだが、1 件が `PostgresError: deadlock detected` で失敗
+  （`npm run test:gate` は exit 1）。task_018 は未コミット・`completion_status:null` のまま
+  なので、fixture_provider の C1〜C31 と test:gate の実 pass、CI 実走（PR で contract ジョブ
+  緑）は task_018 完了後に持ち越し。
+  `npm run gate:constraints` は task_018/task_020 の並行未コミット WIP により実行時点で
+  exit 1（task_019 自身のファイルは原因ではない。詳細は `docs/concerns/task_019.md` §0〜§3）。

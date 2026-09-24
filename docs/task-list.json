@@ -2166,7 +2166,9 @@
       "optional": false,
       "completion_status": "BLOCKED",
       "concerns": [
-        "[severity: high] 依存タスク task_018（台帳適用・Webhook ルート・fixture_provider 契約テストヘルパー）が完全に未着手（files_to_create 22 本が全て未作成、コミット 0 件）のため、ProviderConformanceKit の C1〜C31 のうち大半（C1〜C4/C4b/C6〜C8/C11/C14〜C19/C21〜C26/C28〜C31）が Webhook ルートと applyToLedger を経由した DB 実状態の検証を要求し実装不能。 / 対応案: task_018 を先に完了させてから task_019 を再着手する。詳細は docs/concerns/task_019.md。"
+        "[severity: high] 依存タスク task_018（台帳適用・Webhook ルート・fixture_provider 契約テストヘルパー）が未完了（completion_status:null・コミット0件。本ラウンド終盤には tests/contract/ に実テストが現れ7件中6件 pass まで進んだが、1件が PostgresError: deadlock detected で失敗。実測: docs/run-log/task_019.json）のため、fixture_provider の C1〜C31 pass と test:gate の実 pass が構造的に満たせない。未コミット・不安定な task_018 の上に依存コードを積むリスクを避け、fixture-provider.conformance.test.ts と4本の fixture JSON は今回も作成しなかった。 / 対応案: task_018 がコミットされ安定したら task_019 を再着手し、これらと gate-contract.yml、Stop フック登録を追加する。詳細は docs/concerns/task_019.md §1。",
+        "[severity: medium] done_definition 第4項（PR 1本で contract ジョブが緑・required_status_checks に含まれる）は CI 実走でしか満たせず本セッションでは確認不能（git push 禁止）。加えて contract ジョブ自体が task_018 待ち。 / 対応案: task_018 完了後、メインセッションの push 後に CI で確認する。詳細は docs/concerns/task_019.md §3。",
+        "[severity: low] G5 round1 の指摘どおり、task_018 に依存しない部分（captured_from 欠落 fixture の登録拒否、synthesized のみでの autoDetect 登録拒否、manual_confirm の C9/C10/C12）は本ラウンドで実装し、tests/conformance/{provenance.ts,kit.ts,manual-confirm.conformance.test.ts}、tests/fixtures/README.md を作成、package.json に test:conformance を追加した。npm run test:conformance は実測 exit 0（11/11 pass。scripts/record-run.sh task_019 経由）。/ 対応不要（解消済み）。詳細は docs/concerns/task_019.md §0。"
       ]
     },
     {
