@@ -1,0 +1,281 @@
+[
+  {
+    "type": "command",
+    "command": "npx vitest run tests/security/idor.test.ts",
+    "exit_code": 0,
+    "stdout_tail": "(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  1 passed (1)\n      Tests  5 passed (5)\n   Start at  03:44:45\n   Duration  576ms (tests 44%, transform 27%, setup 21%, import 7%, worker 1%)",
+    "commit": "5228946f6e38d95270852d126ac6f1ce3431c73c",
+    "ran_at": "2026-09-24T18:44:44Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx vitest run tests/security/claims.test.ts",
+    "exit_code": 0,
+    "stdout_tail": "(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  1 passed (1)\n      Tests  3 passed (3)\n   Start at  03:45:58\n   Duration  432ms (tests 34%, transform 30%, setup 26%, import 9%, worker 1%)",
+    "commit": "5228946f6e38d95270852d126ac6f1ce3431c73c",
+    "ran_at": "2026-09-24T18:45:58Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx vitest run tests/security/csrf.test.ts",
+    "exit_code": 0,
+    "stdout_tail": "(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  1 passed (1)\n      Tests  12 passed (12)\n   Start at  03:47:26\n   Duration  1.31s (import 46%, transform 23%, tests 19%, setup 12%)",
+    "commit": "6100a0e30c2c27221aa4f9ccba0b0226875fab06",
+    "ran_at": "2026-09-24T18:47:25Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx vitest run tests/security/idempotency-cross-user.test.ts",
+    "exit_code": 0,
+    "stdout_tail": "(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  1 passed (1)\n      Tests  3 passed (3)\n   Start at  03:49:01\n   Duration  318ms (setup 34%, tests 27%, transform 27%, import 10%, worker 1%)",
+    "commit": "9dcab77b073149bbc35d1f090771789205f2e1c9",
+    "ran_at": "2026-09-24T18:49:00Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx vitest run tests/security/id-token-replay.test.ts",
+    "exit_code": 0,
+    "stdout_tail": "(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  1 passed (1)\n      Tests  3 passed (3)\n   Start at  03:49:41\n   Duration  321ms (tests 30%, transform 28%, setup 27%, import 15%, worker 1%)",
+    "commit": "14e2f5b3af0e39e68c4dd0168b553c4b5f1680e6",
+    "ran_at": "2026-09-24T18:49:41Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx vitest run tests/security/webhook-ip.test.ts",
+    "exit_code": 1,
+    "stdout_tail": "Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n ❯ tests/security/webhook-ip.test.ts (21 tests | 1 failed) 82ms\n   ❯ parseIpAllowlist — 1 つでも書式が不正なら空配列（fail-closed） (12)\n     × IPv4 の桁が範囲外（256） は空配列 22ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  tests/security/webhook-ip.test.ts > parseIpAllowlist — 1 つでも書式が不正なら空配列（fail-closed） > IPv4 の桁が範囲外（256） は空配列\nAssertionError: expected [ { kind: 'exact', …(1) } ] to deeply equal []\n\n- Expected\n+ Received\n\n- []\n+ [\n+   {\n+     \"kind\": \"exact\",\n+     \"value\": \"203.0.113.256\",\n+   },\n+ ]\n\n ❯ tests/security/webhook-ip.test.ts:44:58\n     42|     [\"1 件だけ不正でも全体を空にする\", \"203.0.113.0/24,not-an-ip\"],\n     43|   ])(\"%s は空配列\", (_label, spec) => {\n     44|     expect(parseIpAllowlist(spec as string | undefined)).toEqual([]);\n       |                                                          ^\n     45|   });\n     46|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\n\n\n Test Files  1 failed (1)\n      Tests  1 failed | 20 passed (21)\n   Start at  03:50:29\n   Duration  768ms (setup 44%, transform 29%, tests 15%, import 11%, worker 1%, environment 1%)",
+    "commit": "14e2f5b3af0e39e68c4dd0168b553c4b5f1680e6",
+    "ran_at": "2026-09-24T18:50:28Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx vitest run tests/security/deeplink-host.test.ts",
+    "exit_code": 0,
+    "stdout_tail": "(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  1 passed (1)\n      Tests  12 passed (12)\n   Start at  03:51:35\n   Duration  411ms (setup 47%, transform 38%, import 8%, tests 4%, worker 2%)",
+    "commit": "14e2f5b3af0e39e68c4dd0168b553c4b5f1680e6",
+    "ran_at": "2026-09-24T18:51:34Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx vitest run tests/security/gate-bypass.test.ts",
+    "exit_code": 1,
+    "stdout_tail": "(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n ❯ tests/security/gate-bypass.test.ts (7 tests | 1 failed) 66ms\n   ❯ check_010: PAYMENTS_ENABLED=true でも必須ゲートが通っていなければブロックする (5)\n     × 全ゲート passed（無期限）なら通る — ガードが常に落とすだけの空振りでないことの確認 5ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  tests/security/gate-bypass.test.ts > check_010: PAYMENTS_ENABLED=true でも必須ゲートが通っていなければブロックする > 全ゲート passed（無期限）なら通る — ガードが常に落とすだけの空振りでないことの確認\nProviderNotEnabledError: provider not enabled: fixture_provider_gate_bypass (gate PROVIDER_FIXTURE_PROVIDER_GATE_BYPASS_MODE)\n ❯ runGuards src/lib/payments/registry.ts:215:11\n    213|   const modeKey = providerModeFlagKey(key);\n    214|   if ((await ctx.env.providerMode(key)) !== \"on\") {\n    215|     throw new ProviderNotEnabledError(key, modeKey);\n       |           ^\n    216|   }\n    217|\n ❯ tests/security/gate-bypass.test.ts:242:24\n ❯ tests/integration/setup.ts:107:27\n ❯ scope node_modules/postgres/src/index.js:260:18\n ❯ Function.begin node_modules/postgres/src/index.js:243:14\n ❯ Module.withRollback tests/integration/setup.ts:106:5\n ❯ tests/security/gate-bypass.test.ts:232:5\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\n\n\n Test Files  1 failed (1)\n      Tests  1 failed | 6 passed (7)\n   Start at  03:54:53\n   Duration  479ms (import 51%, transform 18%, tests 16%, setup 14%, worker 1%)",
+    "commit": "14e2f5b3af0e39e68c4dd0168b553c4b5f1680e6",
+    "ran_at": "2026-09-24T18:54:52Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx vitest run tests/security/gate-bypass.test.ts",
+    "exit_code": 0,
+    "stdout_tail": "(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  1 passed (1)\n      Tests  7 passed (7)\n   Start at  03:55:05\n   Duration  446ms (import 52%, transform 19%, tests 16%, setup 13%, worker 1%)",
+    "commit": "14e2f5b3af0e39e68c4dd0168b553c4b5f1680e6",
+    "ran_at": "2026-09-24T18:55:04Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx vitest run tests/security/xss-csp.test.ts",
+    "exit_code": 1,
+    "stdout_tail": "\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n ❯ tests/security/xss-csp.test.ts (8 tests | 4 failed) 5ms\n   ❯ CSV 数式インジェクション（export.csv / O-12） (5)\n     × 先頭が = のセルは、Excel/Sheets に数式として解釈されない形で出力される 2ms\n     × 先頭が + のセルは、Excel/Sheets に数式として解釈されない形で出力される 0ms\n     × 先頭が - のセルは、Excel/Sheets に数式として解釈されない形で出力される 0ms\n     × 先頭が @ のセルは、Excel/Sheets に数式として解釈されない形で出力される 0ms\n\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  tests/security/xss-csp.test.ts > CSV 数式インジェクション（export.csv / O-12） > 先頭が = のセルは、Excel/Sheets に数式として解釈されない形で出力される\n FAIL  tests/security/xss-csp.test.ts > CSV 数式インジェクション（export.csv / O-12） > 先頭が + のセルは、Excel/Sheets に数式として解釈されない形で出力される\n FAIL  tests/security/xss-csp.test.ts > CSV 数式インジェクション（export.csv / O-12） > 先頭が - のセルは、Excel/Sheets に数式として解釈されない形で出力される\n FAIL  tests/security/xss-csp.test.ts > CSV 数式インジェクション（export.csv / O-12） > 先頭が @ のセルは、Excel/Sheets に数式として解釈されない形で出力される\nAssertionError: csvField() が数式先頭文字をエスケープしていない（対応案は docs/concerns/task_022.md）: expected true to be false // Object.is equality\n\n- Expected\n+ Received\n\n- false\n+ true\n\n ❯ tests/security/xss-csp.test.ts:82:7\n     80|       startsWithFormulaChar,\n     81|       \"csvField() が数式先頭文字をエスケープしていない（対応案は docs/concerns/task_022.md）\",\n     82|     ).toBe(false);\n       |       ^\n     83|   });\n     84|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯\n\n\n Test Files  1 failed (1)\n      Tests  4 failed | 4 passed (8)\n   Start at  03:56:07\n   Duration  376ms (import 63%, transform 18%, setup 16%, tests 2%, worker 1%)",
+    "commit": "14e2f5b3af0e39e68c4dd0168b553c4b5f1680e6",
+    "ran_at": "2026-09-24T18:56:07Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:security",
+    "exit_code": 1,
+    "stdout_tail": "+ ]\n\n ❯ tests/security/webhook-ip.test.ts:44:58\n     42|     [\"1 件だけ不正でも全体を空にする\", \"203.0.113.0/24,not-an-ip\"],\n     43|   ])(\"%s は空配列\", (_label, spec) => {\n     44|     expect(parseIpAllowlist(spec as string | undefined)).toEqual([]);\n       |                                                          ^\n     45|   });\n     46|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯\n\n FAIL  tests/security/xss-csp.test.ts > CSV 数式インジェクション（export.csv / O-12） > 先頭が = のセルは、Excel/Sheets に数式として解釈されない形で出力される\n FAIL  tests/security/xss-csp.test.ts > CSV 数式インジェクション（export.csv / O-12） > 先頭が + のセルは、Excel/Sheets に数式として解釈されない形で出力される\n FAIL  tests/security/xss-csp.test.ts > CSV 数式インジェクション（export.csv / O-12） > 先頭が - のセルは、Excel/Sheets に数式として解釈されない形で出力される\n FAIL  tests/security/xss-csp.test.ts > CSV 数式インジェクション（export.csv / O-12） > 先頭が @ のセルは、Excel/Sheets に数式として解釈されない形で出力される\nAssertionError: csvField() が数式先頭文字をエスケープしていない（対応案は docs/concerns/task_022.md）: expected true to be false // Object.is equality\n\n- Expected\n+ Received\n\n- false\n+ true\n\n ❯ tests/security/xss-csp.test.ts:82:7\n     80|       startsWithFormulaChar,\n     81|       \"csvField() が数式先頭文字をエスケープしていない（対応案は docs/concerns/task_022.md）\",\n     82|     ).toBe(false);\n       |       ^\n     83|   });\n     84|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯\n\n\n Test Files  2 failed | 9 passed (11)\n      Tests  5 failed | 98 passed (103)\n   Start at  18:56:15\n   Duration  1.56s (tests 31%, import 28%, setup 23%, transform 17%, worker 1%)",
+    "commit": "14e2f5b3af0e39e68c4dd0168b553c4b5f1680e6",
+    "ran_at": "2026-09-24T18:56:14Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx playwright test tests/e2e/outside-line.spec.ts tests/e2e/viewport.spec.ts tests/e2e/web-only.spec.ts",
+    "exit_code": 0,
+    "stdout_tail": "[WebServer] React will never use eval() in production mode \n[WebServer]     at step (.next/dev/static/chunks/turbopack-_02pxq1z._.js:3701:23)\n[WebServer]     at Object.<anonymous> (.next/dev/static/chunks/turbopack-_02pxq1z._.js:3642:20)\n[WebServer]     at asyncGeneratorStep (.next/dev/static/chunks/turbopack-_02pxq1z._.js:3584:28)\n[WebServer]     at _next (.next/dev/static/chunks/turbopack-_02pxq1z._.js:3602:17) (.next/dev/static/chunks/turbopack-_02pxq1z._.js:3701:23)\n  ✓  3 [chromium] › tests/e2e/viewport.spec.ts:36:7 › /onboarding は 320px 幅で横スクロールしない (1.2s)\n  ✓  2 [chromium] › tests/e2e/viewport.spec.ts:36:7 › /onboarding は 375px 幅で横スクロールしない (1.2s)\n  ✓  1 [chromium] › tests/e2e/viewport.spec.ts:36:7 › /onboarding は 414px 幅で横スクロールしない (1.2s)\n  ✓  4 [chromium] › tests/e2e/viewport.spec.ts:45:7 › outside_line フォールバック（/events/new）は 320px 幅で横スクロールしない (1.3s)\n  ✓  5 [chromium] › tests/e2e/outside-line.spec.ts:30:5 › LINE の外から /events/new を開くと login() を呼ばず outside_line のフォールバックが出る (1.3s)\n[WebServer] [browser] eval() is not supported in this environment. If this page was served with a `Content-Security-Policy` header, make sure that `unsafe-eval` is included. React requires eval() in development mode for various debugging features like reconstructing callstacks from a different environment.\n[WebServer] React will never use eval() in production mode \n[WebServer]     at step (.next/dev/static/chunks/turbopack-_02pxq1z._.js:3701:23)\n[WebServer]     at Object.<anonymous> (.next/dev/static/chunks/turbopack-_02pxq1z._.js:3642:20)\n[WebServer]     at asyncGeneratorStep (.next/dev/static/chunks/turbopack-_02pxq1z._.js:3584:28)\n[WebServer]     at _next (.next/dev/static/chunks/turbopack-_02pxq1z._.js:3602:17) (.next/dev/static/chunks/turbopack-_02pxq1z._.js:3701:23)\n[WebServer] [browser] eval() is not supported in this environment. If this page was served with a `Content-Security-Policy` header, make sure that `unsafe-eval` is included. React requires eval() in development mode for various debugging features like reconstructing callstacks from a different environment.\n[WebServer] React will never use eval() in production mode \n[WebServer]     at step (.next/dev/static/chunks/turbopack-_02pxq1z._.js:3701:23)\n[WebServer]     at Object.<anonymous> (.next/dev/static/chunks/turbopack-_02pxq1z._.js:3642:20)\n[WebServer]     at asyncGeneratorStep (.next/dev/static/chunks/turbopack-_02pxq1z._.js:3584:28)\n[WebServer]     at _next (.next/dev/static/chunks/turbopack-_02pxq1z._.js:3602:17) (.next/dev/static/chunks/turbopack-_02pxq1z._.js:3701:23)\n[WebServer] [browser] eval() is not supported in this environment. If this page was served with a `Content-Security-Policy` header, make sure that `unsafe-eval` is included. React requires eval() in development mode for various debugging features like reconstructing callstacks from a different environment.\n[WebServer] React will never use eval() in production mode \n[WebServer]     at step (.next/dev/static/chunks/turbopack-_02pxq1z._.js:3701:23)\n[WebServer]     at Object.<anonymous> (.next/dev/static/chunks/turbopack-_02pxq1z._.js:3642:20)\n[WebServer]     at asyncGeneratorStep (.next/dev/static/chunks/turbopack-_02pxq1z._.js:3584:28)\n[WebServer]     at _next (.next/dev/static/chunks/turbopack-_02pxq1z._.js:3602:17) (.next/dev/static/chunks/turbopack-_02pxq1z._.js:3701:23)\n[WebServer] [browser] eval() is not supported in this environment. If this page was served with a `Content-Security-Policy` header, make sure that `unsafe-eval` is included. React requires eval() in development mode for various debugging features like reconstructing callstacks from a different environment.\n[WebServer] React will never use eval() in production mode \n[WebServer]     at step (.next/dev/static/chunks/turbopack-_02pxq1z._.js:3701:23)\n[WebServer]     at Object.<anonymous> (.next/dev/static/chunks/turbopack-_02pxq1z._.js:3642:20)\n[WebServer]     at asyncGeneratorStep (.next/dev/static/chunks/turbopack-_02pxq1z._.js:3584:28)\n[WebServer]     at _next (.next/dev/static/chunks/turbopack-_02pxq1z._.js:3602:17) (.next/dev/static/chunks/turbopack-_02pxq1z._.js:3701:23)\n  ✓  9 [chromium] › tests/e2e/web-only.spec.ts:41:5 › (web) レイアウトはスキップリンクと運営者情報欄を持つ（O-13 の骨格） (505ms)\n  ✓  8 [chromium] › tests/e2e/web-only.spec.ts:21:5 › /admin は LIFF SDK のチャンクを 1 つも要求せずに描画される (539ms)\n  ✓  6 [chromium] › tests/e2e/viewport.spec.ts:45:7 › outside_line フォールバック（/events/new）は 375px 幅で横スクロールしない (620ms)\n  ✓  7 [chromium] › tests/e2e/viewport.spec.ts:45:7 › outside_line フォールバック（/events/new）は 414px 幅で横スクロールしない (632ms)\n\n  9 passed (4.7s)",
+    "commit": "14e2f5b3af0e39e68c4dd0168b553c4b5f1680e6",
+    "ran_at": "2026-09-24T18:58:11Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx playwright test tests/e2e/organizer-flow.spec.ts",
+    "exit_code": 1,
+    "stdout_tail": "    Error: {\"code\":\"INTERNAL\",\"message\":\"処理に失敗しました。時間をおいてお試しください。\",\"requestId\":\"b7da7894f02cb12c60fee6f66d36825b\"}\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 201\n    Received: 500\n\n      63 |     },\n      64 |   });\n    > 65 |   expect(createRes.status(), await createRes.text()).toBe(201);\n         |                                                      ^\n      66 |   const created = (await createRes.json()) as { event: { id: string }; joinToken: string };\n      67 |\n      68 |   // O-4: 参加者 4 名を追加。\n        at /Users/noritakasawada/AI_P/cashapp/tests/e2e/organizer-flow.spec.ts:65:54\n\n    PostgresError: operator does not exist: uuid = text\n\n       at e2e/helpers/session.ts:146\n\n      144 |   if (userIds.length === 0) return;\n      145 |   const sql = testSql();\n    > 146 |   await sql`DELETE FROM app_user WHERE id = ANY(${sql.array([...userIds])})`;\n          |            ^\n      147 | }\n      148 |\n        at ErrorResponse (/Users/noritakasawada/AI_P/cashapp/node_modules/postgres/cjs/src/connection.js:815:30)\n        at handle (/Users/noritakasawada/AI_P/cashapp/node_modules/postgres/cjs/src/connection.js:489:6)\n        at Socket.data (/Users/noritakasawada/AI_P/cashapp/node_modules/postgres/cjs/src/connection.js:324:9)\n        at cachedError (/Users/noritakasawada/AI_P/cashapp/node_modules/postgres/cjs/src/query.js:170:23)\n        at Query (/Users/noritakasawada/AI_P/cashapp/node_modules/postgres/cjs/src/query.js:36:24)\n        at sql (/Users/noritakasawada/AI_P/cashapp/node_modules/postgres/cjs/src/index.js:112:11)\n        at cleanupE2eUsers (/Users/noritakasawada/AI_P/cashapp/tests/e2e/helpers/session.ts:146:12)\n\n    Error Context: test-results/e2e-organizer-flow-幹事が請求発行-→-手動確認までを完走し、非自動バッジとサマリが正しい値になる-chromium/error-context.md\n\n    Error Context: test-results/e2e-organizer-flow-幹事が請求発行-→-手動確認までを完走し、非自動バッジとサマリが正しい値になる-chromium/error-context.md\n\n  1 failed\n    [chromium] › tests/e2e/organizer-flow.spec.ts:33:5 › 幹事が請求発行 → 手動確認までを完走し、非自動バッジとサマリが正しい値になる ───",
+    "commit": "14e2f5b3af0e39e68c4dd0168b553c4b5f1680e6",
+    "ran_at": "2026-09-24T19:00:17Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx playwright test tests/e2e/participant-flow.spec.ts",
+    "exit_code": 1,
+    "stdout_tail": "[WebServer] ⚠ The \"middleware\" file convention is deprecated. Please use \"proxy\" instead.\n[WebServer] \n[WebServer]   To migrate automatically, run:\n[WebServer]   npx @next/codemod@canary middleware-to-proxy .\n[WebServer] \n[WebServer]   Learn more: https://nextjs.org/docs/messages/middleware-to-proxy\n\nRunning 1 test using 1 worker\n\n  ✘  1 [chromium] › tests/e2e/participant-flow.spec.ts:26:5 › preview は認証不要で読める。claim 以降は認証済みセッションで進める (360ms)\n\n\n  1) [chromium] › tests/e2e/participant-flow.spec.ts:26:5 › preview は認証不要で読める。claim 以降は認証済みセッションで進める \n\n    Error: {\"code\":\"RATE_LIMIT_UNAVAILABLE\",\"message\":\"ただいま受け付けできません。時間をおいてお試しください。\",\"requestId\":\"ef98375879155b7769ae4466cbbca045\"}\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 200\n    Received: 503\n\n      76 |     headers: { \"x-join-token\": joinToken },\n      77 |   });\n    > 78 |   expect(previewRes.status(), await previewRes.text()).toBe(200);\n         |                                                        ^\n      79 |   const preview = (await previewRes.json()) as Record<string, unknown>;\n      80 |   expect(Object.keys(preview).sort()).toEqual(\n      81 |     [\"allowCash\", \"amountRangeMinor\", \"collectByAt\", \"organizerLabel\", \"participantCount\", \"title\"].sort(),\n        at /Users/noritakasawada/AI_P/cashapp/tests/e2e/participant-flow.spec.ts:78:56\n\n    Error Context: test-results/e2e-participant-flow-previ-4e314-で読める。claim-以降は認証済みセッションで進める-chromium/error-context.md\n\n    Error Context: test-results/e2e-participant-flow-previ-4e314-で読める。claim-以降は認証済みセッションで進める-chromium/error-context.md\n\n  1 failed\n    [chromium] › tests/e2e/participant-flow.spec.ts:26:5 › preview は認証不要で読める。claim 以降は認証済みセッションで進める ",
+    "commit": "e8c63955eefae63a38d9d759571f7048c5bc714b",
+    "ran_at": "2026-09-24T19:01:43Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx playwright test tests/e2e/manual-only-complete.spec.ts",
+    "exit_code": 1,
+    "stdout_tail": "[WebServer] ⚠ The \"middleware\" file convention is deprecated. Please use \"proxy\" instead.\n[WebServer] \n[WebServer]   To migrate automatically, run:\n[WebServer]   npx @next/codemod@canary middleware-to-proxy .\n[WebServer] \n[WebServer]   Learn more: https://nextjs.org/docs/messages/middleware-to-proxy\n(node:26760) Warning: Failed to load the ES module: /Users/noritakasawada/AI_P/cashapp/tests/e2e/manual-only-complete.spec.ts. Make sure to set \"type\": \"module\" in the nearest package.json file or use the .mjs extension.\n(Use `node --trace-warnings ...` to show where the warning was created)\nSyntaxError: Cannot use 'import.meta' outside a module\nError: No tests found.\nMake sure that arguments are regular expressions matching test files.\nYou may need to escape symbols like \"$\" or \"*\" and quote the arguments.",
+    "commit": "e8c63955eefae63a38d9d759571f7048c5bc714b",
+    "ran_at": "2026-09-24T19:03:50Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx playwright test tests/e2e/manual-only-complete.spec.ts",
+    "exit_code": 1,
+    "stdout_tail": "    Received: 500\n\n      65 |     },\n      66 |   });\n    > 67 |   expect(createRes.status(), await createRes.text()).toBe(201);\n         |                                                      ^\n      68 |   const created = (await createRes.json()) as { event: { id: string } };\n      69 |\n      70 |   const participantsRes = await request.post(`${api}/api/events/${created.event.id}/participants`, {\n        at /Users/noritakasawada/AI_P/cashapp/tests/e2e/manual-only-complete.spec.ts:67:54\n\n    Error Context: test-results/e2e-manual-only-complete-手動確認版だけで、参加者-2-名とも幹事が手動確認まで完走する-chromium/error-context.md\n\n    Error Context: test-results/e2e-manual-only-complete-手動確認版だけで、参加者-2-名とも幹事が手動確認まで完走する-chromium/error-context.md\n\n  2) [chromium] › tests/e2e/manual-only-complete.spec.ts:108:5 › ファネル 5 段（着地→同意→claim→checkout→paid）が週次 JSON に出る \n\n    PostgresError: update or delete on table \"app_user\" violates foreign key constraint \"event_organizer_user_id_fkey\" on table \"event\"\n\n       at e2e/helpers/session.ts:146\n\n      144 |   if (userIds.length === 0) return;\n      145 |   const sql = testSql();\n    > 146 |   await sql`DELETE FROM app_user WHERE id = ANY(${sql.array([...userIds])}::uuid[])`;\n          |            ^\n      147 | }\n      148 |\n        at ErrorResponse (/Users/noritakasawada/AI_P/cashapp/node_modules/postgres/cjs/src/connection.js:815:30)\n        at handle (/Users/noritakasawada/AI_P/cashapp/node_modules/postgres/cjs/src/connection.js:489:6)\n        at Socket.data (/Users/noritakasawada/AI_P/cashapp/node_modules/postgres/cjs/src/connection.js:324:9)\n        at cachedError (/Users/noritakasawada/AI_P/cashapp/node_modules/postgres/cjs/src/query.js:170:23)\n        at Query (/Users/noritakasawada/AI_P/cashapp/node_modules/postgres/cjs/src/query.js:36:24)\n        at sql (/Users/noritakasawada/AI_P/cashapp/node_modules/postgres/cjs/src/index.js:112:11)\n        at cleanupE2eUsers (/Users/noritakasawada/AI_P/cashapp/tests/e2e/helpers/session.ts:146:12)\n\n    Error Context: test-results/e2e-manual-only-complete-フ-ac8fe-→checkout→paid）が週次-JSON-に出る-chromium/error-context.md\n\n  2 failed\n    [chromium] › tests/e2e/manual-only-complete.spec.ts:40:5 › 手動確認版だけで、参加者 2 名とも幹事が手動確認まで完走する ─────\n    [chromium] › tests/e2e/manual-only-complete.spec.ts:108:5 › ファネル 5 段（着地→同意→claim→checkout→paid）が週次 JSON に出る ",
+    "commit": "e8c63955eefae63a38d9d759571f7048c5bc714b",
+    "ran_at": "2026-09-24T19:04:09Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx playwright test tests/e2e/manual-only-complete.spec.ts",
+    "exit_code": 1,
+    "stdout_tail": "[WebServer] ⚠ The \"middleware\" file convention is deprecated. Please use \"proxy\" instead.\n[WebServer] \n[WebServer]   To migrate automatically, run:\n[WebServer]   npx @next/codemod@canary middleware-to-proxy .\n[WebServer] \n[WebServer]   Learn more: https://nextjs.org/docs/messages/middleware-to-proxy\n\nRunning 2 tests using 2 workers\n\n  ✓  2 [chromium] › tests/e2e/manual-only-complete.spec.ts:108:5 › ファネル 5 段（着地→同意→claim→checkout→paid）が週次 JSON に出る (45ms)\n  ✘  1 [chromium] › tests/e2e/manual-only-complete.spec.ts:40:5 › 手動確認版だけで、参加者 2 名とも幹事が手動確認まで完走する (131ms)\n\n\n  1) [chromium] › tests/e2e/manual-only-complete.spec.ts:40:5 › 手動確認版だけで、参加者 2 名とも幹事が手動確認まで完走する ────\n\n    Error: {\"code\":\"INTERNAL\",\"message\":\"処理に失敗しました。時間をおいてお試しください。\",\"requestId\":\"a50b8e529b95819bed353460ea00de26\"}\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 201\n    Received: 500\n\n      65 |     },\n      66 |   });\n    > 67 |   expect(createRes.status(), await createRes.text()).toBe(201);\n         |                                                      ^\n      68 |   const created = (await createRes.json()) as { event: { id: string } };\n      69 |\n      70 |   const participantsRes = await request.post(`${api}/api/events/${created.event.id}/participants`, {\n        at /Users/noritakasawada/AI_P/cashapp/tests/e2e/manual-only-complete.spec.ts:67:54\n\n    Error Context: test-results/e2e-manual-only-complete-手動確認版だけで、参加者-2-名とも幹事が手動確認まで完走する-chromium/error-context.md\n\n    Error Context: test-results/e2e-manual-only-complete-手動確認版だけで、参加者-2-名とも幹事が手動確認まで完走する-chromium/error-context.md\n\n  1 failed\n    [chromium] › tests/e2e/manual-only-complete.spec.ts:40:5 › 手動確認版だけで、参加者 2 名とも幹事が手動確認まで完走する ─────\n  1 passed (3.8s)",
+    "commit": "e8c63955eefae63a38d9d759571f7048c5bc714b",
+    "ran_at": "2026-09-24T19:04:55Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:e2e",
+    "exit_code": 1,
+    "stdout_tail": "      63 |     },\n      64 |   });\n    > 65 |   expect(createRes.status(), await createRes.text()).toBe(201);\n         |                                                      ^\n      66 |   const created = (await createRes.json()) as { event: { id: string }; joinToken: string };\n      67 |\n      68 |   // O-4: 参加者 4 名を追加。\n        at /Users/noritakasawada/AI_P/cashapp/tests/e2e/organizer-flow.spec.ts:65:54\n\n    Error Context: test-results/e2e-organizer-flow-幹事が請求発行-→-手動確認までを完走し、非自動バッジとサマリが正しい値になる-chromium/error-context.md\n\n    Error Context: test-results/e2e-organizer-flow-幹事が請求発行-→-手動確認までを完走し、非自動バッジとサマリが正しい値になる-chromium/error-context.md\n\n  3) [chromium] › tests/e2e/participant-flow.spec.ts:26:5 › preview は認証不要で読める。claim 以降は認証済みセッションで進める \n\n    Error: {\"code\":\"RATE_LIMIT_UNAVAILABLE\",\"message\":\"ただいま受け付けできません。時間をおいてお試しください。\",\"requestId\":\"bcd656d648111e09bcde15e1b67e63a2\"}\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 200\n    Received: 503\n\n      76 |     headers: { \"x-join-token\": joinToken },\n      77 |   });\n    > 78 |   expect(previewRes.status(), await previewRes.text()).toBe(200);\n         |                                                        ^\n      79 |   const preview = (await previewRes.json()) as Record<string, unknown>;\n      80 |   expect(Object.keys(preview).sort()).toEqual(\n      81 |     [\"allowCash\", \"amountRangeMinor\", \"collectByAt\", \"organizerLabel\", \"participantCount\", \"title\"].sort(),\n        at /Users/noritakasawada/AI_P/cashapp/tests/e2e/participant-flow.spec.ts:78:56\n\n    Error Context: test-results/e2e-participant-flow-previ-4e314-で読める。claim-以降は認証済みセッションで進める-chromium/error-context.md\n\n    Error Context: test-results/e2e-participant-flow-previ-4e314-で読める。claim-以降は認証済みセッションで進める-chromium/error-context.md\n\n  3 failed\n    [chromium] › tests/e2e/manual-only-complete.spec.ts:40:5 › 手動確認版だけで、参加者 2 名とも幹事が手動確認まで完走する ─────\n    [chromium] › tests/e2e/organizer-flow.spec.ts:33:5 › 幹事が請求発行 → 手動確認までを完走し、非自動バッジとサマリが正しい値になる ───\n    [chromium] › tests/e2e/participant-flow.spec.ts:26:5 › preview は認証不要で読める。claim 以降は認証済みセッションで進める \n  12 passed (5.1s)",
+    "commit": "e8c63955eefae63a38d9d759571f7048c5bc714b",
+    "ran_at": "2026-09-24T19:05:07Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:a11y",
+    "exit_code": 1,
+    "stdout_tail": "    Received:    640\n\n      57 |     // 200% 拡大時は横方向のコンテンツ量そのものが増えるため厳密な <= ではなく、\n      58 |     // 縦積みへの折り返しが機能していること（極端な超過が無いこと）を見る。\n    > 59 |     expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth + 32);\n         |                                  ^\n      60 |   });\n      61 | });\n      62 |\n        at /Users/noritakasawada/AI_P/cashapp/tests/a11y/pages.spec.ts:59:34\n\n    Error Context: test-results/a11y-pages-フォント-200-で崩れない--b8e27-のフォントサイズを-200-にしても横スクロールしない-chromium/error-context.md\n\n  5) [chromium] › tests/a11y/pages.spec.ts:64:7 › 最小タップサイズ 44px（操作可能要素） › /onboarding のチェックボックス・ラジオボタンのラベル（タップ領域）は 44px 以上の高さを持つ \n\n    Error: label 3 height\n\n    expect(received).toBeGreaterThanOrEqual(expected)\n\n    Expected: >= 44\n    Received:    18\n\n      73 |       const box = await labels.nth(i).boundingBox();\n      74 |       expect(box, `label ${i} has no bounding box`).not.toBeNull();\n    > 75 |       expect(box!.height, `label ${i} height`).toBeGreaterThanOrEqual(44);\n         |                                                ^\n      76 |     }\n      77 |   });\n      78 |\n        at /Users/noritakasawada/AI_P/cashapp/tests/a11y/pages.spec.ts:75:48\n\n    Error Context: test-results/a11y-pages-最小タップサイズ-44px（操-daa80-ンのラベル（タップ領域）は-44px-以上の高さを持つ-chromium/error-context.md\n\n  5 failed\n    [chromium] › tests/a11y/pages.spec.ts:28:7 › axe-core 違反 0 › /onboarding ───────────────────────\n    [chromium] › tests/a11y/pages.spec.ts:34:7 › axe-core 違反 0 › outside_line フォールバック（/events/new） ─\n    [chromium] › tests/a11y/pages.spec.ts:41:7 › axe-core 違反 0 › /admin（(web) グループ・管理者画面） ──────────\n    [chromium] › tests/a11y/pages.spec.ts:49:7 › フォント 200% で崩れない › /onboarding はルート要素のフォントサイズを 200% にしても横スクロールしない \n    [chromium] › tests/a11y/pages.spec.ts:64:7 › 最小タップサイズ 44px（操作可能要素） › /onboarding のチェックボックス・ラジオボタンのラベル（タップ領域）は 44px 以上の高さを持つ \n  3 passed (4.9s)",
+    "commit": "e8c63955eefae63a38d9d759571f7048c5bc714b",
+    "ran_at": "2026-09-24T19:05:42Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx playwright test tests/a11y/pages.spec.ts -g axe-core",
+    "exit_code": 1,
+    "stdout_tail": "    +             \"impact\": \"moderate\",\n    +             \"message\": \"Some page content is not contained by landmarks\",\n    +             \"relatedNodes\": Array [],\n    +           },\n    +         ],\n    +         \"failureSummary\": \"Fix any of the following:\n    +   Some page content is not contained by landmarks\",\n    +         \"html\": \"<a class=\\\"skip-link\\\" href=\\\"#web-main\\\">本文へスキップ</a>\",\n    +         \"impact\": \"moderate\",\n    +         \"none\": Array [],\n    +         \"target\": Array [\n    +           \".skip-link\",\n    +         ],\n    +       },\n    +     ],\n    +     \"tags\": Array [\n    +       \"cat.keyboard\",\n    +       \"best-practice\",\n    +       \"RGAAv4\",\n    +       \"RGAA-9.2.1\",\n    +     ],\n    +   },\n    + ]\n\n      42 |     await page.goto(LIFF_URL.replace(\"/events/new\", \"/admin\"));\n      43 |     const results = await axeViolations(page);\n    > 44 |     expect(results.violations, JSON.stringify(results.violations, null, 2)).toEqual([]);\n         |                                                                             ^\n      45 |   });\n      46 | });\n      47 |\n        at /Users/noritakasawada/AI_P/cashapp/tests/a11y/pages.spec.ts:44:77\n\n    Error Context: test-results/a11y-pages-axe-core-違反-0-admin（-web-グループ・管理者画面）-chromium/error-context.md\n\n  3 failed\n    [chromium] › tests/a11y/pages.spec.ts:28:7 › axe-core 違反 0 › /onboarding ───────────────────────\n    [chromium] › tests/a11y/pages.spec.ts:34:7 › axe-core 違反 0 › outside_line フォールバック（/events/new） ─\n    [chromium] › tests/a11y/pages.spec.ts:41:7 › axe-core 違反 0 › /admin（(web) グループ・管理者画面） ──────────\n  1 passed (2.7s)",
+    "commit": "e8c63955eefae63a38d9d759571f7048c5bc714b",
+    "ran_at": "2026-09-24T19:06:08Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx playwright test tests/a11y/smoke.spec.ts",
+    "exit_code": 0,
+    "stdout_tail": "[WebServer] ⚠ The \"middleware\" file convention is deprecated. Please use \"proxy\" instead.\n[WebServer] \n[WebServer]   To migrate automatically, run:\n[WebServer]   npx @next/codemod@canary middleware-to-proxy .\n[WebServer] \n[WebServer]   Learn more: https://nextjs.org/docs/messages/middleware-to-proxy\n\nRunning 1 test using 1 worker\n\n[WebServer] ⚠ Blocked cross-origin request to Next.js dev resource /_next/hmr from \"127.0.0.1\".\n[WebServer] Cross-origin access to Next.js dev resources is blocked by default for safety.\n[WebServer] \n[WebServer] To allow this host in development, add it to \"allowedDevOrigins\" in next.config.js and restart the dev server:\n[WebServer] \n[WebServer] // next.config.js\n[WebServer] module.exports = {\n[WebServer]   allowedDevOrigins: ['127.0.0.1'],\n[WebServer] }\n[WebServer] \n[WebServer] Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins\n  ✓  1 [chromium] › tests/a11y/smoke.spec.ts:6:5 › トップページに axe-core 違反が無い (419ms)\n\n  1 passed (2.3s)",
+    "commit": "e8c63955eefae63a38d9d759571f7048c5bc714b",
+    "ran_at": "2026-09-24T19:06:30Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:a11y",
+    "exit_code": 1,
+    "stdout_tail": "    Error: expect(received).toBeLessThanOrEqual(expected)\n\n    Expected: <= 444\n    Received:    640\n\n      67 |     // 200% 拡大時は横方向のコンテンツ量そのものが増えるため厳密な <= ではなく、\n      68 |     // 縦積みへの折り返しが機能していること（極端な超過が無いこと）を見る。\n    > 69 |     expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth + 32);\n         |                                  ^\n      70 |   });\n      71 | });\n      72 |\n        at /Users/noritakasawada/AI_P/cashapp/tests/a11y/pages.spec.ts:69:34\n\n    Error Context: test-results/a11y-pages-フォント-200-で崩れない--b8e27-のフォントサイズを-200-にしても横スクロールしない-chromium/error-context.md\n\n  2) [chromium] › tests/a11y/pages.spec.ts:74:7 › 最小タップサイズ 44px（操作可能要素） › /onboarding のチェックボックス・ラジオボタンのラベル（タップ領域）は 44px 以上の高さを持つ \n\n    Error: label 3 height\n\n    expect(received).toBeGreaterThanOrEqual(expected)\n\n    Expected: >= 44\n    Received:    18\n\n      83 |       const box = await labels.nth(i).boundingBox();\n      84 |       expect(box, `label ${i} has no bounding box`).not.toBeNull();\n    > 85 |       expect(box!.height, `label ${i} height`).toBeGreaterThanOrEqual(44);\n         |                                                ^\n      86 |     }\n      87 |   });\n      88 |\n        at /Users/noritakasawada/AI_P/cashapp/tests/a11y/pages.spec.ts:85:48\n\n    Error Context: test-results/a11y-pages-最小タップサイズ-44px（操-daa80-ンのラベル（タップ領域）は-44px-以上の高さを持つ-chromium/error-context.md\n\n  2 failed\n    [chromium] › tests/a11y/pages.spec.ts:59:7 › フォント 200% で崩れない › /onboarding はルート要素のフォントサイズを 200% にしても横スクロールしない \n    [chromium] › tests/a11y/pages.spec.ts:74:7 › 最小タップサイズ 44px（操作可能要素） › /onboarding のチェックボックス・ラジオボタンのラベル（タップ領域）は 44px 以上の高さを持つ \n  6 passed (4.3s)",
+    "commit": "e8c63955eefae63a38d9d759571f7048c5bc714b",
+    "ran_at": "2026-09-24T19:07:05Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "001224328ff544376dddac2e6b0215207319e20a",
+    "ran_at": "2026-09-24T19:09:26Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  51 passed (51)\n      Tests  1214 passed (1214)\n   Start at  19:09:28\n   Duration  128.12s (tests 94%, environment 2%, setup 2%, import 1%, transform 1%)",
+    "commit": "001224328ff544376dddac2e6b0215207319e20a",
+    "ran_at": "2026-09-24T19:09:28Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 1,
+    "stdout_tail": "    171|       const before = await verifyAuditChain(tx as unknown as postgres.…\n    172|       expect(before.ok).toBe(true);\n       |                         ^\n    173|\n    174|       // 追記専用トリガはテーブル所有者（migrator）でも DML を止める（check_013）。\n ❯ tests/integration/setup.ts:107:27\n ❯ scope node_modules/postgres/src/index.js:260:18\n ❯ Function.begin node_modules/postgres/src/index.js:243:14\n ❯ Module.withRollback tests/integration/setup.ts:106:5\n ❯ tests/integration/audit-chain.test.ts:147:5\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯\n\n FAIL  tests/integration/audit-chain.test.ts > appendAuditLog / verifyAuditChain: 連鎖の正しさ > prev_hash 自体を書き換えても、その行自身の row_hash 不一致として検出される\nAssertionError: expected '8759' to be '9355' // Object.is equality\n\nExpected: \"9355\"\nReceived: \"8759\"\n\n ❯ tests/integration/audit-chain.test.ts:221:32\n    219|       const after = await verifyAuditChain(tx as unknown as postgres.S…\n    220|       expect(after.ok).toBe(false);\n    221|       expect(after.brokenAtId).toBe(row2.id);\n       |                                ^\n    222|     });\n    223|   });\n ❯ tests/integration/setup.ts:107:27\n ❯ scope node_modules/postgres/src/index.js:260:18\n ❯ Function.begin node_modules/postgres/src/index.js:243:14\n ❯ Module.withRollback tests/integration/setup.ts:106:5\n ❯ tests/integration/audit-chain.test.ts:197:5\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯\n\n\n Test Files  1 failed | 21 passed (22)\n      Tests  4 failed | 251 passed (255)\n   Start at  19:11:43\n   Duration  15.25s (tests 78%, import 14%, setup 5%, transform 3%)",
+    "commit": "162738db75b1e0bbe3d37d36ebb9a8f2115bd555",
+    "ran_at": "2026-09-24T19:11:43Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx playwright test tests/e2e/manual-only-complete.spec.ts -g ファネル",
+    "exit_code": 1,
+    "stdout_tail": "[WebServer] ⚠ The \"middleware\" file convention is deprecated. Please use \"proxy\" instead.\n[WebServer] \n[WebServer]   To migrate automatically, run:\n[WebServer]   npx @next/codemod@canary middleware-to-proxy .\n[WebServer] \n[WebServer]   Learn more: https://nextjs.org/docs/messages/middleware-to-proxy\n(node:42518) Warning: Failed to load the ES module: /Users/noritakasawada/AI_P/cashapp/tests/integration/setup.ts. Make sure to set \"type\": \"module\" in the nearest package.json file or use the .mjs extension.\n(Use `node --trace-warnings ...` to show where the warning was created)\nSyntaxError: Cannot use 'import.meta' outside a module\n\n   at e2e/manual-only-complete.spec.ts:7\n\n   5 |\n   6 | import { cleanupE2eUsers, seedOrganizerSession, testSql, uniq } from \"./helpers/session\";\n>  7 | import { withRollback } from \"../integration/setup\";\n     | ^\n   8 |\n   9 | // `playwright.config.ts` の `testDir` はリポジトリ直下なので、`npm run test:e2e` は常に\n  10 | // リポジトリルートから起動される（`import.meta.url` は本ファイルの transform 設定では\n    at Object.<anonymous> (/Users/noritakasawada/AI_P/cashapp/tests/e2e/manual-only-complete.spec.ts:7:1)\nError: No tests found.\nMake sure that arguments are regular expressions matching test files.\nYou may need to escape symbols like \"$\" or \"*\" and quote the arguments.",
+    "commit": "162738db75b1e0bbe3d37d36ebb9a8f2115bd555",
+    "ran_at": "2026-09-24T19:13:38Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx playwright test tests/e2e/manual-only-complete.spec.ts -g ファネル",
+    "exit_code": 0,
+    "stdout_tail": "[WebServer] ⚠ The \"middleware\" file convention is deprecated. Please use \"proxy\" instead.\n[WebServer] \n[WebServer]   To migrate automatically, run:\n[WebServer]   npx @next/codemod@canary middleware-to-proxy .\n[WebServer] \n[WebServer]   Learn more: https://nextjs.org/docs/messages/middleware-to-proxy\n\nRunning 1 test using 1 worker\n\n  ✓  1 [chromium] › tests/e2e/manual-only-complete.spec.ts:108:5 › ファネル 5 段（着地→同意→claim→checkout→paid）が週次 JSON に出る (33ms)\n\n  1 passed (1.7s)",
+    "commit": "162738db75b1e0bbe3d37d36ebb9a8f2115bd555",
+    "ran_at": "2026-09-24T19:14:06Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:integration\n> TZ=UTC vitest run tests/integration --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  22 passed (22)\n      Tests  257 passed (257)\n   Start at  19:14:16\n   Duration  13.72s (tests 80%, import 13%, setup 4%, transform 2%)",
+    "commit": "162738db75b1e0bbe3d37d36ebb9a8f2115bd555",
+    "ran_at": "2026-09-24T19:14:16Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:e2e",
+    "exit_code": 1,
+    "stdout_tail": "      63 |     },\n      64 |   });\n    > 65 |   expect(createRes.status(), await createRes.text()).toBe(201);\n         |                                                      ^\n      66 |   const created = (await createRes.json()) as { event: { id: string }; joinToken: string };\n      67 |\n      68 |   // O-4: 参加者 4 名を追加。\n        at /Users/noritakasawada/AI_P/cashapp/tests/e2e/organizer-flow.spec.ts:65:54\n\n    Error Context: test-results/e2e-organizer-flow-幹事が請求発行-→-手動確認までを完走し、非自動バッジとサマリが正しい値になる-chromium/error-context.md\n\n    Error Context: test-results/e2e-organizer-flow-幹事が請求発行-→-手動確認までを完走し、非自動バッジとサマリが正しい値になる-chromium/error-context.md\n\n  3) [chromium] › tests/e2e/participant-flow.spec.ts:26:5 › preview は認証不要で読める。claim 以降は認証済みセッションで進める \n\n    Error: {\"code\":\"RATE_LIMIT_UNAVAILABLE\",\"message\":\"ただいま受け付けできません。時間をおいてお試しください。\",\"requestId\":\"6868cb07996b61080506ccb1bc219319\"}\n\n    expect(received).toBe(expected) // Object.is equality\n\n    Expected: 200\n    Received: 503\n\n      76 |     headers: { \"x-join-token\": joinToken },\n      77 |   });\n    > 78 |   expect(previewRes.status(), await previewRes.text()).toBe(200);\n         |                                                        ^\n      79 |   const preview = (await previewRes.json()) as Record<string, unknown>;\n      80 |   expect(Object.keys(preview).sort()).toEqual(\n      81 |     [\"allowCash\", \"amountRangeMinor\", \"collectByAt\", \"organizerLabel\", \"participantCount\", \"title\"].sort(),\n        at /Users/noritakasawada/AI_P/cashapp/tests/e2e/participant-flow.spec.ts:78:56\n\n    Error Context: test-results/e2e-participant-flow-previ-4e314-で読める。claim-以降は認証済みセッションで進める-chromium/error-context.md\n\n    Error Context: test-results/e2e-participant-flow-previ-4e314-で読める。claim-以降は認証済みセッションで進める-chromium/error-context.md\n\n  3 failed\n    [chromium] › tests/e2e/manual-only-complete.spec.ts:40:5 › 手動確認版だけで、参加者 2 名とも幹事が手動確認まで完走する ─────\n    [chromium] › tests/e2e/organizer-flow.spec.ts:33:5 › 幹事が請求発行 → 手動確認までを完走し、非自動バッジとサマリが正しい値になる ───\n    [chromium] › tests/e2e/participant-flow.spec.ts:26:5 › preview は認証不要で読める。claim 以降は認証済みセッションで進める \n  12 passed (7.6s)",
+    "commit": "162738db75b1e0bbe3d37d36ebb9a8f2115bd555",
+    "ran_at": "2026-09-24T19:14:34Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:security",
+    "exit_code": 1,
+    "stdout_tail": "+ ]\n\n ❯ tests/security/webhook-ip.test.ts:44:58\n     42|     [\"1 件だけ不正でも全体を空にする\", \"203.0.113.0/24,not-an-ip\"],\n     43|   ])(\"%s は空配列\", (_label, spec) => {\n     44|     expect(parseIpAllowlist(spec as string | undefined)).toEqual([]);\n       |                                                          ^\n     45|   });\n     46|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯\n\n FAIL  tests/security/xss-csp.test.ts > CSV 数式インジェクション（export.csv / O-12） > 先頭が = のセルは、Excel/Sheets に数式として解釈されない形で出力される\n FAIL  tests/security/xss-csp.test.ts > CSV 数式インジェクション（export.csv / O-12） > 先頭が + のセルは、Excel/Sheets に数式として解釈されない形で出力される\n FAIL  tests/security/xss-csp.test.ts > CSV 数式インジェクション（export.csv / O-12） > 先頭が - のセルは、Excel/Sheets に数式として解釈されない形で出力される\n FAIL  tests/security/xss-csp.test.ts > CSV 数式インジェクション（export.csv / O-12） > 先頭が @ のセルは、Excel/Sheets に数式として解釈されない形で出力される\nAssertionError: csvField() が数式先頭文字をエスケープしていない（対応案は docs/concerns/task_022.md）: expected true to be false // Object.is equality\n\n- Expected\n+ Received\n\n- false\n+ true\n\n ❯ tests/security/xss-csp.test.ts:82:7\n     80|       startsWithFormulaChar,\n     81|       \"csvField() が数式先頭文字をエスケープしていない（対応案は docs/concerns/task_022.md）\",\n     82|     ).toBe(false);\n       |       ^\n     83|   });\n     84|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯\n\n\n Test Files  2 failed | 9 passed (11)\n      Tests  5 failed | 98 passed (103)\n   Start at  19:14:45\n   Duration  1.11s (import 32%, tests 31%, setup 22%, transform 14%, worker 1%)",
+    "commit": "162738db75b1e0bbe3d37d36ebb9a8f2115bd555",
+    "ran_at": "2026-09-24T19:14:45Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:a11y",
+    "exit_code": 1,
+    "stdout_tail": "    Error: expect(received).toBeLessThanOrEqual(expected)\n\n    Expected: <= 444\n    Received:    640\n\n      67 |     // 200% 拡大時は横方向のコンテンツ量そのものが増えるため厳密な <= ではなく、\n      68 |     // 縦積みへの折り返しが機能していること（極端な超過が無いこと）を見る。\n    > 69 |     expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth + 32);\n         |                                  ^\n      70 |   });\n      71 | });\n      72 |\n        at /Users/noritakasawada/AI_P/cashapp/tests/a11y/pages.spec.ts:69:34\n\n    Error Context: test-results/a11y-pages-フォント-200-で崩れない--b8e27-のフォントサイズを-200-にしても横スクロールしない-chromium/error-context.md\n\n  2) [chromium] › tests/a11y/pages.spec.ts:74:7 › 最小タップサイズ 44px（操作可能要素） › /onboarding のチェックボックス・ラジオボタンのラベル（タップ領域）は 44px 以上の高さを持つ \n\n    Error: label 3 height\n\n    expect(received).toBeGreaterThanOrEqual(expected)\n\n    Expected: >= 44\n    Received:    18\n\n      83 |       const box = await labels.nth(i).boundingBox();\n      84 |       expect(box, `label ${i} has no bounding box`).not.toBeNull();\n    > 85 |       expect(box!.height, `label ${i} height`).toBeGreaterThanOrEqual(44);\n         |                                                ^\n      86 |     }\n      87 |   });\n      88 |\n        at /Users/noritakasawada/AI_P/cashapp/tests/a11y/pages.spec.ts:85:48\n\n    Error Context: test-results/a11y-pages-最小タップサイズ-44px（操-daa80-ンのラベル（タップ領域）は-44px-以上の高さを持つ-chromium/error-context.md\n\n  2 failed\n    [chromium] › tests/a11y/pages.spec.ts:59:7 › フォント 200% で崩れない › /onboarding はルート要素のフォントサイズを 200% にしても横スクロールしない \n    [chromium] › tests/a11y/pages.spec.ts:74:7 › 最小タップサイズ 44px（操作可能要素） › /onboarding のチェックボックス・ラジオボタンのラベル（タップ領域）は 44px 以上の高さを持つ \n  6 passed (4.7s)",
+    "commit": "162738db75b1e0bbe3d37d36ebb9a8f2115bd555",
+    "ran_at": "2026-09-24T19:14:47Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  }
+]

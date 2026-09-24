@@ -1,0 +1,62 @@
+# .github/workflows/gate-a11y.yml — a11y（axe-core / Playwright）。nightly と手動起動のみ。
+#
+# ★ 本ファイルは task_022 が単独で所有する。`.github/workflows/gate.yml` は編集しない
+#   （並行タスクの衝突回避規約。`.github/workflows/e2e.yml`（task_009）の冒頭コメント
+#   「tests/a11y は task_022 が実体を作った時点で同タスクが別ファイルで足す」に対応する）。
+#
+# `tests/a11y/pages.spec.ts` が対象にする画面（`/onboarding`・outside_line フォールバック・
+# `/admin`）はどれも DB に触れないため、`gate-integration.yml` / `e2e.yml` と違い Postgres の
+# 起動は不要。`npx next dev`（webServer）の起動・ブラウザのダウンロードだけで PR ごとの
+# フィードバックが遅くなる（§16-8 F12）ため、PR ごとには回さず nightly スケジュールにする。
+# required status checks には入れない。
+
+name: gate-a11y
+
+on:
+  schedule:
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate-a11y-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  a11y:
+    name: a11y
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # playwright.config.ts の projects は chromium 1 つだけ（devices["Pixel 7"]）。
+      - name: Playwright ブラウザ（chromium）
+        run: npx playwright install --with-deps chromium
+
+      - name: a11y
+        run: npm run test:a11y
+        env:
+          # `next dev`（webServer）の `(liff)` レイアウトが `loadAppConfig()` を通すために要る
+          # （DB には触れない。値は `.env.example` にあるローカル専用ダミー）。
+          APP_ENV: development
+          LINE_ENV_PROFILE: '{"env":"development","liffId":"2000000000-abcd1234","loginChannelId":"2000000000"}'
+          PEPPER: "1:local-dev-pepper-v1-not-a-real-secret-000000"
+          SESSION_KEYS: "devkey1:local-dev-session-key-1-not-a-real-secret-0"
+          CRON_SECRETS: "local-dev-cron-secret-1-not-a-real-secret-00"
+
+      - name: レポートを残す
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-a11y
+          path: playwright-report/
+          retention-days: 14
+          if-no-files-found: ignore

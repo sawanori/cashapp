@@ -5,8 +5,14 @@
 # ブラウザのダウンロードで PR のフィードバックが遅くなり、ハーネスの空振り待ち時間
 # （§16-8 F12）を増やすため。
 #
-# tests/a11y（axe-core）は task_022 が実体を作った時点で同タスクが別ファイルで足す。
-# ここでは tests/e2e（`npm run test:e2e`）だけを走らせる。
+# tests/a11y（axe-core）は task_022 が `.github/workflows/gate-a11y.yml` として別ファイルで
+# 足した（並行タスクの衝突回避規約: CI ジョブの追加は本ファイルを編集せず
+# `gate-<job>.yml` を新設する）。ここでは tests/e2e（`npm run test:e2e`）だけを走らせる。
+#
+# task_022: tests/e2e/organizer-flow.spec.ts / participant-flow.spec.ts /
+# manual-only-complete.spec.ts が実 Postgres（`tests/e2e/helpers/session.ts` の `testSql()`）
+# を使うため、`gate-integration.yml`（task_011）と同じ手順で Supabase を起動し、
+# `app_rw` にローカル専用パスワードを設定してから E2E を走らせる。
 
 name: e2e
 
@@ -40,10 +46,40 @@ jobs:
       - name: Playwright ブラウザ（chromium）
         run: npx playwright install --with-deps chromium
 
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.58.5
+
+      # `gate-integration.yml`（task_011）と同じ手順。organizer-flow / participant-flow /
+      # manual-only-complete が `tests/e2e/helpers/session.ts` 経由で `app_rw` に直接つなぐ。
+      - name: Start local Supabase (Postgres)
+        run: supabase start
+
+      - name: Apply migrations
+        run: npm run db:migrate
+
+      # `tests/integration/setup.ts` の `ensureAppRwLoginPassword()` と同じ値。
+      # ローカル専用のダミーパスワードであり、本番・staging では使わない（同ファイルの注記）。
+      - name: Set local app_rw password
+        run: |
+          psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            -c "ALTER ROLE app_rw LOGIN PASSWORD 'app_rw_local_dev_only'"
+
       # playwright.config.ts の webServer が `npx next dev -p 3100` を起動する
       # （CI では reuseExistingServer=false）。ここでサーバーを別途起動しない。
       - name: E2E
         run: npm run test:e2e
+        env:
+          DATABASE_URL_MIGRATOR: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          APP_RW_PASSWORD: app_rw_local_dev_only
+          # `next dev`（webServer）と `tests/e2e/helpers/session.ts` の両方が読む。
+          # 値は `.env.example` / `.dev.vars.example` に既にあるローカル専用ダミー
+          # （本番・staging はここに書かない。§7-7）。
+          APP_ENV: development
+          LINE_ENV_PROFILE: '{"env":"development","liffId":"2000000000-abcd1234","loginChannelId":"2000000000"}'
+          PEPPER: "1:local-dev-pepper-v1-not-a-real-secret-000000"
+          SESSION_KEYS: "devkey1:local-dev-session-key-1-not-a-real-secret-0"
+          CRON_SECRETS: "local-dev-cron-secret-1-not-a-real-secret-00"
 
       - name: レポートを残す
         if: always()

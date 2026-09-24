@@ -829,3 +829,37 @@
   （`typecheck` / `test:integration` **22 ファイル 257/257 pass** / `audit:verify` ok:true /
   `gate:constraints` **29 entry 0 violation**）。`docs/review-log/task_020.json` は検証者が
   コミット済み（e8c6395）のため再作成していない。残懸念 16 件は `docs/concerns/task_020.md`。
+- task_022: DONE_WITH_CONCERNS — E2E・セキュリティ・a11y テストと CI ジョブを実装。
+  **9 本のセキュリティテスト**（idor / claims / csrf / xss-csp / idempotency-cross-user /
+  id-token-replay / webhook-ip / deeplink-host / gate-bypass）はいずれも
+  `createVerifiedDbClient()` を経由せず、`withRollback` のトランザクションでルートの本体関数を
+  直接呼ぶ方式で書いた（理由は次項）。**6 本の E2E**（organizer-flow / participant-flow /
+  viewport / outside-line / manual-only-complete / web-only）と a11y（pages.spec.ts）、
+  `src/lib/metrics/funnel.ts`（ファネル記録・週次集計・JSON 出力）、
+  `.github/workflows/gate-a11y.yml`（新設）・`e2e.yml`（Supabase 起動手順を追加）を作成した。
+  **本タスクが実測で確定した最重要の発見**: `createVerifiedDbClient()` 経由の実ルートは
+  `docs/concerns/task_021.md` #1 の timestamptz 不具合（`runIdempotent()` の予約 INSERT が
+  最初の書き込みで落ちる）により、`POST /api/events` を含むほぼ全ての書き込み・多くの読み取りで
+  実際に 500 になることを、実セッション・実 CSRF トークンでの HTTP 呼び出しで確認した
+  （`docs/concerns/task_022.md` #1。`src/lib/db/client.ts` は files_to_modify 外のため未修正）。
+  加えて `/api/auth/line` / `/api/e/preview` は `docs/concerns/task_012.md` C-012-2
+  （レート制限バインディング未設定）により常に 503 であることも再確認した（#2）。
+  `@line/liff-mock` の `isInClient` を外部から上書きする経路が無く、ブラウザ駆動の認証済み
+  E2E が構造的に成立しないため（#3）、`tests/e2e/helpers/session.ts` でセッション JWT を
+  直接発行し Playwright の `request` コンテキストで実 HTTP を叩く方式に切り替えた。
+  この過程で **`GET /api/events/:id/export.csv` の CSV 数式インジェクション未対策**（#4）と
+  **`src/lib/webhook/ip-allowlist.ts` の許可リスト解析が範囲外オクテットを誤分類する**（#5）を
+  新規発見し、テストとして固定した（意図的に赤のまま。テストを弱めていない）。
+  **事故の記録と是正**: 当初 `manual-only-complete.spec.ts` のファネル検証が `audit_log`
+  （追記専用・グローバル）へ不正なハッシュで実コミットし、`tests/integration/
+  audit-chain.test.ts` の連鎖検証を壊した（実測で発見）。汚染行を特権接続で削除したうえで、
+  同テストを `withRollback` に書き直し（正しいハッシュ連鎖も複製）、`test:integration`
+  22 ファイル 257/257 pass に復旧したことを確認済み。**verify_commands 5 本すべて
+  `scripts/record-run.sh task_022` 経由で実行**: `test:unit` 51 ファイル 1214/1214 pass、
+  `test:integration` 22 ファイル 257/257 pass、`test:security` **9/11 ファイル pass
+  （103 件中 5 件が上記 #4/#5 由来の意図的な赤）**、`test:a11y` **6/8 ファイル pass
+  （2 件は `/onboarding` の 44px タップ・200% フォント未対応。#6）**、`test:e2e`
+  **12/15 ファイル pass（3 件は #1/#2 由来。テストは正しい仕様のまま）**。typecheck は
+  exit 0（`src/lib/reconcile.ts` の既存の型エラーは他タスクの未コミット差分に起因し
+  本タスクの変更とは無関係。現在は解消済み）。残懸念 8 件は `docs/concerns/task_022.md`
+  （high 2・medium 3・low 3）。ファネルの実配線（#8）と CI 実行確認（#9）は deferred。

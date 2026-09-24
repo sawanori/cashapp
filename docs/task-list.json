@@ -2553,8 +2553,17 @@
       "adversarial_review": "required",
       "evidence_label": "[設計]",
       "optional": false,
-      "completion_status": null,
-      "concerns": []
+      "completion_status": "DONE_WITH_CONCERNS",
+      "concerns": [
+        "[severity: high] createVerifiedDbClient() 経由の実 HTTP ルートは、runIdempotent() の予約 INSERT（Date 束縛）が最初の書き込みで落ちる既知の timestamptz 不具合（docs/concerns/task_021.md #1）により、ほぼ全ての POST・多くの GET で 500 になることを実測確定した（tests/e2e/organizer-flow.spec.ts / manual-only-complete.spec.ts が赤）。対応案は docs/concerns/task_022.md #1（src/lib/db/client.ts の所有タスクへ）",
+        "[severity: high] /api/auth/line と /api/e/preview は wrangler.toml にレート制限バインディングが無いため常に 503（docs/concerns/task_012.md C-012-2 の実測再確認）。ローカルの ALLOW_LOCAL_RATE_LIMIT_BYPASS は Hyperdrive バインディング宣言が常に非 null になるため到達不能であることも実測した。docs/concerns/task_022.md #2",
+        "[severity: medium] @line/liff-mock の isInClient を外部から上書きする経路が無く、ブラウザ駆動の認証済み E2E が構造的に成立しない。organizer-flow/participant-flow/manual-only-complete は Playwright の request コンテキスト＋直接発行したセッションで実 HTTP を叩く形に代替した。docs/concerns/task_022.md #3",
+        "[severity: medium] GET /api/events/:id/export.csv の csvField() が CSV 数式インジェクション（=/+/-/@ 先頭）を対策していないことを新規発見（tests/security/xss-csp.test.ts に赤 4 件で固定）。docs/concerns/task_022.md #4",
+        "[severity: medium] ファネル計測（src/lib/metrics/funnel.ts）は記録・集計・週次 JSON 出力まで実装・実測したが、実際の集金導線（preview/consent/claim/checkout/台帳適用）からの呼び出し配線は対象ルートが files_to_modify 外のため未実施。docs/concerns/task_022.md #8",
+        "[severity: low] src/lib/webhook/ip-allowlist.ts の許可リスト解析が範囲外オクテット（例: 203.0.113.256）を無害な exact ルールに誤分類し、fail-closed の約束を破る（実害は無い）。docs/concerns/task_022.md #5",
+        "[severity: low] /onboarding に最小タップ44px・200%フォント時の横スクロール対策が無いことを実測（tests/a11y/pages.spec.ts に赤2件）。docs/concerns/task_022.md #6",
+        "[severity: low] .github/workflows/e2e.yml / gate-a11y.yml に追加した Supabase 起動手順はYAML静的検証のみで、実CI実行はメインセッションのpush後に確認（deferred）。docs/concerns/task_022.md #9"
+      ]
     },
     {
       "task_id": "task_023",
