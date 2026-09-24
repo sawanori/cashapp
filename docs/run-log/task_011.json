@@ -61,5 +61,55 @@
     "commit": "7ba8eae101d2cc73247e444d7205d455aaf07672",
     "ran_at": "2026-09-24T04:03:48Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "0c19054baa6bafca77c76bdfb5a7a16596e6d041",
+    "ran_at": "2026-09-24T04:06:33Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:integration\n> TZ=UTC vitest run tests/integration --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  1 passed (1)\n      Tests  32 passed (32)\n   Start at  04:06:37\n   Duration  13.53s (tests 98%, import 1%)",
+    "commit": "0c19054baa6bafca77c76bdfb5a7a16596e6d041",
+    "ran_at": "2026-09-24T04:06:36Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gates:sync",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gates:sync\n> node scripts/gates-sync.mjs\n\ngates:sync OK — 10 gate(s) in docs/gates/compliance-gates.json match compliance_gate",
+    "commit": "0c19054baa6bafca77c76bdfb5a7a16596e6d041",
+    "ran_at": "2026-09-24T04:06:53Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 5 file(s))\nok    L2 (forbid, 5 file(s))\nok    L3 (forbid, 5 file(s))\nok    L8 (forbid, 5 file(s))\nok    L12 (forbid, 5 file(s))\nok    P1 (forbid, 5 file(s))\ndefer P2 (0 targets; waiting on task_018)\ndefer P9 (0 targets; waiting on task_017)\nok    W3 (forbid, 7 file(s))\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 5 file(s))\nok    N5 (forbid, 5 file(s))\nok    N7 (forbid, 5 file(s))\nok    N9 (forbid, 5 file(s))\nok    N11 (forbid, 5 file(s))\nok    I1 (require, 1 file(s))\nok    I2 (require, 1 file(s))\nok    I3 (forbid, 2 file(s))\nok    I4 (forbid, 2 file(s))\nok    X-TIME (forbid, 3 file(s))\nok    X-ID (forbid, 3 file(s))\ndefer X-MONEY (0 targets; waiting on task_017)\nok    GC-XSS (forbid, 5 file(s))\nok    GC-ENV-PUBLIC (forbid, 10 file(s))\nok    GC-SERVER-ONLY (require, 1 file(s))\n\ngate:constraints — scanned 21 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "0c19054baa6bafca77c76bdfb5a7a16596e6d041",
+    "ran_at": "2026-09-24T04:06:53Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": ".github/workflows/gate-integration.yml は PR 上で未実行（git push が禁止コマンドのため）。ローカルで同じコマンド列（supabase start 済みの状態で npm run db:migrate → npm run test:integration → npm run gates:sync）を実行し、いずれも exit 0 であることを確認した。YAML の構文は python3 の yaml.safe_load で解析できることを確認済み。",
+    "commit": "0c19054baa6bafca77c76bdfb5a7a16596e6d041",
+    "ran_at": "2026-09-24T04:07:08Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "drizzle-kit による差分検査は非実施。drizzle.config.ts（task_003 の成果物・本タスクの files_to_modify 外）の schema パスが ./src/db/schema.ts を指しており実体（src/lib/db/schema.ts）と不一致であり、かつ §7-2 が drizzle-kit をマイグレーション生成に使わないと定めているため。代替として Drizzle の 248 列と実 DB の format_type / NOT NULL の完全一致を tests/integration/schema.test.ts で検査し緑。",
+    "commit": "0c19054baa6bafca77c76bdfb5a7a16596e6d041",
+    "ran_at": "2026-09-24T04:07:09Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]
