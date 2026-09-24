@@ -39,8 +39,11 @@
 3. **幹事・参加者の集金導線の LINE 非依存版を Phase 1 では作らない。**
    名簿・請求・手動確認・配布・支払いの各画面は `(liff)` にのみ存在する。
 4. `npm run build:web-only`（`scripts/build-web-only.mjs`）が担保するのは次の 4 点に限る。
-   - `package.json` の `build` / `build:cf` が `NEXT_PUBLIC_LIFF_MOCK` を定義していること
-     （下の「畳み込みの条件」。未定義だとモックが本番バンドルに載る）
+   - `package.json` の `build` / `build:cf` が `NEXT_PUBLIC_LIFF_MOCK=0` に**固定**していること
+     （下の「畳み込みの条件」。未定義だとモックが本番バンドルに載る。
+     `${NEXT_PUBLIC_LIFF_MOCK:-0}` のように外部の値を尊重する形も**不可**で、
+     デプロイ環境に `1` を置くだけでゲートを緑のまま通過してモックが載るため、
+     右辺が `0` リテラルであることまで検査する）
    - `src/lib/liff/**` と `src/app/(liff)/**` **以外の** `src/` 配下のどのファイルも
      `@line/liff` / `@line/liff-mock` / `src/lib/liff/**` を参照しないこと
      （`src/` の全走査 ＋ `src/app/**` の `(liff)` 以外と `src/middleware.ts` を起点とする

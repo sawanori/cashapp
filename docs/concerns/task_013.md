@@ -59,11 +59,20 @@ LIFF 外殻・起動順序・ループ防止・テレメトリ・静的フォー
 
 - `scripts/build-web-only.mjs` は `delete` をやめ、`NEXT_PUBLIC_LIFF_MOCK=0` を明示的に設定して
   `next build` を起動する。
-- `package.json` の `build` / `build:cf` も `NEXT_PUBLIC_LIFF_MOCK=${NEXT_PUBLIC_LIFF_MOCK:-0}` を前置し、
+- `package.json` の `build` / `build:cf` も `NEXT_PUBLIC_LIFF_MOCK=0` を前置し、
   **配信される成果物を作る経路**でも define が必ず作られるようにした。
-- `npm run build:web-only` に検査 (0) を足し、この 2 つのスクリプトが変数を定義していなければ
-  違反にする。`tests/unit/ci/web-only-workflow.test.ts` も同じことを毎回確かめ、
-  「`delete env[...]` に戻したら落ちる」形にした。Next 側の前提
+  （3 周目の訂正: 2 周目は `NEXT_PUBLIC_LIFF_MOCK=${NEXT_PUBLIC_LIFF_MOCK:-0}` と
+  **外部の値を尊重する**形にしていたが、それだとデプロイ環境に `NEXT_PUBLIC_LIFF_MOCK=1` を
+  置くだけでゲートもテストも緑のままモックが本番バンドルに載る。右辺を `0` リテラルに固定した。
+  モックを有効にしたビルドが要る場合は本番ビルド経路を書き換えず、別経路を使う
+  ＝ E2E は `npx next dev` で起動するので `.env.local` の `NEXT_PUBLIC_LIFF_MOCK=1` で足りる。）
+- `npm run build:web-only` に検査 (0) を足し、この 2 つのスクリプトが
+  `NEXT_PUBLIC_LIFF_MOCK=0` に**固定**していなければ違反にする（3 周目に「定義の有無」から強めた）。
+  `tests/unit/ci/web-only-workflow.test.ts` も同じことを毎回確かめ、
+  「`delete env[...]` に戻したら落ちる」形にした。あわせて 3 周目に、
+  fixture の木を作って `scripts/build-web-only.mjs` を**実際に spawn** し、
+  `=1` / `${NEXT_PUBLIC_LIFF_MOCK:-0}` / 未定義の 3 つで exit 1、`=0` で exit 0 になることを
+  固定するテストを足した（本文 grep ではなく exit code を見る）。Next 側の前提
   （`for (const key in process.env)`）自体もテストが毎回読み直す。
 - `src/lib/liff/client.ts` / `src/lib/liff/mock.ts` / `.env.example` / ADR-013 の
   「未設定なら畳み込まれる」という説明を「**`"1"` 以外の値が設定されていることが条件**」に直した。
@@ -90,17 +99,26 @@ LIFF 外殻・起動順序・ループ防止・テレメトリ・静的フォー
 ジョブ名は `web-only` で、required status check として指定する文字列は
 `gate-web-only / web-only` である（run の `jobs[].name` で確認）。
 
+**3 周目の更新（2026-09-24T10:5x）**: 2 周目に「まだ CI を通っていない」と書いた修正版は、
+その後に他タスクが main を push した際に**一緒に載って実走し、緑になった**。
+
+| run id | head | event | 結論 | 備考 |
+|---|---|---|---|---|
+| 35989181733 | d722cc4 | push (main) | success（job `web-only`） | `4d22062` / `f77ac63`（2 周目の修正）を含む |
+
+`git merge-base --is-ancestor 4d22062 d722cc4` が真であることを確認した（＝この run が検査したのは
+`NEXT_PUBLIC_LIFF_MOCK=0` を設定する 2 周目のスクリプトである）。
+
 **それでも残っていること（deferred のまま）**:
 
-1. **`pull_request` イベントでの緑はまだ無い。** 上の 2 回はどちらも `push` である。
+1. **`pull_request` イベントでの緑はまだ無い。** 実走した 4 回はいずれも `push` である。
    done_definition の文言は「PR で緑」。
-2. **2 周目の修正版はまだ CI を通っていない。** 上の 2 回が走ったのは、
-   `delete env["NEXT_PUBLIC_LIFF_MOCK"]` のままの 1 周目のスクリプトである
-   （＝ **モックが落ちない前提のまま緑になっていた**）。本タスクの修正コミットは未 push で、
+2. **3 周目の修正（init タイムアウト・env の固定・`StateView` の ③ 単独回避）は未 push。**
    `git push` は本プロジェクトの禁止コマンドなので、このエージェントからは実走させられない。
-3. **ブランチ保護が未設定。** `gh api repos/.../branches/main/protection` は
-   `404 Branch not protected` を返す。required status checks への
-   `gate-web-only / web-only` の登録は task_009 の担当で、未実施である。
+   次に main が push されたときに `gate-web-only` が検査する。
+3. **ブランチ保護が未設定。** required status checks への `gate-web-only / web-only` の登録は
+   task_009 の担当で、task_009 は 3 周目に「いまは入れない」と判断している
+   （`docs/concerns/task_009.md`）。したがってこの項目の解消時期は task_009 / PO の判断に従う。
 
 **当初の指摘（1 周目）**: done_definition 第 5 項「gate.yml に web-only ジョブが追加され緑」のうち、
 **実 PR での緑は未実施**である。GitHub リモートが未作成（PO 判断待ち）で、`git push` も
@@ -266,10 +284,17 @@ files_to_modify に挙がっていた `.github/workflows/gate.yml` は **編集�
 3. 3 つ揃うのは「起動後に SDK 読み込みが 3 秒で間に合わなかった／`init` が失敗した」場面、
    すなわち `bootLiff()` の結果を画面が受けて `StaticFallback` を描くときである。
    その画面は **task_014 までまだ存在しない**。
-4. `StateView` の `outside_line` / `auth_unavailable` も `permanentLink` 未指定では
-   ①「LINE で開く」②「URL」が消え、③ QR の注記だけが残る（§7-3 のフォールバック優先順の ①② が欠ける）。
-   props を必須にする（型を state で分岐させる）案は、既存テスト
-   「パーマネントリンクが無ければリンクを出さない」の契約を変えることになるため 2 周目では採っていない。
+4. ~~`StateView` の `outside_line` / `auth_unavailable` も `permanentLink` 未指定では
+   ①「LINE で開く」②「URL」が消え、③ QR の注記だけが残る~~
+   → **3 周目に修正済み**。①②③ を 1 つのまとまりとして扱い、`permanentLink` が無いときは
+   ③ も描かない。③ だけが残ると画面には「いま見ている端末では読み取れません」＝
+   **できないことしか書かれていない**状態になり、check_029 の期待（①→②→③ の順で表示）を
+   満たさないため。壊れたリンクを出さない意図は維持し、本文
+   「LINE アプリで開いてください」は残るので次にやることは画面に残る。
+   `tests/unit/components/StateView.test.tsx` の該当テストは「リンクを出さない」から
+   「①②③ のどれも出さない（③ だけ残る状態を作れない）」へ書き換えた。
+   `permanentLink` を **型で必須化**する案（state ごとの判別可能ユニオン）は採っていない。
+   呼び出し側（task_014）が LIFF ID を解決できない場面があり、その場合に渡せる値が無いためである。
 
 **対応案**: task_014 の起動画面で `bootLiff()` の結果を受ける際に、
 `liffPermanentLink(readLiffIdFromDocument())` を `StaticFallback` / `StateView` の
@@ -278,3 +303,66 @@ files_to_modify に挙がっていた `.github/workflows/gate.yml` は **編集�
 `StateView` の `gate_blocked` 相当に寄せるか専用の理由コードを足すかを task_014 で決める。
 
 **対応予定タスク**: task_014（最初の `(liff)` 画面）/ task_015
+
+---
+
+## C-013-10 [medium → 解消] `liff.init()` にタイムアウトが掛かっていなかった
+
+**指摘（3 周目のレビューで発覚）**: 3 秒タイムアウトが SDK の動的 import にしか掛かっておらず、
+`liff.init()` は素の `await` だった。`init()` は LINE のサーバーへ LIFF アプリ設定を取りに行く
+**ネットワーク処理**なので、電波が悪い・応答が返らない場面では reject もせず settle しない。
+その結果 `bootLiff()` が永久に解決せず、`sdk_unavailable` も `init_failed` も返らないまま
+画面は loading のまま ＝ R-LINE-03 が防ぎたい白画面になる。
+
+**対応（実施済み）**: `liff.init()` も `withTimeout()` で包み、時間切れなら `init_failed` ＋
+テレメトリ `liff_init_failed` にした（reject と同じ結末。タイムアウト専用コードは足していない。
+画面側の分岐も、監視で数える単位も「init が成立しなかった」で同じだからである）。
+`tests/unit/liff/client.test.ts` に「`init` が解決しない Promise を返す」ケースを足し、
+`timeoutMs: 20` で `init_failed` になることを固定した。
+
+**非空振りの実測**: この修正を一時的に素の `await` へ戻して当該テストだけを走らせると、
+`Error: Test timed out in 5000ms`（= `bootLiff()` が解決しない）で落ちることを確認してから戻した。
+
+---
+
+## C-013-11 [medium] 配信される成果物そのものへの grep が CI に無い
+
+**指摘**: `gate-web-only` は `scripts/build-web-only.mjs` が**自前で** `NEXT_PUBLIC_LIFF_MOCK=0` を
+渡して作った別ビルドを grep する。実際にデプロイされるのは `release.yml` の
+`npm run build:cf`（OpenNext 成果物）であり、その成果物に対する
+`@line/liff-mock` / `LiffMockPlugin` の grep ステップは**どのワークフローにも無い**
+（`grep -rn "NEXT_PUBLIC_LIFF_MOCK" .github/workflows/` のヒットは `gate-web-only.yml` の
+コメント 2 行のみ）。3 周目に `build` / `build:cf` を `NEXT_PUBLIC_LIFF_MOCK=0` へ固定し、
+`build:web-only` とユニットテストがその固定を毎回検査する形にしたので、
+「env 1 つでモックが載る」経路は塞がった。残るのは「デプロイされる実物を見ていない」ことである。
+
+**なぜ本タスクで直さないか**: `.github/workflows/release.yml` は **task_009 の files_to_modify**
+であり、本タスクの担当範囲外である（他タスクのファイルを変更しない規約）。
+
+**対応案**: `release.yml` の `npm run build:cf` の直後に、OpenNext 成果物
+（`.open-next/**` と `.next/static/**`）への `@line/liff-mock` / `LiffMockPlugin` grep ステップを
+1 つ置き、ヒットしたら deploy 前に落とす。
+
+**対応予定タスク**: task_009（release.yml の所有者）/ task_022（LINE 非依存ビルドの CI ジョブ）
+
+---
+
+## C-013-12 [medium] `npm run test:unit` が赤のまま（task_013 起因ではない）
+
+**指摘**: task_013 の verify_commands の 1 本 `npm run test:unit` は exit 1 である。
+落ちるのは `tests/unit/gate-constraints.test.ts` の 2 件
+（`passes on a clean tree` 5295ms / `catches the real forbidden patterns` 6145ms）で、
+どちらも **`Error: Test timed out in 5000ms`** ＝ アサーション失敗ではない。
+
+**task_013 起因でないことの根拠**:
+
+- 同じスイートを `npx vitest run tests/unit --testTimeout=30000` で走らせると
+  **26 ファイル / 734 テストが全て pass**（3 周目の最終 HEAD で実測、102.53 秒）。
+- 本タスクは `tests/unit/gate-constraints.test.ts` / `scripts/gate-constraints.sh` /
+  `docs/constraints.json` を 1 行も触っていない（最終更新は `7ba8eae` / task_004）。
+- テストを弱めない規約があるため、他タスクのテストに `testTimeout` を足すことはしていない。
+
+**対応案**: task_004 側で当該 describe に明示的な `testTimeout`（30000 等）を与えるか、
+`gate-constraints.sh` の呼び出し回数を減らす。
+
+**対応予定タスク**: task_004

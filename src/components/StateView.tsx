@@ -16,6 +16,12 @@
  *   QR は同一端末では読み取れないので最後に置き、用途を明記する。
  *   QR 画像そのものの生成は配布導線（task_016）の担当で、ここでは案内だけを持つ。
  *
+ *   ★ ③ だけを単独で出さない。`permanentLink` が無いときに ③ の注記だけが残ると、
+ *     画面には「いま見ている端末では読み取れません」＝ **できないことしか書かれない**。
+ *     ①②③ は 1 つのまとまりとして出すか、まとめて出さないかのどちらかにする
+ *     （出さない場合も `outside_line` の本文「LINE アプリで開いてください」は残るので、
+ *     利用者が次に何をすればよいかは画面に残る）。壊れたリンクを出さない方針は維持する。
+ *
  * ★ `requestId` は不透明 ID である。ログ本文・例外メッセージをここに出さない（§8-3）。
  *
  * ★ クライアント境界を持たない（`"use client"` を書かない）。
@@ -236,24 +242,20 @@ export function StateView({
       </p>
       <p className="state-view__body">{description ?? spec.body}</p>
 
-      {state === "outside_line" || state === "auth_unavailable" ? (
+      {(state === "outside_line" || state === "auth_unavailable") && permanentLink !== undefined ? (
         <div className="state-view__fallback">
           {/* ① LINE で開く */}
-          {permanentLink === undefined ? null : (
-            <p>
-              <a className="tap-target state-view__action" href={permanentLink}>
-                LINE アプリで開く
-              </a>
-            </p>
-          )}
+          <p>
+            <a className="tap-target state-view__action" href={permanentLink}>
+              LINE アプリで開く
+            </a>
+          </p>
           {/* ② URL（コピーして貼る） */}
-          {permanentLink === undefined ? null : (
-            <p className="state-view__url">
-              うまく開けないときは、次の URL をコピーして LINE のトークに貼り付けてください。
-              <br />
-              <code>{permanentLink}</code>
-            </p>
-          )}
+          <p className="state-view__url">
+            うまく開けないときは、次の URL をコピーして LINE のトークに貼り付けてください。
+            <br />
+            <code>{permanentLink}</code>
+          </p>
           {/* ③ QR は別端末用（同じ端末では読み取れない） */}
           <p className="state-view__note">
             QR コードは別の端末から読み取るときに使います。いま見ている端末では読み取れません。

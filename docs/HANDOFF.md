@@ -1308,6 +1308,59 @@ task_006 側は「自分のファイルは既にコミット済み」として�
   `f…: unbound variable` になり exit 64 が exit 1 になる [実測]。正常系は影響なし。
   今回の指摘範囲外のため未修正（`docs/concerns/task_007.md` の 19）。
 
+## task_013（レビュー修正・3 周目）
+
+### 直したこと
+
+- **`liff.init()` にも 3 秒タイムアウトを掛けた**。2 周目までは SDK の動的 import
+  （`loadLiff()`）だけが `withTimeout()` に包まれ、`liff.init()` は素の `await` だった。
+  `init()` は LINE のサーバーへ LIFF アプリ設定を取りに行く**ネットワーク処理**なので、
+  電波が悪い場面では reject もせず settle しない。その経路では `bootLiff()` が永久に解決せず、
+  `sdk_unavailable` も `init_failed` も返らないまま画面が loading のまま残る
+  ＝ R-LINE-03 が防ぎたい白画面になっていた。時間切れは reject と同じ `init_failed` ＋
+  テレメトリ `liff_init_failed` にした（タイムアウト専用コードは足していない。
+  画面の分岐も監視で数える単位も「init が成立しなかった」で同じだからである）。
+- **`NEXT_PUBLIC_LIFF_MOCK` は「定義されていること」ではなく「`0` に固定されていること」を見る。**
+  2 周目は `package.json` を `NEXT_PUBLIC_LIFF_MOCK=${NEXT_PUBLIC_LIFF_MOCK:-0}` と
+  外部値を尊重する形にし、`checkProductionBuildEnv()` も `includes("NEXT_PUBLIC_LIFF_MOCK=")`
+  しか見ていなかった。この組み合わせでは、デプロイ環境に `NEXT_PUBLIC_LIFF_MOCK=1` を置くだけで
+  ゲートもテストも緑のまま `@line/liff-mock` が本番バンドルに載る。右辺を `0` リテラルに固定し、
+  ゲートも右辺まで検査する形に強めた。**モックを有効にしたビルドが要る場合は本番ビルド経路を
+  書き換えない** — Playwright の `webServer` は `npx next dev` なので `.env.local` で足りる。
+- **`StateView` の ①②③ は 1 つのまとまり。** `permanentLink` が無いとき ③ の QR 注記だけが
+  残ると、画面には「いま見ている端末では読み取れません」＝**できないことしか書かれない**。
+  リンクが無いときは ③ も描かない（本文「LINE アプリで開いてください」は残る）。
+  `permanentLink` を型で必須化する案は採っていない。呼び出し側（task_014）が LIFF ID を
+  解決できない場面があり、その場合に渡せる値が無いためである。
+
+### 実測で埋まったこと
+
+- `gate-web-only` は **2 周目の修正版で緑**（run 35989181733 / head `d722cc4` / job `web-only` /
+  event push）。`git merge-base --is-ancestor 4d22062 d722cc4` が真であることを確認した。
+  2 周目に「走ったのは 1 周目のスクリプト」と書いた状態は解消している。
+- ゲートの非空振り: fixture の木に `scripts/build-web-only.mjs` を複製して spawn し、
+  `=1` / `${NEXT_PUBLIC_LIFF_MOCK:-0}` / 未定義で exit 1、`=0` で exit 0 を確認
+  （`tests/unit/ci/web-only-workflow.test.ts`）。
+- `init` タイムアウトの非空振り: 修正を一時的に素の `await` へ戻すと、新しいテストが
+  `Error: Test timed out in 5000ms` で落ちる（＝ `bootLiff()` が解決しない）ことを確認して戻した。
+
+### 未解決（詳細は docs/concerns/task_013.md）
+
+- `pull_request` イベントでの `gate-web-only` 緑と、3 周目の修正の CI 実走は未了。
+  `git push` は本プロジェクトの禁止コマンドなので、このエージェントからは実走させられない。
+  required status check への `gate-web-only / web-only` の登録は task_009 が「いまは入れない」と
+  判断済みで、解消時期はその判断に従う。→ C-013-3 / task_009 / PO
+- **配信される実物への grep が CI に無い。** `gate-web-only` が grep するのは
+  `build:web-only` が自前で `NEXT_PUBLIC_LIFF_MOCK=0` を渡して作った別ビルドで、
+  実際にデプロイされる `npm run build:cf`（OpenNext 成果物）は誰も grep していない。
+  `.github/workflows/release.yml` は task_009 所有のため本タスクでは足していない。
+  → C-013-11 / task_009 / task_022
+- `npm run test:unit` は **exit 1 のまま**。落ちるのは `tests/unit/gate-constraints.test.ts` の
+  2 件で、どちらも `Error: Test timed out in 5000ms`（アサーション失敗ではない）。
+  `npx vitest run tests/unit --testTimeout=30000` なら 26 ファイル **734/734 緑**。
+  本タスクは当該ファイル・`scripts/gate-constraints.sh`・`docs/constraints.json` を
+  1 行も触っていない（最終更新 `7ba8eae` / task_004）。→ C-013-12 / task_004
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -1393,3 +1446,8 @@ task_006 側は「自分のファイルは既にコミット済み」として�
 - 2026-09-24T10:25:24Z HEAD=48f3061 決まったこと: task_009(3周目): HANDOFF に 3 周目の直したこと・実測・残件を記録 / 未解決: 未コミット 25 件: .env.example .github/workflows/gate-web-only.yml docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_013.md docs/decisions/ADR-013-web-route-group.md docs/run-log/task_006.json docs/run-log/task_007.json 
 - 2026-09-24T10:32:05Z HEAD=c1cd588 決まったこと: task_013(2周目): 最終 HEAD f77ac63 での build:web-only / typecheck / gate:constraints の再実行ログ（全 exit 0） / 未解決: 未コミット 13 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_007.md docs/review-log/README.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_012.json docs/task-list.json 
 - 2026-09-24T10:35:25Z HEAD=e03a539 決まったこと: G5: task_004 / task_013 の敵対レビュー記録を実経路で作成 / 未解決: 未コミット 13 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_007.md docs/concerns/task_009.md docs/review-log/README.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_012.json 
+- 2026-09-24T10:37:41Z HEAD=077a74c 決まったこと: task_009(3周目): 最終 HEAD f3a378c での verify_commands 3 本の再実行ログ（全 exit 0） / 未解決: 未コミット 11 件: docs/PROGRESS.md docs/concerns/task_007.md docs/review-log/README.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_012.json docs/run-log/task_013.json docs/task-list.json 
+- 2026-09-24T10:44:32Z HEAD=8066980 決まったこと: task_007(3周目): 完了ステータスを BLOCKED へ訂正し、封筒のベンダー独立性を実装する / 未解決: 未コミット 8 件: docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json docs/run-log/task_012.json docs/run-log/task_013.json tests/gates/probe.test.ts 
+- 2026-09-24T10:46:57Z HEAD=d722cc4 決まったこと: task_007(3周目): 最終 HEAD 8066980 での verify_commands 再実行ログ / 未解決: 未コミット 10 件: docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_006.json docs/run-log/task_009.json docs/run-log/task_012.json docs/run-log/task_013.json scripts/build-web-only.mjs src/lib/liff/client.ts 
+- 2026-09-24T10:49:31Z HEAD=d722cc4 決まったこと: task_007(3周目): 最終 HEAD 8066980 での verify_commands 再実行ログ / 未解決: 未コミット 14 件: docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json docs/run-log/task_012.json docs/run-log/task_013.json package.json 
+- 2026-09-24T10:57:22Z HEAD=d722cc4 決まったこと: task_007(3周目): 最終 HEAD 8066980 での verify_commands 再実行ログ / 未解決: 未コミット 19 件: .github/workflows/gate.yml .github/workflows/release.yml docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_013.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json 

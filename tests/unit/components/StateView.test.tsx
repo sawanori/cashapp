@@ -102,9 +102,41 @@ describe("outside_line のフォールバック順序（§7-3）", () => {
     expect(screen.getByText(/別の端末/)).toBeInTheDocument();
   });
 
-  it("パーマネントリンクが無ければリンクを出さない（押しても何も起きない導線を作らない）", () => {
+  it("パーマネントリンクが無ければ ①②③ のどれも出さない（③ だけ残る画面を作れない）", () => {
+    // 意図は 2 つある。
+    //   (a) 壊れたリンクを出さない（`permanentLink` が無いのに `href` を作らない）。
+    //   (b) それでも「QR はいま見ている端末では読み取れません」**だけ**が残る画面にしない。
+    //       ③ は ①② と 1 つのまとまりであり、単独では利用者にできることを 1 つも伝えない。
     const { container } = render(<StateView state="outside_line" />);
+
     expect(container.querySelectorAll("a")).toHaveLength(0);
+    expect(container.querySelector(".state-view__fallback")).toBeNull();
+    expect(container.textContent ?? "").not.toContain("QR");
+    // 次にやることは本文が示し続ける（空の案内にはならない）。
+    expect(container.querySelector(".state-view__body")?.textContent ?? "").toContain("LINE");
+  });
+
+  it("auth_unavailable でも ③ だけが残る画面にはならない", () => {
+    const { container } = render(<StateView state="auth_unavailable" />);
+
+    expect(container.querySelector(".state-view__fallback")).toBeNull();
+    expect(container.textContent ?? "").not.toContain("QR");
+  });
+
+  it("auth_unavailable でもパーマネントリンクがあれば ①②③ が 3 つとも出る", () => {
+    const { container } = render(
+      <StateView state="auth_unavailable" permanentLink={PERMANENT_LINK} />,
+    );
+    const fallback = container.querySelector(".state-view__fallback");
+    expect(fallback).not.toBeNull();
+
+    expect(within(fallback as HTMLElement).getByRole("link", { name: /LINE/ })).toHaveAttribute(
+      "href",
+      PERMANENT_LINK,
+    );
+    const text = fallback?.textContent ?? "";
+    expect(text).toContain("コピー");
+    expect(text).toContain("QR");
   });
 
   it("outside_line 以外の通常状態ではフォールバック欄を出さない", () => {

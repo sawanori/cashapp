@@ -46,11 +46,15 @@ interface FakeLiffOptions {
   readonly loggedIn?: boolean;
   readonly idToken?: string | null;
   readonly initRejects?: boolean;
+  /** `liff.init()` が **settle しない**（reject もしない）状況。電波が悪いときの実態。 */
+  readonly initHangs?: boolean;
 }
 
 function fakeLiff(options: FakeLiffOptions = {}) {
   const init = vi.fn(async () => {
+    if (options.initHangs === true) return new Promise<void>(() => undefined);
     if (options.initRejects === true) throw new Error("init failed");
+    return undefined;
   });
   const isInClient = vi.fn(() => options.inClient ?? true);
   const isLoggedIn = vi.fn(() => options.loggedIn ?? true);
@@ -163,6 +167,27 @@ describe("bootLiff の起動順序", () => {
     expect(result.reportedCode).toBe(CLIENT_ERROR_CODES.LIFF_INIT_FAILED);
     expect(reported).toEqual([CLIENT_ERROR_CODES.LIFF_INIT_FAILED]);
     // init に失敗したら以降の API には触らない。
+    expect(isInClient).not.toHaveBeenCalled();
+    expect(login).not.toHaveBeenCalled();
+  });
+
+  it("liff.init() が解決しないまま時間切れになったら init_failed（白画面にしない / R-LINE-03）", async () => {
+    // `init` は LINE のサーバーへ設定を取りに行くネットワーク処理なので、
+    // 「reject する」だけでなく「**返ってこない**」経路が実在する。素の await に戻すと
+    // この it は 5 秒のテストタイムアウトで落ちる（＝ bootLiff が解決しないことの検出）。
+    const { liff, isInClient, login } = fakeLiff({ initHangs: true });
+
+    const result = await bootLiff(LIFF_ID, {
+      loadLiff: async () => liff,
+      storage: memoryStorage(),
+      report,
+      timeoutMs: 20,
+    });
+
+    expect(result.state).toBe("init_failed");
+    expect(result.reportedCode).toBe(CLIENT_ERROR_CODES.LIFF_INIT_FAILED);
+    expect(reported).toEqual([CLIENT_ERROR_CODES.LIFF_INIT_FAILED]);
+    // 打ち切った後も以降の API には触らない。
     expect(isInClient).not.toHaveBeenCalled();
     expect(login).not.toHaveBeenCalled();
   });

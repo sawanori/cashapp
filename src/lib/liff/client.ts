@@ -3,10 +3,17 @@
  *
  * ★ 順序は 1 つしかない。**この順序を崩す実装を他所に書かないこと。**
  *
- *     liff.init（3 秒タイムアウト付きで SDK を読む）
+ *     SDK を読む（3 秒タイムアウト） → liff.init()（**同じく 3 秒タイムアウト**）
  *       → isInClient() が false なら **login を呼ばずに** outside_line
  *       → isLoggedIn() が false なら 試行回数を見て login か auth_unavailable
  *       → getIDToken()
+ *
+ * ★ タイムアウトは **2 か所**に要る。SDK チャンクの取得だけでなく、`liff.init()` も
+ *   LINE のサーバーへ LIFF アプリ設定を取りに行く**ネットワーク処理**であり、電波が悪い・
+ *   応答が返らない場面では reject もせず settle しない。`init` を素の `await` にすると
+ *   `bootLiff()` が永久に解決せず、画面は loading のまま＝ R-LINE-03 が防ぎたい白画面になる
+ *   （`sdk_unavailable` も `init_failed` も返らないので静的フォールバックが出る機会が無い）。
+ *   `liff.init()` が時間内に解決しなければ `init_failed` として扱う。
  *
  *   `isInClient` の判定を `login` より **前** に置くことがこのモジュールの存在理由である。
  *   逆順（`isLoggedIn() ? … : login()` を無条件に書く）にすると、LINE 外から開いた利用者が
@@ -28,7 +35,8 @@
  *   **存在するキーだけ**を define にするため、未設定だと置換自体が起きず、
  *   `await import("./mock")` が到達可能なまま `@line/liff-mock` ごとチャンク化される（実測）。
  *   そのため `package.json` の `build` / `build:cf` と `scripts/build-web-only.mjs` は
- *   `NEXT_PUBLIC_LIFF_MOCK=0` を明示的に渡す。`npm run build:web-only` はその定義の有無自体も検査する。
+ *   `NEXT_PUBLIC_LIFF_MOCK=0` を明示的に渡す。`npm run build:web-only` は
+ *   その右辺が `0` に**固定**されていること（外部から上書きできる書き方でないこと）まで検査する。
  *
  * ★ 失敗は**必ず**機械可読なコードに分類して `POST /api/telemetry/client-error` へ 1 回だけ送る。
  *   例外メッセージ・スタック・URL は送らない（`src/lib/telemetry.ts`）。
@@ -66,7 +74,12 @@ export interface LiffLike {
   getIDToken(): string | null;
 }
 
-/** SDK の読み込みに許す時間。超えたら静的フォールバックへ落とす（R-LINE-03）。 */
+/**
+ * SDK の読み込みと `liff.init()` のそれぞれに許す時間。超えたら静的フォールバックへ落とす（R-LINE-03）。
+ *
+ * ★ 両方に同じ値を掛ける。`init` はネットワーク処理なので、掛けそびれると
+ *   「SDK は読めたが init が返らない」経路だけが無制限に待ち続ける。
+ */
 export const SDK_LOAD_TIMEOUT_MS = 3000;
 
 /**
@@ -278,10 +291,20 @@ export async function bootLiff(liffId: string, deps: BootLiffDeps = {}): Promise
     return fail("sdk_unavailable", CLIENT_ERROR_CODES.SDK_LOAD_FAILED, readAttempts(storage));
   }
 
-  // --- 2. init ---
+  // --- 2. init（reject だけでなく「返ってこない」も打ち切る） ---
+  //   `liff.init()` は LINE のサーバーへ LIFF アプリ設定を取りに行くネットワーク処理なので、
+  //   素の `await` にすると settle しない経路で `bootLiff()` ごと止まり、画面は loading のまま
+  //   （＝白画面）になる。タイムアウト側が勝ったら `null` が返るので、reject と同じ結末にする。
+  let initialized: true | null;
   try {
-    await liff.init({ liffId, ...(isMockEnabled() ? { mock: true } : {}) });
+    initialized = await withTimeout(
+      liff.init({ liffId, ...(isMockEnabled() ? { mock: true } : {}) }).then(() => true as const),
+      timeoutMs,
+    );
   } catch {
+    initialized = null;
+  }
+  if (initialized === null) {
     return fail("init_failed", CLIENT_ERROR_CODES.LIFF_INIT_FAILED, readAttempts(storage));
   }
 

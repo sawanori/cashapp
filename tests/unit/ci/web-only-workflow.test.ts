@@ -14,11 +14,14 @@
  * DB を要らないので `tests/unit` に置き、`npm run test:unit` で毎回走らせる。
  */
 
-import { readFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
+import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
@@ -128,7 +131,10 @@ describe("gate-web-only.yml の静的検証（実 PR での緑は deferred）", 
  * ★ したがって「未設定にする」実装（`delete env[...]`）に戻したら **落ちなければならない**。
  */
 describe("NEXT_PUBLIC_LIFF_MOCK の定数畳み込み条件（制約 I4）", () => {
-  it("本番ビルド経路（build / build:cf）が NEXT_PUBLIC_LIFF_MOCK を定義している", async () => {
+  it("本番ビルド経路（build / build:cf）が NEXT_PUBLIC_LIFF_MOCK=0 に固定されている", async () => {
+    // ★ 「定義されている」では足りない。`${NEXT_PUBLIC_LIFF_MOCK:-0}` のように外部の値を
+    //   尊重する書き方だと、デプロイ環境に `NEXT_PUBLIC_LIFF_MOCK=1` を置くだけで
+    //   ゲートもテストも緑のまま @line/liff-mock が本番バンドルに載る。右辺まで固定する。
     const pkg = JSON.parse(await readFile(path.join(REPO_ROOT, "package.json"), "utf8")) as {
       scripts?: Record<string, string>;
     };
@@ -136,11 +142,21 @@ describe("NEXT_PUBLIC_LIFF_MOCK の定数畳み込み条件（制約 I4）", () 
     for (const name of ["build", "build:cf"]) {
       const script = scripts[name];
       expect(script, `package.json に scripts.${name} が無い`).toBeTypeOf("string");
+      const assignments = [...(script ?? "").matchAll(/NEXT_PUBLIC_LIFF_MOCK=(\S*)/g)].map(
+        (match) => match[1],
+      );
       expect(
-        script,
+        assignments.length,
         `scripts.${name} が NEXT_PUBLIC_LIFF_MOCK を定義していない（未定義だと畳み込まれず` +
           `@line/liff-mock が本番バンドルに載る）`,
-      ).toContain("NEXT_PUBLIC_LIFF_MOCK=");
+      ).toBeGreaterThan(0);
+      for (const value of assignments) {
+        expect(
+          value,
+          `scripts.${name} の NEXT_PUBLIC_LIFF_MOCK が "0" に固定されていない（実際: "${value ?? ""}"）。` +
+            `外部注入を許すと env 1 つでモックが本番バンドルに載る`,
+        ).toBe("0");
+      }
     }
   });
 
@@ -162,5 +178,82 @@ describe("NEXT_PUBLIC_LIFF_MOCK の定数畳み込み条件（制約 I4）", () 
     );
     expect(staticEnv).toContain("function getNextPublicEnvironmentVariables()");
     expect(staticEnv).toMatch(/for\s*\(const key in process\.env\)/);
+  });
+});
+
+/**
+ * ゲート本体が実際に落ちることの検査（文面の grep ではなく、スクリプトを走らせて exit code を見る）。
+ *
+ * ★ ここを「スクリプトの本文に `MOCK_DISABLED_VALUE` と書いてある」で済ませると、
+ *   比較を消してもテストは緑のままになる。fixture の木を作って本物を spawn し、
+ *   `=1` と `${NEXT_PUBLIC_LIFF_MOCK:-0}` の**両方**で exit 1 になることを固定する。
+ */
+describe("build:web-only の本番ビルド経路検査（fixture tree で実走）", () => {
+  const roots: string[] = [];
+
+  afterAll(async () => {
+    await Promise.all(roots.map((root) => rm(root, { recursive: true, force: true })));
+  });
+
+  /** ゲートを走らせられる最小の木。`--skip-build` を使うので next 本体は要らない。 */
+  async function makeFixture(buildScript: string): Promise<string> {
+    const root = await mkdtemp(path.join(tmpdir(), "web-only-gate-"));
+    roots.push(root);
+    await mkdir(path.join(root, "scripts"), { recursive: true });
+    await mkdir(path.join(root, "src", "app"), { recursive: true });
+    await mkdir(path.join(root, ".next", "static"), { recursive: true });
+    await copyFile(
+      path.join(REPO_ROOT, "scripts", "build-web-only.mjs"),
+      path.join(root, "scripts", "build-web-only.mjs"),
+    );
+    await writeFile(
+      path.join(root, "package.json"),
+      `${JSON.stringify({ scripts: { build: buildScript, "build:cf": buildScript } }, null, 2)}\n`,
+      "utf8",
+    );
+    await writeFile(
+      path.join(root, "src", "app", "page.tsx"),
+      "export default function Page(): null {\n  return null;\n}\n",
+      "utf8",
+    );
+    await writeFile(path.join(root, ".next", "static", "chunk.js"), "console.log(0);\n", "utf8");
+    return root;
+  }
+
+  function runGate(root: string): { status: number | null; stderr: string } {
+    const result = spawnSync(
+      process.execPath,
+      [path.join(root, "scripts", "build-web-only.mjs"), "--skip-build"],
+      { cwd: root, encoding: "utf8" },
+    );
+    return { status: result.status, stderr: result.stderr };
+  }
+
+  it("NEXT_PUBLIC_LIFF_MOCK=0 に固定した木では通る（空振りではないことの対照）", async () => {
+    const root = await makeFixture("NEXT_PUBLIC_LIFF_MOCK=0 next build");
+    const { status, stderr } = runGate(root);
+    expect(status, stderr).toBe(0);
+  });
+
+  it("NEXT_PUBLIC_LIFF_MOCK=1 を置いたら落ちる", async () => {
+    const root = await makeFixture("NEXT_PUBLIC_LIFF_MOCK=1 next build");
+    const { status, stderr } = runGate(root);
+    expect(status).toBe(1);
+    expect(stderr).toContain("固定されていません");
+  });
+
+  it("外部注入を許す書き方（${NEXT_PUBLIC_LIFF_MOCK:-0}）でも落ちる", async () => {
+    // デプロイ環境に 1 を置くだけでモックが載る形なので、0 が既定でも許さない。
+    const root = await makeFixture("NEXT_PUBLIC_LIFF_MOCK=${NEXT_PUBLIC_LIFF_MOCK:-0} next build");
+    const { status, stderr } = runGate(root);
+    expect(status).toBe(1);
+    expect(stderr).toContain("固定されていません");
+  });
+
+  it("未定義なら落ちる（畳み込みが起きない）", async () => {
+    const root = await makeFixture("next build");
+    const { status, stderr } = runGate(root);
+    expect(status).toBe(1);
+    expect(stderr).toContain("NEXT_PUBLIC_LIFF_MOCK を定義していません");
   });
 });

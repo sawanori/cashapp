@@ -8,7 +8,11 @@
  *
  * ★ このスクリプトが確かめること（4 つ）
  *   0. **本番ビルド経路の env**: `package.json` の `build` / `build:cf` が
- *      `NEXT_PUBLIC_LIFF_MOCK` を**必ず定義**している（下の「畳み込みの条件」参照）。
+ *      `NEXT_PUBLIC_LIFF_MOCK` を**必ず `0` に固定**している（下の「畳み込みの条件」参照）。
+ *      「定義されていること」だけでは不足である。`NEXT_PUBLIC_LIFF_MOCK=${NEXT_PUBLIC_LIFF_MOCK:-0}`
+ *      のように外部の値を尊重する書き方だと、デプロイ環境に `NEXT_PUBLIC_LIFF_MOCK=1` を
+ *      置くだけでこのゲートもテストも緑のまま `@line/liff-mock` が本番バンドルに載る。
+ *      したがって右辺が `0` というリテラルであること（シェル展開を含まないこと）まで見る。
  *   1. **参照の禁止側の全走査**: `src/lib/liff/**` と `src/app/(liff)/**` 以外のどのファイルも
  *      `@line/liff` / `@line/liff-mock` / `src/lib/liff/**` を参照していない。
  *      あわせて `src/app/**`（`(liff)` を除く）と `src/middleware.ts` を起点に import グラフも辿る。
@@ -69,11 +73,14 @@ const LIFF_ALLOWED_DIRS = ["src/lib/liff", "src/app/(liff)"];
 /** 起点に加えるルートグループ外の共有ファイル（存在すれば）。 */
 const EXTRA_ENTRY_FILES = ["src/middleware.ts"];
 
-/** 本番ビルド経路。`NEXT_PUBLIC_LIFF_MOCK` を必ず定義していること（畳み込みの条件）。 */
+/** 本番ビルド経路。`NEXT_PUBLIC_LIFF_MOCK=0` に固定していること（畳み込みの条件）。 */
 const PRODUCTION_BUILD_SCRIPTS = ["build", "build:cf"];
 
 /** モック無効を表す値。`"1"` 以外なら何でもよいが、経路をまたいで 1 つに揃える。 */
 const MOCK_DISABLED_VALUE = "0";
+
+/** npm script 中の `NEXT_PUBLIC_LIFF_MOCK=...` を（空白まで）拾う。 */
+const MOCK_ASSIGNMENT_PATTERN = /NEXT_PUBLIC_LIFF_MOCK=(\S*)/g;
 
 /** `.next/static` に現れてはいけない識別子（モックが混ざったことの痕跡）。 */
 const FORBIDDEN_BUNDLE_MARKERS = ["@line/liff-mock", "LiffMockPlugin", "liffMock"];
@@ -286,8 +293,16 @@ function runBuild() {
  *
  * このスクリプト自身は `next build` を `NEXT_PUBLIC_LIFF_MOCK=0` で起動するので常に安全だが、
  * 実際に配信される成果物を作るのは `npm run build` / `npm run build:cf` である。
- * そちらが変数を定義していなければ、**このゲートが緑でも本番バンドルにモックが載る**。
+ * そちらが変数を `0` に固定していなければ、**このゲートが緑でも本番バンドルにモックが載る**。
  * したがってゲートの対象に含める。
+ *
+ * ★ 「定義されていること」で止めてはいけない。見るのは右辺まで。
+ *   - 未定義（`next build` だけ）→ define が作られず `await import("./mock")` が生き残る。
+ *   - `=1` → モックが**意図的に**本番バンドルへ載る。
+ *   - `=${NEXT_PUBLIC_LIFF_MOCK:-0}` → デプロイ環境に `1` を置くだけで載る。
+ *     ゲートもテストも緑のまま通過するので、この形は許さない。
+ *   モックを有効にしたビルドが要るとき（E2E 等）は本番ビルド経路を書き換えるのではなく、
+ *   別の経路を使う（`next dev` は `.env.local` を読む）。
  */
 function checkProductionBuildEnv() {
   const pkgPath = path.join(REPO_ROOT, "package.json");
@@ -304,11 +319,23 @@ function checkProductionBuildEnv() {
       violations.push(`package.json に scripts.${name} がありません`);
       continue;
     }
-    if (!script.includes("NEXT_PUBLIC_LIFF_MOCK=")) {
+
+    const assignments = [...script.matchAll(MOCK_ASSIGNMENT_PATTERN)].map((match) => match[1]);
+    if (assignments.length === 0) {
       violations.push(
         `package.json の scripts.${name} が NEXT_PUBLIC_LIFF_MOCK を定義していません` +
           "（未定義のままビルドするとモックの分岐が畳み込まれず、@line/liff-mock が" +
           "クライアントチャンクに載ります）",
+      );
+      continue;
+    }
+    for (const value of assignments) {
+      if (value === MOCK_DISABLED_VALUE) continue;
+      violations.push(
+        `package.json の scripts.${name} の NEXT_PUBLIC_LIFF_MOCK が ` +
+          `"${MOCK_DISABLED_VALUE}" に固定されていません（実際の右辺: "${value}"）。` +
+          "外部の値を尊重する書き方（${NEXT_PUBLIC_LIFF_MOCK:-0} 等）や 1 は、" +
+          "デプロイ環境の env 1 つで @line/liff-mock を本番バンドルへ載せられます。",
       );
     }
   }
@@ -384,8 +411,8 @@ function main() {
 
   violations.push(...checkProductionBuildEnv());
   console.log(
-    `build:web-only: 本番ビルド経路（${PRODUCTION_BUILD_SCRIPTS.join(" / ")}）の ` +
-      "NEXT_PUBLIC_LIFF_MOCK 定義を確認しました",
+    `build:web-only: 本番ビルド経路（${PRODUCTION_BUILD_SCRIPTS.join(" / ")}）が ` +
+      `NEXT_PUBLIC_LIFF_MOCK=${MOCK_DISABLED_VALUE} に固定されているか確認しました`,
   );
 
   const references = checkForbiddenReferences();
