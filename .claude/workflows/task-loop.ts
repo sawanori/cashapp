@@ -224,6 +224,27 @@ function highFindingsOf(envelope) {
   });
 }
 
+/**
+ * 実効 high の同一性キー。周をまたいで「同じ指摘か」を判定するために使う。
+ * id があればそれを、無ければ file + summary を見る。レーンをまたいだ同一視はしない
+ * （別のレビュアが出した同じ内容の指摘は、それぞれのレビュアが取り下げるまで残す）。
+ */
+function highKeyOf(reviewer, finding) {
+  const id = finding && typeof finding.id === "string" ? finding.id.trim() : "";
+  if (id) return reviewer + "|id:" + id;
+  const file = finding && typeof finding.file === "string" ? finding.file : "";
+  const summary = finding && typeof finding.summary === "string" ? finding.summary : "";
+  return reviewer + "|" + file + "::" + summary;
+}
+
+/** 持ち越し中の同じ指摘が最初に出た周。無ければ今周。 */
+function firstSeenRoundOf(carried, key, round) {
+  for (let i = 0; i < carried.length; i++) {
+    if (carried[i].key === key) return carried[i].first_seen_round;
+  }
+  return round;
+}
+
 function unknownRatioOf(envelope) {
   if (!envelope) return 0;
   if (typeof envelope.unknown_ratio === "number" && Number.isFinite(envelope.unknown_ratio)) {
@@ -432,6 +453,10 @@ const abstentions = [];
 const costs = [];
 let lastWork = null;
 let terminal = null;
+// 未解消の実効 high。**周をまたいで持ち越す**（§15-3 step 5 / R-TH-13）。
+// 直近 1 周分だけを見ていると、high を出したレビュア経路が次の周で不達（欠票）になった
+// だけでその high が消え、誰も直していないのに DONE で閉じられる。
+let unresolvedHigh = [];
 let highRemaining = 0;
 let lastHighFindings = [];
 
@@ -589,6 +614,9 @@ for (let round = 1; round <= MAX_ROUNDS && terminal === null; round++) {
 
   const roundAbstentions = [];
   const votingVendors = [];
+  // 有効票（reviewer_route === "ok"）を返したレーン。作者ベンダーのレーンも含む。
+  // 自分が前の周に出した high を取り下げられるのは、この周に実際に応答したレーンだけである。
+  const votingLanes = [];
   const roundHigh = [];
   let complianceBlocked = false;
 
@@ -599,6 +627,7 @@ for (let round = 1; round <= MAX_ROUNDS && terminal === null; round++) {
       roundAbstentions.push(abstentionOf(round, lane.key, lane.vendor, env));
       continue;
     }
+    if (votingLanes.indexOf(lane.key) === -1) votingLanes.push(lane.key);
     const vendor = typeof env.vendor === "string" && env.vendor ? env.vendor : lane.vendor;
     if (vendor !== AUTHOR_VENDOR && votingVendors.indexOf(vendor) === -1) {
       votingVendors.push(vendor);
@@ -606,6 +635,7 @@ for (let round = 1; round <= MAX_ROUNDS && terminal === null; round++) {
     const highs = highFindingsOf(env);
     for (let j = 0; j < highs.length; j++) {
       roundHigh.push({
+        key: highKeyOf(lane.key, highs[j]),
         reviewer: lane.key,
         vendor: vendor,
         self_review: vendor === AUTHOR_VENDOR,
@@ -613,6 +643,8 @@ for (let round = 1; round <= MAX_ROUNDS && terminal === null; round++) {
         summary: highs[j].summary,
         file: highs[j].file || "",
         repro: highs[j].repro || "",
+        first_seen_round: firstSeenRoundOf(unresolvedHigh, highKeyOf(lane.key, highs[j]), round),
+        last_seen_round: round,
       });
     }
     if (lane.key === "compliance-gatekeeper" && env.blocking === true) {
@@ -622,8 +654,21 @@ for (let round = 1; round <= MAX_ROUNDS && terminal === null; round++) {
 
   for (let i = 0; i < roundAbstentions.length; i++) abstentions.push(roundAbstentions[i]);
 
-  highRemaining = roundHigh.length;
-  lastHighFindings = roundHigh;
+  // 持ち越しの判定。取り下げられるのは「この周に有効票を返したレーンが、もう挙げていない指摘」
+  // だけである。欠票したレーンの指摘は残す（欠票はレビュー無効でもなければ監査済みでもない）。
+  const roundHighKeys = roundHigh.map(function (h) {
+    return h.key;
+  });
+  const carriedHigh = unresolvedHigh.filter(function (h) {
+    if (roundHighKeys.indexOf(h.key) !== -1) return false; // 今周も出ているので下で積み直す
+    return votingLanes.indexOf(h.reviewer) === -1; // 出したレーンが欠票 → 解消を確認できていない
+  });
+  unresolvedHigh = carriedHigh.concat(roundHigh);
+  highRemaining = unresolvedHigh.length;
+  lastHighFindings = unresolvedHigh;
+
+  // この周に独立ベンダーの有効票が 1 件も無ければ、実装は監査されていない。
+  const roundAudited = votingVendors.length > 0;
 
   const costAtRoundEnd = budget.spent();
   costs.push({
@@ -640,16 +685,24 @@ for (let round = 1; round <= MAX_ROUNDS && terminal === null; round++) {
       return l.key;
     }),
     voting_vendors: votingVendors,
+    voting_lanes: votingLanes,
+    audited: roundAudited,
     abstentions: roundAbstentions,
     effective_high: roundHigh,
+    carried_high: carriedHigh,
+    unresolved_high_after: unresolvedHigh.length,
     compliance_blocked: complianceBlocked,
   });
 
   log(
     "round " +
       round +
-      ": 実効 high " +
+      ": 今周の実効 high " +
       roundHigh.length +
+      " 件 / 前の周からの持ち越し " +
+      carriedHigh.length +
+      " 件 / 未解消 " +
+      unresolvedHigh.length +
       " 件 / 有効票ベンダー " +
       (votingVendors.length > 0 ? votingVendors.join(",") : "なし") +
       " / 欠票 " +
@@ -665,7 +718,22 @@ for (let round = 1; round <= MAX_ROUNDS && terminal === null; round++) {
     break;
   }
 
-  if (roundHigh.length === 0) break;
+  if (highRemaining === 0) {
+    // 直す対象は無い。ただし監査されていない周で打ち切ると「誰も見ていない」を
+    // 「指摘なし」と読み替えることになるので、その場合は DONE 系で閉じない（F6 / R-TH-06）。
+    if (!roundAudited) {
+      terminal = {
+        status: "BLOCKED",
+        reason:
+          "round " +
+          round +
+          " は有効票を返した独立ベンダーが 0 件（欠票 " +
+          roundAbstentions.length +
+          " 件）で、実装が監査されていない。欠票を「指摘なし」と読み替えない（§15-3 step 5 / F6）",
+      };
+    }
+    break;
+  }
 
   if (round === MAX_ROUNDS) {
     terminal = {
@@ -673,8 +741,11 @@ for (let round = 1; round <= MAX_ROUNDS && terminal === null; round++) {
       reason:
         MAX_ROUNDS +
         " 周しても実効 high が " +
-        roundHigh.length +
-        " 件残ったため BLOCKED とし、PO 裁定へ回す（§15-3 step 5。DONE_WITH_CONCERNS で通すことは禁止）",
+        highRemaining +
+        " 件残ったため BLOCKED とし、PO 裁定へ回す（§15-3 step 5。DONE_WITH_CONCERNS で通すことは禁止）" +
+        (roundAudited
+          ? ""
+          : "。最終周は有効票を返した独立ベンダーが 0 件で、残った high の解消も確認できていない"),
     };
   }
 }
@@ -781,6 +852,14 @@ return {
       return r.round;
     }),
   effective_high_remaining: highRemaining,
+  unresolved_high: unresolvedHigh,
+  audited_rounds: rounds
+    .filter(function (r) {
+      return r.audited;
+    })
+    .map(function (r) {
+      return r.round;
+    }),
   preflight: preflight,
   spec_tests: specTests,
   rounds: rounds,

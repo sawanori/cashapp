@@ -324,9 +324,21 @@ if (evidence.release_mode_exists !== true) {
 const conditions = [
   {
     id: 1,
-    text: "独立した 2 ベンダー以上が go（Claude 系のみでは成立しない）",
-    pass: goVendors.length >= REQUIRED_GO_VENDORS && independentGoVendors.length >= 1,
-    detail: "go ベンダー: " + (goVendors.length > 0 ? goVendors.join(",") : "なし"),
+    text:
+      "独立した " +
+      REQUIRED_GO_VENDORS +
+      " ベンダー以上が go（作者ベンダー " +
+      AUTHOR_VENDOR +
+      " の票は数に入れない）",
+    // §15-3「独立した 2 ベンダー以上の go」/ release-auditor.md 条件 1 の逐語をそのまま採る。
+    // 作者ベンダー + 独立 1 件（計 2 票）で通す読みは fail-open なので採らない。
+    // 解釈の一本化は ADR 待ち（docs/concerns/task_008.md の C-008-10）。
+    pass: independentGoVendors.length >= REQUIRED_GO_VENDORS,
+    detail:
+      "go ベンダー: " +
+      (goVendors.length > 0 ? goVendors.join(",") : "なし") +
+      " / うち独立: " +
+      (independentGoVendors.length > 0 ? independentGoVendors.join(",") : "なし"),
   },
   {
     id: 2,

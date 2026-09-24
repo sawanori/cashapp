@@ -3,6 +3,26 @@
 Workflow スクリプト 3 本（`.claude/workflows/task-loop.ts` / `premortem.ts` / `release-audit.ts`）。
 形式は「指摘 / 深刻度 / 対応案 / 対応予定タスク」。
 
+## 6 周目（修正周）で閉じた指摘
+
+- **[high・解消済み] `task-loop.ts` が実効 high を直近 1 周分しか保持していなかった**。
+  high を出したレビュア経路が最終周で不達（欠票）になると、前の周で確定していた high が消えて
+  DONE で閉じていた（修正前の HEAD に対する実測: `status: "DONE"` / `effective_high_remaining: 0`）。
+  未解消 high を `unresolvedHigh` として周をまたいで持ち越し、**その周に有効票（`reviewer_route === "ok"`）を
+  返したレーンが挙げなくなった分だけ**落とす形に直した。欠票したレーンは自分の過去の high を落とせない。
+  修正後の同じ応答表では `BLOCKED` / `effective_high_remaining: 1`（実測）。
+- **[high・解消済み] 有効票を返した独立ベンダーが 0 件の周でも DONE で閉じられた**。
+  修正前は gemini / gpt の両方が最初から不達でも 1 周で `DONE` が出ていた（実測）。
+  「high 0 件で打ち切る周」に監査済みの判定（`votingVendors.length > 0`）を足し、
+  監査されていない周は `BLOCKED` にした。修正後は `BLOCKED` / `rounds_used: 1`（実測）。
+- **[medium・解消済み] `release-audit.ts` の成立条件 1 が fail-open だった**。
+  `goVendors.length >= 2 && independentGoVendors.length >= 1`（作者 claude ＋ 独立 1 件で go）を、
+  `independentGoVendors.length >= REQUIRED_GO_VENDORS`（独立 2 件）に締めた。解釈の食い違いは C-008-10。
+
+再現と対照は `tests/unit/workflows/workflow-scripts.test.ts`（44 ケース・全緑）と、
+修正前の HEAD を同じ応答表で走らせる非空振りの対照（scratchpad の `control-r6.mjs`。3 ケースとも
+修正前は `DONE` / `go`）で取ってある。
+
 ---
 
 ## C-008-1 [medium] Workflow ツールが本セッションに無く、3 本の「起動」を run ID で記録できていない
@@ -17,7 +37,7 @@ journal（`<transcriptDir>/journal.jsonl`）も存在しないため、「journa
 `AsyncFunction` にラップして `agent` / `parallel` / `pipeline` / `phase` / `log` / `args` / `budget` /
 `workflow` を注入して実行する（`workflow-authoring` スキルの Resume 節と script API の記述）。
 `tests/unit/workflows/workflow-scripts.test.ts` は同じラップで 3 本の本体を実際に走らせ、
-エージェントの応答だけを差し替えて制御フローを測る（41 ケース）。判定ロジックには手を入れていない。
+エージェントの応答だけを差し替えて制御フローを測る（6 周目で 44 ケース）。判定ロジックには手を入れていない。
 これで測れたのは「3 周上限で BLOCKED」「欠票の記録」「2 周目以降は受入テストを再生成しない」
 「1 周ごとのコスト記録」「成立条件の判定」であり、測れていないのは
 **ランタイムが `meta` / `agentType` / `model` / `phase` をどう解釈するか**である。
@@ -33,7 +53,12 @@ Workflow({ name: "release-audit",  args: { version: "v0.0.0", dryRun: true } })
 を回し、返ってきた runId を `scripts/record-run.sh --manual task_008 "<runId と観察>"` で記録する。
 `dryRun: true` を必ず付ける（付けないと task-loop は実際にファイルを書き換えるエージェントを起動する）。
 
-**対応予定タスク**: deferred（メインセッション / PO。task_008 の再開時）
+**状態**: **deferred**。6 周目（本修正周）のセッションでも `ToolSearch select:Workflow` は
+`No matching deferred tools found` を返し、`Workflow` ツールは無い。レビューセッションでも同じ結果だった。
+この環境では満たせない項目であり、満たすまで task_008 を DONE へ昇格させない
+（`completion_status` は DONE_WITH_CONCERNS のまま）。
+
+**対応予定タスク**: deferred（メインセッション / PO。Workflow ツールを持つセッションで実走）
 
 ---
 
@@ -110,6 +135,31 @@ frontmatter が使っている値をそのまま使った。
 エージェント定義側の名前を台帳に合わせる。どちらに寄せても両方のファイルを同時に直す。
 
 **対応予定タスク**: task_010（エージェント定義の改訂時）
+
+---
+
+## C-008-10 [medium] 「独立した 2 ベンダー以上が go」の読みを fail-closed 側で固定した（ADR 待ち）
+
+**指摘**: `docs/implementation-plan.md` §15-3 と `.claude/agents/release-auditor.md` の成立条件 1 は
+どちらも「独立した 2 ベンダー以上が go（Claude 系のみでは成立しない）」である。この一文は 2 通りに読める。
+
+- 緩い読み: go ベンダーが 2 件以上あり、そのうち 1 件以上が独立（作者 claude ＋ 独立 1 件で成立）
+- 厳しい読み: **独立ベンダー**が 2 件以上 go（作者 claude の票は数に入れない）
+
+6 周目までは緩い読み（`goVendors.length >= 2 && independentGoVendors.length >= 1`）で実装されており、
+これは fail-open である。C-008-3 と同じく計画書の逐語を優先し、**厳しい読み**
+（`independentGoVendors.length >= REQUIRED_GO_VENDORS`）に締めた。
+
+**副作用**: レーンは `release-auditor(claude)` / `gemini` / `gpt` の 3 本しか無いので、
+gemini と gpt の**両方**が go を返さない限り go は出ない。結果として成立条件 3
+（不達ベンダーの PO 明示承認）は、独立ベンダーが不達のケースでは実質的に go へ到達できない
+（承認しても条件 1 で落ちる）。作者ベンダー側が不達で独立 2 件が go のときだけ条件 3 が効く
+（`tests/unit/workflows/workflow-scripts.test.ts` の「不達が作者ベンダー側でも…」で実測）。
+
+**対応案**: ADR を起票して「独立」の定義と、独立ベンダーが 1 本落ちたときのリリース可否を一本化する。
+緩める場合でも ADR と PO の裁定であり、スクリプト側でその場で緩めてはならない（R-TH-13）。
+
+**対応予定タスク**: PO 裁定（ADR 起票。C-008-3 と同じ ADR にまとめてよい）
 
 ---
 

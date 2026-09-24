@@ -230,7 +230,22 @@ interface LoopResult {
     reason: string;
   }>;
   costs?: Array<{ round: number; output_tokens_delta: number }>;
-  rounds?: Array<{ round: number; spec_tests_regenerated: boolean; voting_vendors: string[] }>;
+  rounds?: Array<{
+    round: number;
+    spec_tests_regenerated: boolean;
+    voting_vendors: string[];
+    audited?: boolean;
+    carried_high?: Array<{ reviewer: string; summary: string }>;
+    unresolved_high_after?: number;
+  }>;
+  unresolved_high?: Array<{
+    reviewer: string;
+    vendor: string;
+    summary: string;
+    first_seen_round: number;
+    last_seen_round: number;
+  }>;
+  audited_rounds?: number[];
 }
 
 const PREFLIGHT_OK = {
@@ -372,6 +387,69 @@ describe("task-loop.ts", () => {
     const costs = loop.costs ?? [];
     expect(costs.map((c) => c.round)).toEqual([1, 2, 3]);
     for (const c of costs) expect(c.output_tokens_delta).toBeGreaterThan(0);
+  });
+
+  it("high を出したレビュア経路が途中で不達へ転じても、その high は消えず BLOCKED で閉じる", async () => {
+    // 1〜2 周目は gemini が high を出し、3 周目だけ経路が落ちる（欠票）。
+    // 直近 1 周分しか見ていないと、この 3 周目で high が 0 件になり DONE で閉じてしまう。
+    let geminiRound = 0;
+    const { result, calls } = await run(SCRIPTS.taskLoop, { taskId: "task_003" }, (call) => {
+      const label = labelOf(call);
+      if (label.startsWith("b) adversarial-reviewer-gemini")) {
+        geminiRound += 1;
+        if (geminiRound <= 2) {
+          return envelope("adversarial-reviewer-gemini", "gemini", "ok", [
+            { severity: "high", summary: "冪等キーが再送で衝突する" },
+          ]);
+        }
+        return envelope("adversarial-reviewer-gemini", "gemini", "unavailable", [], {
+          attempted_command: "scripts/gemini-safe.sh -m gemini-3.8-flash",
+          unreachable_reason: "gemini CLI がタイムアウトした",
+        });
+      }
+      if (label.startsWith("status")) return { recorded_status: "DONE" };
+      return alwaysHighResponder(call);
+    });
+    const loop = result as LoopResult;
+
+    expect(loop.status).toBe("BLOCKED");
+    expect(loop.rounds_used).toBe(3);
+    expect(loop.effective_high_remaining).toBe(1);
+    // 3 周目は gemini が何も返していないので、その周の実効 high は 0 件である。
+    expect((loop.rounds ?? [])[2]?.unresolved_high_after).toBe(1);
+    expect((loop.rounds ?? [])[2]?.carried_high?.[0]?.reviewer).toBe("adversarial-gemini");
+    // 持ち越された high は 1 周目に出たものである。
+    const unresolved = loop.unresolved_high ?? [];
+    expect(unresolved).toHaveLength(1);
+    expect(unresolved[0]?.vendor).toBe("gemini");
+    expect(unresolved[0]?.first_seen_round).toBe(1);
+    expect(unresolved[0]?.last_seen_round).toBe(2);
+    // high が残ったままなので最終検証には進まない。
+    expect(callsLabelled(calls, "final verify")).toHaveLength(0);
+  });
+
+  it("有効票を返した独立ベンダーが 0 件の周は、指摘なしでも DONE にしない", async () => {
+    // gemini も gpt も最初から不達。claude 系のレーンだけが「指摘なし」を返す。
+    const { result, calls } = await run(SCRIPTS.taskLoop, { taskId: "task_003" }, (call) => {
+      const label = labelOf(call);
+      if (label.startsWith("b) adversarial-reviewer-gemini"))
+        return envelope("adversarial-reviewer-gemini", "gemini", "unavailable", [], {
+          attempted_command: "scripts/gemini-safe.sh -m gemini-3.8-flash",
+          unreachable_reason: "gemini CLI がタイムアウトした",
+        });
+      if (label.startsWith("status")) return { recorded_status: "DONE" };
+      return alwaysHighResponder(call);
+    });
+    const loop = result as LoopResult;
+
+    expect(loop.status).toBe("BLOCKED");
+    expect(loop.rounds_used).toBe(1);
+    expect(loop.effective_high_remaining).toBe(0);
+    expect(loop.reason).toContain("監査されていない");
+    expect((loop.rounds ?? [])[0]?.audited).toBe(false);
+    expect((loop.rounds ?? [])[0]?.voting_vendors).toEqual([]);
+    expect(loop.audited_rounds).toEqual([]);
+    expect(callsLabelled(calls, "final verify")).toHaveLength(0);
   });
 
   it("high が消えれば周回を打ち切って最終検証へ進み DONE を返す", async () => {
@@ -792,7 +870,7 @@ describe("release-audit.ts", () => {
     expect(audit.approval_path).toBe("docs/gates/release-v0.1.0.json");
   });
 
-  it("不達ベンダーが PO 承認済みなら残りの条件だけで判定する", async () => {
+  it("不達が PO 承認済みでも、独立 go が 1 ベンダーだけなら go を出さない", async () => {
     const { result } = await run(
       SCRIPTS.releaseAudit,
       { version: "v0.1.0" },
@@ -809,8 +887,37 @@ describe("release-audit.ts", () => {
       }),
     );
     const audit = result as AuditResult;
-    expect(audit.verdict).toBe("go");
+    // 不達の PO 承認は効いている（条件 3 は YES）。
     expect((audit.conditions ?? []).find((c) => c.id === 3)?.pass).toBe(true);
+    // それでも go は出ない。作者ベンダー（claude）+ 独立 1 件では条件 1 を満たさない。
+    expect(audit.verdict).not.toBe("go");
+    expect((audit.conditions ?? []).find((c) => c.id === 1)?.pass).toBe(false);
+    expect(audit.go_vendors).toEqual(["claude", "gemini"]);
+    expect(audit.independent_go_vendors).toEqual(["gemini"]);
+  });
+
+  it("不達が作者ベンダー側でも、独立 2 ベンダーが go で PO 承認があれば go", async () => {
+    const { result } = await run(
+      SCRIPTS.releaseAudit,
+      { version: "v0.1.0" },
+      auditResponder({ ...EVIDENCE_CLEAN, approved_unavailable_vendors: ["claude"] }, {
+        "release-auditor": {
+          vendor: "claude",
+          reviewer_route: "unavailable",
+          verdict: "UNKNOWN",
+          reasons: [],
+          unreachable_reason: "サブエージェントが封筒を返さなかった",
+        },
+        gemini: { vendor: "gemini", reviewer_route: "ok", verdict: "go", reasons: [] },
+        gpt: { vendor: "gpt", reviewer_route: "ok", verdict: "go", reasons: [] },
+      }),
+    );
+    const audit = result as AuditResult;
+    expect(audit.verdict).toBe("go");
+    expect((audit.conditions ?? []).find((c) => c.id === 1)?.pass).toBe(true);
+    expect((audit.conditions ?? []).find((c) => c.id === 3)?.pass).toBe(true);
+    expect(audit.independent_go_vendors).toEqual(["gemini", "gpt"]);
+    expect(audit.unavailable_vendors).toEqual(["claude"]);
   });
 
   it("no-go が 1 件でもあれば no-go", async () => {

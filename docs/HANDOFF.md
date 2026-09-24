@@ -1534,6 +1534,36 @@ task_006 側は「自分のファイルは既にコミット済み」として�
 - task_007 から送られた「封筒の自己申告パス集合の正本化 → task_008 / task_010」は
   task_008 の scope にも `files_to_create` にも無いため触っていない。→ task_010（C-008-8）
 
+## task_008（レビュー修正・6 周目）
+
+### 決まったこと
+
+- **実効 high は周をまたいで持ち越す**。`task-loop.ts` は `highRemaining = roundHigh.length` で
+  毎周上書きしていたため、high を出したレビュア経路が最終周で不達（欠票）になるとその high が消え、
+  誰も直していないのに `DONE` で閉じていた（修正前の HEAD をランタイム同形のラップで走らせた実測:
+  `status: "DONE"` / `effective_high_remaining: 0`）。未解消 high を `unresolvedHigh` に貯め、
+  **その周に有効票（`reviewer_route === "ok"`）を返したレーンが挙げなくなった分だけ**落とす。
+  欠票したレーンは自分の過去の high を落とせない。同一性キーは `reviewer + id`（id が無ければ
+  `reviewer + file + summary`）。修正後は同じ応答表で `BLOCKED` / `effective_high_remaining: 1`。
+- **有効票を返した独立ベンダーが 0 件の周は DONE 系で閉じない**。`votingVendors.length === 0` の周は
+  「監査されていない周」であり、high 0 件で打ち切るときに `BLOCKED` にする。欠票を「指摘なし」と
+  読み替えないための歯止め（F6 / R-TH-06）。返り値に `audited_rounds` / `unresolved_high` /
+  各周の `audited` / `carried_high` / `unresolved_high_after` を出すようにした。
+- **`release-audit.ts` の成立条件 1 は独立ベンダー 2 件**（`independentGoVendors.length >= 2`）。
+  作者 claude ＋ 独立 1 件の計 2 票で go になる緩い読みは fail-open なので採らない。
+  副作用として、gemini / gpt のどちらかが不達だと PO が不達を承認しても go に到達できない。
+  「独立」の定義の一本化は C-008-10（ADR 待ち。C-008-3 と同じ ADR にまとめてよい）。
+
+### 未解決
+
+- **[severity: medium] `done_definition` 第 1 項はまだ deferred**。6 周目のセッションでも
+  `ToolSearch select:Workflow` は `No matching deferred tools found`。runId は 1 つも無い。
+  **Workflow ツールを持つセッションで `dryRun: true` の 3 本を回すまで DONE へ昇格させない。** → C-008-1
+- **[severity: medium] 成立条件 1 の解釈**。fail-closed 側で固定したが、独立レーンが 2 本しか無い
+  現状では成立条件 3（不達の PO 承認）が独立ベンダーの不達では効かない。→ C-008-10
+- `.claude/workflows/*.ts` を 2 本直したので G13 基準値を `--write-baseline` で再生成した
+  （差分は当該 2 エントリと timestamp のみ）。**この先も同ディレクトリを直すたびに要る。** → C-008-4
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -1631,3 +1661,12 @@ task_006 側は「自分のファイルは既にコミット済み」として�
 - 2026-09-24T12:19:23Z HEAD=dfc6f72 決まったこと: concerns: 陳腐化した high 2 件を実測つきで解消（task_011 の CI 実走・task_007 の G5 記録欠落） / 未解決: 未コミット 11 件: docs/HANDOFF.md .claude/workflows/ docs/premortem/ docs/run-log/task_008.json src/app/api/events/ src/lib/audit.ts src/lib/db/repositories/ src/lib/idempotency.ts 
 - 2026-09-24T12:20:08Z HEAD=dfc6f72 決まったこと: concerns: 陳腐化した high 2 件を実測つきで解消（task_011 の CI 実走・task_007 の G5 記録欠落） / 未解決: 未コミット 12 件: docs/HANDOFF.md .claude/workflows/ docs/concerns/task_008.md docs/premortem/ docs/run-log/task_008.json src/app/api/events/ src/lib/audit.ts src/lib/db/repositories/ 
 - 2026-09-24T12:21:08Z HEAD=dfc6f72 決まったこと: concerns: 陳腐化した high 2 件を実測つきで解消（task_011 の CI 実走・task_007 の G5 記録欠落） / 未解決: 未コミット 15 件: docs/HANDOFF.md docs/PROGRESS.md docs/task-list.json .claude/workflows/ docs/concerns/task_008.md docs/premortem/ docs/run-log/task_008.json src/app/api/events/ 
+- 2026-09-24T12:23:08Z HEAD=b2538ff 決まったこと: task_008: Workflow スクリプト 3 本（task-loop / premortem / release-audit）を追加し、制御フローをランタイム同形のテストで実測する / 未解決: 未コミット 10 件: docs/run-log/task_008.json src/app/api/events/ src/components/FeeEstimate.tsx src/components/InvoiceRow.tsx src/components/SummaryBar.tsx src/lib/audit.ts src/lib/db/repositories/ src/lib/idempotency.ts 
+- 2026-09-24T12:26:08Z HEAD=0b5fda5 決まったこと: task_008: 最終 HEAD b2538ff での verify_commands 再実行ログと、作業ツリーの赤 2 件の出どころの記録 / 未解決: 未コミット 11 件: docs/HANDOFF.md src/app/(liff)/events/ src/app/api/events/ src/components/FeeEstimate.tsx src/components/InvoiceRow.tsx src/components/SummaryBar.tsx src/lib/audit.ts src/lib/db/repositories/ 
+- 2026-09-24T12:27:09Z HEAD=0b5fda5 決まったこと: task_008: 最終 HEAD b2538ff での verify_commands 再実行ログと、作業ツリーの赤 2 件の出どころの記録 / 未解決: 未コミット 11 件: docs/HANDOFF.md src/app/(liff)/events/ src/app/api/events/ src/components/FeeEstimate.tsx src/components/InvoiceRow.tsx src/components/SummaryBar.tsx src/lib/audit.ts src/lib/db/repositories/ 
+- 2026-09-24T12:28:08Z HEAD=0b5fda5 決まったこと: task_008: 最終 HEAD b2538ff での verify_commands 再実行ログと、作業ツリーの赤 2 件の出どころの記録 / 未解決: 未コミット 12 件: docs/HANDOFF.md docs/run-log/task_008.json src/app/(liff)/events/ src/app/api/events/ src/components/FeeEstimate.tsx src/components/InvoiceRow.tsx src/components/SummaryBar.tsx src/lib/audit.ts 
+- 2026-09-24T12:40:20Z HEAD=173ff40 決まったこと: premortem: Phase 1 後半の再実行（新規 12 件）を記録し、task_014〜023 の files_to_read に配線 / 未解決: 未コミット 18 件: docs/HANDOFF.md docs/run-log/task_008.json src/app/(liff)/events/ src/app/api/events/ src/components/FeeEstimate.tsx src/components/InvoiceRow.tsx src/components/SummaryBar.tsx src/lib/audit.ts 
+- 2026-09-24T12:45:01Z HEAD=522d543 決まったこと: evidence: acceptance-checks.json の evidence を検証コマンドの実行結果から書く唯一の経路 scripts/record-evidence.mjs / 未解決: 未コミット 22 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/run-log/task_008.json tests/unit/workflows/workflow-scripts.test.ts docs/run-log/task_014.json src/app/(liff)/events/ src/app/api/events/ 
+- 2026-09-24T12:45:14Z HEAD=522d543 決まったこと: evidence: acceptance-checks.json の evidence を検証コマンドの実行結果から書く唯一の経路 scripts/record-evidence.mjs / 未解決: 未コミット 22 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/run-log/task_008.json tests/unit/workflows/workflow-scripts.test.ts docs/run-log/task_014.json src/app/(liff)/events/ src/app/api/events/ 
+- 2026-09-24T12:48:59Z HEAD=d69c84d 決まったこと: review 経路: GPT-6 Astra が通るようになった実測を反映（task_004 に GPT の票を追記・ドライバの GPT タイムアウト延長） / 未解決: 未コミット 26 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_008.md docs/gates/integrity-baseline.json docs/run-log/task_008.json docs/task-list.json 
+- 2026-09-24T12:49:12Z HEAD=d69c84d 決まったこと: review 経路: GPT-6 Astra が通るようになった実測を反映（task_004 に GPT の票を追記・ドライバの GPT タイムアウト延長） / 未解決: 未コミット 26 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_008.md docs/gates/integrity-baseline.json docs/run-log/task_008.json docs/task-list.json 
