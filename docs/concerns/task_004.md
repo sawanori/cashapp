@@ -190,6 +190,64 @@ SQL コメント中の英文（`-- the due date column`）を違反にしない�
 
 ---
 
+## 4 周目（2 回目の G5 で出た high 2 / medium 3）
+
+2 回目の G5（view commit `4291cef` / base `3bdf5d4`）は `merge-review.sh` が **reject**
+（有効票 2 / 欠票 0 / **実効 high 2**）。5 件すべてを再現してから直した。
+
+### GPT F-1 [high・解消済み] SQL の不等号 `<>` が前進方向のランク比較として免除される
+
+**再現**: `UPDATE payments SET status = 'paid', status_rank = 2 WHERE status_rank <> 2` で
+`ok W3` / **exit 0**。3 周目の許可パターン `(status_rank|statusRank)[[:space:]]*<=?` は
+`<>` の先頭の `<` にも一致していた。`<>` はランク 3（refunded）の行も更新対象にするので
+後退を防がない。
+
+**修正**: `<` の直後が `>` でないこと・`>` の直前が `<` でないことを要求する
+（`(status_rank|statusRank)[[:space:]]*<([^>]|$)` と `(^|[^<])>=?[[:space:]]*(status_rank|statusRank)`）。
+**実測（修正後）**: `W3 src/lib/update.ts:1` / exit 1。`<= $2` と `$2 >= status_rank` は
+どちらも exit 0（回帰テスト 2 件）。
+
+### GPT F-2 [high・解消済み] ブロックコメント内の import が server-only 必須検査を満たす
+
+3 周目に C-004-6 として「行単位 grep の限界」と書いて残した項目が high として再提出されたので、
+今回直した。**再現**: `src/lib/db/client.ts` を `/*\nimport "server-only";\n*/\nexport const db = null;`
+にすると `ok GC-SERVER-ONLY (require, 1 file(s) read)` / **exit 0**。
+
+**修正**: `require` モードの照合の前に、awk でコメントを落とす（`/* */` は行をまたいで状態を持ち、
+`//` と `--` は行末まで）。文字列リテラルは意図して解釈しない。誤って切り落とせば
+**必須検査が落ちる（fail-closed）** 側に倒れるためである。
+**実測（修正後）**: `GC-SERVER-ONLY src/lib/db/client.ts:1 | required pattern missing` / exit 1。
+`postgres://` を含む doc コメントの後に本物の import がある形は exit 0。実リポジトリの
+`src/lib/db/client.ts` / `src/lib/config/env.ts`（どちらも長い日本語 doc コメントを持つ）でも
+`npm run gate:constraints` は exit 0、`npm run gate:server-only` も exit 0。
+
+### GPT F-3 [medium・解消済み] `src/lib/**` の除外が .tsx まで巻き込む
+
+**再現**: `src/lib/client-db.tsx` に `'use client'` ＋ `import postgres from 'postgres';` を置くと
+`ok I3 (forbid, 2 file(s) read)` / **exit 0**。2 周目に足した除外が拡張子を問わなかったため、
+本来 I3 の対象である `.tsx` まで外れていた。
+
+**修正**: 除外を `src/lib/**/*.ts` / `src/app/api/**/*.ts` に限定した。
+**実測（修正後）**: `I3 src/lib/client-db.tsx:2` / exit 1。
+
+### GPT F-4 [medium・解消済み] `timestamp(3) with time zone` を誤って違反にする
+
+**再現**: `CREATE TABLE example (created_at timestamp(3) with time zone NOT NULL);` で
+`X-TIME supabase/migrations/005.sql:1` / **exit 1**（偽陽性）。3 周目に足した精度付きパターンが
+`timestamp(<数字>)` の後ろを見ていなかった。
+
+**修正**: 裸の timestamp と同じ終端条件（`,` / `)` / `;` / 行末、または `w` で始まらない語）を
+精度付きパターンにも付けた。**実測（修正後）**: exit 0。`timestamp(3));` は引き続き exit 1。
+
+### gemini F-1 [medium・解消済み] `npm run test:unit` が落ちている
+
+3 周目の run-log に残っていた `exit 1`（`tests/unit/ci/acceptance-rerun.test.ts` の
+5 秒タイムアウト）を指した指摘。**本周の実測**: `scripts/record-run.sh task_004 npm run test:unit`
+は **exit 0**（37 ファイル / **981 件全緑** / 135 秒）。3 周目の赤が負荷由来だったことの裏づけでもある。
+ただし他タスクのテストが既定 5000ms で書かれている限り再発しうるので、C-004-7 は残す。
+
+---
+
 ## 残懸念
 
 ### C-004-1 [medium] I3 は「クライアントかどうか」をディレクトリで近似している
@@ -222,26 +280,24 @@ F-2 の修正で、対象にマッチしたパスが 1 つでも読めないと�
 **exit 2**（設定エラー）で止める形にした。そのようなパスを実際に扱う必要が出たら、
 一覧全体を NUL 指向に作り直す必要がある。
 
-### C-004-6 [medium] 行単位の grep はコメントを見分けられない（未修正・実測済み）
+### C-004-6 [medium] forbid 側はコメント内のランクガードを今も免除する
 
-3 周目の G5 で挙がった 2 件は、**行単位の grep では原理的に閉じられない**ので残す。どちらも
-実際に再現した（どちらも exit 0）。
+3 周目に挙げた 2 件のうち、**require 側（GC-SERVER-ONLY のブロックコメント）は 4 周目に
+直した**（コメント除去。GPT 4 周目 F-2）。残るのは forbid 側:
 
-- **GPT F-2**: `src/lib/db/client.ts` を `/*\nimport "server-only";\n*/\nexport const db = null;`
-  にすると、ブロックコメントの中の 2 行目が GC-SERVER-ONLY の必須パターンに一致して合格する
-  （`ok GC-SERVER-ONLY (require, 1 file(s) read)` / exit 0）。1 周目の F-6 で塞いだのは
-  **行コメント**（`// import ...`）だけである。
-- **gemini F-1**: `UPDATE payments SET status = 'paid' WHERE id = 1; -- and status_rank < 2`
-  は、rank ガードが SQL コメントの中にあるだけで W3 の免除条件を満たす（exit 0）。
+- **gemini 3 周目 F-1**: `UPDATE payments SET status = 'paid' WHERE id = 1; -- and status_rank < 2`
+  は、rank ガードが SQL コメントの中にあるだけで W3 の免除条件を満たす（実測 exit 0）。
 
-**なぜ直さないか**: どちらもブロックコメントの開始・終了を行をまたいで追う（＝ 字句解析）か、
-行の途中でコメントが始まった位置を知る必要がある。grep にコメント除去を足すと、文字列リテラル中の
-`//` や `/*`（例: `"postgres://"`）で誤って切り落とし、**他タスクが所有するファイルを落とす**
-偽陽性を作る。fail-closed とはいえ、本タスクの変更で他タスクを止めるのは避ける。
+**なぜ forbid 側だけ残すか**: require 側の誤切り落としは「必須が見つからない＝違反」に倒れる
+（fail-closed）が、forbid 側で `allow_if_line_matches` の判定にコメント除去を掛けると、
+文字列リテラル中の `//`（例: `"postgres://…"`）で行が途中で切れたときに**正当なランクガードを
+見落として違反にする**（偽陽性）か、逆に切り方次第で免除を広げる。どちらも他タスクの
+ファイルを巻き込む。
 
-**同じ穴は `scripts/assert-server-only.mjs`（task_011 所有・`npm run gate:server-only`）にもある**:
-必須検査は `/^\s*import\s+["']server-only["'];?\s*$/m` で、これもブロックコメント内の行に一致する。
-つまり今のところ「コメントアウトされた `server-only`」を落とす検査はリポジトリに存在しない。
+**同じ穴は `scripts/assert-server-only.mjs`（task_011 所有・`npm run gate:server-only`）にも残る**:
+必須検査は `/^\s*import\s+["']server-only["'];?\s*$/m` で、ブロックコメント内の行に一致する。
+`gate:constraints` 側は塞いだので、いまリポジトリで「コメントアウトされた `server-only`」を
+落とせるのは GC-SERVER-ONLY だけである。
 
 **対応案**: TypeScript 側は `assert-server-only.mjs` に AST ベース（`typescript` の
 `createSourceFile` → `statements[0]`）の検査を入れる。SQL 側（W3）は行 grep ではなく
@@ -265,6 +321,11 @@ task_018 の台帳テスト（`src/lib/ledger/apply.ts` 経由でしか状態遷
 `constraints.json` のいずれも参照していない（grep 0 件）。
 **task_004 所有の 2 ファイルは 52/52 緑**
 （`npx vitest run tests/unit/gate-constraints.test.ts tests/unit/wording-lint.test.ts` = exit 0）。
+
+**4 周目の実測**: `npm run test:unit` は **exit 0**（37 ファイル / **981 件全緑** / 135 秒）。
+`typecheck` / `lint` / `gate:constraints` / `gate:wording` / `gate:server-only` も exit 0、
+task_004 所有の 2 ファイルは 58/58 緑。3 周目の赤が負荷由来だったことの裏づけになるが、
+他タスクのテストが既定 5000ms で書かれている限り再発しうる（C-004-7）。
 
 ### C-004-7 [low] 本タスクのテストがスイート全体の実行時間を押し上げている
 

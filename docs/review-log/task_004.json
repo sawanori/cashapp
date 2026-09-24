@@ -451,5 +451,179 @@
     "task_mismatches": 0,
     "effective_high": 0,
     "exit_code": 0
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_004",
+    "reviewer": "adversarial-reviewer-gemini",
+    "vendor": "gemini",
+    "reviewer_route": "verified",
+    "model_id_requested": "gemini-2.5-pro",
+    "model_id_actual": "gemini-2.5-pro",
+    "model_id_source": "cli_stats",
+    "cli_version": "0.38.1",
+    "backend": "gemini-cli",
+    "ran_at": "2026-09-24T13:53:35Z",
+    "commit": "4291cef78873754b4328f78eb5bed8aaea6a8350",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "medium",
+        "title": "Verification command `npm run test:unit` is failing",
+        "detail": "The task's `verify_commands` list requires `npm run test:unit` to pass. However, the last recorded execution of the full unit test suite in `docs/run-log/task_004.json` (at commit 96aca7d5) failed with a timeout in `tests/unit/ci/acceptance-rerun.test.ts`. A timeout increase was later added via `vi.setConfig`, but this change is locally scoped to `tests/unit/gate-constraints.test.ts` and `tests/unit/wording-lint.test.ts` and does not affect the file where the timeout occurred. The successful execution of the full test suite after this change has not been demonstrated, so the `done_definition` is not met.",
+        "repro": "Run the command `npm run test:unit` at the final commit of the task.",
+        "citation": "review-packet.task.verify_commands specifies `npm run test:unit` as a required check. review-packet.artifact.files['docs/run-log/task_004.json'] contains the log of the failing test run.",
+        "file": "docs/run-log/task_004.json",
+        "suggested_fix": "Apply the test timeout increase globally in the vitest configuration or directly to the failing test file (`tests/unit/ci/acceptance-rerun.test.ts`), and ensure the full `npm run test:unit` command passes.",
+        "effective_severity": "medium"
+      }
+    ],
+    "raw_warnings": [],
+    "packet_bytes": 192975,
+    "validated_at": "2026-09-24T13:55:49Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/review-004-r2/gemini.json",
+    "merged_at": "2026-09-24T13:55:49Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gemini-2.5-pro を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 0,
+        "medium": 1,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 1,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_004",
+    "reviewer": "adversarial-reviewer-gpt",
+    "vendor": "gpt",
+    "reviewer_route": "cli-fallback",
+    "model_id_requested": "gpt-6-astra",
+    "model_id_actual": "gpt-6-astra",
+    "model_id_source": "self_report",
+    "cli_version": "codex-cli 0.154.0",
+    "backend": "codex",
+    "ran_at": "2026-09-24T13:55:33Z",
+    "commit": "4291cef78873754b4328f78eb5bed8aaea6a8350",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "high",
+        "title": "W3 が不等号 <> を前進方向のランク比較として免除する",
+        "detail": "許可パターンの <=? は SQL の <> の先頭にも一致する。status_rank <> 2 は refunded 相当のランク 3 も更新対象にするため、paid への後退を防がないが、ゲートは当該行を免除する。これは同梱コードの静的評価であり、実行は未検証。",
+        "file": "docs/constraints.json",
+        "line": 429,
+        "repro": "同梱テストの seedCleanTree(root) で作った fixture に src/lib/update.ts を追加し、内容を export const query = \"UPDATE payments SET status = 'paid', status_rank = 2 WHERE status_rank <> 2\"; とする。runRealGate(root) では禁止パターンと許可パターンの両方に一致し、W3 の違反が出ない。この SQL に status='refunded', status_rank=3 の行を入力すると、条件を満たして paid、ランク 2 に後退する。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-2",
+        "severity": "high",
+        "title": "複数行コメント内の import で server-only 必須検査を通過できる",
+        "detail": "行頭・行末のアンカーは複数行コメントの内部を区別しない。require モードも各行の grep 一致だけで判定するため、実行されない import で GC-SERVER-ONLY を満たせる。差分の説明にある /* 内の文字列による回避が残っている。実行は未検証。",
+        "file": "docs/constraints.json",
+        "line": 1005,
+        "repro": "同梱テストの seedCleanTree(root) を適用後、src/lib/db/client.ts の内容を「/*\\nimport \"server-only\";\\n*/\\nexport const db = null;\\n」とする。runRealGate(root) を呼ぶと、コメント内の第 2 行が必須パターンに一致し、実行される server-only import がなくても GC-SERVER-ONLY の違反が出ない。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-3",
+        "severity": "medium",
+        "title": "I3 の除外拡大により src/lib 配下のクライアントファイルが検査から外れる",
+        "detail": "追加された src/lib/** の除外は 'use client' の有無を判定せず、従来対象だった .tsx も除外する。したがってクライアントファイルによる禁止された DB ライブラリの import を見逃す。同梱の server-only 必須検査は指定された別のファイルだけが対象で、この入力を検査しない。実行は未検証。",
+        "file": "docs/constraints.json",
+        "line": 828,
+        "repro": "同梱テストの seedCleanTree(root) を適用後、src/lib/client-db.tsx に「'use client';\\nimport postgres from 'postgres';\\nexport const connect = postgres;\\n」を保存して runRealGate(root) を呼ぶ。src/lib/** の除外により、このファイルについて I3 の違反が出ない。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-4",
+        "severity": "medium",
+        "title": "タイムゾーン付き timestamp(3) まで禁止判定になる",
+        "detail": "追加された精度指定の検出パターンは timestamp(数値) の後続を確認しない。このため、同じ項目の notes が許可する timestamp with time zone に精度を指定しただけで X-TIME 違反になる。実行は未検証。",
+        "file": "docs/constraints.json",
+        "line": 895,
+        "repro": "同梱テストの seedCleanTree(root) を適用後、supabase/migrations/005.sql に「CREATE TABLE example (created_at timestamp(3) with time zone NOT NULL);\\n」を保存して runRealGate(root) を呼ぶ。タイムゾーン付きの列定義だが、timestamp(3) の部分が禁止パターンに一致して X-TIME の違反になる。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      }
+    ],
+    "diagnostics": {
+      "exit_code": 0,
+      "event_types": [
+        "thread.started",
+        "turn.started",
+        "item.completed",
+        "item.completed",
+        "turn.completed"
+      ],
+      "cli_errors": [
+        "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+      ],
+      "last_message_bytes": 2232,
+      "stderr_tail": "r: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T13:53:36.707068Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T13:53:37.472960Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer error=\\\"invalid_request\\\", error_description=\\\"No access token was provided in this request\\\", resource_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n2026-09-24T13:53:37.473092Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n"
+    },
+    "packet_bytes": 192975,
+    "validated_at": "2026-09-24T13:55:50Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/review-004-r2/gpt.json",
+    "merged_at": "2026-09-24T13:55:49Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gpt-6-astra を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 2,
+        "medium": 2,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 4,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "type": "summary",
+    "task_id": "task_004",
+    "round": 1,
+    "merged_at": "2026-09-24T13:55:49Z",
+    "decision": "reject",
+    "envelopes": 2,
+    "votes": 2,
+    "vendors": [
+      "gemini",
+      "gpt"
+    ],
+    "author_vendor": "claude",
+    "missing_votes": 0,
+    "invalid_envelopes": 0,
+    "invalid_reviews": 0,
+    "self_reviews": 0,
+    "task_mismatches": 0,
+    "effective_high": 2,
+    "exit_code": 1
   }
 ]
