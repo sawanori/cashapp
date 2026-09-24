@@ -32,6 +32,33 @@ function makeTempDir(): string {
   return dir;
 }
 
+/**
+ * 合格モデル一覧（`docs/metrics/model-bench.md` 形式）をフィクスチャとして書く。
+ *
+ * `--whitelist` を渡さずに起動すると、内部で呼ばれる validate-findings.mjs が
+ * リポジトリルートの `docs/metrics/model-bench.md`（task_010 が作る予定のファイル）を
+ * 読んでしまい、そのファイルが出来た瞬間にここの期待が中身次第で崩れる。
+ * **リポジトリの状態に依存させないため、どのケースでも明示する。**
+ */
+function writeWhitelist(models: string[] = ["gpt-6-astra", "gemini-2.5-pro"]): string {
+  const file = path.join(makeTempDir(), "model-bench.md");
+  fs.writeFileSync(
+    file,
+    [
+      "# モデル実測ベンチ（フィクスチャ）",
+      "",
+      "<!-- machine-readable:begin -->",
+      "```json",
+      JSON.stringify({ approved_models: models }, null, 2),
+      "```",
+      "<!-- machine-readable:end -->",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  return file;
+}
+
 afterEach(() => {
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop();
@@ -118,7 +145,10 @@ function merge(envelopes: Record<string, unknown>[], extraArgs: string[] = []): 
     return file;
   });
   const logPath = path.join(dir, "review-log.json");
-  const res = spawnSync("bash", [script, "task_900", "--out", logPath, ...extraArgs, ...files], {
+  const args = extraArgs.includes("--whitelist")
+    ? extraArgs
+    : [...extraArgs, "--whitelist", writeWhitelist()];
+  const res = spawnSync("bash", [script, "task_900", "--out", logPath, ...args, ...files], {
     encoding: "utf8",
     cwd: repoRoot,
   });
@@ -198,6 +228,18 @@ describe("merge-review.sh — 判定", () => {
     expect(invalid?.validation?.errors?.join("\n")).toMatch(/model_id_actual/);
   });
 
+  it("ホワイトリスト外のモデルは票にならずレビュー不成立（exit 3）", () => {
+    // --whitelist は validate-findings.mjs へそのまま渡る。合格モデル一覧に
+    // 載っていないモデルが答えたレビューは「どのモデルが答えたか信用できない」
+    // ので票にならない（R-TH-11）。
+    const res = merge([envelope()], ["--whitelist", writeWhitelist(["gemini-2.5-pro"])]);
+    expect(res.status).toBe(3);
+    const s = summaryOf(res.log);
+    expect(s?.decision).toBe("not_established");
+    expect(s?.votes).toBe(0);
+    expect(s?.invalid_reviews).toBe(1);
+  });
+
   it("high と無効封筒が同時にあれば差し戻し（high が優先）", () => {
     const broken = envelope();
     delete broken.cli_version;
@@ -237,16 +279,19 @@ describe("merge-review.sh — review-log", () => {
     };
     const first = write(envelope(), "r1.json");
     const second = write(envelope({ reviewer: "adversarial-reviewer-gemini" }), "r2.json");
+    const wl = writeWhitelist();
 
-    const a = spawnSync("bash", [script, "task_900", "--out", logPath, "--round", "1", first], {
-      encoding: "utf8",
-      cwd: repoRoot,
-    });
+    const a = spawnSync(
+      "bash",
+      [script, "task_900", "--out", logPath, "--round", "1", "--whitelist", wl, first],
+      { encoding: "utf8", cwd: repoRoot },
+    );
     expect(a.status).toBe(0);
-    const b = spawnSync("bash", [script, "task_900", "--out", logPath, "--round", "2", second], {
-      encoding: "utf8",
-      cwd: repoRoot,
-    });
+    const b = spawnSync(
+      "bash",
+      [script, "task_900", "--out", logPath, "--round", "2", "--whitelist", wl, second],
+      { encoding: "utf8", cwd: repoRoot },
+    );
     expect(b.status).toBe(0);
 
     const log = JSON.parse(fs.readFileSync(logPath, "utf8")) as LogEntry[];

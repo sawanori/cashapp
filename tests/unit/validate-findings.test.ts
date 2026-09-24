@@ -72,6 +72,13 @@ interface RunResult {
   report: Report | null;
 }
 
+/**
+ * ホワイトリストを渡さずに起動すると、検証側は既定で
+ * `<repoRoot>/docs/metrics/model-bench.md`（task_010 が作る予定のファイル）を読む。
+ * それだと「そのファイルが出来た瞬間に、中身次第でここの期待が崩れる」テストになるので、
+ * **どのケースでもホワイトリストを明示する**。フィクスチャで使うモデル ID
+ * （gpt-6-astra / gemini-2.5-pro）は既定のホワイトリストに載せてある。
+ */
 function run(envelope: unknown, extraArgs: string[] = []): RunResult {
   const dir = makeTempDir();
   const file = path.join(dir, "envelope.json");
@@ -80,7 +87,10 @@ function run(envelope: unknown, extraArgs: string[] = []): RunResult {
     typeof envelope === "string" ? envelope : JSON.stringify(envelope, null, 2),
     "utf8",
   );
-  const res = spawnSync("node", [script, file, "--json", ...extraArgs], {
+  const args = extraArgs.includes("--whitelist")
+    ? extraArgs
+    : [...extraArgs, "--whitelist", writeWhitelist(["gpt-6-astra", "gemini-2.5-pro"])];
+  const res = spawnSync("node", [script, file, "--json", ...args], {
     encoding: "utf8",
     cwd: repoRoot,
   });

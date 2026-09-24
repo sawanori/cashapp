@@ -7,7 +7,7 @@
 
 ---
 
-## 0. 最終 HEAD では `npm run gate:constraints` が並行タスクの未追跡ファイルで exit 1
+## 0. （解消済み）`npm run gate:constraints` が並行タスクの未追跡ファイルで exit 1 だった件
 
 - **指摘**: verify_commands の 1 本 `npm run gate:constraints` は、本タスクの作業中
   （2026-09-24T08:55:43Z / 09:05:08Z）は exit 0 だったが、最終確認時（09:19:30Z）に exit 1 に
@@ -18,11 +18,15 @@
   同じ理由で `npm run gate:wording` も最終確認時に exit 1 になっている
   （`src/components/StateView.tsx:132` の「禁止語を使わない」と説明するコメント行が
   W-AUTO の禁止語「自動で確認」「入金を確認しました」に当たる。これも task_013 の未追跡ファイル）。
-- **深刻度**: low（本タスクに起因しない。ただし「最終 HEAD で verify_commands が緑」とは言えない）
-- **対応案**: task_013 が当該コメントの書き方を変えるか、N7 の `allow_if_line_matches` に
-  「使わない」旨の否定文を加える（`docs/constraints.json` は task_004 の所有）。
-  経緯は `docs/run-log/task_007.json` の manual エントリに記録済み。
-- **対応予定タスク**: task_013（または task_004）
+- **深刻度**: low（本タスクに起因しない）
+- **現況（2026-09-24 の 2 周目で再測定）**: **解消している。** task_013 が当該コメントの
+  書き方を変えたため、`npm run gate:constraints` は **exit 0**（22 grep エントリ /
+  違反 0 件 / 空ゲート 0 件）に戻った [実測]。N7 も `ok N7 (forbid, 28 file(s))` である。
+  `npm run gate:wording` 側の同種の違反も同時に消えている。
+- **対応案**: 対応不要。同じ形（「禁止語を使わない」と説明するコメント行が禁止 grep に
+  当たる）は再発しうるので、再発したら task_004 が `allow_if_line_matches` に否定文を
+  加えるか、当該タスクがコメントの書き方を変える。
+- **対応予定タスク**: なし（再発時に task_004 / 当該タスク）
 
 ## 1. GPT-6 Astra 経路が遮断されたままで、敵対レビューは実質 1 ベンダー
 
@@ -198,3 +202,104 @@
   出したいなら `merge-review.sh` に判定を書き込む口を足す必要がある（task_008 の task-loop
   step5 / step6 の設計と合わせて決めるのが自然）。
 - **対応予定タスク**: task_010（2 票目）/ task_008（false_positive 台帳）
+
+---
+
+# 2 周目（レビュー指摘の反映）で追加した項目
+
+## 11. `npm run test:unit` は最終 HEAD でも赤い（原因は task_004 所有のテストのタイムアウト）
+
+- **指摘**: verify_commands の 1 本 `npm run test:unit` は **exit 1** である [実測 2026-09-24]。
+  落ちているのは `tests/unit/gate-constraints.test.ts > scripts/gate-constraints.sh
+  (real docs/constraints.json against a fixture tree) > passes on a clean tree` の
+  `Error: Test timed out in 5000ms`（実測 6509ms）1 件のみで、残り 683 件は pass。
+  **task_007 の成果物ではない**（当該ファイルは task_004 の `files_to_create`）。
+  切り分けの実測は 2 つ:
+  - `npx vitest run tests/unit/gate-constraints.test.ts` 単体なら **17 件 pass / 9.54s**。
+    落ちるのは全 24 ファイルを並列で回したときだけで、原因は 5 秒の既定タイムアウト超過である。
+  - task_007 の 2 ファイル（`merge-review.test.ts` / `validate-findings.test.ts`）を
+    `--exclude` で外して回しても **同じテストが落ちる**（このときは 2 件失敗）。
+    つまり task_007 のテストが増やした負荷が原因ではない。
+- **深刻度**: medium（台帳上は G4 が「run-log に exit 0 の記録が 1 件でもあるか」しか見ないため
+  緑のままだが、**CI の acceptance ジョブは verify_commands を再実行するのでそこで落ちる**）
+- **対応案**: `tests/unit/gate-constraints.test.ts` の当該 `it()` に明示 timeout を与える
+  （例: `it("passes on a clean tree", () => {...}, 30_000)`）。アサーションは 1 つも減らさない
+  変更であり、テストを弱めない。**task_004 の所有ファイルなので task_007 からは触っていない。**
+  グローバルな `testTimeout` の引き上げ（`vitest.config.ts`）は他の遅いテストまで一律に
+  緩めるので採らないこと。
+- **対応予定タスク**: task_004（所有者）。PO が一括で直すなら vitest.config.ts ではなく
+  当該 `it()` 側に付けること。
+
+## 12. review-log には出所の担保が無く、レビューを受ける側が「敵対レビュー済み」を自作できる
+
+- **指摘**: G5（`scripts/gate-check.mjs`）が読む `docs/review-log/<task_id>.json` は、
+  `scripts/merge-review.sh` が封筒ファイルを畳んで書く。**その封筒が本当に外部 CLI から
+  返ってきたものかを確かめる手段が無い。** run-log における `scripts/record-run.sh`
+  （コマンドを実際に実行した事実を残す唯一の経路）に相当する証跡経路が review-log には無い。
+  実測は 3 点:
+  - 手書きの封筒 1 通（`reviewer_route: "verified"` / `model_id_actual: "gemini-2.5-pro"` /
+    `cli_version: "0.38.1"` / `backend: "gemini-cli"` / `findings: []`）を作って
+    `bash scripts/merge-review.sh task_099 --out <scratch>/fake-log.json <scratch>/fake.json`
+    を実行 → `merge-review: pass ... 有効票=1` / **exit 0**。生成エントリは G5 が要求する
+    3 フィールドを満たす。
+  - `echo '{"tool_name":"Bash","tool_input":{"command":"echo hi > docs/review-log/task_099.json"}}'
+    | bash scripts/deny-dangerous-bash.sh` は **exit 0**。`docs/review-log/**` は Bash 経由の
+    書き込み遮断の対象外である（対象は `docs/run-log/**` ・`docs/gates/**` ・`tests/**` ・
+    `scripts/deny-*` ・`scripts/record-run.sh` ・`.claude/**` ・`.github/workflows/**`）。
+  - G13 の対象定義（`docs/gates/integrity-baseline.json` の `patterns`）は
+    `scripts/gate-` ・`scripts/deny-` ・`scripts/assert-` ・`scripts/validate-` の接頭辞と
+    `scripts/ci` ディレクトリ、および数本の名指しファイルだけである。よって
+    `merge-review.sh` / `build-review-packet.sh` / `review-gemini.mjs` / `review-gpt.mjs` は
+    **改ざん検知の対象外**で、`validate-findings.mjs` だけが接頭辞に偶然合致して対象に入っている。
+  - `vendor: "claude"` の封筒も有効票として数えられる（ベンダー別の制限は無い）。
+  `docs/review-log/README.md` に「人が手で書くファイルではない」と書いてあるが、**規範であって
+  強制ではない**。
+- **深刻度**: medium（現時点で実害は無い。task_007 の review-log は実際に CLI を走らせて
+  作ったものであり、Gemini 側は `model_id_source: "cli_stats"` で観測値を持つ。ただし
+  「ゲートの証拠をゲートを受ける側が書ける」構造そのものは R-TH-13 の趣旨に反する）
+- **対応案**: 次のいずれか。設計判断なので task_007 の範囲では実装していない。
+  1. `docs/review-log/**` を `scripts/deny-dangerous-bash.sh` の保護対象に入れ、
+     書き込み経路を `merge-review.sh` に限定する（`scripts/deny-*` は task_006 の所有）。
+  2. 封筒に CLI 実行の生ログの証跡（stdout の SHA-256 と所要時間）を必須フィールドとして
+     持たせ、`merge-review.sh` で検査する。既存の `docs/review-log/task_007.json` は
+     この形式を持たないので、スキーマを上げるなら移行方針も併せて決める。
+  3. `merge-review.sh` / `build-review-packet.sh` / `review-*.mjs` を G13 の対象接頭辞に
+     入る名前へ揃えるか、`patterns` に `scripts/review-` と個別ファイルを足す
+     （`docs/gates/integrity-baseline.json` は task_009 の所有）。
+  最低でも 3 は安い。**どれを採るまでは「review-log があること」を「敵対レビューを受けたこと」の
+  証明として扱わない。**
+- **対応予定タスク**: task_008（task-loop が review-log を書く経路）/ task_010（封筒スキーマ）
+
+## 13. （解消済み）封筒の制約絞り込みが部分一致だった
+
+- **指摘**: `scripts/build-review-packet.sh` の制約絞り込みが
+  `select([.id] | inside($ids))` になっており、jq の `inside` は配列要素どうしを
+  「部分文字列として含むか」で比べるため、`constraint_ids: ["L11"]` が `L1` も
+  引き当てていた。R-TH-10 の「`constraint_ids` に載っている制約**だけ**を全文同梱」に
+  反していた（`N1`/`N11`/`N12`、`W1`/`W12` でも同じ）。1 周目の manual 検証は
+  task_011（`L3` / `W1` / `W2` / `W3` / `I3`）で行われており、この組み合わせは
+  たまたま部分一致が起きないため素通りしていた。
+- **深刻度**: medium
+- **現況**: **解消。** `select(.id as $i | ($ids | index($i)) != null)` へ置き換えた。
+  実測: `bash scripts/build-review-packet.sh task_009 --base HEAD~1 --head HEAD` は
+  修正前が `constraint_ids=["L11"]` に対し `["L1","L11"]` / `constraints_included: 2`、
+  修正後は `["L11"]` / `constraints_included: 1`。
+  回帰は `tests/unit/build-review-packet.test.ts`（6 件）で固定した。修正前のスクリプトに
+  対しては 6 件中 4 件が赤になることを確認してから直している。
+- **対応予定タスク**: なし
+
+## 14. （解消済み）レビュー封筒のテストがリポジトリルートのホワイトリストを暗黙の入力にしていた
+
+- **指摘**: `tests/unit/merge-review.test.ts` / `tests/unit/validate-findings.test.ts` の
+  多くのケースが `--whitelist` を渡さずに起動していたため、`validate-findings.mjs` が
+  リポジトリルートの `docs/metrics/model-bench.md`（task_010 が作る予定）を読んでいた。
+  そのファイルが出来た瞬間、中身次第で `counts_as_vote` の期待が崩れる。
+- **深刻度**: medium
+- **現況**: **解消。** 両テストの起動ヘルパを「`--whitelist` が明示されていなければ
+  フィクスチャのホワイトリスト（`gpt-6-astra` / `gemini-2.5-pro`）を必ず渡す」に変えた。
+  `merge-review.sh` 側にも `--whitelist <file>` の受け渡し口を足し、
+  「ホワイトリスト外のモデルは票にならずレビュー不成立（exit 3）」を 1 件追加した。
+  実測: リポジトリルートに `approved_models: ["only-some-other-model"]` だけを書いた
+  `docs/metrics/model-bench.md` を置いた状態で両ファイルを回し、**36 件すべて pass**
+  （検証後にその一時ファイルは削除済み。`docs/metrics/` は存在しない）。
+- **対応予定タスク**: なし（task_010 が `docs/metrics/model-bench.md` を作っても両テストは影響を受けない）

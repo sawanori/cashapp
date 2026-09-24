@@ -247,11 +247,17 @@ while [ "$depth" -lt "$IMPORT_DEPTH" ]; do
 done
 
 # ---- constraint_ids に対応する制約だけを全文同梱（R-TH-10） -----------------
+#
+# 突合は **完全一致** でなければならない。以前ここは `select([.id] | inside($ids))`
+# だったが、jq の `inside` は配列要素どうしを「部分文字列として含むか」で比べるため、
+# `constraint_ids: ["L11"]` が `L1` も引き当てていた（`N1`/`N11`、`W1`/`W12` も同様）。
+# 接頭辞が衝突する ID が同梱され、封筒が「このタスクに掛かっていない制約」を
+# レビュアに見せてしまう（R-TH-10 の「constraint_ids に載っている制約だけ」に反する）。
 
 CONSTRAINT_IDS="$(printf '%s' "$TASK_JSON" | jq -c '.constraint_ids // []')"
 if [ -f "$CONSTRAINTS" ]; then
   CONSTRAINTS_JSON="$(jq -c --argjson ids "$CONSTRAINT_IDS" \
-    '[.constraints[] | select([.id] | inside($ids))]' "$CONSTRAINTS")"
+    '[.constraints[] | select(.id as $i | ($ids | index($i)) != null)]' "$CONSTRAINTS")"
 else
   CONSTRAINTS_JSON="[]"
 fi

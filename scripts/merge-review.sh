@@ -24,7 +24,12 @@
 #
 # 使い方:
 #   scripts/merge-review.sh <task_id> [--out <file>] [--round <n>] [--dry-run]
-#                           [--root <dir>] <envelope.json>...
+#                           [--root <dir>] [--whitelist <file>] <envelope.json>...
+#
+#   --whitelist は合格モデル一覧（docs/metrics/model-bench.md 形式）を明示するための
+#   逃げ道で、validate-findings.mjs へそのまま渡す。省略すると検証側が
+#   <root>/docs/metrics/model-bench.md を見る。テストのように「リポジトリの状態に
+#   依存させたくない」呼び出しは必ず明示すること。
 #
 # 終了コード: 0 = pass / 1 = 差し戻し（high あり）/ 3 = レビュー不成立 / 64 = usage。
 
@@ -33,7 +38,7 @@ set -uo pipefail
 usage() {
   cat >&2 <<'EOF'
 Usage:
-  scripts/merge-review.sh <task_id> [--out <file>] [--round <n>] [--dry-run] [--root <dir>] <envelope.json>...
+  scripts/merge-review.sh <task_id> [--out <file>] [--round <n>] [--dry-run] [--root <dir>] [--whitelist <file>] <envelope.json>...
 
 終了コード: 0 = pass / 1 = 差し戻し（high あり）/ 3 = レビュー不成立 / 64 = usage
 EOF
@@ -62,6 +67,7 @@ OUT=""
 ROUND=1
 DRY_RUN=0
 ROOT=""
+WHITELIST=""
 ENVELOPES=()
 
 while [ "$#" -gt 0 ]; do
@@ -83,6 +89,11 @@ while [ "$#" -gt 0 ]; do
       shift
       [ "$#" -ge 1 ] || usage
       ROOT="$1"
+      ;;
+    --whitelist)
+      shift
+      [ "$#" -ge 1 ] || usage
+      WHITELIST="$1"
       ;;
     --dry-run) DRY_RUN=1 ;;
     -h|--help) usage ;;
@@ -123,7 +134,11 @@ for f in "${ENVELOPES[@]}"; do
     exit 64
   fi
 
-  node "$VALIDATOR" "$f" --json --root "$ROOT" > "$TMP_REPORT" 2>/dev/null
+  if [ -n "$WHITELIST" ]; then
+    node "$VALIDATOR" "$f" --json --root "$ROOT" --whitelist "$WHITELIST" > "$TMP_REPORT" 2>/dev/null
+  else
+    node "$VALIDATOR" "$f" --json --root "$ROOT" > "$TMP_REPORT" 2>/dev/null
+  fi
   rc=$?
   if [ "$rc" -ne 0 ] && [ "$rc" -ne 1 ]; then
     echo "merge-review.sh: validate-findings.mjs が usage エラーで終了しました（$f, exit $rc）" >&2
