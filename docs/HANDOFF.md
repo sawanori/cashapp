@@ -1564,6 +1564,45 @@ task_006 側は「自分のファイルは既にコミット済み」として�
 - `.claude/workflows/*.ts` を 2 本直したので G13 基準値を `--write-baseline` で再生成した
   （差分は当該 2 エントリと timestamp のみ）。**この先も同ディレクトリを直すたびに要る。** → C-008-4
 
+## task_008（レビュー修正・7 周目）
+
+レビューの high 1 / medium 2。**実装で直したのは 2 件**、残る 1 件（Workflow ツール不在）は deferred のまま。
+
+### 決まったこと
+
+- **独立性の会計に封筒の自己申告 `vendor` を使わない**。`task-loop.ts` / `release-audit.ts` は
+  レーン定数 `lane.vendor`（`code-reviewer` / `release-auditor` = `"claude"`）を、レビュアが返した
+  `env.vendor` / `res.vendor` で上書きしてから `AUTHOR_VENDOR` 判定していた。作者ベンダーのレーンが
+  封筒に `vendor: "gemini"` と書くだけで独立票に化けられる（修正前 HEAD 3bdf5d4 で
+  `task-loop` = `DONE` / `voting_vendors=["gemini"]`、`release-audit` = `go` /
+  `independent_go_vendors=["gemini","gpt"]` を実測）。**数える値は常にレーン定数**とし、
+  自己申告は「レーン定数と一致するか」の照合にだけ使う。
+- **票として数える封筒の 3 条件**（`reviewer_route === "ok"` に加えて）:
+  ①`vendor` がレーン定数と一致 ②`model_id_actual` が非空 ③`findings` が配列
+  （`release-audit.ts` は ③ の代わりに `verdict` が `go` / `no-go` / `UNKNOWN` のいずれか）。
+  満たさない封筒は `reviewer_route: "invalid_envelope"` の欠票（`abstentions`）へ落とし、
+  理由を `reason` に残す。これは `scripts/validate-findings.mjs` / `scripts/review-gpt.mjs` /
+  `.claude/agents/adversarial-reviewer-gemini.md` が既に採っている規律（§16-2 / R-TH-11）に揃えたもの。
+  レビュア向けプロンプトにも同じ 3 条件を明記した。
+- **G13 基準値は他タスクの未コミット差分を焼き込まない形で書く**。今周は別タスクが
+  `scripts/gate-env-scope.mjs`（G13 対象）を未コミットで編集中だったので、`git ls-files` + `tar` で
+  作業ツリーの追跡ファイルを退避先へ複製し、**当該 1 ファイルだけ `git show HEAD:` の内容へ戻した木**を
+  `--root` に、リポジトリを `--base` に渡して `--write-baseline` した。task_004 / task_012 が
+  同じ手を取っている。差分は `.claude/workflows/*.ts` の 2 エントリと timestamp のみ（実測）。
+
+### 未解決
+
+- **[severity: medium] `done_definition` 第 1 項はまだ deferred**。7 周目のセッションでも
+  `ToolSearch select:Workflow` は `No matching deferred tools found`。runId は 1 つも無い。
+  **Workflow ツールを持つセッションで `dryRun: true` の 3 本を回すまで DONE へ昇格させない。** → C-008-1
+- **[severity: low] `npm run gate:check` は G13 のみ不合格（exit 1）**。出どころは別タスクが
+  未コミットで編集中の `scripts/gate-env-scope.mjs` 1 件。**所有タスクがコミット時に基準値を
+  再生成すれば解消する**。task_007 が 4 周目に「G13 は task_009 の未コミット差分」と記録したのと同じ扱い。
+- **[severity: low] 持ち越し high の同一性キーは `reviewer + id`（`id` が無ければ
+  `reviewer + file + summary`）のまま**。同じ指摘を毎周わずかに違う文言で返すレビュアがいると
+  別件として積み上がり、逆に `id` を付けないレビュアが要約を変えただけでも持ち越しが切れる。
+  封筒スキーマ側で finding の `id` を必須化するのが筋で、これは task_010 の担当。
+
 ## task_013（レビュー修正・4 周目）
 
 GPT-6 Astra の敵対レビュー（high 1 / medium 2）。**再現 2 件・非再現 1 件**。
@@ -1601,6 +1640,61 @@ GPT-6 Astra の敵対レビュー（high 1 / medium 2）。**再現 2 件・非�
   `src/lib/auth/request-guard.ts` を咎める、`.claude/workflows/*.ts` 編集中の
   `workflow-scripts.test.ts` など）。実行ごとに赤の顔ぶれが変わる（5 → 22 → 2 ファイル）。
   task_013 所有テストの赤は 0 件（`tests/unit/liff` / `telemetry.test.ts` / `components` で 98/98 緑）。
+
+## task_012（レビュー修正・2 周目）
+
+GPT-6 Astra の敵対レビュー（high 1 / medium 3）。**4 件すべて HEAD で再現してから塞いだ**（非再現 0 件）。
+
+### 決まったこと
+
+- **[high F-1] `POST /api/auth/line` はクロスサイトからの送信を 403 で落とす**。`Origin` も
+  `Content-Type` も見ていなかったため、`enctype="text/plain"` のフォーム（本文が有効な JSON に
+  なる）で攻撃者の未使用 ID トークンを被害者のブラウザから送らせると、被害者に**攻撃者の**
+  セッションが発行された（ログイン CSRF / セッション固定。HEAD で再現: 403 を期待したところ
+  200 ＋ Cookie 発行、新規テスト 14 件中 10 件が赤）。`src/lib/auth/request-guard.ts` を新設し、
+  ルート先頭で ①`Origin` が自サイトと完全一致（無ければ `Sec-Fetch-Site: same-origin`、
+  どちらも無ければ **fail-closed で 403**）②`application/json` 以外は 415 ③本文の未知フィールドは
+  400、の 3 枚重ねにした。自サイトは `Host` と `request.url` から導き、**環境変数を増やしていない**。
+  **`https://liff.line.me` は許可しない**（全 LIFF アプリの共有オリジンで、誰でも自分の LIFF を
+  置けるため、許可すると別の LIFF 開発者から同じ攻撃が成立する）。→ C-012-17
+- **[medium F-2] レート制限は DB へ接続する前に判定する**。HEAD ではルート経路に判定自体が無く、
+  `{success:false}` でも 200 を返して `createVerifiedDbClient()`（接続＋`SELECT session_user`）に
+  到達していた。`enforceAuthRateLimit()` / `singleFlightRateLimiter()` を `line-verify.ts` に切り出し、
+  ルートは DB 接続前に判定する。`authenticateWithLineIdToken()` 側の判定は**残した**（統合テストが
+  この関数を唯一の入口として使うため）ので、同じキーの 2 回目がバックエンドのカウンタを二重に
+  消費しないようラップして渡す。429 / 503 で `createVerifiedDbClient()` に到達しないこと、正常時に
+  `limit()` がちょうど 1 回であることをルートハンドラ経由で実測。→ C-012-18
+- **[medium F-3] `gate:env` は引用符付き TOML キーも拾う**。`"SUPABASE_SERVICE_ROLE_KEY" = "…"` と
+  囲むだけで検査 (1) を回避できた（フィクスチャで exit 0 を再現）。代入行の正規表現を
+  素 / `"…"` / `'…'` の 3 形に対応させ、`unquote()` と `stripTomlComment()` もリテラル文字列
+  （単一引用符）に対応させた。→ C-012-19
+- **[medium F-4] 旧 PEPPER 単独の処理系は新規作成に進めない（fail-closed）**。移行は旧参照値を
+  上書きするため、移行後に旧 PEPPER だけを持つ処理系へログインが届くと既存ユーザーを見つけられず
+  別の `app_user` を作っていた（HEAD で再現: 例外を投げずに `INSERT INTO app_user` が出る）。
+  旧参照値を残す案はスキーマ変更（`supabase/migrations/**` = task_011 の所有）を要し、かつ
+  「旧 PEPPER で引ける期間」を延ばすので採らず、`INSERT` 直前に「自分より新しい `pepper_version`
+  の行」を探して 1 行でもあれば `CONFIG_INVALID` / 503 で落とす形にした。**割れたアカウントは
+  事後に併合できない（旧参照値が消えている）が、503 は運用で解消できる**。→ C-012-20
+
+### 未解決
+
+- **[severity: medium] PEPPER 切替の窓ではログインが落ちうる**。新しい PEPPER をまだ持たない
+  処理系に新規ログイン（および移行済みユーザーのログイン）が当たると 503 になる。
+  「全処理系へ新旧そろえて投入 → デプロイ完了を確認 → ログインを流す」の順を守ること。
+  手順書への反映は task_024（`docs/ops/key-rotation-drill.md`）。→ C-012-20
+- **[severity: medium] `gate-env-scope.mjs` の TOML 読み取りは依然として最小実装**。複数行文字列・
+  インラインテーブル・ドット付きの quoted key は黙って読み飛ばす。→ C-012-19
+- **[severity: medium] `npm run test:unit` は exit 1**。赤は `tests/unit/gate-constraints.test.ts` の
+  `Test timed out in 5000ms` 2〜3 件だけで、既知の C-013-12 と同じ（アサーション失敗ではない）。
+  同じスイートを `npx vitest run tests/unit --testTimeout=30000` で走らせると
+  **37 ファイル 955/955 緑・exit 0**。task_012 所有テストの赤は 0 件。
+- **[severity: medium] `npm run test:integration` も exit 1**。赤 3 件はいずれも他タスクの
+  **未追跡**ファイル（`tests/integration/events.test.ts` / `tests/integration/audit-chain.test.ts`）内で、
+  追跡済み 4 ファイル（`auth` / `schema` / `db-role` / `ci-workflow`）は 73/73 緑。
+- **[severity: low] G13 基準値の競合**。`scripts/gate-env-scope.mjs` を変えたので基準値を再生成したが、
+  同時刻に別タスク（task_008）も `.claude/workflows/*.ts` を編集中で、互いに相手の未コミット分を
+  焼き込まないよう overlay を使っている。**後からコミットする側が再生成し直すこと**
+  （いまの基準値は HEAD + 本コミットの `gate-env-scope.mjs` に一致する）。
 
 ## ターンログ（Stop フック自動追記）
 
@@ -1722,3 +1816,8 @@ GPT-6 Astra の敵対レビュー（high 1 / medium 2）。**再現 2 件・非�
 - 2026-09-24T13:15:20Z HEAD=26eb304 決まったこと: task_004(2周目): 敵対レビュー high 2 / medium 5 を再現してから塞ぐ（quotePath・読めた0件・パターン5件） / 未解決: 未コミット 42 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/concerns/task_012.md docs/concerns/task_013.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_013.json 
 - 2026-09-24T13:16:21Z HEAD=26eb304 決まったこと: task_004(2周目): 敵対レビュー high 2 / medium 5 を再現してから塞ぐ（quotePath・読めた0件・パターン5件） / 未解決: 未コミット 43 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_012.md docs/concerns/task_013.md docs/run-log/task_008.json docs/run-log/task_012.json 
 - 2026-09-24T13:16:37Z HEAD=26eb304 決まったこと: task_004(2周目): 敵対レビュー high 2 / medium 5 を再現してから塞ぐ（quotePath・読めた0件・パターン5件） / 未解決: 未コミット 43 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_012.md docs/concerns/task_013.md docs/run-log/task_008.json docs/run-log/task_012.json 
+- 2026-09-24T13:19:21Z HEAD=ffe9f01 決まったこと: task_013(4周目): ストレージ不能時の login 打ち切りとテレメトリ本文の上限を実測つきで塞ぐ / 未解決: 未コミット 38 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/concerns/task_012.md docs/run-log/task_008.json docs/run-log/task_012.json docs/task-list.json scripts/gate-env-scope.mjs src/app/api/auth/line/route.ts 
+- 2026-09-24T13:25:23Z HEAD=ffe9f01 決まったこと: task_013(4周目): ストレージ不能時の login 打ち切りとテレメトリ本文の上限を実測つきで塞ぐ / 未解決: 未コミット 48 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_008.md docs/concerns/task_012.md docs/gates/integrity-baseline.json docs/review-log/task_004.json 
+- 2026-09-24T13:26:21Z HEAD=ffe9f01 決まったこと: task_013(4周目): ストレージ不能時の login 打ち切りとテレメトリ本文の上限を実測つきで塞ぐ / 未解決: 未コミット 50 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_008.md docs/concerns/task_012.md docs/concerns/task_013.md docs/constraints.json 
+- 2026-09-24T13:27:24Z HEAD=10b4e7f 決まったこと: task_012(2周目): 敵対レビュー high 1 / medium 3 を再現してから塞ぐ（ログインCSRF・DB到達順・引用符キー・PEPPER分裂） / 未解決: 未コミット 37 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/concerns/task_008.md docs/concerns/task_013.md docs/constraints.json docs/review-log/task_004.json docs/review-log/task_013.json 
+- 2026-09-24T13:28:21Z HEAD=10b4e7f 決まったこと: task_012(2周目): 敵対レビュー high 1 / medium 3 を再現してから塞ぐ（ログインCSRF・DB到達順・引用符キー・PEPPER分裂） / 未解決: 未コミット 38 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/concerns/task_008.md docs/concerns/task_013.md docs/constraints.json docs/review-log/task_004.json docs/review-log/task_013.json 
