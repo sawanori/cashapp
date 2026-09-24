@@ -1,0 +1,3212 @@
+{
+  "feature": "kanji-kaihi-line-miniapp",
+  "version": 3,
+  "generated_at": "2026-09-24",
+  "notes": [
+    "v2: プレモータム（docs/research/premortem-risks.md）の裁定と先回り策を反映。task_001-002 は Phase 0（非コード）、task_003-010 はハーネス、task_011-025 は Phase 1、task_026-030 は Phase 2（docs/gates の必須ゲート通過が前提）、task_031-034 は Phase 3（optional）。",
+    "順序規律: ハーネス必須セット（task_003-006, task_009）が『違反フィクスチャで落ちる』状態になるまで機能タスク（task_011 以降）に着手しない。必須セットは 5 営業日にタイムボックス。",
+    "run-log は scripts/record-run.sh 経由でのみ書く。completion_status は DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT。evidence_label は [実測]/[文書]/[設計]/[不明]。",
+    "risk_ids は docs/research/premortem-risks.md のリスク ID。constraint_ids は docs/research/consolidated.md §6（L/P/W/N/I）。",
+    "verify_commands は package.json.scripts に実在するものだけを書く。G2 は着手済み（in_progress / DONE）のタスクにのみ実在を要求し、未着手タスクの参照は warn。ただし implementation-plan.md §13 の表に作成タスクが無いスクリプト名は捏造として違反。成果物が docs/** のみのタスク（task_001 / 002 / 034 / 036 / 037）は verify_commands 空で manual_verification 必須（G1）。",
+    "gate_level=harness-optional かつ optional=true のタスク（task_007 / 008 / 010）は implementation-plan.md §4-2 の『任意セット』。週 0 の 5 営業日を超えた時点で残件と機能着手日を docs/PROGRESS.md に記録（task_009 の done_definition）したうえでスキップしてよい。スキップした場合、そのタスクだけが参照する check は evidence に『未実施（タイムボックス超過・PROGRESS.md 記録済み）』と記録する。必須セット（task_003-006, task_009）はスキップ不可。",
+    "実行順の正本は implementation-plan.md §12 の表。dependencies の正本は本ファイル。",
+    "ホスティングは Cloudflare Workers（PO 決定・ADR-012）。Vercel の語は ADR-012 の『調査推奨との差』の記録にのみ現れる。"
+  ],
+  "tasks": [
+    {
+      "task_id": "task_001",
+      "title": "G0-USER 同意と ADR-001（資金フロー・販売事業者・ターゲット幹事）",
+      "phase": "0",
+      "goal": "受取先が幹事名義の加盟店アカウント経由の銀行口座になること・幹事に加盟店審査が発生すること・販売事業者は幹事であること・ターゲットを継続的な主催者に寄せることについて、PO（noritaka）の明示的な回答を根拠付きで記録する。",
+      "scope": [
+        "docs/research/consolidated.md §7-3 の『提示すべき事実』を順序どおりに PO へ提示する",
+        "同意 / 不同意 / 条件付きを ADR-001 の Decision に逐語で記録する",
+        "不同意なら manual_confirm 単独構成へ縮退することと、その構成でも柱書該当の可能性が残ること（Q-LG1 待ち）を記録する"
+      ],
+      "non_scope": [
+        "決済事業者の採用確定",
+        "コードの作成"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §1, §6, §18-4",
+        "docs/research/consolidated.md §7"
+      ],
+      "files_to_create": [
+        "docs/decisions/ADR-001-funds-flow.md"
+      ],
+      "files_to_modify": [],
+      "dependencies": [],
+      "implementation_steps": [
+        "PO への提示（AskUserQuestion）",
+        "回答を逐語で記録",
+        "status を accepted / rejected のいずれかにし confidence を記入"
+      ],
+      "done_definition": [
+        "ADR-001 が存在し PO の回答が逐語で記録されている",
+        "status が proposed のまま終わっていない",
+        "販売事業者＝幹事、ターゲット＝継続的主催者の判断が Decision に含まれる"
+      ],
+      "verify_commands": [],
+      "manual_verification": [
+        "PO 本人が ADR-001 を読み、記録が自分の回答と一致することを確認する"
+      ],
+      "risk_level": "high",
+      "owner_model": "human:noritaka",
+      "agent": null,
+      "constraint_ids": [
+        "L1",
+        "L2",
+        "L9"
+      ],
+      "risk_ids": [
+        "R-LAW-05",
+        "R-PAY-14",
+        "R-LAW-03"
+      ],
+      "acceptance_check_ids": [
+        "check_049"
+      ],
+      "gate_level": "G0-USER",
+      "adversarial_review": "not_required",
+      "evidence_label": "[不明]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": []
+    },
+    {
+      "task_id": "task_036",
+      "title": "ゲート台帳と照会追跡台帳の雛形（compliance-gates.json / external-inquiries.json / legal-clearance.json の器）",
+      "phase": "0",
+      "goal": "PO の同意や送付を待たずに、ゲート台帳と照会追跡台帳の『器』を作り、task_011 の gates:sync と task_005 のフックが参照できる状態にする。",
+      "scope": [
+        "docs/gates/compliance-gates.json に 10 ゲート（G0-USER, GATE-LINE-POLICY, GATE-LINE-SHARE, GATE-LEGAL-PII, GATE-LEGAL-FUNDS, GATE-PP-MERCHANDISE, GATE-PP-ONBOARD, GATE-PP-WEBHOOK, GATE-CRED-CUSTODY, GATE-PP-IP-RANGE）を status='unknown', required_for, valid_until=null, evidence_uri=null, approved_by=null で作る",
+        "docs/external-inquiries.json を空配列＋スキーマ説明（{ id, to, status: draft|sent|answered|superseded, sent_at, no_response_deadline（sent_at+21日で算出）, default_decision_on_timeout, evidence_uri, gate_keys }）で作る",
+        "docs/gates/README.md にゲートの正本が JSON であること・DB は射影であること・変更は PO のみであることを記す"
+      ],
+      "non_scope": [
+        "照会文の起案（task_002）",
+        "送付（task_037）"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §4-1, §18"
+      ],
+      "files_to_create": [
+        "docs/gates/compliance-gates.json",
+        "docs/external-inquiries.json",
+        "docs/gates/README.md"
+      ],
+      "files_to_modify": [],
+      "dependencies": [],
+      "implementation_steps": [
+        "JSON を作成し python3 で妥当性を確認する"
+      ],
+      "done_definition": [
+        "compliance-gates.json に 10 ゲートが status='unknown' で存在し JSON として妥当",
+        "external-inquiries.json が JSON として妥当でスキーマ説明を持つ"
+      ],
+      "verify_commands": [],
+      "manual_verification": [
+        "python3 -c \"import json;json.load(open('docs/gates/compliance-gates.json'));json.load(open('docs/external-inquiries.json'))\" が例外なく終了"
+      ],
+      "risk_level": "low",
+      "owner_model": "sonnet",
+      "agent": "task-executor",
+      "constraint_ids": [
+        "L11"
+      ],
+      "risk_ids": [
+        "R-OPS-09"
+      ],
+      "acceptance_check_ids": [
+        "check_050"
+      ],
+      "gate_level": "phase0",
+      "adversarial_review": "not_required",
+      "evidence_label": "[設計]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": []
+    },
+    {
+      "task_id": "task_002",
+      "title": "外部照会文の起案（Q-LG1 単独先行）・追跡台帳への登録・ADR-010",
+      "phase": "0",
+      "goal": "docs/implementation-plan.md §18-1 の質問群を宛先別の照会文にし、docs/external-inquiries.json に draft として登録し、Q-LG1 否定回答時の分岐 ADR-010 を先に起票する。送付は task_037（PO）。",
+      "scope": [
+        "docs/inquiries/{lawyer-q-lg1,lawyer,paypay,payjp,line,stripe}.md を起票（前提説明: サービス定義＝幹事が管理する精算・集金の台帳、運営者は資金に触れない、販売事業者は幹事）",
+        "docs/external-inquiries.json（task_036 の雛形）に各照会を status='draft' で登録し、default_decision_on_timeout を確定文言で入れる（no_response_deadline は sent 時に算出）",
+        "Q-LG1 否定回答時の分岐 ADR-010（第 3 号ニの提携先候補・株式会社化の要否・manual_confirm の扱い）を proposed で起票"
+      ],
+      "non_scope": [
+        "回答内容に基づく設計変更（別タスク）",
+        "弁護士との契約手続き（PO）"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §18",
+        "docs/research/consolidated.md §5"
+      ],
+      "files_to_create": [
+        "docs/inquiries/lawyer-q-lg1.md",
+        "docs/inquiries/lawyer.md",
+        "docs/inquiries/paypay.md",
+        "docs/inquiries/payjp.md",
+        "docs/inquiries/line.md",
+        "docs/inquiries/stripe.md",
+        "docs/decisions/ADR-010-q-lg1-negative-branch.md"
+      ],
+      "files_to_modify": [
+        "docs/external-inquiries.json"
+      ],
+      "dependencies": [
+        "task_001",
+        "task_036"
+      ],
+      "implementation_steps": [
+        "質問文を宛先ごとに転記し ID を付ける",
+        "external-inquiries.json に draft で登録",
+        "ADR-010 を起票"
+      ],
+      "done_definition": [
+        "6 宛先分の照会文が存在し各質問に ID がある",
+        "external-inquiries.json が JSON として妥当で全項目が status='draft'、default_decision_on_timeout が確定文言で入っている",
+        "ADR-010 が proposed で存在する"
+      ],
+      "verify_commands": [],
+      "manual_verification": [
+        "python3 で JSON を検査し record-run --manual で記録"
+      ],
+      "risk_level": "medium",
+      "owner_model": "opus-5.5",
+      "agent": "investigator",
+      "constraint_ids": [
+        "L11",
+        "P1"
+      ],
+      "risk_ids": [
+        "R-LAW-01",
+        "R-TH-05",
+        "R-LINE-06",
+        "R-LAW-02",
+        "R-LAW-04",
+        "R-SEC-11",
+        "R-PAY-07"
+      ],
+      "acceptance_check_ids": [
+        "check_061"
+      ],
+      "gate_level": "phase0",
+      "adversarial_review": "required",
+      "evidence_label": "[設計]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": []
+    },
+    {
+      "task_id": "task_037",
+      "title": "照会の送付・回答追跡・ゲート更新（PO）",
+      "phase": "0",
+      "goal": "task_002 で起案した照会文を PO が送付し、送付日・期限・回答を docs/external-inquiries.json と docs/gates/compliance-gates.json に反映する。",
+      "scope": [
+        "PO が各宛先へ送付し、status を sent、sent_at と no_response_deadline（+21 日）を記入する（Q-LG1 を最初に）",
+        "回答を docs/inquiries/<to>.md 末尾に逐語追記し、compliance-gates.json の該当 gate を inquired / passed / failed に更新（passed は evidence_uri 必須、approved_by は申請者と別人または A23 の縮退規則）",
+        "期限超過時は default_decision_on_timeout を PO が採否判断し、その判断を docs/external-inquiries.json の当該項目（decision_on_timeout_taken）に記録"
+      ],
+      "non_scope": [
+        "回答内容に基づく設計変更（別タスク）"
+      ],
+      "files_to_read": [
+        "docs/inquiries/*.md",
+        "docs/external-inquiries.json",
+        "docs/gates/compliance-gates.json"
+      ],
+      "files_to_create": [],
+      "files_to_modify": [
+        "docs/external-inquiries.json",
+        "docs/gates/compliance-gates.json",
+        "docs/inquiries/lawyer-q-lg1.md",
+        "docs/inquiries/lawyer.md",
+        "docs/inquiries/paypay.md",
+        "docs/inquiries/payjp.md",
+        "docs/inquiries/line.md",
+        "docs/inquiries/stripe.md"
+      ],
+      "dependencies": [
+        "task_002"
+      ],
+      "implementation_steps": [
+        "Q-LG1 → PayPay → PAY.JP → LINEヤフー → Stripe の順に送付",
+        "回答到着ごとに逐語追記とゲート更新"
+      ],
+      "done_definition": [
+        "少なくとも lawyer-q-lg1 と paypay が sent で sent_at と no_response_deadline がある",
+        "回答が届いたゲートの status が evidence_uri 付きで更新されている"
+      ],
+      "verify_commands": [],
+      "manual_verification": [
+        "PO の送付記録と JSON の sent 状態の一致",
+        "gates:sync（task_011 以降）の差分 0"
+      ],
+      "risk_level": "medium",
+      "owner_model": "human:noritaka",
+      "agent": null,
+      "constraint_ids": [
+        "L11"
+      ],
+      "risk_ids": [
+        "R-TH-05",
+        "R-LAW-01"
+      ],
+      "acceptance_check_ids": [
+        "check_061"
+      ],
+      "gate_level": "phase0",
+      "adversarial_review": "not_required",
+      "evidence_label": "[不明]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": []
+    },
+    {
+      "task_id": "task_003",
+      "title": "プロジェクト初期化（npm / Next.js App Router / TypeScript / Drizzle / Vitest / Playwright / OpenNext for Cloudflare / wrangler / .npmrc）",
+      "phase": "harness",
+      "goal": "空リポジトリに、以後のフック・CI・タスクが参照する npm スクリプトが実在する最小の Next.js プロジェクトを作る。",
+      "scope": [
+        "scripts/record-run.sh（run-log の唯一の書き込み経路。git / date / jq のみ依存。--manual で人手確認の記録も書ける）と docs/run-log/README.md を最初に作り、以降の検証コマンドはすべてこれ経由で実行する（PreToolUse 遮断は task_005 で導入）",
+        "npm で Next.js（App Router, TypeScript, src/, alias @/）を初期化。engines.node >=22。依存バージョンは完全固定",
+        ".npmrc に ignore-scripts=true",
+        "package.json scripts に typecheck / lint / lint:changed / build / build:cf / cf:dev / test:unit / test:e2e / test:security / test:a11y を定義する。test:e2e / test:security / test:a11y は本タスクでは smoke 1 本ずつの雛形（tests/e2e/smoke.spec.ts, tests/security/smoke.test.ts, tests/a11y/smoke.spec.ts）を置き、実体は task_022 が追加する（§13）",
+        "cloudflare / wrangler / workers-best-practices スキルを読み込んだうえで、@opennextjs/cloudflare と wrangler を devDependency に追加し、wrangler.toml（compatibility_date、compatibility_flags = [\"nodejs_compat\"]、[env.staging] / [env.production]、[[hyperdrive]] は task_035 で実 ID を入れるまでプレースホルダ、limits.cpu_ms、Smart Placement）と open-next.config.ts を作る。ローカルの Hyperdrive 接続は Cloudflare 公式ドキュメントが定めるローカル接続文字列の設定（名称は docs/vendor-docs/cloudflare/hyperdrive.md に取得日つきで退避してから使う）で supabase ローカル Postgres を指す。workers/cron/（Cron Triggers 専用 Worker の雛形）",
+        "スパイク: npm run build:cf → wrangler dev で GET /api/health が 200、Route Handler の request.text() と import 'server-only' が動くことを実測し ADR-012 に記録（動かない項目は [不明] のまま A20 として残す）",
+        ".browserslistrc と docs/supported-browsers.md の雛形",
+        "GET /api/health（本タスクでは静的 ok。task_023 で degraded 判定に拡張）",
+        "採用パッケージの実測バージョンを ADR-002 に記録",
+        "build:cf のたびに .open-next の Worker サイズを計測して run-log に残す（A25。上限値は docs/vendor-docs/cloudflare/ に一次資料を退避して確定）"
+      ],
+      "non_scope": [
+        "決済 SDK の追加",
+        "Supabase プロジェクト作成（task_011 / 024）",
+        "UI"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §7-2, §13"
+      ],
+      "files_to_create": [
+        "scripts/record-run.sh",
+        "docs/run-log/README.md",
+        "package.json",
+        "package-lock.json",
+        ".npmrc",
+        "tsconfig.json",
+        "next.config.ts",
+        "eslint.config.mjs",
+        "vitest.config.ts",
+        "playwright.config.ts",
+        "drizzle.config.ts",
+        ".browserslistrc",
+        ".env.example",
+        ".gitignore",
+        "src/app/layout.tsx",
+        "src/app/page.tsx",
+        "src/app/api/health/route.ts",
+        "tests/unit/health.test.ts",
+        "docs/supported-browsers.md",
+        "docs/decisions/ADR-002-stack-versions.md",
+        "wrangler.toml",
+        "open-next.config.ts",
+        "workers/cron/index.ts",
+        "workers/cron/wrangler.toml",
+        ".dev.vars.example",
+        "docs/decisions/ADR-012-hosting-cloudflare.md",
+        "tests/e2e/smoke.spec.ts",
+        "tests/security/smoke.test.ts",
+        "tests/a11y/smoke.spec.ts",
+        "docs/vendor-docs/cloudflare/hyperdrive.md",
+        "docs/vendor-docs/cloudflare/opennext.md"
+      ],
+      "files_to_modify": [],
+      "dependencies": [],
+      "implementation_steps": [
+        "cashapp 直下に .git が無く git のルートがホームディレクトリであること [実測] を踏まえ、/Users/noritakasawada/AI_P/cashapp で git init を実行して独立リポジトリにする（ホーム側リポジトリでの cashapp/ の扱いは PO に確認。ホーム側を書き換えない）",
+        "scripts/record-run.sh を最初に作る",
+        "npm view で next / drizzle-orm / vitest / @playwright/test / @line/liff / @line/liff-mock / axe-core / wrangler / @opennextjs/cloudflare の実測バージョンを取得し ADR-002 に記録（OpenNext の対応 Next.js バージョンに合わせる）",
+        "cloudflare / wrangler / workers-best-practices スキルを読み込み、OpenNext と Hyperdrive の一次資料を docs/vendor-docs/cloudflare/ に取得日つきで退避",
+        "プロジェクト生成、vitest / playwright 設定、wrangler.toml（compatibility_date / compatibility_flags / [env.*] / [[hyperdrive]] プレースホルダ / limits.cpu_ms / Smart Placement）と open-next.config.ts、workers/cron/ の雛形",
+        "スパイク: npm run build:cf → wrangler dev で ① request.text() が生本文をバイト等価で返す ② import 'server-only' がクライアントバンドル混入をビルド時に落とす ③ middleware が全リクエストに適用される ④ セキュリティヘッダが全レスポンスに付く、を実測し ADR-012 に記録。①②が不成立なら即 BLOCKED として ADR-014（Hono 等の Workers ネイティブ化。影響は task_012/013 の外殻）を起票。③④のみ不成立なら task_012 で共通ラッパ代替を再評価",
+        "health ルートと smoke テスト、.gitignore、.env.example / .dev.vars.example",
+        "初回コミット（push は PO 指示時のみ）"
+      ],
+      "done_definition": [
+        "npm run typecheck / lint / build / test:unit が exit 0",
+        ".npmrc に ignore-scripts=true がある",
+        "npm ls に paypay / payjp / stripe が無い",
+        "ADR-002 に実測バージョンと取得コマンドがある",
+        "ADR-012 に Cloudflare 採用の理由（PO 指示）・調査推奨（Vercel）との差・未確認事項 A20 / A21 が記録されている",
+        "scripts/record-run.sh で npm run test:unit を実行した記録（exit 0・HEAD・UTC 時刻）が docs/run-log/task_003.json にある",
+        "スパイク①〜④の結果が ADR-012 に [実測] で記録されている",
+        "wrangler.toml に compatibility_date と compatibility_flags = [\"nodejs_compat\"] がある",
+        ".open-next の Worker サイズが run-log に記録されている",
+        "git -C /Users/noritakasawada/AI_P/cashapp rev-parse --show-toplevel が cashapp を返す"
+      ],
+      "verify_commands": [
+        "npm run typecheck",
+        "npm run lint",
+        "npm run build",
+        "npm run test:unit",
+        "npm run build:cf"
+      ],
+      "risk_level": "medium",
+      "owner_model": "sonnet",
+      "agent": "task-executor",
+      "constraint_ids": [
+        "I1",
+        "P1"
+      ],
+      "risk_ids": [
+        "R-SEC-13",
+        "R-LINE-03",
+        "R-SEC-05",
+        "R-OPS-08",
+        "R-TH-02"
+      ],
+      "acceptance_check_ids": [
+        "check_038",
+        "check_040"
+      ],
+      "gate_level": "harness",
+      "adversarial_review": "not_required",
+      "evidence_label": "[設計]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": [
+        "OpenNext for Cloudflare の互換性（A20）と Hyperdrive 経由の Postgres（A21）は未実測。①②不成立なら BLOCKED ＋ ADR-014、③④のみ不成立なら task_012 で代替。Worker サイズ上限（A25）は未取得",
+        "ホームディレクトリ直下に git リポジトリが存在する [実測]。cashapp を独立させる git init はホーム側の設定を変更しない範囲で行い、ホーム側での無視設定は PO 判断"
+      ]
+    },
+    {
+      "task_id": "task_004",
+      "title": "制約・禁止語の機械可読化と grep ゲート（constraints.json / wording-policy.md / gate-constraints.sh / wording-lint.mjs）",
+      "phase": "harness",
+      "goal": "設計制約（L/P/W/N/I ＋横断規約）と禁止語を、フックと CI が grep できる形にする。対象ファイル 0 件のゲートは合格させない。",
+      "scope": [
+        "docs/constraints.json: L1-L12, P1-P9, W1-W12, N1-N12, I1-I6 ＋ X-TIME（timestamptz / date 型禁止）, X-ID（長寿命識別子のパス禁止）, X-MONEY（Money ブランド型）を { id, text, confidence, source, enforcement: grep|test|manual, grep_patterns[], globs[], expect_targets: \"now\" | \"from_task_XXX\" } で。expect_targets の意味: now＝task_004 時点で走査対象が 1 件以上必須、from_task_XXX＝当該 task が DONE になるまで対象 0 件を許容し DONE 以降は 0 件を exit 1（DONE 判定は docs/run-log/<task_id>.json と completion_status）。I1 / I2 は調査の Vercel 前提のため Cloudflare 版に読み替えて登録（I1: Supabase Tokyo ＋ Smart Placement、I2: Cron Triggers 専用 Worker。原文は superseded として保持）",
+        "docs/wording-policy.md: 禁止語（自動チェック／自動で確認／入金を確認しました／寄付／募金／投げ銭／カンパ／支援／応援／クラウドファンディング／チャリティ／領収書／インボイス／適格請求書／記入例／審査の通し方／未確定手数料の確定表示パターン）と許可文言（幹事が受け取ったと申告／あなたの申告を幹事が確認中です／会費受領記録）",
+        "scripts/gate-constraints.sh: 違反行を『<id> <file>:<line>』で出力し非 0。対象 0 件は expect_targets=now のパターンで exit 1（from_task_XXX は当該 task DONE 前は許容）。検査対象に L1/L3 語彙、providers/ 外の決済 SDK import、Webhook ルートの req.json()、rank ガード無しの ='paid'、getProfile()/getDecodedIDToken() の送信、クライアント直 DB、autoDetected 省略可型、liff.sendMessages、dangerouslySetInnerHTML / eval / new Function、NEXT_PUBLIC_ denylist、server-only 義務、date 型、Math.round on money",
+        "scripts/wording-lint.mjs（docs/research と docs/inquiries は対象外）。禁止語パターンも expect_targets を持つ",
+        "package.json scripts に gate:constraints / gate:wording"
+      ],
+      "non_scope": [
+        "フック登録（task_005）",
+        "CI 登録（task_009）"
+      ],
+      "files_to_read": [
+        "docs/research/consolidated.md §6",
+        "docs/implementation-plan.md §7-3, §7-8, §11-2"
+      ],
+      "files_to_create": [
+        "docs/constraints.json",
+        "docs/wording-policy.md",
+        "scripts/gate-constraints.sh",
+        "scripts/wording-lint.mjs",
+        "tests/unit/gate-constraints.test.ts",
+        "tests/unit/wording-lint.test.ts"
+      ],
+      "files_to_modify": [
+        "package.json"
+      ],
+      "dependencies": [
+        "task_003"
+      ],
+      "implementation_steps": [
+        "constraints.json を作成し、grep できない制約は enforcement: manual と明記",
+        "違反 fixture で非 0、非違反で 0、対象 0 件で 1 のテスト",
+        "wording-lint は禁止語と『手数料 3.8%』のような確定表示パターンを検出"
+      ],
+      "done_definition": [
+        "constraints.json が 54 件（51 ＋横断 3）を含み JSON として妥当で、全件に expect_targets がある",
+        "npm run gate:constraints / gate:wording が現状で exit 0（from_task_XXX のパターンは対象 0 件を許容）",
+        "テストが違反検出と expect_targets=now の対象 0 件 exit 1 を確認"
+      ],
+      "verify_commands": [
+        "npm run test:unit",
+        "npm run gate:constraints",
+        "npm run gate:wording"
+      ],
+      "risk_level": "high",
+      "owner_model": "sonnet",
+      "agent": "task-executor",
+      "constraint_ids": [
+        "L1",
+        "L3",
+        "P1",
+        "P2",
+        "W1",
+        "W2",
+        "W3",
+        "N2",
+        "N9",
+        "N11",
+        "I3"
+      ],
+      "risk_ids": [
+        "R-TH-01",
+        "R-LAW-03",
+        "R-LAW-12",
+        "R-PAY-14",
+        "R-SEC-12",
+        "R-SEC-04",
+        "R-DATA-02",
+        "R-PAY-10"
+      ],
+      "acceptance_check_ids": [
+        "check_032"
+      ],
+      "gate_level": "harness",
+      "adversarial_review": "required",
+      "evidence_label": "[設計]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": []
+    },
+    {
+      "task_id": "task_005",
+      "title": "フック群・deny スクリプト・record-run・HANDOFF 毎ターン追記・legal-clearance",
+      "phase": "harness",
+      "goal": "破壊的操作・本番決済・テスト弱体化・run-log の直接書き込み・ゲート定義の書き換えを物理的に遮断し、セッション開始時に未通過ゲートと未回答照会（期限超過を強調）を注入し、Stop フックで HANDOFF に毎ターン追記する。",
+      "scope": [
+        "docs/gates/legal-clearance.json を { cleared: false, basis: null, approved_by: null, approved_at: null }",
+        "scripts/deny-dangerous-bash.sh（PreToolUse Bash）: tool_input.command を正規化（連続空白圧縮・引用符除去・&& / ; / | / 改行で分割）し各サブコマンドに部分一致。遮断対象: rm -rf / git push -f / git reset --hard / supabase db reset / supabase db push / wrangler deploy（環境指定の有無を問わず）/ wrangler versions deploy / wrangler secret put ... --env production / PAYPAY_ENV=PROD / sk_live_ / --live / npm publish / pnpm。npm run <script> / npx / yarn / pnpm run 形式は package.json.scripts を読んで当該スクリプト本体（&& / ; / | 連結の各節）へ再帰的に同じ判定を適用し、解決不能でスクリプト名が /deploy|secret|publish|reset|push|prod/ に一致すれば fail-closed で exit 2。さらに docs/run-log/**、docs/gates/**、docs/acceptance-checks.json、tests/**、scripts/deny-*、scripts/record-run.sh、.claude/**、.github/workflows/** への Bash 経由の書き込み（> / >> リダイレクト、tee、sed -i、cp / mv の宛先、python3 -c の open(..., 'w'|'a')）を exit 2（record-run.sh 経由の呼び出し行はリダイレクトを含まないため対象外。例外句は作らない）。決済・本番系はローカルからは常に exit 2（デプロイは CI のみ）",
+        "scripts/deny-test-weakening.sh（PreToolUse Edit|Write|MultiEdit）: tests/** の it/test/expect 減少、.skip/.todo/.only 追加、本番鍵、docs/run-log/**、acceptance-checks.json の evidence、docs/gates/** への直接書き込みを exit 2",
+        "scripts/session-brief.mjs（SessionStart）: docs/gates/*.json、external-inquiries.json（期限超過を先頭に）、HANDOFF 末尾 40 行",
+        "scripts/gate-status.mjs（UserPromptSubmit）: 未通過 check 件数、BLOCKED / NEEDS_CONTEXT、high concerns 残高",
+        "scripts/append-handoff.sh（Stop）: 『今ターンで決まったこと・未解決』を HANDOFF.md 末尾に 1 行以上追記",
+        "scripts/assert-diff-exists.sh（SubagentStop）",
+        ".claude/settings.json（PreCompact は使わない。PostToolUse は typecheck / lint:changed / gate:constraints。Stop の gate:check は task_006 後に追加）",
+        "docs/PROGRESS.md / docs/HANDOFF.md 雛形"
+      ],
+      "non_scope": [
+        "gate-check.mjs（task_006）",
+        "グローバル ~/.claude/settings.json の変更"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §16-4",
+        "~/.claude/skills/fable-protocol/references/hooks.md"
+      ],
+      "files_to_create": [
+        ".claude/settings.json",
+        "docs/gates/legal-clearance.json",
+        "scripts/deny-dangerous-bash.sh",
+        "scripts/deny-test-weakening.sh",
+        "scripts/session-brief.mjs",
+        "scripts/gate-status.mjs",
+        "scripts/append-handoff.sh",
+        "scripts/assert-diff-exists.sh",
+        "docs/PROGRESS.md",
+        "docs/HANDOFF.md",
+        "tests/unit/hooks/deny-dangerous-bash.test.ts",
+        "tests/unit/hooks/deny-test-weakening.test.ts",
+        "tests/unit/hooks/record-run.test.ts",
+        "tests/unit/hooks/fixtures/package.json"
+      ],
+      "files_to_modify": [],
+      "dependencies": [
+        "task_004"
+      ],
+      "implementation_steps": [
+        "update-config スキルでフック入力 JSON の形式を確認してから書く",
+        "deny テスト: 遮断ケース（生コマンド / npm run deploy:production 形式の別名 / docs/run-log への > リダイレクト / sed -i tests/contract/x.test.ts）で exit 2、通常ケース（npm run test:unit、scripts/record-run.sh npm run test:unit）で exit 0",
+        "settings.json 登録後、新規セッションで SessionStart の注入を目視確認し record-run --manual で記録"
+      ],
+      "done_definition": [
+        "tests/unit/hooks/* が pass（別名呼び出しと Bash 書き込みの遮断ケースを含む）",
+        "legal-clearance.json の cleared が false",
+        "settings.json が参照するスクリプトがすべて実在",
+        "Write ツールと Bash リダイレクトの両方で docs/run-log/x.json を書こうとすると遮断される（テストで確認）",
+        "新規セッションで SessionStart の注入内容を目視確認した記録が run-log にある"
+      ],
+      "verify_commands": [
+        "npm run test:unit",
+        "npm run gate:constraints"
+      ],
+      "manual_verification": [
+        "新しい Claude Code セッションを開き SessionStart の注入を確認"
+      ],
+      "risk_level": "high",
+      "owner_model": "sonnet",
+      "agent": "task-executor",
+      "constraint_ids": [
+        "L11",
+        "I3"
+      ],
+      "risk_ids": [
+        "R-TH-02",
+        "R-TH-12",
+        "R-SEC-07",
+        "R-TH-05",
+        "R-TH-01"
+      ],
+      "acceptance_check_ids": [
+        "check_035",
+        "check_036",
+        "check_053",
+        "check_062",
+        "check_063"
+      ],
+      "gate_level": "harness",
+      "adversarial_review": "required",
+      "evidence_label": "[文書]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": []
+    },
+    {
+      "task_id": "task_006",
+      "title": "gate-check（G0〜G14）・違反フィクスチャ・メタゲート・フック実在マトリクスの実測",
+      "phase": "harness",
+      "goal": "ゲート網が空振りしないことを違反フィクスチャで機械的に証明し、task-list / acceptance-checks をゲートとして使えるようにし、Claude Code フック 6 イベントの遮断挙動を実測して記録する。",
+      "scope": [
+        "scripts/validate-plan-json.mjs / assert-verify-commands.mjs（G2: 着手済みタスクのみ実在必須、未着手は warn、§13 に無いスクリプト名は違反）/ assert-acceptance.mjs / gate-integrity.mjs（docs/gates/**・.claude/**・.github/workflows/**・scripts/gate-*・scripts/deny-*・scripts/record-run.sh・scripts/append-handoff.sh・scripts/session-brief.mjs・scripts/assert-*・scripts/validate-*・scripts/ci/** のハッシュ基準値との照合）",
+        "scripts/gate-check.mjs: G0〜G14（implementation-plan.md §15-2。G1 は docs/** のみのタスクを manual_verification で代替、G5 は task_007 DONE まで warn）",
+        "tests/gates/fixtures/violations/**: L1/P1/P2/W1/W3/N2/I3・非自動ラベル・コマンド捏造・evidence 不一致・DONE 過大申告・provenance 欠落・ハッシュ不一致の各 1 本以上（10 本以上。最初の 1 本は人間が手書きし CODEOWNERS 対象）",
+        "tests/gates/meta.test.ts（npm run test:gate-meta）: 各ゲートが対応する違反に非ゼロ終了、対象 0 件で exit 1",
+        "scripts/test-hook-enforcement.sh: SessionStart / UserPromptSubmit / PreToolUse / PostToolUse / Stop / SubagentStop の実挙動を記録し docs/harness-capability.md に [実測] ラベルで書く",
+        "package.json scripts に gate:check / gate:acceptance / gate:plan / gate:integrity / test:gate-meta。Stop フックに gate:check、PostToolUse に gate:plan を登録"
+      ],
+      "non_scope": [
+        "CI 登録（task_009）"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §15-2, §16-4",
+        "docs/task-list.json",
+        "docs/acceptance-checks.json"
+      ],
+      "files_to_create": [
+        "scripts/validate-plan-json.mjs",
+        "scripts/assert-verify-commands.mjs",
+        "scripts/assert-acceptance.mjs",
+        "scripts/gate-integrity.mjs",
+        "scripts/gate-check.mjs",
+        "scripts/test-hook-enforcement.sh",
+        "tests/gates/meta.test.ts",
+        "tests/gates/fixtures/violations/README.md",
+        "tests/unit/gate-check.test.ts",
+        "docs/harness-capability.md",
+        "docs/gates/integrity-baseline.json"
+      ],
+      "files_to_modify": [
+        "package.json",
+        ".claude/settings.json"
+      ],
+      "dependencies": [
+        "task_005"
+      ],
+      "implementation_steps": [
+        "gate-check は docs/run-log/<task_id>.json を読み、無ければ G4 違反",
+        "違反フィクスチャを先に置き、各ゲートが落とすことを確認してからゲートを完成とする",
+        "フック実在マトリクスは実際にフックを発火させて記録（推測で埋めない）"
+      ],
+      "done_definition": [
+        "npm run test:gate-meta が緑で、10 本以上の違反フィクスチャがそれぞれ対応ゲートを落としている",
+        "npm run gate:plan / gate:check / gate:acceptance / gate:integrity が現状で exit 0",
+        "docs/harness-capability.md に 6 イベントの実測結果があり [不明] が残っていない",
+        "Stop フックに gate:check が登録されている"
+      ],
+      "verify_commands": [
+        "npm run test:unit",
+        "npm run test:gate-meta",
+        "npm run gate:plan",
+        "npm run gate:check",
+        "npm run gate:acceptance",
+        "npm run gate:integrity"
+      ],
+      "risk_level": "high",
+      "owner_model": "opus-5.5",
+      "agent": "task-executor",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-TH-01",
+        "R-TH-02",
+        "R-TH-07",
+        "R-TH-09",
+        "R-SEC-07",
+        "R-SEC-15",
+        "R-TH-12"
+      ],
+      "acceptance_check_ids": [
+        "check_037",
+        "check_064",
+        "check_065"
+      ],
+      "gate_level": "harness",
+      "adversarial_review": "required",
+      "evidence_label": "[設計]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": []
+    },
+    {
+      "task_id": "task_007",
+      "title": "エージェント定義 6 本とレビュー封筒スクリプト（Gemini / GPT 経路、model_id_actual 必須）",
+      "phase": "harness",
+      "goal": "異ベンダーの敵対的レビューと、契約ガード・コンプライアンス・リリース監査・プレモータムのエージェントを、封筒フォーマット固定で呼び出せるようにする。任意セット。",
+      "scope": [
+        ".claude/agents/adversarial-reviewer-gemini.md（ask-gemini。引用なしは UNKNOWN）",
+        ".claude/agents/adversarial-reviewer-gpt.md（codex exec -m gpt-6-astra。repro なしは info。不達は reviewer_route: unavailable）",
+        ".claude/agents/payment-contract-guard.md / compliance-gatekeeper.md / release-auditor.md / premortem-facilitator.md",
+        "acceptance-test-generator 用のツール制限（src/** の Read/Grep 不可）を .claude/agents/acceptance-test-generator-restricted.md として定義",
+        "scripts/build-review-packet.sh（constraint_ids の制約のみ全文同梱、diff が触れたファイル全文と import 先を同梱）、merge-review.sh（high 1 件で差し戻し、unavailable は欠票として記録）、validate-findings.mjs（repro 必須、model_id_actual / cli_version / backend 必須、model_mismatch 検出）、review-gemini.mjs / review-gpt.mjs"
+      ],
+      "non_scope": [
+        "codex フック例外句（task_010）",
+        "Workflow（task_008）"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §16-2, §16-5",
+        "~/.claude/skills/fable-protocol/references/subagent-snippet.md"
+      ],
+      "files_to_create": [
+        ".claude/agents/adversarial-reviewer-gemini.md",
+        ".claude/agents/adversarial-reviewer-gpt.md",
+        ".claude/agents/payment-contract-guard.md",
+        ".claude/agents/compliance-gatekeeper.md",
+        ".claude/agents/release-auditor.md",
+        ".claude/agents/premortem-facilitator.md",
+        ".claude/agents/acceptance-test-generator-restricted.md",
+        "scripts/build-review-packet.sh",
+        "scripts/merge-review.sh",
+        "scripts/validate-findings.mjs",
+        "scripts/review-gemini.mjs",
+        "scripts/review-gpt.mjs",
+        "docs/review-log/README.md",
+        "tests/unit/merge-review.test.ts",
+        "tests/unit/validate-findings.test.ts"
+      ],
+      "files_to_modify": [
+        "package.json"
+      ],
+      "dependencies": [
+        "task_006"
+      ],
+      "implementation_steps": [
+        "FINDINGS スキーマを validate-findings.mjs に定義",
+        "review-gpt.mjs はフック遮断と CLI 不達を検出し unavailable 封筒を返す（成功を偽装しない）",
+        "merge-review テスト: high で非 0、unavailable は欠票記録つきで通過、全 PASS で 0"
+      ],
+      "done_definition": [
+        "7 本のエージェント定義が存在し frontmatter が妥当",
+        "tests/unit/merge-review.test.ts / validate-findings.test.ts が pass",
+        "review-gpt.mjs を実行して現状 unavailable が返ることを record-run で記録"
+      ],
+      "verify_commands": [
+        "npm run test:unit",
+        "npm run gate:constraints"
+      ],
+      "manual_verification": [
+        "adversarial-reviewer-gemini を小さな diff に起動し、封筒に model_id_actual が入ることを確認"
+      ],
+      "risk_level": "high",
+      "owner_model": "opus-5.5",
+      "agent": "technical-designer",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-TH-03",
+        "R-TH-08",
+        "R-TH-10",
+        "R-TH-11",
+        "R-TH-14"
+      ],
+      "acceptance_check_ids": [
+        "check_066"
+      ],
+      "gate_level": "harness-optional",
+      "adversarial_review": "required",
+      "evidence_label": "[設計]",
+      "optional": true,
+      "completion_status": null,
+      "concerns": [
+        "GPT-6 Astra 経路は codex 側フックで遮断中 [実測]。解除まで欠票扱い"
+      ]
+    },
+    {
+      "task_id": "task_008",
+      "title": "Workflow スクリプト 3 本（task-loop / premortem / release-audit）",
+      "phase": "harness",
+      "goal": "1 タスクの実装→4 者並列レビュー→修正→検証ループ（最大 3 周・3 周後は BLOCKED）、4 レンズ並列プレモータム（差分のみ新規）、成立条件ベースのリリース監査を Workflow として実行可能にする。任意セット。",
+      "scope": [
+        ".claude/workflows/task-loop.ts（step 0〜8。2 周目以降は受入テストを再生成しない。3 周後 high 残なら BLOCKED。コストを 1 周ごとに記録）",
+        ".claude/workflows/premortem.ts（legal / payment / platform / harness。docs/premortem/<date>.json に差分）",
+        ".claude/workflows/release-audit.ts（独立 2 ベンダー以上の go かつ no-go ゼロ。不達は PO の明示承認を docs/gates/release-<version>.json に）"
+      ],
+      "non_scope": [
+        "実行そのもの"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §15-3",
+        "workflow-authoring スキル"
+      ],
+      "files_to_create": [
+        ".claude/workflows/task-loop.ts",
+        ".claude/workflows/premortem.ts",
+        ".claude/workflows/release-audit.ts",
+        "docs/premortem/README.md"
+      ],
+      "files_to_modify": [],
+      "dependencies": [
+        "task_007"
+      ],
+      "implementation_steps": [
+        "meta 純リテラル、Date.now 禁止に従う",
+        "task_003 を対象に dry-run し journal に step 1〜8 が記録されることを確認"
+      ],
+      "done_definition": [
+        "3 本が起動する（run ID を record-run で記録）",
+        "task-loop が unavailable を欠票として記録しつつ 3 周上限で BLOCKED を返すことを実測"
+      ],
+      "verify_commands": [
+        "npm run gate:constraints"
+      ],
+      "manual_verification": [
+        "Workflow ツールで task-loop.ts を task_003 に対して実行"
+      ],
+      "risk_level": "medium",
+      "owner_model": "opus-5.5",
+      "agent": "technical-designer",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-TH-13",
+        "R-TH-14",
+        "R-TH-08",
+        "R-TH-10"
+      ],
+      "acceptance_check_ids": [
+        "check_066"
+      ],
+      "gate_level": "harness-optional",
+      "adversarial_review": "not_required",
+      "evidence_label": "[設計]",
+      "optional": true,
+      "completion_status": null,
+      "concerns": []
+    },
+    {
+      "task_id": "task_009",
+      "title": "GitHub Actions CI・PR テンプレート・test-tamper-guard・ブランチ保護（承認必須なし）",
+      "phase": "harness",
+      "goal": "ローカルフックを迂回したコミットをリモートで止める。ゲートを緩める PR に『何を緩めたか／理由／復旧予定日／代替の検知手段』の記入を機械的に強制する（記入者は検証しないため、これは人間の関門ではなく事後追跡のための記録強制である）。Phase 1 の決済なし本番デプロイを release-mode.json で通す 2 段ゲートを作る。5 営業日判定を記録する。",
+      "scope": [
+        ".github/workflows/gate.yml: static / gate-meta / gate-integrity / secrets（実シークレット名・.next/static・.open-next）/ deps（audit high・OSV・lockfile 差分・決済 SDK 不在）/ acceptance（verify_commands を CI で再実行）/ test-tamper-guard / date-boundary。contract / labels / integration / security / a11y / legal / web-only / gates-sync / gate:env は該当スクリプトが実在するタスクで job を追加",
+        ".github/workflows/e2e.yml（nightly ＋ dispatch）",
+        ".github/workflows/release.yml: 先頭を 2 段ゲートにする。(a) docs/gates/release-mode.json の payments_enabled が false なら、ビルド設定の PAYMENTS_ENABLED が false であることと npm ls に決済 SDK が無いことを検証して通す。(b) true なら jq -e '.cleared == true' docs/gates/legal-clearance.json を必須。デプロイは cloudflare/wrangler-action で wrangler deploy --env production。CLOUDFLARE_API_TOKEN と本番シークレットは environment: production のみ。scripts/ci/assert-release-gate.mjs が release.yml の先頭ステップを YAML パースで静的検査（check_051）",
+        ".github/PULL_REQUEST_TEMPLATE.md（実機確認欄、ゲート緩和チェックリスト: 何を緩めたか / 理由 / 復旧予定日 / 代替の検知手段）",
+        ".github/CODEOWNERS（tests/** scripts/gate-* .claude/** .github/** docs/gates/** supabase/migrations/** package*.json。承認必須には使わない）",
+        "test-tamper-guard: tests/** / scripts/** / .claude/** / .github/** / docs/gates/** / supabase/migrations/** / package*.json に差分がある PR でチェックリストが空なら fail（scripts/ci/check-pr-checklist.mjs。fixture の PR 本文でユニットテスト）",
+        "gh api で branch protection（required status checks、直 push 禁止、承認必須なし）",
+        "adversarial job は定義するが required に入れない（task_010 の実測後）",
+        "docs/gates/release-mode.json を { payments_enabled: false, provider_keys: [\"manual_confirm\"], basis: null, approved_by: null } で作成（docs/gates/** として G13 と tamper guard の対象）",
+        "週 0 の 5 営業日経過時点でハーネス残件（task_007 / 008 / 010 の状態）と機能着手日を docs/PROGRESS.md に記録する（必須セット完了の宣言）"
+      ],
+      "non_scope": [
+        "Cloudflare デプロイ（task_025）"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §16-6"
+      ],
+      "files_to_create": [
+        ".github/workflows/gate.yml",
+        ".github/workflows/e2e.yml",
+        ".github/workflows/release.yml",
+        ".github/PULL_REQUEST_TEMPLATE.md",
+        ".github/CODEOWNERS",
+        "scripts/ci/check-pr-checklist.mjs",
+        "scripts/ci/secrets-grep.sh",
+        "docs/gates/release-mode.json",
+        "scripts/ci/assert-release-gate.mjs",
+        "tests/unit/ci/check-pr-checklist.test.ts",
+        "tests/unit/ci/assert-release-gate.test.ts"
+      ],
+      "files_to_modify": [
+        "docs/PROGRESS.md"
+      ],
+      "dependencies": [
+        "task_006"
+      ],
+      "implementation_steps": [
+        "各 job は package.json.scripts に実在するコマンドのみ",
+        "release.yml をローカルの .env を読まない構成に",
+        "gh api で protection を設定（リポジトリが GitHub に存在する場合。無ければ concerns に記録）"
+      ],
+      "done_definition": [
+        "PR を 1 本作り static / gate-meta / gate-integrity / secrets / deps / acceptance / test-tamper-guard / date-boundary が緑",
+        "cleared=false で release.yml が先頭で失敗",
+        "tests/** に差分がありチェックリスト空の PR で test-tamper-guard が落ちることを実測",
+        "branch protection に required status checks があり required approvals が 0",
+        "release-mode.json.payments_enabled=false の状態で release.yml が (a) 段を通り、payments_enabled=true かつ cleared=false で先頭で失敗することを実測（workflow_dispatch）",
+        "docs/PROGRESS.md に 5 営業日判定の記録がある",
+        "tests/unit/ci/* が pass"
+      ],
+      "verify_commands": [
+        "npm run gate:acceptance",
+        "npm run gate:check",
+        "npm run gate:integrity"
+      ],
+      "manual_verification": [
+        "GitHub Actions のログを record-run で記録"
+      ],
+      "risk_level": "high",
+      "owner_model": "sonnet",
+      "agent": "task-executor",
+      "constraint_ids": [
+        "L11"
+      ],
+      "risk_ids": [
+        "R-TH-04",
+        "R-TH-03",
+        "R-SEC-07",
+        "R-SEC-13",
+        "R-SEC-04",
+        "R-TH-02",
+        "R-TH-06"
+      ],
+      "acceptance_check_ids": [
+        "check_039",
+        "check_051",
+        "check_067",
+        "check_130",
+        "check_131"
+      ],
+      "gate_level": "harness",
+      "adversarial_review": "required",
+      "evidence_label": "[設計]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": []
+    },
+    {
+      "task_id": "task_010",
+      "title": "（任意セット）モデル実測ベンチ・codex フック例外句（PO 承認後）・敵対レビュー経路の実測",
+      "phase": "harness",
+      "goal": "4 モデルの配置を実測で裏付け、GPT-6 Astra 経路の開通可否と CI からの敵対レビュー経路を実測し、ハーネス必須セットの 5 営業日判定を記録する。",
+      "scope": [
+        "scripts/bench-models.sh: B1 / B2 / B3 を 4 モデルで各 1 回。docs/metrics/model-bench.md に判定基準を事前固定して記録。到達した実モデル名（Gemini のフォールバック含む）を記録",
+        "PO 承認を得たうえで ~/.codex/hooks/block-non-claude-model.sh に ALLOW_NON_CLAUDE_MODEL=1 例外句を追加（承認なしなら BLOCKED）",
+        "CI（GitHub Actions）から Gemini / GPT を呼ぶ経路（API キー方式）の実測。通れば adversarial job を required に、通らなければ入れない",
+        "docs/harness-capability.md に GPT / Gemini の CI 呼び出し可否を [実測] で追記",
+        "ADR-003（モデル配置、実モデル名、GPT 経路状態）"
+      ],
+      "non_scope": [
+        "モデル配置の変更（ADR で別途）"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §16-3, §16-7",
+        "~/.codex/hooks/block-non-claude-model.sh",
+        "~/.claude/hooks/block-non-claude-model.sh"
+      ],
+      "files_to_create": [
+        "scripts/bench-models.sh",
+        "docs/metrics/model-bench.md",
+        "docs/decisions/ADR-003-model-routing.md"
+      ],
+      "files_to_modify": [
+        "package.json",
+        "docs/harness-capability.md",
+        "~/.codex/hooks/block-non-claude-model.sh（リポジトリ外・git 追跡外・PO 承認必須。差分は ADR-003 に転記）"
+      ],
+      "dependencies": [
+        "task_007",
+        "task_009"
+      ],
+      "implementation_steps": [
+        "AskUserQuestion で codex フック変更の可否を確認",
+        "判定基準を書いてから実行",
+        "結果と ADR-003"
+      ],
+      "done_definition": [
+        "model-bench.md に 4 モデル × 3 タスクの結果（不達は『不達』）と実モデル名",
+        "ADR-003 に GPT 経路の状態と CI 経路の実測結果",
+        "ADR-003 に ~/.codex/hooks/block-non-claude-model.sh の変更前後の該当箇所（例外句）を全文で貼り、PO 承認の日時と回答を Decision に残す。未承認なら『未変更・BLOCKED』と記録"
+      ],
+      "verify_commands": [
+        "npm run bench:models"
+      ],
+      "manual_verification": [
+        "PO の承認記録（ADR-003 Decision）"
+      ],
+      "risk_level": "low",
+      "owner_model": "opus-5.5",
+      "agent": null,
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-TH-03",
+        "R-TH-06",
+        "R-TH-11"
+      ],
+      "acceptance_check_ids": [
+        "check_054",
+        "check_068"
+      ],
+      "gate_level": "harness-optional",
+      "adversarial_review": "not_required",
+      "evidence_label": "[実測]",
+      "optional": true,
+      "completion_status": null,
+      "concerns": [
+        "codex 側フックの変更はユーザー環境の設定変更。PO 承認なしに行わない"
+      ]
+    },
+    {
+      "task_id": "task_011",
+      "title": "DB スキーマ v2・最小権限ロール・追記専用トリガ・マイグレーション一本化・統合テスト",
+      "phase": "1",
+      "goal": "implementation-plan.md §10 の全テーブル（新規列・新規テーブル含む）を Supabase ローカル Postgres に適用し、ランタイムが app_rw ロールで動き、追記専用がトリガの例外で守られることを統合テストで証明する。",
+      "scope": [
+        "supabase/migrations/0001_init.sql（§10-2 の全テーブル・制約・生成列 NOT NULL・部分一意・トリガ RAISE EXCEPTION・CREATE ROLE app_rw と GRANT）、0002_seed_gates.sql（docs/gates/compliance-gates.json から同期）",
+        "src/lib/db/schema.ts（Drizzle は型とクエリのみ）、src/lib/db/client.ts（import 'server-only'、app_rw 接続。接続文字列の解決を 1 関数に集約: Workers ランタイムは wrangler.toml の Hyperdrive バインディング env.HYPERDRIVE.connectionString、ローカル / CI（supabase start・マイグレーション）は direct connection。いずれも transaction スコープの pg_try_advisory_xact_lock のみ使用しセッションスコープの pg_try_advisory_lock は使わない。Hyperdrive の origin に Supabase の direct / Supavisor のどちらを置くかは task_035 で一次資料を取得して決め ADR-012 に記録）",
+        "scripts/gates-sync.mjs（JSON⇔DB の差分検査）",
+        "tests/integration/schema.test.ts: 生成列、app_rw からの UPDATE ledger_entry / DELETE audit_log が例外（0 行成功は不合格）、role_table_grants スナップショット一致、payment_event 重複 0 行、ledger dedupe 0 行、participant_claim 部分一意、payment_attempt open 一意、settlement_rank IS NULL 0 件、未知 status 拒否、amount 上限、supabase db diff 差分 0、compliance_gate 10 件 unknown、PAYMENTS_ENABLED=false",
+        "package.json scripts に db:migrate / db:reset:local / test:integration / gates:sync"
+      ],
+      "non_scope": [
+        "本番プロジェクト（task_024）",
+        "リポジトリ関数（task_014）"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §7-2, §10",
+        "docs/research/design-synthesis.md §2-2",
+        "docs/research/premortem-risks.md §2-2"
+      ],
+      "files_to_create": [
+        "supabase/config.toml",
+        "supabase/migrations/0001_init.sql",
+        "supabase/migrations/0002_seed_gates.sql",
+        "src/lib/db/schema.ts",
+        "src/lib/db/client.ts",
+        "scripts/gates-sync.mjs",
+        "tests/integration/setup.ts",
+        "tests/integration/schema.test.ts",
+        "tests/integration/grants-baseline.json"
+      ],
+      "files_to_modify": [
+        "package.json",
+        ".env.example",
+        ".github/workflows/gate.yml"
+      ],
+      "dependencies": [
+        "task_009",
+        "task_036"
+      ],
+      "implementation_steps": [
+        "supabase start → 0001 適用 → app_rw で接続 → 例外テスト",
+        "drizzle-kit の差分ゼロ確認",
+        "統合テストを書き、CI の integration job を gate.yml に追加して required に入れる"
+      ],
+      "done_definition": [
+        "npm run test:integration が exit 0 で §10-3 の全検証を含む",
+        "ランタイム接続文字列が app_rw であることをテストで確認（service role キーが .env.example のランタイム欄に無い）",
+        "npm run gates:sync が差分 0",
+        "client.ts の接続文字列解決が Workers 経路（Hyperdrive バインディング）と direct 経路の二経路を持ち、ランタイム経路が Hyperdrive 由来であることをユニットテストで確認",
+        "gate.yml に integration ジョブが追加され PR で緑"
+      ],
+      "verify_commands": [
+        "npm run typecheck",
+        "npm run test:integration",
+        "npm run gates:sync",
+        "npm run gate:constraints"
+      ],
+      "risk_level": "high",
+      "owner_model": "opus-5.5",
+      "agent": "task-executor",
+      "constraint_ids": [
+        "W1",
+        "W2",
+        "W3",
+        "I3",
+        "L3"
+      ],
+      "risk_ids": [
+        "R-SEC-03",
+        "R-PAY-15",
+        "R-PAY-10",
+        "R-PAY-03",
+        "R-PAY-02",
+        "R-SEC-09",
+        "R-OPS-09",
+        "R-LAW-14",
+        "R-DATA-02"
+      ],
+      "acceptance_check_ids": [
+        "check_012",
+        "check_013",
+        "check_014",
+        "check_015",
+        "check_016",
+        "check_052",
+        "check_069",
+        "check_070",
+        "check_071"
+      ],
+      "gate_level": "phase1",
+      "adversarial_review": "required",
+      "evidence_label": "[設計]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": []
+    },
+    {
+      "task_id": "task_035",
+      "title": "staging Supabase ＋ Hyperdrive の作成と A21 実測（台帳実装より前のスパイク）",
+      "phase": "1",
+      "goal": "Workers から Hyperdrive 経由で Supabase Postgres に接続し、トランザクション内の pg_try_advisory_xact_lock・FOR UPDATE・生成列・BEFORE UPDATE トリガが期待どおり動くことを、台帳コード（task_018）より前に実測する。",
+      "scope": [
+        "staging 用 Supabase プロジェクト（Tokyo・Pro・PITR）と Hyperdrive 構成を作成し、wrangler.toml の [[hyperdrive]] プレースホルダを staging の実 ID に置き換える（production は task_024）",
+        "Hyperdrive の origin に direct connection と Supavisor のどちらを置くかを Cloudflare / Supabase の一次資料（取得日つきで docs/vendor-docs/cloudflare/hyperdrive.md）で決め ADR-012 に記録",
+        "tests/integration の schema.test.ts を Hyperdrive 経由（wrangler dev --remote または staging デプロイ）で 1 回実行し、2 接続間の xact ロック排他・FOR UPDATE・生成列・トリガ例外を確認して A21 を [実測] に更新",
+        "docs/ops/env-baseline.json（環境別の期待シークレット名・バインディング名）を作る"
+      ],
+      "non_scope": [
+        "本番プロジェクト（task_024）",
+        "バックアップ復元（task_024）"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §6 A21, §7-2",
+        "docs/vendor-docs/cloudflare/hyperdrive.md"
+      ],
+      "files_to_create": [
+        "docs/ops/supabase.md",
+        "docs/ops/env-baseline.json",
+        "tests/integration/hyperdrive-spike.test.ts"
+      ],
+      "files_to_modify": [
+        "wrangler.toml",
+        "docs/decisions/ADR-012-hosting-cloudflare.md",
+        "docs/implementation-plan.md"
+      ],
+      "dependencies": [
+        "task_011"
+      ],
+      "implementation_steps": [
+        "cloudflare / wrangler スキルを読み込む",
+        "staging プロジェクトと Hyperdrive を作成",
+        "Hyperdrive 経由で hyperdrive-spike.test.ts を実行し結果を record-run",
+        "不成立ならその項目を BLOCKED として ADR-012 に記録し、origin 切替または DB 制約の再評価を PO に提示"
+      ],
+      "done_definition": [
+        "Hyperdrive 経由で 2 接続間の pg_try_advisory_xact_lock が排他になり、FOR UPDATE・生成列・BEFORE UPDATE トリガの RAISE EXCEPTION が動いた記録が run-log にある",
+        "A21 が implementation-plan.md §6 で [実測] に更新されている",
+        "wrangler.toml の staging Hyperdrive ID が実値"
+      ],
+      "verify_commands": [
+        "npm run test:integration",
+        "npm run gate:constraints"
+      ],
+      "manual_verification": [
+        "staging デプロイまたは wrangler dev --remote での実行記録"
+      ],
+      "risk_level": "high",
+      "owner_model": "human:noritaka",
+      "agent": null,
+      "constraint_ids": [
+        "W11",
+        "I1"
+      ],
+      "risk_ids": [
+        "R-OPS-08",
+        "R-SEC-03"
+      ],
+      "acceptance_check_ids": [
+        "check_133"
+      ],
+      "gate_level": "phase1",
+      "adversarial_review": "required",
+      "evidence_label": "[不明]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": [
+        "Hyperdrive の料金枠・staging の Supabase Pro 費用は未確認（A12）"
+      ]
+    },
+    {
+      "task_id": "task_012",
+      "title": "認証・セッション・CSRF・鍵運用・環境設定・セキュリティヘッダ",
+      "phase": "1",
+      "goal": "LIFF の ID トークンをサーバーで単回使用として検証し、kid 付きセッション JWT と session_epoch、ヘッダ運搬の CSRF、環境プロファイルの整合アサート、CSP 等のセキュリティヘッダを実装する。",
+      "scope": [
+        "src/lib/config/env.ts: LINE_ENV_PROFILE（LIFF ID ＋ Login チャネル ID のペア）、必須 env（PEPPER / SESSION_KEYS / CRON_SECRETS＝カンマ区切りの許容リスト）の存在と 32 バイト以上、APP_ENV（wrangler environment から注入）と project ref の整合アサート（不一致は起動失敗）",
+        "src/lib/auth/line-verify.ts（verify エンドポイント、aud / exp 許容ずれ 60 秒）、used-token.ts（jti or sha256 を exp まで保存、2 回目は 401）、rate-limit.ts（/api/auth/line の IP 単位。保存先は Workers の Rate Limiting バインディング、無ければ Durable Object 1 個。in-memory Map は使わない。A27）、pepper.ts（pepper_version、旧版からの移行）、session.ts（kid 二重鍵、session_epoch クレーム、__Host- Cookie）、csrf.ts（ボディで返しヘッダで受ける。JS 設定 Cookie ゼロ）",
+        "src/middleware.ts / src/lib/security-headers.ts（nonce CSP / HSTS / X-Content-Type-Options / Referrer-Policy: no-referrer。/api/webhooks /api/cron を非 production で 404）",
+        "POST /api/auth/line、GET /api/me、POST /api/consent（consent_log）、GET /api/health に pepper / liffId / channelId の fingerprint",
+        "src/lib/logger.ts（キー allowlist。資格情報・生 userId・生 IP・joinToken を出さない）、src/lib/errors.ts",
+        "scripts/gate-env-scope.mjs（wrangler.toml / workers/cron/wrangler.toml の [env.staging] と [env.production] の vars・バインディングと .dev.vars.example、docs/ops/env-baseline.json の期待名を突き合わせる静的スナップショット検査。staging 側に本番 Supabase project ref・本番 LIFF ID・本番 Hyperdrive ID が無いこと、SUPABASE_SERVICE_ROLE_KEY がどちらのランタイムにも無いことを検証。wrangler CLI が認証済みなら wrangler secret list の名前一覧も突き合わせ、未認証時は静的検査のみで判定した旨を出力に明記。ライブ検査の CI 接続は task_024）、scripts/assert-server-only.mjs",
+        "tests: 改竄 / 期限切れ / aud 不一致 401、同一トークン 2 回目 401、429、旧鍵検証、session_epoch 失効、pepper_version 移行、CSRF 欠落 403、JS Cookie ゼロ、生 sub 不在、ログ grep"
+      ],
+      "non_scope": [
+        "LIFF フロント（task_013）"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §7-4, §7-5, §7-7",
+        "docs/research/research-line-miniapp.md"
+      ],
+      "files_to_create": [
+        "src/lib/config/env.ts",
+        "src/lib/auth/line-verify.ts",
+        "src/lib/auth/used-token.ts",
+        "src/lib/auth/rate-limit.ts",
+        "src/lib/auth/pepper.ts",
+        "src/lib/auth/session.ts",
+        "src/lib/auth/csrf.ts",
+        "src/lib/security-headers.ts",
+        "src/middleware.ts",
+        "src/lib/logger.ts",
+        "src/lib/errors.ts",
+        "src/app/api/auth/line/route.ts",
+        "src/app/api/me/route.ts",
+        "src/app/api/consent/route.ts",
+        "scripts/gate-env-scope.mjs",
+        "scripts/assert-server-only.mjs",
+        "docs/vendor-docs/line/verify.md",
+        "docs/decisions/ADR-009-id-token-single-use.md",
+        "tests/unit/auth/line-verify.test.ts",
+        "tests/unit/auth/session.test.ts",
+        "tests/unit/auth/csrf.test.ts",
+        "tests/unit/config/env.test.ts",
+        "tests/integration/auth.test.ts",
+        "tests/security/log-pii.test.ts"
+      ],
+      "files_to_modify": [
+        "src/app/api/health/route.ts",
+        ".env.example",
+        "package.json"
+      ],
+      "dependencies": [
+        "task_011"
+      ],
+      "implementation_steps": [
+        "verify 仕様を docs/vendor-docs/line/verify.md に取得日つきで退避",
+        "nonce 不採用の理由と単回使用テーブルを ADR-009 に記録",
+        "エラー応答を { code, message, requestId } に統一",
+        "gate:env を package.json に追加"
+      ],
+      "done_definition": [
+        "tests/unit/auth/* / config/env.test.ts / integration/auth.test.ts / security/log-pii.test.ts が pass",
+        "同一 ID トークンの 2 回目提示が 401 になるテストがある",
+        "JS から設定される Cookie が 0 個であることをテストで確認",
+        "本番以外の project ref で起動が失敗することをテストで確認",
+        "全レスポンスに CSP / HSTS / Referrer-Policy が付く",
+        "gate:env が staging に本番 project ref を混入させた fixture で非 0、正常 fixture で 0"
+      ],
+      "verify_commands": [
+        "npm run typecheck",
+        "npm run test:unit",
+        "npm run test:integration",
+        "npm run gate:constraints",
+        "npm run gate:env"
+      ],
+      "risk_level": "high",
+      "owner_model": "opus-5.5",
+      "agent": "task-executor",
+      "constraint_ids": [
+        "N2",
+        "N3",
+        "N7",
+        "L6",
+        "L7"
+      ],
+      "risk_ids": [
+        "R-SEC-08",
+        "R-SEC-09",
+        "R-SEC-10",
+        "R-SEC-12",
+        "R-SEC-05",
+        "R-SEC-04",
+        "R-LINE-04",
+        "R-LAW-06",
+        "R-SEC-02"
+      ],
+      "acceptance_check_ids": [
+        "check_005",
+        "check_006",
+        "check_007",
+        "check_041",
+        "check_058",
+        "check_072",
+        "check_073",
+        "check_074",
+        "check_075",
+        "check_076"
+      ],
+      "gate_level": "phase1",
+      "adversarial_review": "required",
+      "evidence_label": "[文書]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": []
+    },
+    {
+      "task_id": "task_013",
+      "title": "LIFF 外殻・起動順序・ループ防止・テレメトリ・静的フォールバック・ルートグループ",
+      "phase": "1",
+      "goal": "LINE ミニアプリとして起動し、LINE 外アクセスで login を呼ばず、ログインループを 2 回で打ち切り、初期化失敗をテレメトリで捕捉し、白画面を出さない外殻を作る。(liff) と (web) のルートグループを並置し LINE 非依存ビルドを維持する。",
+      "scope": [
+        "src/lib/liff/client.ts（liff.init → isInClient → isLoggedIn → login。sessionStorage の試行回数 2 回で auth_unavailable。LIFF SDK は npm でバンドル、3 秒タイムアウト）、mock.ts（LIFF_MOCK=1 で動的 import）",
+        "src/lib/telemetry.ts と POST /api/telemetry/client-error（{ code, liffIdFingerprint, uaClass, requestId } のみ。レート制限）",
+        "src/app/(liff)/layout.tsx と src/app/(web)/layout.tsx（(web) は Phase 1 では静的法務ページと管理者画面のみ。LINE 非依存の幹事・参加者導線は作らない。ADR-013 に記録）。app/layout.tsx の最上流に browserslist 下限未満の静的案内と SDK 失敗時の静的フォールバック",
+        "src/components/StateView.tsx（loading / empty / error / forbidden / outside_line / auth_unavailable / gate_blocked / degraded）、ConsentGate.tsx（O-1。同意事実を /api/consent へ）",
+        "src/styles/tokens.css（web-typography 準拠、色＋テキスト＋アイコンの三重表現の基盤、44px、rem、ダークモード）",
+        "package.json scripts に build:web-only",
+        "tests: StateView 8 状態、isInClient=false で login 未呼出、2 回で auth_unavailable、テレメトリ送信内容に PII なし、web-only ビルド成功"
+      ],
+      "non_scope": [
+        "イベント機能（task_014）"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §7-3, §8-3",
+        "docs/research/research-line-miniapp.md"
+      ],
+      "files_to_create": [
+        "src/lib/liff/client.ts",
+        "src/lib/liff/mock.ts",
+        "src/lib/telemetry.ts",
+        "src/app/api/telemetry/client-error/route.ts",
+        "src/app/(liff)/layout.tsx",
+        "src/app/(web)/layout.tsx",
+        "src/components/StateView.tsx",
+        "src/components/ConsentGate.tsx",
+        "src/components/StaticFallback.tsx",
+        "src/styles/tokens.css",
+        "tests/unit/liff/client.test.ts",
+        "tests/unit/components/StateView.test.tsx",
+        "tests/unit/components/ConsentGate.test.tsx",
+        "tests/unit/telemetry.test.ts",
+        "docs/decisions/ADR-013-web-route-group.md"
+      ],
+      "files_to_modify": [
+        "src/app/layout.tsx",
+        ".env.example",
+        "package.json",
+        "docs/supported-browsers.md",
+        ".github/workflows/gate.yml"
+      ],
+      "dependencies": [
+        "task_012"
+      ],
+      "implementation_steps": [
+        "web-typography スキルを読み込んで tokens.css へ",
+        "isInClient 判定を login より前に置く",
+        "next build 後のバンドルに liff-mock と dev LIFF ID が含まれないことを grep",
+        "docs/supported-browsers.md に下限を明記"
+      ],
+      "done_definition": [
+        "tests/unit/liff/* と components/* が pass",
+        "npm run build:web-only が成功",
+        "本番バンドルに @line/liff-mock が含まれない（record-run に grep 結果）",
+        "gate:constraints の N2 違反ゼロ",
+        "ADR-013 が存在し (web) の位置づけ（退避先ではない）が記録されている。gate.yml に web-only ジョブが追加され緑"
+      ],
+      "verify_commands": [
+        "npm run typecheck",
+        "npm run lint",
+        "npm run test:unit",
+        "npm run build",
+        "npm run build:web-only",
+        "npm run gate:constraints"
+      ],
+      "risk_level": "high",
+      "owner_model": "sonnet",
+      "agent": "task-executor-frontend",
+      "constraint_ids": [
+        "N2",
+        "N5",
+        "N7",
+        "N12",
+        "L6",
+        "L7",
+        "I4"
+      ],
+      "risk_ids": [
+        "R-LINE-02",
+        "R-LINE-03",
+        "R-LINE-05",
+        "R-UX-04",
+        "R-LINE-04"
+      ],
+      "acceptance_check_ids": [
+        "check_029",
+        "check_060",
+        "check_077",
+        "check_078",
+        "check_079"
+      ],
+      "gate_level": "phase1",
+      "adversarial_review": "required",
+      "evidence_label": "[設計]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": []
+    },
+    {
+      "task_id": "task_014",
+      "title": "イベント・参加者 API と幹事画面（O-2〜O-6.5）",
+      "phase": "1",
+      "goal": "幹事がイベントを作り（表示名・開催情報・未成年申告・手数料提示への同意を必須）、参加者を登録し、100 名超でも扱える名簿で進捗を見られるようにする。論理削除・冪等キー v2・2 段階確認を含む。",
+      "scope": [
+        "src/lib/idempotency.ts（PK (user_ref, endpoint, key)、in_flight 先行予約、request_hash 不一致 409、TTL 24h、response_body 許可フィールド）、src/lib/audit.ts（id 順・xact ロックで連鎖）",
+        "repositories/events.ts / participants.ts（organizerUserId 必須引数）",
+        "POST/GET/PATCH /api/events（organizer_label / event_at / venue / offering / collect_by_at / minors_included / allow_cash / 手数料提示同意フラグ必須）、GET /api/events/:id（サマリ専用）、GET /api/events/:id/participants（cursor / filter / q / sort）、POST participants（claim_token 発行）、DELETE participants（論理削除、HAS_OPEN_ATTEMPT 409）、幹事あたりの上限（人数・イベント数・合計額）",
+        "画面 O-2（要対応バッジ）、O-3（総額・手数料概算・受取見込額・入金予定時期の提示＋同意、推定値明示）、O-4（状態 7 種、既定フィルタ未払い、検索、ページング、手数料と受取見込額の並記）、O-5、O-6、O-6.5（人数×金額＝合計、乖離警告）",
+        "InvoiceRow（autoDetected / confirmationMethod 必須 props、状態の三重表現）、SummaryBar（自動 n / 手動 m / 申告 k）、FeeEstimate（src/lib/payments/capabilities-static.ts の静的表＝manual_confirm は手数料なし・即時、自動アダプタは feeModel 未確定を『推定』表記＝から読む。task_017 の types.ts はこの静的表を取り込む）",
+        "tests: IDOR（他人の event 403）、冪等キー再送同一応答・越境 409・response_body に joinToken 無し、organizer_label 空で作成不可、論理削除、HAS_OPEN_ATTEMPT、ページング 100 名、監査連鎖並行 insert で prev_hash 重複 0、FeeEstimate が未確定手数料を『推定』表記で描画し確定値を出さない・同意チェック未了で送信ボタンが disabled"
+      ],
+      "non_scope": [
+        "請求・claim（task_015）",
+        "配布（task_016）"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §8-1, §9, §10"
+      ],
+      "files_to_create": [
+        "src/lib/idempotency.ts",
+        "src/lib/audit.ts",
+        "src/lib/db/repositories/events.ts",
+        "src/lib/db/repositories/participants.ts",
+        "src/app/api/events/route.ts",
+        "src/app/api/events/[id]/route.ts",
+        "src/app/api/events/[id]/participants/route.ts",
+        "src/app/api/events/[id]/participants/[pid]/route.ts",
+        "src/app/(liff)/events/page.tsx",
+        "src/app/(liff)/events/new/page.tsx",
+        "src/app/(liff)/events/[id]/page.tsx",
+        "src/app/(liff)/events/[id]/participants/page.tsx",
+        "src/app/(liff)/events/[id]/invoices/confirm/page.tsx",
+        "src/components/InvoiceRow.tsx",
+        "src/components/SummaryBar.tsx",
+        "src/components/FeeEstimate.tsx",
+        "tests/unit/api/events.test.ts",
+        "tests/unit/idempotency.test.ts",
+        "tests/integration/events.test.ts",
+        "tests/integration/audit-chain.test.ts",
+        "tests/unit/components/InvoiceRow.test.tsx",
+        "tests/unit/components/SummaryBar.test.tsx",
+        "src/lib/payments/capabilities-static.ts",
+        "tests/unit/components/FeeEstimate.test.tsx"
+      ],
+      "files_to_modify": [],
+      "dependencies": [
+        "task_013"
+      ],
+      "implementation_steps": [
+        "WHERE organizer_user_id = $1 を全リポジトリ関数に",
+        "手数料提示は capabilities.feeModel から読み、未確定は『推定』と表示（gate:wording）",
+        "InvoiceRow スナップショットでバッジ存在をアサート"
+      ],
+      "done_definition": [
+        "tests/unit/api/events.test.ts / idempotency.test.ts / integration/events.test.ts / audit-chain.test.ts / InvoiceRow / SummaryBar / FeeEstimate が pass",
+        "他人の event への GET/PATCH/participants が 403",
+        "organizer_label 空で 400",
+        "生きた attempt がある参加者の DELETE が 409 HAS_OPEN_ATTEMPT"
+      ],
+      "verify_commands": [
+        "npm run typecheck",
+        "npm run lint",
+        "npm run test:unit",
+        "npm run test:integration",
+        "npm run gate:constraints",
+        "npm run gate:wording"
+      ],
+      "risk_level": "high",
+      "owner_model": "sonnet",
+      "agent": "task-executor",
+      "constraint_ids": [
+        "I3",
+        "N4",
+        "L6",
+        "P5",
+        "P6"
+      ],
+      "risk_ids": [
+        "R-PAY-02",
+        "R-PAY-03",
+        "R-PAY-14",
+        "R-UX-01",
+        "R-UX-03",
+        "R-OPS-05",
+        "R-OPS-01",
+        "R-SEC-15",
+        "R-LAW-09",
+        "R-LAW-10",
+        "R-LAW-04"
+      ],
+      "acceptance_check_ids": [
+        "check_031",
+        "check_034",
+        "check_044",
+        "check_057",
+        "check_080",
+        "check_081",
+        "check_082",
+        "check_083"
+      ],
+      "gate_level": "phase1",
+      "adversarial_review": "required",
+      "evidence_label": "[設計]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": []
+    },
+    {
+      "task_id": "task_015",
+      "title": "請求発行・招待トークン・参加者単位 claim・unclaim・preview・自己申告・参加者画面（P-1〜P-3）",
+      "phase": "1",
+      "goal": "幹事が請求を発行し、参加者が同意前の preview を見てから、個別リンクまたは確認ダイアログ付きの名簿選択で claim し、自分の請求だけを見られるようにする。トークンはヘッダで運び、128 ビット・期限・ローテーションを持つ。",
+      "scope": [
+        "src/lib/join-token.ts（crypto.randomBytes(16) base64url、ハッシュ保存、定数時間比較、join_token_expires_at、rotate）、participant claim_token",
+        "POST /api/events/:id/invoices（O-6.5 確認済みフラグ必須）、PATCH /api/invoices/:id（rank=0 かつ open attempt 無し）、POST /api/invoices/:id/void、POST /api/events/:id/rotate-join-token、GET /api/events/:id/join-token、POST /api/events/:id/participants/:pid/unclaim、POST /api/events/:id/participants/:pid/approve-add",
+        "GET /api/e/preview（セッション不要・X-Join-Token・IP レート制限・氏名と個別金額なし）、GET /api/e/candidates（同意後・name_visibility 許可時のみ）、POST /api/e/claim（participantId ＋確認フラグ、または claimToken）、POST /api/e/request-add、GET /api/e/me、POST /api/e/self-report（payment_self_report のみ）、POST /api/e/cannot-pay",
+        "participant_claim 履歴テーブルの利用、Referrer-Policy と rel=noreferrer",
+        "画面 P-1（preview → 同意 → ログイン。フォールバック順: LINE で開く → コピー → QR）、P-2（確認ダイアログ、候補 0 件で追加リクエスト）、P-3（状態: 未払い / 手続き中 / 申告済み・幹事確認待ち / 支払済み / 期限切れ / 取消済み。固定文言『LINE のトークで幹事へ連絡』、『自分に送る』）",
+        "tests/integration/idor.test.ts（別人 claim 不可、再 claim 不可、unclaim 後に本人 claim 可、支払済み unclaim で needs_attention、joinToken のみ 401、他イベントの joinToken で到達不能、期限切れ 404、ローテーション後 404、レート制限 429、preview に amount/status キー無し、ログに joinToken 平文 0 件、self-report が ledger に書かない）"
+      ],
+      "non_scope": [
+        "決済（task_017）"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §7-4, §8-2, §9"
+      ],
+      "files_to_create": [
+        "src/lib/join-token.ts",
+        "src/lib/db/repositories/invoices.ts",
+        "src/lib/db/repositories/claims.ts",
+        "src/app/api/events/[id]/invoices/route.ts",
+        "src/app/api/invoices/[id]/route.ts",
+        "src/app/api/invoices/[id]/void/route.ts",
+        "src/app/api/events/[id]/rotate-join-token/route.ts",
+        "src/app/api/events/[id]/join-token/route.ts",
+        "src/app/api/events/[id]/participants/[pid]/unclaim/route.ts",
+        "src/app/api/events/[id]/participants/[pid]/approve-add/route.ts",
+        "src/app/api/e/preview/route.ts",
+        "src/app/api/e/candidates/route.ts",
+        "src/app/api/e/claim/route.ts",
+        "src/app/api/e/request-add/route.ts",
+        "src/app/api/e/me/route.ts",
+        "src/app/api/e/self-report/route.ts",
+        "src/app/api/e/cannot-pay/route.ts",
+        "src/app/(liff)/e/page.tsx",
+        "src/app/(liff)/e/claim/page.tsx",
+        "src/app/(liff)/e/me/page.tsx",
+        "src/app/(liff)/events/[id]/invoices/page.tsx",
+        "tests/unit/join-token.test.ts",
+        "tests/integration/invoices.test.ts",
+        "tests/integration/idor.test.ts",
+        "tests/integration/claims.test.ts",
+        "tests/unit/components/ParticipantStatus.test.tsx"
+      ],
+      "files_to_modify": [
+        "src/app/api/events/route.ts",
+        "src/components/InvoiceRow.tsx"
+      ],
+      "dependencies": [
+        "task_014"
+      ],
+      "implementation_steps": [
+        "IDOR テストを先に赤で書く",
+        "joinToken をパスから完全に外す（(liff)/e は X-Join-Token をクライアント側で保持して送る）",
+        "自己申告状態を支払済みと同じ見た目にしないスナップショット"
+      ],
+      "done_definition": [
+        "tests/integration/idor.test.ts / claims.test.ts / invoices.test.ts の全ケースが pass",
+        "join-token.test.ts がビット長 128 以上をアサート",
+        "preview の応答型に amount / status が無いことを型テストで確認",
+        "P-3 の申告状態スナップショットが支払済みと異なる"
+      ],
+      "verify_commands": [
+        "npm run typecheck",
+        "npm run test:unit",
+        "npm run test:integration",
+        "npm run gate:constraints",
+        "npm run gate:wording"
+      ],
+      "risk_level": "high",
+      "owner_model": "opus-5.5",
+      "agent": "task-executor",
+      "constraint_ids": [
+        "I3",
+        "L6",
+        "P9"
+      ],
+      "risk_ids": [
+        "R-SEC-01",
+        "R-SEC-02",
+        "R-UX-02",
+        "R-UX-07",
+        "R-LAW-06",
+        "R-LINE-06",
+        "R-OPS-05",
+        "R-OPS-06",
+        "R-UX-05"
+      ],
+      "acceptance_check_ids": [
+        "check_002",
+        "check_003",
+        "check_004",
+        "check_008",
+        "check_084",
+        "check_085",
+        "check_086",
+        "check_087",
+        "check_088"
+      ],
+      "gate_level": "phase1",
+      "adversarial_review": "required",
+      "evidence_label": "[設計]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": []
+    },
+    {
+      "task_id": "task_016",
+      "title": "配布（催促文＋URL コピー主導線・参加者ごとの個別リンク・shareTargetPicker 補助・未払い者再共有）",
+      "phase": "1",
+      "goal": "幹事が参加者へ招待リンクを配布できる。shareTargetPicker の可用性に依存せず、個別リンクとコピー導線で完結する。",
+      "scope": [
+        "O-7: 催促文＋URL のクリップボードコピー（主導線）、参加者ごとの個別リンク一覧、未払い者だけを再共有、shareTargetPicker（isApiAvailable 判定つき補助。Flex テンプレ固定: 幹事ラベル／イベント名／金額／締切／『支払先は幹事の決済アカウントで、アプリはお金を預かりません』）、リンクを疑われた際の説明テンプレ、QR（別端末用）",
+        "Flex に参加者名を含めない",
+        "docs/vendor-docs/line/share-target-picker.md（有効化手順の一次資料未特定を明記、GATE-LINE-SHARE 待ち）",
+        "tests: isApiAvailable=false でコピー導線のみ、Flex 5 要素のスナップショット、個別リンク生成、e2e/share.spec.ts"
+      ],
+      "non_scope": [
+        "Messaging API（task_023）"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §7-3, §8-1"
+      ],
+      "files_to_create": [
+        "src/components/ShareSheet.tsx",
+        "src/lib/liff/share.ts",
+        "src/lib/share-templates.ts",
+        "src/app/(liff)/events/[id]/share/page.tsx",
+        "docs/vendor-docs/line/share-target-picker.md",
+        "tests/unit/components/ShareSheet.test.tsx",
+        "tests/unit/share-templates.test.ts",
+        "tests/e2e/share.spec.ts"
+      ],
+      "files_to_modify": [
+        "docs/constraints.json"
+      ],
+      "dependencies": [
+        "task_015"
+      ],
+      "implementation_steps": [
+        "Q-LN2 の回答が無い間は (web) 経路でも同機能が動くことを確認",
+        "picker のキャンセルと不可の 2 経路をテスト"
+      ],
+      "done_definition": [
+        "ShareSheet.test.tsx で isApiAvailable=false 時にコピー導線のみ表示",
+        "share-templates.test.ts で 5 要素の存在をアサート",
+        "tests/e2e/share.spec.ts が liff-mock で pass",
+        "完了時点の GATE-LINE-POLICY の status が run-log に記録されている"
+      ],
+      "verify_commands": [
+        "npm run typecheck",
+        "npm run test:unit",
+        "npm run test:e2e",
+        "npm run gate:constraints",
+        "npm run gate:wording"
+      ],
+      "risk_level": "medium",
+      "owner_model": "sonnet",
+      "agent": "task-executor-frontend",
+      "constraint_ids": [
+        "N8",
+        "N9"
+      ],
+      "risk_ids": [
+        "R-LINE-06",
+        "R-UX-01",
+        "R-LINE-05"
+      ],
+      "acceptance_check_ids": [
+        "check_030",
+        "check_089"
+      ],
+      "gate_level": "phase1-gated:GATE-LINE-POLICY",
+      "adversarial_review": "not_required",
+      "evidence_label": "[文書]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": [
+        "shareTargetPicker のミニアプリチャネルでの有効化手順は一次資料未特定（Q-LN7）",
+        "Q-LN2（現実世界の役務の集金にアプリ内課金が必要か）未回答のまま (liff) の配布導線を確定しない。未回答で着手する場合は完了時に GATE-LINE-POLICY の状態を run-log に記録し、クローズド β 限定の免除（ADR-011）に該当することを明記する"
+      ]
+    },
+    {
+      "task_id": "task_017",
+      "title": "PaymentProvider IF v2・レジストリ（環境ガード＋限定ゲート）・ManualConfirmAdapter・非自動ラベル 8 層・O-0 オンボーディング・適格性",
+      "phase": "1",
+      "goal": "binding を第一引数に取るアダプタ層と、新規資金移動だけを止めるレジストリを作り、自動ではない手動確認経路を 8 層で明示したうえで出荷する。単発幹事・未成年含むイベントには自動決済を提示しない。",
+      "scope": [
+        "src/lib/payments/types.ts（IF v2、capabilities v2、Money ブランド型、ProviderAccountError、PaymentEventKind に紛争・返金中）、money.ts（yen()、toProviderAmount、最大剰余法）、registry.ts（環境ガード → manual_confirm 通過 → PAYMENTS_ENABLED → gate passed かつ valid_until → MODE → binding.status → 幹事 suspended → minors_included → synthesized fixture 拒否。止めるのは createCheckout と binding 作成のみ）、gates.ts（docs/gates JSON を正本に DB 射影を読む）。ProviderCapabilities の値は task_014 の src/lib/payments/capabilities-static.ts を取り込む",
+        "providers/manual-confirm.ts（autoDetect:false。deepLink はサーバー側固定テンプレート・許可ホスト。参加者画面にホスト名併記）",
+        "POST /api/invoices/:id/manual-attest（reason 必須、confidence='organizer_attested'、dedupe 'attest:<id>'）、POST /api/e/checkout（金額を取らない、生きた attempt 再利用、write-ahead、NO_PAYMENT_METHOD）",
+        "画面 O-0（手動確認版／自動検知版の分岐と所要期間、適格性チェック）、O-8（確定前ダイアログ）、P-4（手動確認の明示、『この方法では払えない』、現金）、P-5（ホスト名併記）、P-6（manual_confirm は『幹事の確認待ち』）、P-7（会費受領記録）",
+        "ラベル 8 層（API 型必須 / バッジ / CSV 列は task_021 / サマリ内訳 / 文言 / CI / 自己申告の見た目 / mixed 表示規約）",
+        "tests: registry 9 パターン、manual-attest 後の autoDetected:false、環境ガード、deepLink 許可外ホスト拒否、minors_included で自動拒否、gate:wording 緑、npm ls に SDK 無し"
+      ],
+      "non_scope": [
+        "自動アダプタ（Phase 2）",
+        "台帳適用の本体（task_018。本タスクは manual-attest の最小追記）"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §7-6, §8",
+        "docs/research/design-synthesis.md §5",
+        "docs/research/premortem-risks.md §2-5"
+      ],
+      "files_to_create": [
+        "src/lib/payments/types.ts",
+        "src/lib/payments/money.ts",
+        "src/lib/payments/registry.ts",
+        "src/lib/payments/gates.ts",
+        "src/lib/payments/providers/manual-confirm.ts",
+        "src/lib/db/repositories/gates.ts",
+        "src/lib/db/repositories/bindings.ts",
+        "src/app/api/invoices/[id]/manual-attest/route.ts",
+        "src/app/api/e/checkout/route.ts",
+        "src/app/(liff)/onboarding/page.tsx",
+        "src/app/(liff)/events/[id]/attest/[invoiceId]/page.tsx",
+        "src/app/(liff)/e/pay/page.tsx",
+        "src/app/(liff)/e/return/page.tsx",
+        "src/app/(liff)/e/done/page.tsx",
+        "tests/unit/payments/registry.test.ts",
+        "tests/unit/payments/money.test.ts",
+        "tests/unit/payments/manual-confirm.test.ts",
+        "tests/integration/manual-attest.test.ts",
+        "tests/integration/checkout.test.ts"
+      ],
+      "files_to_modify": [
+        "src/components/InvoiceRow.tsx",
+        "src/components/SummaryBar.tsx",
+        "src/lib/payments/capabilities-static.ts"
+      ],
+      "dependencies": [
+        "task_015"
+      ],
+      "implementation_steps": [
+        "payerIdentity: false / null を型固定、disclaimer をリテラル型",
+        "registry テストは実 DB のゲート・フラグで 9 パターン",
+        "money.test.ts はプロパティテストで minor==major と均等割りの合計一致"
+      ],
+      "done_definition": [
+        "tests/unit/payments/* と integration/manual-attest / checkout が pass",
+        "manual-attest 後の GET /api/events/:id で autoDetected:false / confirmationMethod:'manual_by_organizer'、サマリが自動 0 / 手動 1",
+        "同一請求へ同時 2 回 checkout で attempt が 1 つ",
+        "npm run gate:wording が緑",
+        "npm ls に決済 SDK 無し"
+      ],
+      "verify_commands": [
+        "npm run typecheck",
+        "npm run lint",
+        "npm run test:unit",
+        "npm run test:integration",
+        "npm run gate:constraints",
+        "npm run gate:wording"
+      ],
+      "risk_level": "high",
+      "owner_model": "opus-5.5",
+      "agent": "task-executor",
+      "constraint_ids": [
+        "P1",
+        "P3",
+        "P4",
+        "P7",
+        "P9",
+        "L1",
+        "L4"
+      ],
+      "risk_ids": [
+        "R-PAY-01",
+        "R-PAY-02",
+        "R-PAY-08",
+        "R-PAY-10",
+        "R-PAY-12",
+        "R-SEC-14",
+        "R-UX-06",
+        "R-LAW-03",
+        "R-LAW-09",
+        "R-LAW-10",
+        "R-UX-05",
+        "R-UX-02",
+        "R-PAY-13",
+        "R-TH-07"
+      ],
+      "acceptance_check_ids": [
+        "check_001",
+        "check_009",
+        "check_010",
+        "check_011",
+        "check_022",
+        "check_026",
+        "check_027",
+        "check_090",
+        "check_091",
+        "check_092",
+        "check_093"
+      ],
+      "gate_level": "phase1",
+      "adversarial_review": "required",
+      "evidence_label": "[設計]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": []
+    },
+    {
+      "task_id": "task_018",
+      "title": "台帳適用・冪等基盤・監査連鎖検証・Webhook ルート（/:providerKey/:bindingRef、Phase 1 は 404）・契約テスト 3 本",
+      "phase": "1",
+      "goal": "外部由来イベントを重複・順不同・署名不一致・金額不一致・取消後・紛争に耐える形で台帳に適用する処理系を作る。Webhook ルートは入口防御込みで実装し、Phase 1 では非 production 404 とゲート未通過（適用保留）で動作を確認する。",
+      "scope": [
+        "src/lib/ledger/apply.ts（突合基準 payment_attempt.amount_minor、不一致は adjustment ＋ needs_attention で rank 不変、前進のみ、charged_back 分岐、二重払いは台帳残高 > 請求額、confirmation_method を confidence から導出、void 済みへの入金は前進＋needs_attention）、rank.ts（exhaustive）、dedupe.ts、balance.ts",
+        "src/lib/outbox.ts（kind → transport の対応表、max_attempts、dead_letter）、repositories/attempts.ts / events-log.ts",
+        "src/app/api/webhooks/[providerKey]/[bindingRef]/route.ts（IP 許可リスト → external_ref 書式 → binding 解決 → シークレット → 署名 → webhook_delivery → 同一トランザクションで payment_event ＋ applyToLedger。非 production 404。ゲート未通過は受信・保存し適用保留）",
+        "scripts/audit-verify.mjs（npm run audit:verify）",
+        "tests/contract/{duplicate,reorder,signature}.test.ts（fixture_provider をテスト専用に置く。fixture に captured_from: synthesized を明記）",
+        "tests/unit/ledger/apply.test.ts（全遷移 × 全種別、paid に expired で不変、void 済み、金額不一致、charged_back 到達、全 status 到達性）",
+        "package.json scripts に test:contract / test:gate / audit:verify。Stop フックに test:gate"
+      ],
+      "non_scope": [
+        "実事業者の Webhook（Phase 2）"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §9, §10-1",
+        "docs/research/design-synthesis.md §3-3, §3-4",
+        "docs/research/premortem-risks.md §2-3"
+      ],
+      "files_to_create": [
+        "src/lib/ledger/apply.ts",
+        "src/lib/ledger/rank.ts",
+        "src/lib/ledger/dedupe.ts",
+        "src/lib/ledger/balance.ts",
+        "src/lib/outbox.ts",
+        "src/lib/db/repositories/attempts.ts",
+        "src/lib/db/repositories/events-log.ts",
+        "src/lib/webhook/ip-allowlist.ts",
+        "src/app/api/webhooks/[providerKey]/[bindingRef]/route.ts",
+        "scripts/audit-verify.mjs",
+        "tests/contract/duplicate.test.ts",
+        "tests/contract/reorder.test.ts",
+        "tests/contract/signature.test.ts",
+        "tests/contract/helpers/fixture-provider.ts",
+        "tests/fixtures/fixture_provider/succeeded.json",
+        "tests/fixtures/fixture_provider/expired.json",
+        "tests/fixtures/fixture_provider/tampered.json",
+        "tests/fixtures/fixture_provider/amount-mismatch.json",
+        "tests/fixtures/fixture_provider/disputed.json",
+        "tests/unit/ledger/apply.test.ts",
+        "tests/unit/ledger/rank.test.ts",
+        "tests/unit/ledger/balance.test.ts",
+        "tests/integration/webhook-route.test.ts"
+      ],
+      "files_to_modify": [
+        "package.json",
+        ".claude/settings.json"
+      ],
+      "dependencies": [
+        "task_017",
+        "task_035"
+      ],
+      "implementation_steps": [
+        "applyToLedger は 1 トランザクション。FOR UPDATE → ledger INSERT ON CONFLICT → rank 前進",
+        "Webhook は request.text() の生本文。JSON.parse はアダプタ内",
+        "契約テスト 3 本を fixture_provider（HMAC）で",
+        "tests/contract のファイル数を G7 基準として記録"
+      ],
+      "done_definition": [
+        "npm run test:contract が 3 本 pass",
+        "apply.test.ts が金額不一致 → adjustment 1 件・rank 不変・needs_attention を確認",
+        "非 production で Webhook ルートが 404、ゲート未通過で保存のみ・適用保留を統合テストで確認",
+        "npm run audit:verify が緑"
+      ],
+      "verify_commands": [
+        "npm run typecheck",
+        "npm run test:unit",
+        "npm run test:contract",
+        "npm run test:integration",
+        "npm run audit:verify",
+        "npm run gate:constraints"
+      ],
+      "risk_level": "high",
+      "owner_model": "opus-5.5",
+      "agent": "task-executor",
+      "constraint_ids": [
+        "W1",
+        "W2",
+        "W3",
+        "W4",
+        "W5",
+        "W6",
+        "W8",
+        "W12",
+        "P2"
+      ],
+      "risk_ids": [
+        "R-PAY-01",
+        "R-PAY-04",
+        "R-PAY-07",
+        "R-PAY-08",
+        "R-PAY-11",
+        "R-PAY-13",
+        "R-SEC-05",
+        "R-SEC-11",
+        "R-SEC-15",
+        "R-DATA-01",
+        "R-OPS-01"
+      ],
+      "acceptance_check_ids": [
+        "check_017",
+        "check_018",
+        "check_019",
+        "check_021",
+        "check_023",
+        "check_057",
+        "check_094",
+        "check_095",
+        "check_096"
+      ],
+      "gate_level": "phase1",
+      "adversarial_review": "required",
+      "evidence_label": "[設計]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": []
+    },
+    {
+      "task_id": "task_019",
+      "title": "ProviderConformanceKit（C1〜C31・provenance 必須）",
+      "phase": "1",
+      "goal": "任意のアダプタに対して自動で回る適合テストキットを作り、ManualConfirmAdapter と fixture_provider を通す。fixture の出自（captured_from）を必須にする。",
+      "scope": [
+        "tests/conformance/kit.ts: registerProvider(key, fixtures) で C1〜C31（docs/implementation-plan.md §14-4、premortem-risks.md §3-4）。capabilities に応じて n/a を明示記録。fixture の captured_from（staging|production|vendor_doc_verbatim|synthesized）と取得日を必須にし、synthesized のみのアダプタは autoDetect=true を登録できない",
+        "package.json scripts に test:conformance、test:gate に含める"
+      ],
+      "non_scope": [
+        "実事業者アダプタの適合（Phase 2 で同キット）"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §14-4",
+        "docs/research/premortem-risks.md §3-4"
+      ],
+      "files_to_create": [
+        "tests/conformance/kit.ts",
+        "tests/conformance/provenance.ts",
+        "tests/conformance/manual-confirm.conformance.test.ts",
+        "tests/conformance/fixture-provider.conformance.test.ts",
+        "tests/fixtures/fixture_provider/refund-partial-1.json",
+        "tests/fixtures/fixture_provider/refund-partial-2.json",
+        "tests/fixtures/fixture_provider/orphan.json",
+        "tests/fixtures/fixture_provider/underpaid.json",
+        "tests/fixtures/README.md"
+      ],
+      "files_to_modify": [
+        "package.json",
+        ".github/workflows/gate.yml",
+        ".claude/settings.json"
+      ],
+      "dependencies": [
+        "task_018"
+      ],
+      "implementation_steps": [
+        "各ケースの期待値を DB の実状態で検証",
+        "C5 は adjustment 1 件・rank 不変・needs_attention（旧『台帳に書かれない』は採らない）",
+        "レポートに provenance の内訳を出力",
+        "gate.yml の contract ジョブ（test:contract ＋ test:conformance）を有効化し gh api で required に追加。Stop フックに test:gate を登録"
+      ],
+      "done_definition": [
+        "npm run test:conformance が exit 0。manual_confirm は該当ケース pass・他は n/a 記録。fixture_provider は C1〜C31 pass（C4b・C5・C11・C12・C13・C20〜C31 含む）",
+        "captured_from 欠落の fixture でキットが登録を拒否することをテスト",
+        "npm run test:gate が contract と conformance の両方を実行",
+        "PR 1 本で contract ジョブが緑になり required_status_checks に contract が含まれる"
+      ],
+      "verify_commands": [
+        "npm run test:conformance",
+        "npm run test:gate",
+        "npm run gate:constraints"
+      ],
+      "risk_level": "high",
+      "owner_model": "sonnet",
+      "agent": "acceptance-test-generator",
+      "constraint_ids": [
+        "W1",
+        "W2",
+        "W3",
+        "W7",
+        "W8",
+        "P7"
+      ],
+      "risk_ids": [
+        "R-TH-07",
+        "R-PAY-04",
+        "R-PAY-05",
+        "R-PAY-06",
+        "R-PAY-07",
+        "R-PAY-09",
+        "R-PAY-11",
+        "R-PAY-12",
+        "R-PAY-13",
+        "R-PAY-15",
+        "R-SEC-11",
+        "R-SEC-14"
+      ],
+      "acceptance_check_ids": [
+        "check_020",
+        "check_021",
+        "check_022",
+        "check_023",
+        "check_024",
+        "check_025",
+        "check_026",
+        "check_027",
+        "check_097",
+        "check_098",
+        "check_099",
+        "check_100",
+        "check_101"
+      ],
+      "gate_level": "phase1",
+      "adversarial_review": "required",
+      "evidence_label": "[設計]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": []
+    },
+    {
+      "task_id": "task_020",
+      "title": "cron（照合バッチ・xact ロック・猶予・paid 再照会・outbox 配達・保持期間・冪等キー掃除・監査検証）",
+      "phase": "1",
+      "goal": "Webhook 欠落に備えた状態走査の再照合を安全にバッチ化し、outbox・保持期間・冪等キー掃除・監査検証を cron ルートとして実装する。Cloudflare Cron Triggers の契約は一次資料を再取得してから実装する。cron は専用 Worker（workers/cron/）が CRON_SECRETS 付きで本体の /api/cron/* を呼ぶ。",
+      "scope": [
+        "docs/vendor-docs/cloudflare/cron-triggers.md（最小間隔・タイムアウト・リトライ・同時実行を取得日つきで）。workers/cron/index.ts の scheduled ハンドラが各 /api/cron/* を CRON_SECRETS 付きで fetch する実装",
+        "POST/GET /api/cron/reconcile（pg_try_advisory_xact_lock、ORDER BY updated_at ASC LIMIT 100、truncated 記録、timeout 3 秒・並列 5、expired 猶予 4 日と最終照会、走査 2: paid 30 日の日次再照会、reconciliation_run に paid_rescanned / post_paid_changes）",
+        "/api/cron/outbox（kind → transport 表、指数バックオフ、max_attempts、dead_letter）、/api/cron/retention（display_label / organizer_label +90 日、raw_body 14 日）、/api/cron/idempotency-cleanup（idempotency_key の expires_at 経過行と used_id_token の expires_at 経過行を削除。いずれも 24h 以内の期限）、/api/cron/audit-verify（直近 7 日）、/api/cron/apply-pending（保存後未適用の回収）",
+        "許容シークレットリスト、非 production 404、workers/cron/wrangler.toml の [triggers] crons と一致",
+        "tests: 2 プロセス同時で片方 no-op、kill 後にロック残留なし、300 件で完走と truncated、retention、outbox 未定義 kind 0 件、apply-pending、used_id_token の exp 経過行が削除され未経過行が残る"
+      ],
+      "non_scope": [
+        "実事業者への照会（Phase 2）"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §9, §7-7"
+      ],
+      "files_to_create": [
+        "docs/vendor-docs/cloudflare/cron-triggers.md",
+        "src/lib/reconcile.ts",
+        "src/lib/retention.ts",
+        "src/lib/cron-auth.ts",
+        "src/app/api/cron/reconcile/route.ts",
+        "src/app/api/cron/outbox/route.ts",
+        "src/app/api/cron/retention/route.ts",
+        "src/app/api/cron/idempotency-cleanup/route.ts",
+        "src/app/api/cron/audit-verify/route.ts",
+        "src/app/api/cron/apply-pending/route.ts",
+        "tests/integration/reconcile.test.ts",
+        "tests/integration/reconcile-load.test.ts",
+        "tests/integration/outbox.test.ts",
+        "tests/integration/retention.test.ts",
+        "tests/integration/apply-pending.test.ts",
+        "tests/unit/cron-auth.test.ts",
+        "tests/integration/cleanup.test.ts"
+      ],
+      "files_to_modify": [
+        "workers/cron/index.ts",
+        "workers/cron/wrangler.toml"
+      ],
+      "dependencies": [
+        "task_018"
+      ],
+      "implementation_steps": [
+        "時刻カーソルを持たず invoice_recon_idx で状態走査",
+        "advisory lock は xact スコープ。unlock を書かない",
+        "workers/cron が呼ぶパス一覧と Route Handler のパスをテストで照合"
+      ],
+      "done_definition": [
+        "tests/integration/reconcile / reconcile-load / outbox / retention / apply-pending が pass",
+        "CRON_SECRETS 無しで 401、非 production で 404",
+        "outbox の全 kind に transport が定義され未定義 0 件をテストで確認",
+        "workers/cron の scheduled ハンドラを wrangler dev --test-scheduled で起動し、[triggers] crons に対応する各 /api/cron/*（6 パス）へ CRON_SECRETS の先頭値付き fetch が 1 回ずつ発行されたことを cron Worker 側の fetch ログで確認する。本体は APP_ENV 非 production のため 404 を返すのが正であり、404 以外は環境ガードの破れとして不合格。cron Worker が呼ぶパス一覧・src/app/api/cron/**/route.ts のパス一覧・[triggers] crons の定義が三者一致することをユニットテストで照合。本番での 200 疎通は task_025 で確認",
+        "期限切れ used_id_token / idempotency_key が削除されることを tests/integration/cleanup.test.ts で確認"
+      ],
+      "verify_commands": [
+        "npm run typecheck",
+        "npm run test:integration",
+        "npm run audit:verify",
+        "npm run gate:constraints"
+      ],
+      "risk_level": "high",
+      "owner_model": "opus-5.5",
+      "agent": "task-executor",
+      "constraint_ids": [
+        "W9",
+        "W10",
+        "W11",
+        "I2"
+      ],
+      "risk_ids": [
+        "R-OPS-08",
+        "R-OPS-07",
+        "R-PAY-09",
+        "R-PAY-07",
+        "R-PAY-11",
+        "R-OPS-01",
+        "R-SEC-15",
+        "R-DATA-01",
+        "R-PAY-02",
+        "R-SEC-08"
+      ],
+      "acceptance_check_ids": [
+        "check_042",
+        "check_043",
+        "check_102",
+        "check_103",
+        "check_104",
+        "check_072"
+      ],
+      "gate_level": "phase1",
+      "adversarial_review": "required",
+      "evidence_label": "[設計]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": []
+    },
+    {
+      "task_id": "task_021",
+      "title": "管理面（別 IdP・lookup・二人承認フラグ・anonymize/export）・要対応インボックス・CSV・法務文書・ランブック・悪用対策",
+      "phase": "1",
+      "goal": "運営者が読み取り専用で調査でき、フラグ変更は二人承認で監査され、幹事が要対応と CSV を扱え、規約・プライバシー・特商法表示・インシデント対応が Phase 1 から揃う。",
+      "scope": [
+        "管理面認証（GitHub OIDC または WebAuthn ＋許可リスト）、GET /api/admin/gates（読み取り）、POST /api/admin/flags（二人承認。第二承認者が確保できない間は A23 の縮退: 単独承認＋24 時間クーリング＋申請行と承認行の 2 行を audit_log に記録＋PAYMENTS_ENABLED の true 化は legal-clearance.cleared==true を前提）、GET /api/admin/lookup（display_label 非返却）、POST /api/admin/anonymize、POST /api/admin/suspend、GET /api/me/export.zip",
+        "O-9（種別 10 種）、O-10（Phase 1 は NOT_SUPPORTED 表示）、O-11（ゲート未通過説明・進捗ステップ・事業者側無効状態）、O-12 CSV（auto_detected / confirmation_method / 手数料 / 受取見込額、『会費受領記録』固定文言）、O-13（運営者名・所在地・連絡先を Phase 1 から、削除請求＝擬似匿名化、エクスポート）",
+        "src/content/terms.md（一部免責・上限型、債務消滅時点、未成年、反社排除、擬似匿名化）、privacy.md（委託先・保管国・外的環境・安全管理措置・プラットフォームログ保持）、scripts/gate-terms.mjs（全部免責検出）、scripts/gate-privacy-policy.mjs、scripts/gate-compliance-freshness.mjs",
+        "docs/incident-response.md（速報・確報・本人通知の期限と担当）、docs/legal-forensics.md、docs/runbooks/RB-01..RB-10",
+        "悪用対策: 幹事あたり上限（サーバー強制）、POST /api/e/report（abuse_report）、幹事 suspended 化 API（管理者）",
+        "tests: 非管理者 403、フラグ変更が audit_log に 2 行、lookup に display_label 無し、CSV 列、gate:terms / gate:privacy-policy 緑、上限超過 429"
+      ],
+      "non_scope": [
+        "Messaging API（task_023）"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §8-1, §9, §7-5",
+        "docs/research/research-legal-jp.md"
+      ],
+      "files_to_create": [
+        "src/lib/admin-auth.ts",
+        "src/app/api/admin/gates/route.ts",
+        "src/app/api/admin/flags/route.ts",
+        "src/app/api/admin/lookup/route.ts",
+        "src/app/api/admin/anonymize/route.ts",
+        "src/app/api/admin/suspend/route.ts",
+        "src/app/api/me/export.zip/route.ts",
+        "src/app/api/events/[id]/export.csv/route.ts",
+        "src/app/api/invoices/[id]/refund/route.ts",
+        "src/app/api/e/report/route.ts",
+        "src/app/(liff)/events/[id]/inbox/page.tsx",
+        "src/app/(liff)/events/[id]/refund/[invoiceId]/page.tsx",
+        "src/app/(liff)/settings/providers/page.tsx",
+        "src/app/(liff)/settings/legal/page.tsx",
+        "src/app/(web)/admin/page.tsx",
+        "src/content/terms.md",
+        "src/content/privacy.md",
+        "scripts/gate-terms.mjs",
+        "scripts/gate-privacy-policy.mjs",
+        "scripts/gate-compliance-freshness.mjs",
+        "docs/incident-response.md",
+        "docs/legal-forensics.md",
+        "docs/privacy-policy.md",
+        "docs/runbooks/RB-01-payment-outage.md",
+        "docs/runbooks/RB-02-refund-request.md",
+        "docs/runbooks/RB-03-key-rotation.md",
+        "docs/runbooks/RB-04-provider-suspension.md",
+        "docs/runbooks/RB-05-kill-switch.md",
+        "docs/runbooks/RB-06-data-deletion.md",
+        "docs/runbooks/RB-07-incident-comms.md",
+        "docs/runbooks/RB-08-backup-restore.md",
+        "docs/runbooks/RB-09-join-token-leak.md",
+        "docs/runbooks/RB-10-orphan-recovery.md",
+        "tests/unit/api/export-csv.test.ts",
+        "tests/integration/admin.test.ts",
+        "tests/integration/abuse-limits.test.ts",
+        "tests/unit/gate-terms.test.ts"
+      ],
+      "files_to_modify": [
+        "package.json",
+        ".github/workflows/gate.yml"
+      ],
+      "dependencies": [
+        "task_020"
+      ],
+      "implementation_steps": [
+        "フラグ変更は申請者と承認者が別アカウントで audit_log に 2 行",
+        "規約草案は弁護士レビュー前提（GATE-LEGAL-PII / 規約レビューを PROGRESS に記録）",
+        "gate:terms / gate:privacy-policy / gate:compliance-freshness を package.json に追加",
+        "gate.yml に legal ジョブ（gate:terms ＋ gate:privacy-policy）を追加し required に入れる"
+      ],
+      "done_definition": [
+        "tests/integration/admin.test.ts / abuse-limits.test.ts / export-csv / gate-terms が pass",
+        "docs/runbooks/ に 10 本、各ランブックが『トリガー / 手順 / 人間承認が必要な操作 / 記録先』を持つ",
+        "docs/incident-response.md に期限と担当がある",
+        "npm run gate:terms / gate:privacy-policy / gate:wording が緑"
+      ],
+      "verify_commands": [
+        "npm run typecheck",
+        "npm run test:unit",
+        "npm run test:integration",
+        "npm run gate:wording",
+        "npm run gate:terms",
+        "npm run gate:privacy-policy",
+        "npm run gate:constraints"
+      ],
+      "risk_level": "high",
+      "owner_model": "sonnet",
+      "agent": "task-executor",
+      "constraint_ids": [
+        "L5",
+        "L7",
+        "L10",
+        "P6",
+        "P7"
+      ],
+      "risk_ids": [
+        "R-SEC-06",
+        "R-OPS-09",
+        "R-OPS-02",
+        "R-OPS-04",
+        "R-LAW-12",
+        "R-LAW-13",
+        "R-LAW-14",
+        "R-LAW-07",
+        "R-LAW-08",
+        "R-LAW-10",
+        "R-LAW-11",
+        "R-OPS-06",
+        "R-LAW-05"
+      ],
+      "acceptance_check_ids": [
+        "check_033",
+        "check_011",
+        "check_105",
+        "check_106",
+        "check_107",
+        "check_108",
+        "check_109",
+        "check_132"
+      ],
+      "gate_level": "phase1",
+      "adversarial_review": "required",
+      "evidence_label": "[設計]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": []
+    },
+    {
+      "task_id": "task_022",
+      "title": "E2E・セキュリティ・a11y・LINE 非依存ビルドのテストと CI ジョブ",
+      "phase": "1",
+      "goal": "幹事と参加者の主要フローを LIFF モックで通し、IDOR / claim 3 本 / CSRF / XSS・CSP / 冪等キー越境 / ID トークン再利用 / 許可外 IP / deepLink ホスト / ログ PII / モバイル幅 / a11y / LINE 非依存を CI で常時検証する。",
+      "scope": [
+        "tests/e2e/{organizer-flow,participant-flow,viewport,outside-line,manual-only-complete,web-only}.spec.ts（web-only は (web) の静的法務ページと管理者画面が LINE SDK 無しで描画されることの確認。幹事・参加者導線の LINE 非依存版は Phase 1 に無い）",
+        "tests/security/{idor,claims,csrf,xss-csp,idempotency-cross-user,id-token-replay,webhook-ip,deeplink-host,gate-bypass,log-pii}.test.ts",
+        "tests/a11y/*.spec.ts（axe-core、フォント 200%、三重表現、44px、ダークモード）",
+        "ファネル計測（着地 → 同意 → claim → checkout → paid）の実装と週次メトリクス出力",
+        "gate.yml に security / a11y / e2e（nightly）/ web-only を追加"
+      ],
+      "non_scope": [
+        "実機テスト（task_025）"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §14"
+      ],
+      "files_to_create": [
+        "tests/e2e/organizer-flow.spec.ts",
+        "tests/e2e/participant-flow.spec.ts",
+        "tests/e2e/viewport.spec.ts",
+        "tests/e2e/outside-line.spec.ts",
+        "tests/e2e/manual-only-complete.spec.ts",
+        "tests/e2e/web-only.spec.ts",
+        "tests/security/idor.test.ts",
+        "tests/security/claims.test.ts",
+        "tests/security/csrf.test.ts",
+        "tests/security/xss-csp.test.ts",
+        "tests/security/idempotency-cross-user.test.ts",
+        "tests/security/id-token-replay.test.ts",
+        "tests/security/webhook-ip.test.ts",
+        "tests/security/deeplink-host.test.ts",
+        "tests/security/gate-bypass.test.ts",
+        "tests/a11y/pages.spec.ts",
+        "src/lib/metrics/funnel.ts"
+      ],
+      "files_to_modify": [
+        ".github/workflows/gate.yml",
+        ".github/workflows/e2e.yml",
+        "package.json"
+      ],
+      "dependencies": [
+        "task_021"
+      ],
+      "implementation_steps": [
+        "LIFF_MOCK=1 で有効化し本番バンドルに含めない",
+        "ゲート迂回: PAYMENTS_ENABLED=true かつ gate 未通過で 409",
+        "ログ PII: stdout/stderr を収集して grep 0 件"
+      ],
+      "done_definition": [
+        "npm run test:e2e / test:security / test:a11y が exit 0",
+        "viewport が 3 幅で scrollWidth <= clientWidth",
+        "manual-only-complete で幹事が手動版だけで 1 イベント完走",
+        "ファネル 5 段が weekly メトリクスに出る"
+      ],
+      "verify_commands": [
+        "npm run test:e2e",
+        "npm run test:security",
+        "npm run test:a11y",
+        "npm run test:unit",
+        "npm run test:integration"
+      ],
+      "risk_level": "high",
+      "owner_model": "sonnet",
+      "agent": "acceptance-test-generator",
+      "constraint_ids": [
+        "I4",
+        "I3",
+        "N8"
+      ],
+      "risk_ids": [
+        "R-SEC-01",
+        "R-SEC-02",
+        "R-SEC-08",
+        "R-SEC-11",
+        "R-SEC-12",
+        "R-SEC-14",
+        "R-PAY-02",
+        "R-UX-04",
+        "R-UX-06",
+        "R-UX-08",
+        "R-LINE-05"
+      ],
+      "acceptance_check_ids": [
+        "check_001",
+        "check_028",
+        "check_029",
+        "check_030",
+        "check_041",
+        "check_058",
+        "check_010",
+        "check_110",
+        "check_111",
+        "check_112"
+      ],
+      "gate_level": "phase1",
+      "adversarial_review": "required",
+      "evidence_label": "[設計]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": []
+    },
+    {
+      "task_id": "task_023",
+      "title": "Messaging API チャネル・幹事向け要対応通知（outbox 配達）・依存先込み health・外形監視",
+      "phase": "1",
+      "goal": "要対応（mismatch / paid_after_void / orphan / 二重払い / 支払手段なし）が幹事に LINE 公式アカウント経由で届き、運営者にも PII なしの内部通知が届く。cron 停止と Webhook 途絶を外形から検知する。",
+      "scope": [
+        "Messaging API チャネル（同一プロバイダー）の開設手順を docs/ops/line-channels.md に記録。幹事向け友だち追加導線（未認証でも可）",
+        "src/lib/line/messaging.ts（幹事の生 userId を Messaging API 用に保持するための同意を ADR-007 で先に設計。Phase 1 は『友だち追加した幹事のみ』）",
+        "outbox の transport 実装（line_messaging / internal_webhook / none）と未定義 kind ゼロのテスト",
+        "/api/health を依存先込み degraded 判定に拡張、外形監視（無料枠）からのポーリングと通知の実測",
+        "O-2 の要対応バッジと『attention_unseen_hours』の計測"
+      ],
+      "non_scope": [
+        "参加者への催促（Phase 3）"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §7-3, §7-7, §17-6",
+        "docs/research/research-line-miniapp.md"
+      ],
+      "files_to_create": [
+        "src/lib/line/messaging.ts",
+        "src/lib/health.ts",
+        "src/lib/outbox-transports.ts",
+        "docs/ops/line-channels.md",
+        "docs/ops/monitoring.md",
+        "docs/decisions/ADR-007-raw-userid-consent.md",
+        "tests/integration/outbox-delivery.test.ts",
+        "tests/unit/health.test.ts"
+      ],
+      "files_to_modify": [
+        "src/app/api/health/route.ts",
+        "src/lib/outbox.ts",
+        "src/app/(liff)/events/page.tsx"
+      ],
+      "dependencies": [
+        "task_020"
+      ],
+      "implementation_steps": [
+        "ADR-007 で幹事の生 userId 保持の同意フローを定義（参加者は対象外）",
+        "health の degraded 条件: DB 疎通失敗 / reconcile 鮮度 900 秒超 / outbox 最古 24h 超 / open attempt があるのに Webhook 1h 0 件",
+        "外形監視から degraded 通知が届くことを実測し record-run"
+      ],
+      "done_definition": [
+        "tests/integration/outbox-delivery.test.ts で全 kind に transport があり幹事通知が送られる（モック）",
+        "health.test.ts で 4 条件の degraded",
+        "外形監視の通知到達を実測した記録が run-log にある"
+      ],
+      "verify_commands": [
+        "npm run typecheck",
+        "npm run test:unit",
+        "npm run test:integration",
+        "npm run gate:constraints"
+      ],
+      "risk_level": "high",
+      "owner_model": "sonnet",
+      "agent": "task-executor",
+      "constraint_ids": [
+        "N1",
+        "N10",
+        "L6"
+      ],
+      "risk_ids": [
+        "R-OPS-01",
+        "R-OPS-07",
+        "R-UX-04"
+      ],
+      "acceptance_check_ids": [
+        "check_113",
+        "check_114",
+        "check_115"
+      ],
+      "gate_level": "phase1",
+      "adversarial_review": "required",
+      "evidence_label": "[設計]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": [
+        "Messaging API の通数課金と幹事の友だち追加率は未検証"
+      ]
+    },
+    {
+      "task_id": "task_024",
+      "title": "本番環境分離（production Supabase ＋ Hyperdrive・wrangler environments・Cloudflare Access・gate:env の CI 接続）とバックアップ復元リハーサル",
+      "phase": "1",
+      "goal": "Preview / staging から本番 DB に到達できないことを構造的に保証し、バックアップから別プロジェクトへ復元して統合テストが緑になることを 1 回実測する。",
+      "scope": [
+        "production 用 Supabase プロジェクト（Tokyo・Pro・PITR）と Hyperdrive を作成し wrangler.toml の [env.production] に実 ID を入れる（staging は task_035 で作成済み）。手順を docs/ops/supabase.md に追記",
+        "wrangler environments（staging / production）でバインディングとシークレットを分離（staging には staging の Supabase と LIFF_ID_DEV のみ）。staging は Cloudflare Access で保護。Hyperdrive を prod / staging それぞれに作成。手順を docs/ops/cloudflare.md に",
+        "scripts/gate-env-scope.mjs を CI に接続（wrangler secret list / バインディングの環境別スナップショット）",
+        "週次論理バックアップ（別ストレージ）と scripts/db-restore-drill.sh（npm run db:restore:drill）。RPO 15 分 / RTO 4 時間を docs に",
+        "service role キーの保管（CI environment のみ）",
+        "A21 を production の Hyperdrive でも再確認（tests/integration/hyperdrive-spike.test.ts を production 相当の staging 手順で）"
+      ],
+      "non_scope": [
+        "本番デプロイ（task_025）"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §7-2, §7-7"
+      ],
+      "files_to_create": [
+        "docs/ops/cloudflare.md",
+        "docs/ops/backup.md",
+        "scripts/db-restore-drill.sh"
+      ],
+      "files_to_modify": [
+        "package.json",
+        ".github/workflows/gate.yml",
+        "docs/ops/supabase.md",
+        "wrangler.toml"
+      ],
+      "dependencies": [
+        "task_035",
+        "task_012"
+      ],
+      "implementation_steps": [
+        "staging デプロイから /api/webhooks/* と /api/cron/* を叩いて 404 を実測",
+        "本番以外の project ref で起動失敗を実測",
+        "復元リハーサルを実行し test:integration / test:conformance 緑を record-run"
+      ],
+      "done_definition": [
+        "docs/ops/* に手順と実測結果",
+        "gate:env が CI で緑",
+        "db:restore:drill の実行記録（緑）が run-log にある"
+      ],
+      "verify_commands": [
+        "npm run gate:env",
+        "npm run db:restore:drill",
+        "npm run test:integration"
+      ],
+      "manual_verification": [
+        "staging URL から Webhook / cron が 404 であること、staging が Access で保護されていることを PO または実行者が確認"
+      ],
+      "risk_level": "high",
+      "owner_model": "human:noritaka",
+      "agent": null,
+      "constraint_ids": [
+        "I1",
+        "L7"
+      ],
+      "risk_ids": [
+        "R-SEC-05",
+        "R-OPS-04",
+        "R-SEC-04"
+      ],
+      "acceptance_check_ids": [
+        "check_116",
+        "check_117",
+        "check_118"
+      ],
+      "gate_level": "phase1",
+      "adversarial_review": "required",
+      "evidence_label": "[不明]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": [
+        "Supabase Tokyo の可用性・料金は未確認"
+      ]
+    },
+    {
+      "task_id": "task_025",
+      "title": "LINE チャネル構成・本番デプロイ・実機確認（iOS / Android）・未認証ミニアプリ公開・パイロット",
+      "phase": "1",
+      "goal": "Phase 1 の成果物を未認証 LINE ミニアプリとして本番公開し、実機で往復を確認し、幹事 3〜5 名のクローズド β で 1 イベントを手動確認版で完走する。",
+      "scope": [
+        "LINE Developers: プロバイダー、ミニアプリチャネル（開発 / 審査 / 本番の LIFF ID）、Scope、dev LIFF を Cloudflare staging の固定カスタムドメインへ（Access のバイパス規則は LIFF 実機確認用に限定）",
+        "release.yml（wrangler deploy --env production）経由の本番デプロイ。docs/gates/release-mode.json は payments_enabled=false のまま（決済なし本番。ADR-011 に記録）",
+        "実機確認（iOS / Android）: LIFF パーマネントリンクと外部 URL の往復、O-1〜O-8、P-1〜P-4。結果を record-run に [実測]",
+        "パイロット（クローズド β・同意済み参加者）。フィードバックを docs/pilot/。参加者 5 名以上の自力到達",
+        "Phase 1 Go/No-Go（implementation-plan.md §4-3 と premortem §2-7 の追加条件）の充足状況を PROGRESS.md に証拠付きで記録"
+      ],
+      "non_scope": [
+        "認証審査（Phase 3）",
+        "決済（Phase 2）"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §7-3, §4-3, §18-2",
+        "docs/research/premortem-risks.md §2-7"
+      ],
+      "files_to_create": [
+        "docs/pilot/README.md",
+        "docs/ops/device-check.md",
+        "docs/decisions/ADR-011-phase1-release-conditions.md"
+      ],
+      "files_to_modify": [
+        "docs/PROGRESS.md",
+        ".env.example",
+        "docs/ops/line-channels.md"
+      ],
+      "dependencies": [
+        "task_022",
+        "task_023",
+        "task_024"
+      ],
+      "implementation_steps": [
+        "GATE-LINE-POLICY / GATE-LEGAL-PII の状態を確認。クローズド β 限定なら ADR-011 に免除条件を記録",
+        "PAYMENTS_ENABLED=false を維持し、幹事に『アプリは入金を検知しない』旨を文書で伝える",
+        "実機確認は自動化しない。人間の手順として残す"
+      ],
+      "done_definition": [
+        "本番 LIFF で幹事が O-0〜O-8 を完走した記録が docs/pilot/ にある",
+        "iOS / Android の往復実測が record-run にある",
+        "PROGRESS.md に Phase 1 Go/No-Go の全条件が証拠付きで記録されている",
+        "npm ls に決済 SDK が無い",
+        "本番で cron Worker からの各 /api/cron/* 呼び出しが 200 を返し reconciliation_run が増えた記録が run-log にある"
+      ],
+      "verify_commands": [
+        "npm run build",
+        "npm run test:gate",
+        "npm run gate:check",
+        "npm run gate:wording",
+        "npm run gate:integrity"
+      ],
+      "manual_verification": [
+        "実機（iOS / Android の LINE アプリ）で往復と主要画面を確認",
+        "パイロット幹事 3 名以上のフィードバックを記録"
+      ],
+      "risk_level": "high",
+      "owner_model": "human:noritaka",
+      "agent": null,
+      "constraint_ids": [
+        "N1",
+        "N4",
+        "N6",
+        "N11",
+        "I1",
+        "L6",
+        "L7"
+      ],
+      "risk_ids": [
+        "R-LINE-01",
+        "R-LINE-08",
+        "R-UX-08",
+        "R-TH-05",
+        "R-LINE-06"
+      ],
+      "acceptance_check_ids": [
+        "check_055",
+        "check_056",
+        "check_059",
+        "check_119",
+        "check_104"
+      ],
+      "gate_level": "phase1",
+      "adversarial_review": "required",
+      "evidence_label": "[不明]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": [
+        "GATE-LINE-POLICY が未回答の場合、一般公開は BLOCKED（クローズド β のみ）"
+      ]
+    },
+    {
+      "task_id": "task_026",
+      "title": "PayPayOnlineAdapter（STAGING サンドボックス・実キャプチャ fixture・適合テスト）",
+      "phase": "2",
+      "goal": "第一候補 PayPay オンライン決済のアダプタをサンドボックスで実装し、実受信ペイロードの fixture で ProviderConformanceKit を通す。main へのマージは Phase 0 ゲート通過後。",
+      "scope": [
+        "providers/paypay-online.ts（createCheckout(binding, cmd) = Web Cashier、externalRef 規則、parseWebhook は trust:'unverified' で providerEventId='sha256:'+sha256(raw)、getPaymentStatus、refund full_once、cancelCheckout、ProviderAccountError マップ、capabilities v2）",
+        "PayPay 公式 Node SDK を providers/ 内でのみ import。CI deps ジョブを Phase 2 用に切替（ADR-004）",
+        "tests/fixtures/paypay_online/*.json（captured_from: staging、取得日）",
+        "docs/vendor-docs/paypay/{webhook-payload,sdk,ips}.md"
+      ],
+      "non_scope": [
+        "本番クレデンシャル（task_029）",
+        "Webhook 本番有効化（task_027）"
+      ],
+      "files_to_read": [
+        "docs/research/research-paypay.md",
+        "docs/research/design-synthesis.md §5-3"
+      ],
+      "files_to_create": [
+        "src/lib/payments/providers/paypay-online.ts",
+        "tests/unit/payments/paypay-online.test.ts",
+        "tests/conformance/paypay-online.conformance.test.ts",
+        "tests/fixtures/paypay_online/completed.json",
+        "tests/fixtures/paypay_online/canceled.json",
+        "tests/fixtures/paypay_online/expired.json",
+        "docs/vendor-docs/paypay/webhook-payload.md",
+        "docs/vendor-docs/paypay/sdk.md",
+        "docs/decisions/ADR-004-paypay-adapter.md"
+      ],
+      "files_to_modify": [
+        "package.json",
+        "src/lib/payments/registry.ts",
+        ".github/workflows/gate.yml"
+      ],
+      "dependencies": [
+        "task_019",
+        "task_001",
+        "task_037"
+      ],
+      "implementation_steps": [
+        "サンドボックスアカウントを PO が取得し、テストユーザー決済が動くことを実測してから着手（動かなければ BLOCKED → PAY.JP テストキーへ）",
+        "Webhook 実ペイロードを録画して fixture 化（推測で書かない）",
+        "C3 は n/a、C7/C8 必須"
+      ],
+      "done_definition": [
+        "test:conformance で paypay_online が該当ケース pass、n/a を記録",
+        "サンドボックスで実決済 1 件が Webhook 経由で台帳に載り confirmation_method='automatic' の記録が run-log にある",
+        "gate-constraints の P1 が緑"
+      ],
+      "verify_commands": [
+        "npm run typecheck",
+        "npm run test:unit",
+        "npm run test:conformance",
+        "npm run gate:constraints"
+      ],
+      "risk_level": "high",
+      "owner_model": "opus-5.5",
+      "agent": "task-executor",
+      "constraint_ids": [
+        "P1",
+        "P2",
+        "P3",
+        "P4",
+        "P7",
+        "P9",
+        "W7",
+        "I6"
+      ],
+      "risk_ids": [
+        "R-PAY-01",
+        "R-TH-07",
+        "R-OPS-03",
+        "R-PAY-06"
+      ],
+      "acceptance_check_ids": [
+        "check_025",
+        "check_045",
+        "check_120"
+      ],
+      "gate_level": "phase2",
+      "adversarial_review": "required",
+      "evidence_label": "[不明]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": [
+        "サンドボックスが加盟店審査前から使えるかは確信度 中"
+      ]
+    },
+    {
+      "task_id": "task_027",
+      "title": "Webhook 有効化・IP 許可リスト・return_token 復帰・「手続き中」表示",
+      "phase": "2",
+      "goal": "GATE-PP-* 通過後に本番 Webhook を有効化し、Cookie 非依存の決済復帰と名簿の「手続き中」状態を実装し、実機で往復を確認する。",
+      "scope": [
+        "Cloudflare WAF カスタムルールによる IP 許可リスト（infra/waf-rules.json をリポジトリ内に置き CI で Cloudflare API の実設定と照合）、docs/vendor-docs/paypay/ips.md",
+        "return_token（createCheckout 時に発行・DB ハッシュ・15 分・invoice 1 件スコープ。読み取りは期限内再利用可、getPaymentStatus の外部照会は初回のみ、IP レート制限）、GET /api/return/:returnToken、P-6 の Cookie 非依存表示（自動更新は DB 現在値の再読み取り）と『LINE で開く』、O-4 の『手続き中（確定前・催促無効）』",
+        "reconcile が paypay_online の pending を実際に照会する統合テスト（Webhook 停止で paid 到達）",
+        "Webhook 到達性の監視（1h 0 件で alert）",
+        "iOS / Android 実機で外部ブラウザ復帰の往復を実測",
+        "gate.yml に waf ジョブを追加（npm run gate:waf = node scripts/ci/check-waf.mjs。認証は read-only トークン CLOUDFLARE_WAF_READ_TOKEN を repository secret に。デプロイ用 CLOUDFLARE_API_TOKEN とは別物。fork PR 等でトークン未設定なら skip して neutral で終える）。infra/waf-rules.json には IP 許可リストと Rate Limiting ルール（/api/auth/line, /api/e/preview, /api/telemetry/client-error, /api/return/*）を含める"
+      ],
+      "non_scope": [
+        "本番クレデンシャル接続（task_028 / 029）"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §7-4, §9"
+      ],
+      "files_to_create": [
+        "docs/vendor-docs/paypay/ips.md",
+        "src/app/api/return/[returnToken]/route.ts",
+        "src/lib/return-token.ts",
+        "infra/waf-rules.json",
+        "scripts/ci/check-waf.mjs",
+        "tests/integration/return-token.test.ts",
+        "tests/integration/reconcile-paypay.test.ts",
+        "tests/security/webhook-ip-prod.test.ts"
+      ],
+      "files_to_modify": [
+        "src/lib/payments/providers/paypay-online.ts",
+        "src/app/(liff)/e/return/page.tsx",
+        "src/components/InvoiceRow.tsx",
+        "src/app/api/webhooks/[providerKey]/[bindingRef]/route.ts",
+        ".github/workflows/gate.yml",
+        "package.json"
+      ],
+      "dependencies": [
+        "task_026",
+        "task_020"
+      ],
+      "implementation_steps": [
+        "ゲート未通過のまま Webhook ルートが受信・保存し適用保留することを再確認",
+        "return_token は外部ブラウザ（Cookie なし）で invoice 1 件の状態だけを返す",
+        "実機往復の結果を record-run"
+      ],
+      "done_definition": [
+        "reconcile-paypay.test.ts が pass（Webhook 停止で paid 到達）",
+        "return-token.test.ts で Cookie なし・期限内の再読み取り可（2 回目は getPaymentStatus を再実行しない）・16 分後 410・他 invoice 不可・429",
+        "実機（iOS / Android）で往復成功の記録",
+        "許可外 IP 403 のテスト pass",
+        "gate.yml の waf ジョブが実設定と差分 0 で緑"
+      ],
+      "verify_commands": [
+        "npm run typecheck",
+        "npm run test:integration",
+        "npm run test:security",
+        "npm run test:conformance",
+        "npm run gate:constraints"
+      ],
+      "manual_verification": [
+        "実機での復帰往復"
+      ],
+      "risk_level": "high",
+      "owner_model": "opus-5.5",
+      "agent": "task-executor",
+      "constraint_ids": [
+        "W7",
+        "W9",
+        "W10",
+        "W11",
+        "P4"
+      ],
+      "risk_ids": [
+        "R-LINE-01",
+        "R-SEC-11",
+        "R-OPS-07",
+        "R-PAY-09"
+      ],
+      "acceptance_check_ids": [
+        "check_046",
+        "check_121",
+        "check_122"
+      ],
+      "gate_level": "phase2",
+      "adversarial_review": "required",
+      "evidence_label": "[不明]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": []
+    },
+    {
+      "task_id": "task_028",
+      "title": "binding 接続・資格情報カストディ（鍵を持たない構成を第 2 案）・返金・一括返金・イベント中止・紛争・アカウント停止・手数料提示",
+      "phase": "2",
+      "goal": "幹事が加盟店アカウントを接続し（GATE-CRED-CUSTODY 通過が前提）、返金・一括返金・中止・紛争・事業者アカウント停止が台帳と要対応に正しく反映される。手数料と入金時期を接続前に提示する。",
+      "scope": [
+        "O-11 接続フロー（進捗ステップ、手数料提示、事業者側無効状態）。credential_ref（外部ストア）または封筒暗号化。credentialCustody: 'organizer' の経路を型と画面で用意",
+        "src/lib/secrets.ts（復号はメモリ内・例外に出さない・fp のみログ）",
+        "POST /api/invoices/:id/refund（refundWindowDays、full_once 警告）、POST /api/events/:id/refund-all（冪等・部分失敗個別再実行）、POST /api/events/:id/cancel（void ＋ cancelCheckout ＋返金タスク）、/api/cron/refund",
+        "紛争: payment_event kinds → charged_back、O-9 最上位、月次の事業者 CSV 突合手順（docs/ops/reconcile-monthly.md）",
+        "ProviderAccountError の連続 N 回で binding suspended → 進行中イベントを manual_confirm へフォールバック（非自動ラベル）",
+        "手数料・入金予定の事前提示（O-3 / O-11）を capabilities.feeModel / settlementSchedule から"
+      ],
+      "non_scope": [
+        "本番有効化（task_029）",
+        "payout テーブル（Phase 3）"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §7-6, §7-7",
+        "docs/research/design-synthesis.md §1-7"
+      ],
+      "files_to_create": [
+        "src/lib/secrets.ts",
+        "src/app/api/providers/bind/route.ts",
+        "src/app/api/events/[id]/cancel/route.ts",
+        "src/app/api/events/[id]/refund-all/route.ts",
+        "src/app/api/cron/refund/route.ts",
+        "docs/ops/reconcile-monthly.md",
+        "docs/decisions/ADR-005-credential-custody.md",
+        "tests/unit/secrets.test.ts",
+        "tests/integration/binding.test.ts",
+        "tests/integration/refund.test.ts",
+        "tests/integration/cancel.test.ts",
+        "tests/integration/dispute.test.ts",
+        "tests/integration/provider-account-error.test.ts"
+      ],
+      "files_to_modify": [
+        "src/app/api/invoices/[id]/refund/route.ts",
+        "src/app/(liff)/settings/providers/page.tsx",
+        "src/app/(liff)/events/[id]/inbox/page.tsx",
+        "src/lib/payments/registry.ts"
+      ],
+      "dependencies": [
+        "task_027",
+        "task_021"
+      ],
+      "implementation_steps": [
+        "GATE-CRED-CUSTODY が unknown / inquired / failed なら接続 API が 409 になるテストを先に",
+        "secrets.test.ts で例外メッセージとログに資格情報が含まれないことを意図的失敗で確認",
+        "cancel テスト: 中止後入金が要対応＋返金タスク"
+      ],
+      "done_definition": [
+        "tests/unit/secrets / integration/binding / refund / cancel / dispute / provider-account-error が pass",
+        "DB の provider_binding に資格情報の値が無い",
+        "ADR-005 に採用方式と GATE-CRED-CUSTODY の状態"
+      ],
+      "verify_commands": [
+        "npm run typecheck",
+        "npm run test:unit",
+        "npm run test:integration",
+        "npm run test:conformance",
+        "npm run gate:constraints",
+        "npm run gate:wording"
+      ],
+      "risk_level": "high",
+      "owner_model": "opus-5.5",
+      "agent": "task-executor",
+      "constraint_ids": [
+        "L4",
+        "P6",
+        "P7",
+        "L1"
+      ],
+      "risk_ids": [
+        "R-LAW-02",
+        "R-PAY-06",
+        "R-PAY-07",
+        "R-OPS-03",
+        "R-PAY-14",
+        "R-UX-06",
+        "R-LAW-05"
+      ],
+      "acceptance_check_ids": [
+        "check_041",
+        "check_011",
+        "check_123",
+        "check_124",
+        "check_125",
+        "check_126"
+      ],
+      "gate_level": "phase2",
+      "adversarial_review": "required",
+      "evidence_label": "[不明]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": [
+        "幹事のクレデンシャル預託の法的・規約的評価は未解決（Q-LG7 / Q-PP9）"
+      ]
+    },
+    {
+      "task_id": "task_029",
+      "title": "本番有効化（弁護士確認・加盟店審査通過・実決済 1 件・負荷 300 件・キルスイッチ実測・legal-clearance）",
+      "phase": "2",
+      "goal": "弁護士見解と事業者回答が揃った後にのみ本番決済を有効化し、少額の実決済 1 件・負荷・キルスイッチ・要対応認知時間・checkout→paid 時間を実測して記録する。",
+      "scope": [
+        "docs/gates/legal-clearance.json を PO が cleared:true（basis / approved_by / approved_at）。GATE-LEGAL-FUNDS / GATE-CRED-CUSTODY passed",
+        "パイロット幹事 1 名（審査通過済み）の本番接続、最小額の実決済 1 件、着金確認を docs/ops/first-live-payment.md に",
+        "未払い 300 件相当の負荷で照合ジョブが時間内完走",
+        "キルスイッチ: PROVIDER_PAYPAY_ONLINE_MODE=off で新規 checkout 409、既存 pending 照合継続、refund と受信継続を本番で実測。audit_log に記録",
+        "要対応発生から幹事認知までの時間、checkout→paid の時間を実測記録"
+      ],
+      "non_scope": [
+        "第二アダプタ（task_030）"
+      ],
+      "files_to_read": [
+        "docs/implementation-plan.md §14-10, §17-5",
+        "docs/runbooks/RB-05-kill-switch.md"
+      ],
+      "files_to_create": [
+        "docs/ops/first-live-payment.md",
+        "docs/ops/load-test.md"
+      ],
+      "files_to_modify": [
+        "docs/gates/legal-clearance.json",
+        "docs/PROGRESS.md"
+      ],
+      "dependencies": [
+        "task_028",
+        "task_025"
+      ],
+      "implementation_steps": [
+        "release.yml が cleared=true を検出してからデプロイ",
+        "実決済は PO または同意した幹事が実施し、Webhook 受信 → 台帳 → automatic → 着金日を記録",
+        "キルスイッチ実測後に MODE を live に戻す操作を audit_log に"
+      ],
+      "done_definition": [
+        "first-live-payment.md に全記録",
+        "load-test.md に 300 件の完走記録",
+        "キルスイッチ実測（409 の実レスポンス、reconciliation_run の継続、refund 成功）が run-log に",
+        "legal-clearance.json の cleared が true で basis / approved_by が埋まっている"
+      ],
+      "verify_commands": [
+        "npm run test:gate",
+        "npm run gate:check",
+        "npm run gate:acceptance",
+        "npm run gate:compliance-freshness"
+      ],
+      "manual_verification": [
+        "着金の人間確認",
+        "PO による legal-clearance 更新"
+      ],
+      "risk_level": "high",
+      "owner_model": "human:noritaka",
+      "agent": null,
+      "constraint_ids": [
+        "L11",
+        "P6"
+      ],
+      "risk_ids": [
+        "R-OPS-08",
+        "R-OPS-01",
+        "R-LINE-01",
+        "R-PAY-08",
+        "R-LAW-01"
+      ],
+      "acceptance_check_ids": [
+        "check_045",
+        "check_047",
+        "check_051",
+        "check_127",
+        "check_128"
+      ],
+      "gate_level": "phase2",
+      "adversarial_review": "required",
+      "evidence_label": "[不明]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": []
+    },
+    {
+      "task_id": "task_030",
+      "title": "PayjpAdapter（refund は 'full' 以下）と「コアに変更なし」の diff 検証",
+      "phase": "2",
+      "goal": "第二アダプタ PAY.JP を追加し、アダプタ層の設計仮説（コアに変更が入らない）を diff で検証する。部分返金は非対応で宣言する。",
+      "scope": [
+        "providers/payjp.ts（webhookSignature:'token'、X-Payjp-Webhook-Token 定数時間比較、refund:'full'、providerEventId は事業者のイベント ID、実キャプチャ fixture）",
+        "同一イベントで 2 アダプタ並列（ADR-006 で event_provider の設計）",
+        "git diff --stat origin/main...HEAD -- src/lib/ledger src/app/api src/components（providers 除く）が空"
+      ],
+      "non_scope": [
+        "PAY.JP 本番審査（PO）",
+        "部分返金（R-PAY-05 を解くまで）"
+      ],
+      "files_to_read": [
+        "docs/research/research-alt-providers.md",
+        "docs/inquiries/payjp.md"
+      ],
+      "files_to_create": [
+        "src/lib/payments/providers/payjp.ts",
+        "tests/unit/payments/payjp.test.ts",
+        "tests/conformance/payjp.conformance.test.ts",
+        "tests/fixtures/payjp/charge-succeeded.json",
+        "tests/fixtures/payjp/refund-full.json",
+        "docs/decisions/ADR-006-multi-provider-per-event.md"
+      ],
+      "files_to_modify": [
+        "package.json",
+        "src/lib/payments/registry.ts"
+      ],
+      "dependencies": [
+        "task_029"
+      ],
+      "implementation_steps": [
+        "PAY.JP の規約回答で会費徴収と同額多数決済が許容されていることを確認してから着手",
+        "diff の出力を run-log に記録"
+      ],
+      "done_definition": [
+        "test:conformance で payjp が該当ケース pass",
+        "run-log に core diff ゼロ（または ADR-006 の例外のみ）の出力"
+      ],
+      "verify_commands": [
+        "npm run typecheck",
+        "npm run test:unit",
+        "npm run test:conformance",
+        "npm run gate:constraints"
+      ],
+      "risk_level": "high",
+      "owner_model": "opus-5.5",
+      "agent": "task-executor",
+      "constraint_ids": [
+        "P1",
+        "P2",
+        "P7",
+        "W2",
+        "W12"
+      ],
+      "risk_ids": [
+        "R-PAY-05",
+        "R-LAW-04",
+        "R-TH-07"
+      ],
+      "acceptance_check_ids": [
+        "check_048",
+        "check_129"
+      ],
+      "gate_level": "phase2",
+      "adversarial_review": "required",
+      "evidence_label": "[不明]",
+      "optional": false,
+      "completion_status": null,
+      "concerns": [
+        "PAY.JP の加盟店規約本文が未取得"
+      ]
+    },
+    {
+      "task_id": "task_031",
+      "title": "（optional）認証ミニアプリ審査とサービスメッセージ",
+      "phase": "3",
+      "goal": "認証審査を通し、参加者本人の操作に対する応答として支払完了通知を送る。",
+      "scope": [
+        "認証審査申請（サービス定義固定、Q-LN1〜3 の回答確認）",
+        "サービスメッセージ（1 アクション最大 5 回、本人操作への応答のみ）",
+        "パイロット完了直後に前倒しする分岐を ADR に"
+      ],
+      "non_scope": [
+        "催促（task_032）"
+      ],
+      "files_to_read": [
+        "docs/research/research-line-miniapp.md"
+      ],
+      "files_to_create": [
+        "src/lib/line/service-message.ts",
+        "docs/ops/line-verification.md"
+      ],
+      "files_to_modify": [
+        "src/app/api/return/[returnToken]/route.ts"
+      ],
+      "dependencies": [
+        "task_029"
+      ],
+      "implementation_steps": [
+        "事前照会結果を確認",
+        "テンプレート承認"
+      ],
+      "done_definition": [
+        "認証済みバッジで公開",
+        "支払完了通知が本人操作への応答として送られるテストがある"
+      ],
+      "verify_commands": [
+        "npm run test:unit",
+        "npm run gate:wording"
+      ],
+      "risk_level": "medium",
+      "owner_model": "sonnet",
+      "agent": "task-executor",
+      "constraint_ids": [
+        "N10",
+        "N11"
+      ],
+      "risk_ids": [
+        "R-LINE-06"
+      ],
+      "acceptance_check_ids": [],
+      "gate_level": "phase3",
+      "adversarial_review": "not_required",
+      "evidence_label": "[不明]",
+      "optional": true,
+      "completion_status": null,
+      "concerns": []
+    },
+    {
+      "task_id": "task_032",
+      "title": "（optional）催促（送信主体は幹事・回数と時間帯の制約）・複数イベント横断台帳・payout",
+      "phase": "3",
+      "goal": "幹事が未払い者へ制約付きで催促でき、複数イベント横断で台帳を見られ、入金（payout）が台帳と突合できる。",
+      "scope": [
+        "reminder_log の一意制約で 1 請求最大 2 回・間隔 24h・締切前日と当日のみ・固定テンプレ・送信主体は幹事",
+        "横断台帳（auto/manual/mixed 内訳）",
+        "payout テーブルと listSettlements、settled_at 表示"
+      ],
+      "non_scope": [
+        "自動催促"
+      ],
+      "files_to_read": [
+        "docs/research/premortem-risks.md（R-LAW-15, R-PAY-14）"
+      ],
+      "files_to_create": [
+        "src/lib/line/reminder.ts",
+        "src/app/(liff)/ledger/page.tsx",
+        "supabase/migrations/0003_reminder_payout.sql"
+      ],
+      "files_to_modify": [
+        "src/lib/payments/types.ts"
+      ],
+      "dependencies": [
+        "task_031"
+      ],
+      "implementation_steps": [
+        "回数上限を一意制約で",
+        "payout と台帳の突合テスト"
+      ],
+      "done_definition": [
+        "上限超過の送信が 0 件であることをテストで確認",
+        "payout と台帳の突合が成立"
+      ],
+      "verify_commands": [
+        "npm run test:unit",
+        "npm run test:integration",
+        "npm run gate:wording"
+      ],
+      "risk_level": "medium",
+      "owner_model": "sonnet",
+      "agent": "task-executor",
+      "constraint_ids": [
+        "N1",
+        "N10",
+        "L6"
+      ],
+      "risk_ids": [
+        "R-LAW-15",
+        "R-PAY-14"
+      ],
+      "acceptance_check_ids": [],
+      "gate_level": "phase3",
+      "adversarial_review": "required",
+      "evidence_label": "[不明]",
+      "optional": true,
+      "completion_status": null,
+      "concerns": []
+    },
+    {
+      "task_id": "task_033",
+      "title": "（optional）PEPPER・セッション鍵・CRON シークレットのローテーション演習",
+      "phase": "3",
+      "goal": "pepper_version 二重運用と kid 二重鍵を実際に回し、集金中のイベントが無い時期に演習として 1 回実施して runbook 化する。",
+      "scope": [
+        "staging で pepper_version を進め、旧版ユーザーがログイン時に移行され claim が維持されることを実測",
+        "セッション鍵の kid 追加 → 旧鍵検証 → 旧鍵削除",
+        "RB-03 の更新"
+      ],
+      "non_scope": [
+        "本番での定期ローテーション運用（演習後に PO 判断）"
+      ],
+      "files_to_read": [
+        "docs/runbooks/RB-03-key-rotation.md"
+      ],
+      "files_to_create": [
+        "docs/ops/key-rotation-drill.md"
+      ],
+      "files_to_modify": [
+        "docs/runbooks/RB-03-key-rotation.md"
+      ],
+      "dependencies": [
+        "task_029",
+        "task_021"
+      ],
+      "implementation_steps": [
+        "集金中イベントが無いことを確認してから",
+        "各ステップを record-run"
+      ],
+      "done_definition": [
+        "key-rotation-drill.md に実測記録"
+      ],
+      "verify_commands": [
+        "npm run test:integration"
+      ],
+      "risk_level": "medium",
+      "owner_model": "opus-5.5",
+      "agent": "task-executor",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-SEC-09",
+        "R-SEC-10"
+      ],
+      "acceptance_check_ids": [],
+      "gate_level": "phase3",
+      "adversarial_review": "not_required",
+      "evidence_label": "[不明]",
+      "optional": true,
+      "completion_status": null,
+      "concerns": []
+    },
+    {
+      "task_id": "task_034",
+      "title": "（optional）BankReconciler（楽天銀行＋電子決済等代行業）の調査着手",
+      "phase": "3",
+      "goal": "「幹事が非事業者のまま自動検知できる」唯一の経路の実現条件を調査し、着手可否を ADR で決める。",
+      "scope": [
+        "楽天銀行 API の外部サービス会社契約基準、電代業登録要件・リードタイム・費用、登録済み事業者との提携可否",
+        "ingestion_source='bank' / confidence='bank_matched' で既存台帳に載る設計確認",
+        "振込依頼人名の突合信頼度スコアと幹事の承認/却下 UI の設計"
+      ],
+      "non_scope": [
+        "実装"
+      ],
+      "files_to_read": [
+        "docs/research/research-alt-providers.md",
+        "docs/research/consolidated.md §2 候補E"
+      ],
+      "files_to_create": [
+        "docs/decisions/ADR-008-bank-reconciler.md",
+        "docs/inquiries/rakuten-bank.md"
+      ],
+      "files_to_modify": [],
+      "dependencies": [
+        "task_029"
+      ],
+      "implementation_steps": [
+        "一次資料を再取得し docs/vendor-docs/rakuten-bank/ に",
+        "電代業の登録要否を弁護士に追加照会"
+      ],
+      "done_definition": [
+        "ADR-008 に go / no-go / 保留と根拠"
+      ],
+      "verify_commands": [],
+      "manual_verification": [
+        "PO による ADR-008 レビュー"
+      ],
+      "risk_level": "low",
+      "owner_model": "opus-5.5",
+      "agent": "investigator",
+      "constraint_ids": [
+        "L1"
+      ],
+      "risk_ids": [],
+      "acceptance_check_ids": [],
+      "gate_level": "phase3",
+      "adversarial_review": "required",
+      "evidence_label": "[不明]",
+      "optional": true,
+      "completion_status": null,
+      "concerns": []
+    }
+  ]
+}

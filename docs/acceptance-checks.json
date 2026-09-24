@@ -1,0 +1,1956 @@
+{
+  "feature": "kanji-kaihi-line-miniapp",
+  "version": 3,
+  "generated_at": "2026-09-24",
+  "notes": [
+    "evidence は scripts/record-run.sh が { command, exit_code, stdout_tail, commit, ran_at, by } を書く。エージェントが直接書くと PreToolUse で遮断される。commit が HEAD と一致しない evidence は G9 で無効。",
+    "manual のチェックは docs/run-log/<task_id>.json に実施者・日時・観察結果を文字で記録する。画像は保存しない。",
+    "verification_method の npm スクリプトは task_003 以降で作成される。存在しないうちは実行できない。",
+    "v3: レビュー反映。check_051 / 067 / 107 を機械検査に限定し、人手部分を check_130 / 131 / 132 に分離。check_133（A21 の Hyperdrive 実測）を追加。return_token は『15 分・invoice 1 件・読み取り再利用可・外部照会は初回のみ』に変更。"
+  ],
+  "checks": [
+    {
+      "id": "check_001",
+      "target": "幹事の主要フロー（O-0〜O-8）",
+      "rule": "O-0 で手動確認版を選び、イベント作成（表示名・開催情報・未成年申告・手数料提示同意）→ 参加者 4 名 → 請求 → O-6.5 確認 → 配布 → 1 名を手動確認",
+      "expected_result": "名簿の当該行に『幹事が手動で確認（自動照合ではありません）』バッジ、サマリ『支払済み 1/4（自動 0 / 手動 1）』。『入金を確認しました』が出ない",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:e2e（tests/e2e/organizer-flow.spec.ts）",
+      "constraint_ids": [
+        "P9",
+        "N11"
+      ],
+      "risk_ids": [
+        "R-UX-06"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_002",
+      "target": "参加者の claim（P-1〜P-3）",
+      "rule": "個別リンクまたは名簿選択（確認ダイアログ）で claim すると自分の請求だけが表示され、他人の金額・支払状況はレスポンスにも画面にも無い",
+      "expected_result": "GET /api/e/me に自分の invoice のみ。candidates に amount / status キー無し",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（tests/integration/idor.test.ts）と tests/e2e/participant-flow.spec.ts",
+      "constraint_ids": [
+        "L6",
+        "I3"
+      ],
+      "risk_ids": [
+        "R-SEC-01"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_003",
+      "target": "POST /api/e/claim",
+      "rule": "既に claim 済み、または他人が claim 済みの participantId で claim",
+      "expected_result": "409 ALREADY_CLAIMED。participant_claim の部分一意で同一 LINE ユーザーの二重 claim も失敗",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（tests/integration/claims.test.ts）",
+      "constraint_ids": [
+        "I3"
+      ],
+      "risk_ids": [
+        "R-SEC-01"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_004",
+      "target": "GET /api/e/me（セッション無し）",
+      "rule": "有効な X-Join-Token を持っていてもセッション Cookie が無い",
+      "expected_result": "401。トークン保持だけでは認可されない。preview だけは 200",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（tests/integration/idor.test.ts）",
+      "constraint_ids": [
+        "I3"
+      ],
+      "risk_ids": [
+        "R-SEC-02"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_005",
+      "target": "POST /api/auth/line",
+      "rule": "改竄 / 期限切れ / aud 不一致 / exp ずれ 61 秒以上の ID トークン",
+      "expected_result": "401 ID_TOKEN_INVALID。セッション Cookie は発行されない",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:unit（tests/unit/auth/line-verify.test.ts）",
+      "constraint_ids": [
+        "N2",
+        "N3"
+      ],
+      "risk_ids": [
+        "R-SEC-08"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_006",
+      "target": "全 API",
+      "rule": "ボディに userId / organizerUserId を含めても無視され、セッション由来の line_user_ref のみが使われる",
+      "expected_result": "他人の userId を送っても自分のデータしか操作できない",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（tests/integration/idor.test.ts）",
+      "constraint_ids": [
+        "N2",
+        "I3"
+      ],
+      "risk_ids": [],
+      "evidence": null
+    },
+    {
+      "id": "check_007",
+      "target": "DB 全テーブル",
+      "rule": "LINE の生 sub（U + 32 hex）がどの行にも保存されていない",
+      "expected_result": "line_user_ref は 32 バイト bytea。正規表現 U[0-9a-f]{32} の全テーブル検索が 0 件",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（tests/integration/auth.test.ts）",
+      "constraint_ids": [
+        "L7"
+      ],
+      "risk_ids": [
+        "R-SEC-09"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_008",
+      "target": "POST /api/invoices/:id/void",
+      "rule": "settlement_rank >= 40 の請求を void。Webhook 経路から void を呼ぶ",
+      "expected_result": "409 VOID_NOT_ALLOWED。Webhook 経路には void 呼び出しが存在しない（静的検査）",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（tests/integration/invoices.test.ts）と npm run gate:constraints",
+      "constraint_ids": [
+        "W3"
+      ],
+      "risk_ids": [],
+      "evidence": null
+    },
+    {
+      "id": "check_009",
+      "target": "POST /api/invoices/:id/manual-attest",
+      "rule": "reason が空または空白のみ",
+      "expected_result": "400。manual_attestation 行は作られない",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（tests/integration/manual-attest.test.ts）",
+      "constraint_ids": [],
+      "risk_ids": [],
+      "evidence": null
+    },
+    {
+      "id": "check_010",
+      "target": "POST /api/e/checkout（ゲート迂回）",
+      "rule": "PAYMENTS_ENABLED=true だが compliance_gate の必須ゲートが unknown/inquired/failed、または valid_until 超過",
+      "expected_result": "409 GATE_NOT_PASSED。payment_attempt は作られない。UI の表示状態に関係なくサーバーが拒否",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:security（tests/security/gate-bypass.test.ts）",
+      "constraint_ids": [
+        "L11"
+      ],
+      "risk_ids": [
+        "R-LAW-14"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_011",
+      "target": "POST /api/invoices/:id/refund",
+      "rule": "capabilities.refund === 'none'（manual_confirm）で返金要求",
+      "expected_result": "409 NOT_SUPPORTED。O-10 に『この決済手段はアプリからの返金に対応していません』",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（tests/integration/refund.test.ts）",
+      "constraint_ids": [
+        "P7",
+        "L4"
+      ],
+      "risk_ids": [],
+      "evidence": null
+    },
+    {
+      "id": "check_012",
+      "target": "invoice.settlement_rank",
+      "rule": "settlement_status を更新すると rank が導かれる。rank を直接 UPDATE する",
+      "expected_result": "生成列として動作。直接 UPDATE は Postgres エラー",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（tests/integration/schema.test.ts）",
+      "constraint_ids": [
+        "W3"
+      ],
+      "risk_ids": [
+        "R-PAY-15"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_013",
+      "target": "ledger_entry / audit_log（app_rw ロール）",
+      "rule": "アプリ接続ロール app_rw で UPDATE / DELETE を実行",
+      "expected_result": "**例外（RAISE EXCEPTION または権限エラー）**。0 行成功は不合格",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（tests/integration/schema.test.ts）",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-SEC-03"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_014",
+      "target": "payment_event",
+      "rule": "同一 (provider_key, provider_event_id) を 2 回 INSERT ... ON CONFLICT DO NOTHING RETURNING",
+      "expected_result": "2 回目は 0 行",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（tests/integration/schema.test.ts）",
+      "constraint_ids": [
+        "W1"
+      ],
+      "risk_ids": [],
+      "evidence": null
+    },
+    {
+      "id": "check_015",
+      "target": "ledger_entry",
+      "rule": "同一 (invoice_id, dedupe_key) を 2 回 INSERT",
+      "expected_result": "2 回目は 0 行。business_idem_key に一意制約が無い",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（tests/integration/schema.test.ts）",
+      "constraint_ids": [
+        "W2"
+      ],
+      "risk_ids": [],
+      "evidence": null
+    },
+    {
+      "id": "check_016",
+      "target": "participant_claim 部分一意",
+      "rule": "同一 event_id で同一 line_user_ref の未解放 claim を 2 行",
+      "expected_result": "一意制約違反。released_at を埋めた後は新規 claim 可",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（tests/integration/schema.test.ts）",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-SEC-01"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_017",
+      "target": "Webhook 重複配信（C1）",
+      "rule": "同一本文を 3 回 POST",
+      "expected_result": "ledger_entry 1 件、2・3 回目は apply_result=duplicate、HTTP は 3 回とも 200",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:contract（tests/contract/duplicate.test.ts）",
+      "constraint_ids": [
+        "W1",
+        "W2"
+      ],
+      "risk_ids": [],
+      "evidence": null
+    },
+    {
+      "id": "check_018",
+      "target": "Webhook 順序逆転（C2）",
+      "rule": "succeeded → expired の順で POST",
+      "expected_result": "invoice は paid のまま。attempt は expired にならない",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:contract（tests/contract/reorder.test.ts）",
+      "constraint_ids": [
+        "W3",
+        "W4"
+      ],
+      "risk_ids": [],
+      "evidence": null
+    },
+    {
+      "id": "check_019",
+      "target": "Webhook 署名不一致（C3）",
+      "rule": "本文を 1 バイト改竄（署名を持つアダプタ）",
+      "expected_result": "400 SIGNATURE_INVALID、webhook_delivery.sig_ok=false、payment_event / ledger_entry に行が増えない",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:contract（tests/contract/signature.test.ts）",
+      "constraint_ids": [
+        "W6",
+        "P2"
+      ],
+      "risk_ids": [],
+      "evidence": null
+    },
+    {
+      "id": "check_020",
+      "target": "正当な 2 回目の返金（C4b）",
+      "rule": "同一 charge に providerRefundId が異なる返金イベントを 2 件 POST",
+      "expected_result": "ledger_entry に refund が 2 件。2 件目が一意制約で黙って落ちない",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:conformance（C4b）",
+      "constraint_ids": [
+        "W2"
+      ],
+      "risk_ids": [
+        "R-PAY-05"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_021",
+      "target": "取消後入金（C11）",
+      "rule": "lifecycle_state='void' の請求に succeeded",
+      "expected_result": "settlement_status は paid へ前進、void 維持、needs_attention=true、outbox に paid_after_void 1 件",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:conformance（C11）と tests/unit/ledger/apply.test.ts",
+      "constraint_ids": [
+        "W3"
+      ],
+      "risk_ids": [],
+      "evidence": null
+    },
+    {
+      "id": "check_022",
+      "target": "ゲート未通過の createCheckout（C12）",
+      "rule": "必須ゲートが failed",
+      "expected_result": "resolveProvider が ProviderNotEnabledError、API は 409 GATE_NOT_PASSED。同状態でも Webhook 受信・保存と getPaymentStatus / refund は動く",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:conformance（C12, C14）と tests/unit/payments/registry.test.ts",
+      "constraint_ids": [
+        "L11"
+      ],
+      "risk_ids": [
+        "R-PAY-08"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_023",
+      "target": "金額不一致（C5・書き換え版）",
+      "rule": "payment_attempt.amount_minor と異なる金額の succeeded",
+      "expected_result": "**ledger_entry に kind='adjustment' が 1 件記録され、invoice の rank は動かず（unpaid のまま）、needs_attention=true、outbox に mismatch_alert**。paid にならない",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:conformance（C5）と tests/unit/ledger/apply.test.ts",
+      "constraint_ids": [
+        "W8"
+      ],
+      "risk_ids": [
+        "R-PAY-04"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_024",
+      "target": "孤児イベント（C6）",
+      "rule": "未知の externalRef の Webhook",
+      "expected_result": "200、apply_result=orphan、台帳不変、outbox に orphan_alert",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:conformance（C6）",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-PAY-03"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_025",
+      "target": "署名なし事業者の再照会（C7 / C8）",
+      "rule": "trust='unverified' で getPaymentStatus が一致 / 不一致",
+      "expected_result": "一致なら reverified で台帳に載る。不一致なら mismatch で台帳不変",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:conformance（C7, C8）",
+      "constraint_ids": [
+        "W7"
+      ],
+      "risk_ids": [],
+      "evidence": null
+    },
+    {
+      "id": "check_026",
+      "target": "能力宣言の遵守（C9）",
+      "rule": "refund='none' のアダプタの refund() を呼ぶ",
+      "expected_result": "NotSupportedError",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:conformance（C9）",
+      "constraint_ids": [
+        "P7"
+      ],
+      "risk_ids": [],
+      "evidence": null
+    },
+    {
+      "id": "check_027",
+      "target": "非自動ラベル（C10）",
+      "rule": "autoDetect=false 経由で消し込んだ請求を GET",
+      "expected_result": "autoDetected:false、confirmationMethod:'manual_by_organizer' が必ず含まれる（省略不可）",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:conformance（C10）",
+      "constraint_ids": [
+        "P9"
+      ],
+      "risk_ids": [],
+      "evidence": null
+    },
+    {
+      "id": "check_028",
+      "target": "モバイルレイアウト",
+      "rule": "320 / 375 / 414 px で全画面を表示",
+      "expected_result": "scrollWidth <= clientWidth。名簿 20 名超でも 1 行 1 参加者",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:e2e（tests/e2e/viewport.spec.ts）",
+      "constraint_ids": [],
+      "risk_ids": [],
+      "evidence": null
+    },
+    {
+      "id": "check_029",
+      "target": "LINE 外アクセス",
+      "rule": "liff.isInClient() が false",
+      "expected_result": "liff.login() が呼ばれず outside_line（『LINE で開く』→ URL コピー → QR の順）が表示される",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:e2e（tests/e2e/outside-line.spec.ts）と tests/unit/liff/client.test.ts",
+      "constraint_ids": [
+        "N7"
+      ],
+      "risk_ids": [
+        "R-LINE-02"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_030",
+      "target": "配布フォールバック（O-7）",
+      "rule": "liff.isApiAvailable('shareTargetPicker') が false",
+      "expected_result": "催促文＋URL コピー・個別リンク・QR のみ表示。picker ボタン非表示。liff.sendMessages は呼ばれない",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:e2e（tests/e2e/share.spec.ts）と npm run gate:constraints",
+      "constraint_ids": [
+        "N8",
+        "N9"
+      ],
+      "risk_ids": [
+        "R-LINE-06"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_031",
+      "target": "InvoiceRow の非自動バッジ",
+      "rule": "autoDetected=false の行のスナップショット",
+      "expected_result": "バッジ要素が存在。消すとスナップショットが失敗",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:unit（tests/unit/components/InvoiceRow.test.tsx）",
+      "constraint_ids": [
+        "P9"
+      ],
+      "risk_ids": [],
+      "evidence": null
+    },
+    {
+      "id": "check_032",
+      "target": "禁止語ゲート",
+      "rule": "UI 文言・規約草案・配布テンプレ・docs/pilot に docs/wording-policy.md の禁止語（拡張語彙: 領収書・インボイス・記入例・審査の通し方・未確定手数料の確定表示を含む）",
+      "expected_result": "npm run gate:wording が非 0。現状は 0。expect_targets=now のパターンで対象 0 件は exit 1（from_task_XXX は当該 task DONE 前は許容）",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run gate:wording",
+      "constraint_ids": [
+        "N11"
+      ],
+      "risk_ids": [
+        "R-LAW-03",
+        "R-LAW-12",
+        "R-PAY-14"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_033",
+      "target": "CSV エクスポート",
+      "rule": "GET /api/events/:id/export.csv のヘッダ行と固定文言",
+      "expected_result": "auto_detected / confirmation_method / fee_estimate / net_estimate 列。出力名『会費受領記録』、『本書は適格請求書ではありません』『発行者は幹事です』",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:unit（tests/unit/api/export-csv.test.ts）",
+      "constraint_ids": [
+        "P9"
+      ],
+      "risk_ids": [
+        "R-LAW-12"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_034",
+      "target": "サマリ表示",
+      "rule": "自動 1・手動 1・申告 1 の状態で O-4",
+      "expected_result": "『支払済み 2/4（自動 1 / 手動 1）』と『幹事確認待ち 1』。合算値のみの表示が無い",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:unit（SummaryBar.test.tsx）",
+      "constraint_ids": [
+        "P9"
+      ],
+      "risk_ids": [
+        "R-UX-02"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_035",
+      "target": "scripts/deny-dangerous-bash.sh",
+      "rule": "cleared=false で wrangler deploy --env production / wrangler deploy（環境指定なし）/ wrangler versions deploy / wrangler secret put X --env production / PAYPAY_ENV=PROD / supabase db push / git push -f / rm -rf / pnpm install を含むコマンド。加えて `npm run deploy:production` 形式の別名（fixture の package.json で scripts.deploy:production = 'wrangler deploy --env production'）と、解決不能な `npm run prod-push`",
+      "expected_result": "すべて exit 2（別名は package.json.scripts を再帰解決して検出、解決不能で名前が deploy|secret|publish|reset|push|prod に一致すれば fail-closed）。npm run test:unit と scripts/record-run.sh npm run test:unit は exit 0",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:unit（tests/unit/hooks/deny-dangerous-bash.test.ts）",
+      "constraint_ids": [
+        "L11"
+      ],
+      "risk_ids": [
+        "R-TH-02"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_036",
+      "target": "scripts/deny-test-weakening.sh",
+      "rule": "tests/contract/*.test.ts から expect を削る編集、.skip / .only 追加、docs/run-log/** への Write、acceptance-checks.json の evidence への Write、docs/gates/** への Write。Bash では `cat > docs/run-log/x.json`、`jq ... > docs/gates/legal-clearance.json`、`sed -i 's/expect(/\\/\\/expect(/' tests/contract/duplicate.test.ts`、`tee docs/run-log/x.json`、`sed -i ... scripts/deny-dangerous-bash.sh`",
+      "expected_result": "Edit/Write は deny-test-weakening.sh が、Bash は deny-dangerous-bash.sh がすべて exit 2。通常の追加と scripts/record-run.sh 経由の呼び出しは exit 0",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:unit（tests/unit/hooks/deny-test-weakening.test.ts, deny-dangerous-bash.test.ts）",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-TH-02",
+        "R-SEC-07"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_037",
+      "target": "scripts/gate-check.mjs（G0〜G14）",
+      "rule": "DONE なのに run-log 無し / 着手済みタスクの verify_command 捏造（§13 に無い名前は未着手でも違反）/ tests/contract 減少 / [不明] 依存 ADR の accepted / high concerns 3 件超で in_progress / provenance 欠落 / ゲート定義ハッシュ不一致 / 監査未検証 / docs/** のみのタスクで manual_verification 空 の fixture",
+      "expected_result": "各ケースで違反を列挙して非 0。未着手タスクの未定義スクリプト参照は warn のみ。G5 は task_007 が DONE でない間は warn。現状の task-list で exit 0",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:unit（tests/unit/gate-check.test.ts）と npm run gate:check",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-TH-09",
+        "R-TH-07",
+        "R-SEC-07",
+        "R-SEC-15"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_038",
+      "target": "依存の禁止（Phase 1）",
+      "rule": "npm ls --all --parseable | grep -Ei 'paypay|payjp|stripe'",
+      "expected_result": "0 件",
+      "manual_or_automated": "automated",
+      "verification_method": "CI deps ジョブ",
+      "constraint_ids": [
+        "P1"
+      ],
+      "risk_ids": [],
+      "evidence": null
+    },
+    {
+      "id": "check_039",
+      "target": "ブランチ保護",
+      "rule": "gh api repos/:owner/:repo/branches/main/protection",
+      "expected_result": "required_status_checks に static / gate-meta / gate-integrity / secrets / deps / acceptance / test-tamper-guard / date-boundary。直 push 禁止。required approving reviews は 0（単一アカウント）。adversarial は経路実測まで含まれない",
+      "manual_or_automated": "manual",
+      "verification_method": "gh api の出力を record-run で docs/run-log/task_009.json に",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-TH-04",
+        "R-TH-03"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_040",
+      "target": "ビルド・型・lint",
+      "rule": "typecheck / lint / build / build:cf / build:web-only / test:unit。build:cf 後の .open-next の Worker サイズ",
+      "expected_result": "すべて exit 0。Worker サイズが run-log に記録され、上限（docs/vendor-docs/cloudflare/ の一次資料）の 80% 未満",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run typecheck && npm run lint && npm run build && npm run build:cf && npm run test:unit",
+      "constraint_ids": [],
+      "risk_ids": [],
+      "evidence": null
+    },
+    {
+      "id": "check_041",
+      "target": "ログ・例外・ビルド成果物の PII / 資格情報",
+      "rule": "テスト実行中の stdout / stderr と .next/static / .open-next を実シークレット名・形式で grep。意図的に例外を起こした場合も含む",
+      "expected_result": "資格情報 / 生 userId / IPv4 / joinToken 平文 / PEPPER の出現が 0 件",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:security（tests/security/log-pii.test.ts）と CI security ジョブ",
+      "constraint_ids": [
+        "L7"
+      ],
+      "risk_ids": [
+        "R-SEC-04",
+        "R-SEC-02"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_042",
+      "target": "再照合の多重起動防止",
+      "rule": "/api/cron/reconcile を 2 プロセス同時実行。片方を実行中に kill",
+      "expected_result": "片方は即 200 no-op。reconciliation_run は 1 件だけ増える。kill 後に pg_locks に残留 advisory lock が無い（xact スコープ）",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（tests/integration/reconcile.test.ts）",
+      "constraint_ids": [
+        "W11"
+      ],
+      "risk_ids": [
+        "R-OPS-08"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_043",
+      "target": "保持期間 cron",
+      "rule": "event.retention_due_at を過去、webhook_delivery.received_at を 15 日前にして /api/cron/retention",
+      "expected_result": "participant.display_label と event.organizer_label が NULL、raw_body が NULL、body_sha256 は残る。payment_event.raw_redacted に許可キー以外が無い",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（tests/integration/retention.test.ts）",
+      "constraint_ids": [
+        "L7"
+      ],
+      "risk_ids": [
+        "R-DATA-01"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_044",
+      "target": "Idempotency-Key",
+      "rule": "同一ユーザーが同じキーで POST /api/events を 2 回。異なる本文で同じキー",
+      "expected_result": "2 回目は同じ応答（同じ event id）。event は 1 件。異なる本文は 409 IDEMPOTENCY_CONFLICT",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（tests/integration/events.test.ts）",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-PAY-02"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_045",
+      "target": "Phase 2: 実決済の自動検知",
+      "rule": "本番（サンドボックス分は task_026）で実決済 1 件",
+      "expected_result": "Webhook 経由で ledger_entry に payment、invoice が paid、confirmation_method='automatic'。幹事の受取口座への着金日を人間が確認して記録",
+      "manual_or_automated": "manual",
+      "verification_method": "docs/ops/first-live-payment.md",
+      "constraint_ids": [
+        "P3",
+        "P6"
+      ],
+      "risk_ids": [
+        "R-PAY-14"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_046",
+      "target": "Phase 2: Webhook 非依存",
+      "rule": "Webhook 受信を止めて決済を完了させ /api/cron/reconcile",
+      "expected_result": "照合だけで paid に到達（ingestion_source='poll'）",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（tests/integration/reconcile-paypay.test.ts、サンドボックス）",
+      "constraint_ids": [
+        "W9",
+        "P3"
+      ],
+      "risk_ids": [],
+      "evidence": null
+    },
+    {
+      "id": "check_047",
+      "target": "Phase 2: キルスイッチ",
+      "rule": "PROVIDER_PAYPAY_ONLINE_MODE を off",
+      "expected_result": "新規 checkout が 409、既存 pending の再照合は継続、Webhook 受信と refund も継続。操作が audit_log に人間 actor で残る",
+      "manual_or_automated": "manual",
+      "verification_method": "本番で実測し docs/run-log/task_029.json に 409 の実レスポンス・reconciliation_run・refund 成功を記録",
+      "constraint_ids": [
+        "L11"
+      ],
+      "risk_ids": [
+        "R-PAY-08"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_048",
+      "target": "Phase 2: アダプタ追加でコア無変更",
+      "rule": "PayjpAdapter 追加 PR の git diff --stat origin/main...HEAD -- src/lib/ledger src/app/api src/components（providers 除く）",
+      "expected_result": "出力が空（ADR-006 の例外を除く）",
+      "manual_or_automated": "manual",
+      "verification_method": "git diff の出力を record-run で記録",
+      "constraint_ids": [
+        "P1"
+      ],
+      "risk_ids": [],
+      "evidence": null
+    },
+    {
+      "id": "check_049",
+      "target": "Phase 0: G0-USER",
+      "rule": "docs/decisions/ADR-001-funds-flow.md",
+      "expected_result": "PO の回答が逐語で記録され status が accepted / rejected。販売事業者＝幹事、ターゲット＝継続的主催者の判断を含む",
+      "manual_or_automated": "manual",
+      "verification_method": "PO 本人が ADR-001 を読んで確認",
+      "constraint_ids": [
+        "L1"
+      ],
+      "risk_ids": [
+        "R-LAW-05"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_050",
+      "target": "Phase 0: ゲート台帳と照会台帳の雛形",
+      "rule": "docs/gates/compliance-gates.json と docs/external-inquiries.json（task_036）",
+      "expected_result": "10 ゲートが status='unknown' で存在し JSON として妥当。external-inquiries.json がスキーマ説明付きで妥当",
+      "manual_or_automated": "manual",
+      "verification_method": "python3 で JSON を検査し record-run --manual で記録",
+      "constraint_ids": [
+        "L11"
+      ],
+      "risk_ids": [],
+      "evidence": null
+    },
+    {
+      "id": "check_051",
+      "target": "release.yml の法務ゲート",
+      "rule": ".github/workflows/release.yml の先頭ステップの静的検査（scripts/ci/assert-release-gate.mjs）",
+      "expected_result": "先頭が 2 段ゲート（release-mode.json.payments_enabled が false なら PAYMENTS_ENABLED=false と決済 SDK 不在を検証、true なら legal-clearance.cleared==true を必須）であることを YAML パースでアサート",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:unit（tests/unit/ci/assert-release-gate.test.ts）と CI static ジョブ",
+      "constraint_ids": [
+        "L11"
+      ],
+      "risk_ids": [],
+      "evidence": null
+    },
+    {
+      "id": "check_052",
+      "target": "compliance_gate の初期在庫と同期",
+      "rule": "0002_seed_gates.sql 適用後",
+      "expected_result": "docs/gates/compliance-gates.json の 10 ゲートが status='unknown' で存在し、npm run gates:sync の差分が 0。feature_flag PAYMENTS_ENABLED='false'",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（schema.test.ts）と npm run gates:sync",
+      "constraint_ids": [
+        "L11"
+      ],
+      "risk_ids": [
+        "R-OPS-09"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_053",
+      "target": "SessionStart の注入",
+      "rule": "新しい Claude Code セッションをプロジェクトで開く",
+      "expected_result": "未通過ゲート、未回答照会（期限超過を先頭に）、legal-clearance の状態、HANDOFF 末尾が表示される",
+      "manual_or_automated": "manual",
+      "verification_method": "実施者が目視し record-run で記録",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-TH-05",
+        "R-TH-12"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_054",
+      "target": "モデル実測ベンチ",
+      "rule": "scripts/bench-models.sh を 1 回実行",
+      "expected_result": "docs/metrics/model-bench.md に 4 モデル × 3 タスクの結果（不達は『不達』、Gemini の実モデル名）と ADR-003",
+      "manual_or_automated": "manual",
+      "verification_method": "npm run bench:models の出力と model-bench.md の照合",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-TH-11"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_055",
+      "target": "LINE チャネル構成",
+      "rule": "LINE Developers コンソール",
+      "expected_result": "単一プロバイダー配下にミニアプリチャネル（開発 / 審査 / 本番の LIFF ID）と Messaging API チャネル。Scope profile + openid。dev LIFF が Cloudflare staging の固定カスタムドメインを指す。docs/ops/line-channels.md に記録（ID の値は書かない）",
+      "manual_or_automated": "manual",
+      "verification_method": "PO がコンソールを確認し docs/ops/line-channels.md と照合",
+      "constraint_ids": [
+        "N1",
+        "N5",
+        "N6"
+      ],
+      "risk_ids": [
+        "R-LINE-08"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_056",
+      "target": "パイロット",
+      "rule": "幹事 3〜5 名がクローズド β で 1 イベントを手動確認版で完走。参加者 5 名以上が自力到達",
+      "expected_result": "docs/pilot/ に完走記録とフィードバック。幹事向け説明に『アプリは入金を検知しない』があり『自動』を示唆する文言が無い（gate:wording が docs/pilot を対象に含む）",
+      "manual_or_automated": "manual",
+      "verification_method": "docs/pilot/*.md と npm run gate:wording",
+      "constraint_ids": [
+        "N11",
+        "L6"
+      ],
+      "risk_ids": [
+        "R-UX-08"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_057",
+      "target": "audit_log のハッシュ連鎖",
+      "rule": "並行 insert 20 本 → 連続 100 行の prev_hash / row_hash を再計算",
+      "expected_result": "prev_hash の重複 0 件。すべて一致。1 行改変で以降の検証が失敗。npm run audit:verify が緑",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（tests/integration/audit-chain.test.ts）と npm run audit:verify",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-SEC-15"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_058",
+      "target": "CSRF",
+      "rule": "X-CSRF-Token 無しの POST（Webhook / cron / telemetry / preview を除く）",
+      "expected_result": "403。除外ルートは対象外",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:security（tests/security/csrf.test.ts）",
+      "constraint_ids": [
+        "W6"
+      ],
+      "risk_ids": [
+        "R-SEC-12"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_059",
+      "target": "ミニアプリ内完結",
+      "rule": "(liff) 配下の全画面がエンドポイントドメインから配信され、外部遷移は P-5 のみ",
+      "expected_result": "src/app/(liff) に外部 URL 遷移が P-5 以外に無い（grep）。returnUrl は return_token 付き復帰エンドポイント",
+      "manual_or_automated": "manual",
+      "verification_method": "レビュアが grep し docs/review-log/task_025.md に記録",
+      "constraint_ids": [
+        "N4",
+        "P4"
+      ],
+      "risk_ids": [],
+      "evidence": null
+    },
+    {
+      "id": "check_060",
+      "target": "最小 PII",
+      "rule": "src/ 配下のフォーム・API 入力型",
+      "expected_result": "メール・電話・住所・プロフィール画像・LINE 表示名を受け取るフィールドが無い。決済事業者へ渡す情報が金額・通貨・external_ref・returnUrl のみ",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:unit（型テスト）と npm run gate:constraints",
+      "constraint_ids": [
+        "L7"
+      ],
+      "risk_ids": [],
+      "evidence": null
+    },
+    {
+      "id": "check_061",
+      "target": "Phase 0: 照会文の起案と送付追跡",
+      "rule": "docs/inquiries/*.md（task_002）と docs/external-inquiries.json の状態（task_037）",
+      "expected_result": "6 宛先分の照会文が存在し各質問に ID がある。全項目に default_decision_on_timeout がある。送付後は lawyer-q-lg1 が最初に sent で sent_at と no_response_deadline（+21 日）がある。ADR-010 が proposed で存在",
+      "manual_or_automated": "manual",
+      "verification_method": "python3 で JSON を検査し record-run",
+      "constraint_ids": [
+        "L11"
+      ],
+      "risk_ids": [
+        "R-LAW-01",
+        "R-TH-05"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_062",
+      "target": "run-log の記録経路",
+      "rule": "scripts/record-run.sh 経由で失敗コマンドを実行。Write ツールで docs/run-log/x.json を直接書く",
+      "expected_result": "ラッパー経由の記録に実 exit_code≠0・stdout 末尾・HEAD・UTC 時刻が自動記入される。直接 Write は PreToolUse で exit 2",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:unit（tests/unit/hooks/record-run.test.ts, deny-test-weakening.test.ts）",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-TH-02"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_063",
+      "target": "Stop フックの HANDOFF 追記",
+      "rule": "任意のターン終了後",
+      "expected_result": "docs/HANDOFF.md 末尾に『決まったこと・未解決』が 1 行以上追記されている。PreCompact に依存する設定が settings.json に無い",
+      "manual_or_automated": "manual",
+      "verification_method": "2 ターン実行後に HANDOFF.md の差分を確認し record-run",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-TH-12"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_064",
+      "target": "メタゲート（G0）",
+      "rule": "tests/gates/fixtures/violations/ の各フィクスチャに対して対応ゲートを実行。expect_targets=now のパターンで対象ファイル 0 件",
+      "expected_result": "10 本以上のフィクスチャがそれぞれ対応ゲートを非ゼロ終了させる。expect_targets=now の対象 0 件は exit 1、from_task_XXX は当該 task DONE 前なら許容。npm run test:gate-meta が緑",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:gate-meta",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-TH-01"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_065",
+      "target": "フック実在マトリクス",
+      "rule": "scripts/test-hook-enforcement.sh",
+      "expected_result": "docs/harness-capability.md に SessionStart / UserPromptSubmit / PreToolUse / PostToolUse / Stop / SubagentStop の実挙動が [実測] で記録され、[不明] が残っていない。使えないイベントの分は CI / Stop へ寄せた旨が明記",
+      "manual_or_automated": "manual",
+      "verification_method": "スクリプトを実行し結果を record-run",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-TH-12"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_066",
+      "target": "レビュー封筒と task-loop の規律",
+      "rule": "validate-findings.mjs に repro 無しの high、model_id_actual 欠落の返信を入力。task-loop を 3 周 high 残で終了",
+      "expected_result": "repro 無しは info に降格、必須フィールド欠落は無効。GPT 不達は reviewer_route: unavailable として欠票記録。3 周後は BLOCKED（DONE_WITH_CONCERNS にならない）",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:unit（tests/unit/validate-findings.test.ts, merge-review.test.ts）と task-loop の dry-run 記録",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-TH-08",
+        "R-TH-11",
+        "R-TH-13",
+        "R-TH-06"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_067",
+      "target": "test-tamper-guard と PR テンプレート",
+      "rule": "scripts/ci/check-pr-checklist.mjs に fixture の PR 本文（チェックリスト空 / 記入済み）と差分パス（tests/** あり / なし）を入力",
+      "expected_result": "差分ありでチェックリスト空なら非 0、記入済みなら 0、差分なしなら 0",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:unit（tests/unit/ci/check-pr-checklist.test.ts）",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-TH-04",
+        "R-SEC-07"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_068",
+      "target": "敵対レビュー経路とハーネス打ち切り",
+      "rule": "CI から Gemini / GPT を呼ぶ経路の実測。5 営業日経過時点",
+      "expected_result": "docs/harness-capability.md に可否が [実測] で記録。通らない間は adversarial が required に無い。PROGRESS.md に残件と機能着手日",
+      "manual_or_automated": "manual",
+      "verification_method": "GitHub Actions のログと PROGRESS.md",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-TH-03",
+        "R-TH-06"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_069",
+      "target": "ランタイムロールと権限スナップショット",
+      "rule": "ランタイム接続文字列のロールと information_schema.role_table_grants",
+      "expected_result": "ロールが app_rw。grants がベースライン JSON と一致。service role キーがランタイム env に無い",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（schema.test.ts）と npm run gate:env",
+      "constraint_ids": [
+        "I3"
+      ],
+      "risk_ids": [
+        "R-SEC-03"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_070",
+      "target": "DB 制約の追加分",
+      "rule": "同一 invoice に is_open な attempt を 2 行 / 未知の settlement_status / amount_minor 1,000,001 / settlement_rank IS NULL の検索",
+      "expected_result": "2 行目は一意制約違反。未知 status は CHECK 違反。上限超過は CHECK 違反。NULL 0 件",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（schema.test.ts）",
+      "constraint_ids": [
+        "W3"
+      ],
+      "risk_ids": [
+        "R-PAY-02",
+        "R-PAY-15",
+        "R-PAY-10"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_071",
+      "target": "マイグレーションの正本",
+      "rule": "supabase db diff と drizzle-kit の差分",
+      "expected_result": "差分 0。正本が supabase/migrations/*.sql であることが docs に明記",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（setup で db diff）",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-SEC-03"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_072",
+      "target": "ID トークンの単回使用とレート制限",
+      "rule": "同一 ID トークンを 2 回提示。/api/auth/line を短時間に閾値超で叩く",
+      "expected_result": "2 回目は 401。閾値超は 429。used_id_token の exp 経過行が /api/cron/idempotency-cleanup で削除され未経過行は残る（tests/integration/cleanup.test.ts）",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:security（tests/security/id-token-replay.test.ts）",
+      "constraint_ids": [
+        "N2"
+      ],
+      "risk_ids": [
+        "R-SEC-08"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_073",
+      "target": "セッション鍵の二重運用と失効",
+      "rule": "直前の kid で署名したセッション。app_user.session_epoch を進める",
+      "expected_result": "直前鍵は検証される（2 世代前は 401）。epoch 更新で当該ユーザーの全セッションが即 401",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:unit（tests/unit/auth/session.test.ts）",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-SEC-10"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_074",
+      "target": "PEPPER バージョニングと起動時検証",
+      "rule": "pepper_version=1 で claim 済みユーザーが PEPPER v2 環境でログイン。PEPPER 未設定 / 31 バイトで起動",
+      "expected_result": "ユーザーが v2 に移行され claim が維持される。未設定・短い鍵は起動失敗。/api/health の pepper_fingerprint が環境間で期待どおり一致・相違",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（auth.test.ts）と tests/unit/config/env.test.ts",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-SEC-09",
+        "R-LINE-04"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_075",
+      "target": "セキュリティヘッダと XSS",
+      "rule": "全レスポンスのヘッダ。イベント名に <script> を含めて他人の画面で描画",
+      "expected_result": "nonce CSP / HSTS / X-Content-Type-Options / Referrer-Policy: no-referrer が付く。ペイロードは文字列として描画。dangerouslySetInnerHTML / eval が 0 件。JS から設定される Cookie が 0 個",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:security（tests/security/xss-csp.test.ts）と npm run gate:constraints",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-SEC-12"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_076",
+      "target": "環境プロファイルの整合アサート",
+      "rule": "APP_ENV=production かつ staging の project ref、または LINE_ENV_PROFILE 不一致で起動。CRON_SECRETS 未設定",
+      "expected_result": "起動失敗（500 ではなくプロセス終了）。/api/health の liffIdFingerprint / channelIdFingerprint が環境と一致",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:unit（tests/unit/config/env.test.ts）",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-SEC-05",
+        "R-LINE-04"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_077",
+      "target": "LIFF 起動順序とループ防止",
+      "rule": "isInClient=false。login 後に isLoggedIn が false のまま戻るモック",
+      "expected_result": "isInClient=false では liff.login() が呼ばれない。login は 2 回で打ち切られ auth_unavailable が表示される",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:unit（tests/unit/liff/client.test.ts）",
+      "constraint_ids": [
+        "N7"
+      ],
+      "risk_ids": [
+        "R-LINE-02"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_078",
+      "target": "フロントテレメトリと静的フォールバック",
+      "rule": "liff.init を reject させる。SDK 読み込みを 3 秒以上遅延させる",
+      "expected_result": "POST /api/telemetry/client-error に liff_init_failed が機械可読コードで届き、PII と自由入力が含まれない。3 秒で静的フォールバック（再試行・LINE で開く・幹事への連絡）が出て白画面にならない",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:unit（tests/unit/telemetry.test.ts）と tests/e2e/outside-line.spec.ts",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-LINE-03"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_079",
+      "target": "LINE 非依存ビルドとバンドル検査",
+      "rule": "npm run build:web-only。production バンドルの grep",
+      "expected_result": "ビルド成功（(web) は静的法務ページと管理者画面のみで、退避先ではない。ADR-013）。.next/static に @line/liff-mock と dev / review の LIFF ID が含まれない",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run build:web-only と CI security ジョブ（bundle-liff-id-grep）",
+      "constraint_ids": [
+        "I4"
+      ],
+      "risk_ids": [
+        "R-LINE-05",
+        "R-LINE-04"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_080",
+      "target": "イベント作成の必須項目と手数料提示",
+      "rule": "organizer_label 空 / minors_included 未指定 / 手数料提示同意なしで POST /api/events。O-3 の表示",
+      "expected_result": "いずれも 400。O-3 に集金総額・手数料概算・受取見込額・入金予定時期が『推定』表記で表示され、同意チェックなしで進めない",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（events.test.ts）と tests/unit/components/FeeEstimate.test.tsx",
+      "constraint_ids": [
+        "P5",
+        "P6"
+      ],
+      "risk_ids": [
+        "R-UX-01",
+        "R-PAY-14",
+        "R-LAW-09"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_081",
+      "target": "参加者の論理削除",
+      "rule": "生きた attempt がある参加者 / ledger_entry を持つ請求の参加者を DELETE",
+      "expected_result": "前者は 409 HAS_OPEN_ATTEMPT。後者は status='removed' の論理削除で 500 が発生しない。削除後に届いた succeeded が orphan にならず要対応として記録される",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（events.test.ts）と npm run test:conformance（C21）",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-PAY-03"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_082",
+      "target": "名簿の一覧性",
+      "rule": "100 名の名簿で GET /api/events/:id/participants",
+      "expected_result": "カーソルページングを返す。既定フィルタ unpaid。名前検索が動く。未払い者を 3 タップ以内に特定できる（e2e）",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（events.test.ts）と tests/e2e/organizer-flow.spec.ts",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-UX-03"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_083",
+      "target": "請求の是正経路と上限",
+      "rule": "O-6.5 未確認で請求発行。rank=0 かつ open attempt 無しの請求と、それ以外に PATCH。幹事あたり上限超過",
+      "expected_result": "未確認は 400。前者のみ金額変更可、それ以外は 409。上限超過は 429",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（invoices.test.ts, abuse-limits.test.ts）",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-OPS-05",
+        "R-LAW-10"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_084",
+      "target": "招待トークンの強度・寿命・運搬",
+      "rule": "生成トークンのビット長。join_token_expires_at 経過。rotate-join-token 後の旧トークン。パスにトークンを載せたリクエスト。ログ",
+      "expected_result": "128 ビット以上をテストがアサート。期限切れ 404。旧トークン 404。パス配置のルートが存在しない。ログとアクセスログに平文 0 件。GET /api/e/preview がレート制限で 429",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:unit（join-token.test.ts）と npm run test:security（tests/security/idor.test.ts, log-pii.test.ts）",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-SEC-02"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_085",
+      "target": "claim の 3 本と unclaim",
+      "rule": "別人の participant を claim / claim 済みを再 claim / unclaim 後に本人が claim / 支払済み請求を unclaim",
+      "expected_result": "不可 / 不可 / 可 / 可だが needs_attention=true と O-9 表示",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:security（tests/security/claims.test.ts）",
+      "constraint_ids": [
+        "I3"
+      ],
+      "risk_ids": [
+        "R-SEC-01"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_086",
+      "target": "同意前 preview と同意ログ",
+      "rule": "GET /api/e/preview をセッション無しで。同意せずに candidates / claim",
+      "expected_result": "preview はイベント名・幹事ラベル・締切・人数・金額レンジのみで氏名と個別金額を返さない。同意前の candidates / claim は 403。consent_log に文言バージョンと時刻",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（claims.test.ts）",
+      "constraint_ids": [
+        "L6"
+      ],
+      "risk_ids": [
+        "R-UX-07",
+        "R-LAW-06"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_087",
+      "target": "参加者の自己申告",
+      "rule": "POST /api/e/self-report 後の DB と P-3",
+      "expected_result": "ledger_entry に 1 行も書かれない。payment_self_report に記録。P-3 が『あなたの申告を幹事が確認中です（アプリは入金を検知していません）』を表示し、支払済みと異なるスナップショット",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（claims.test.ts）と tests/unit/components/ParticipantStatus.test.tsx",
+      "constraint_ids": [
+        "P9"
+      ],
+      "risk_ids": [
+        "R-UX-02"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_088",
+      "target": "追加リクエストと支払不能申告",
+      "rule": "候補 0 件で request-add。P-4 で cannot-pay",
+      "expected_result": "幹事承認待ちの状態が表示され、幹事の approve-add で claim 可能になる。cannot-pay は O-9 に『支払手段なし』として上がる",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（claims.test.ts）",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-LINE-06",
+        "R-UX-05"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_089",
+      "target": "配布テンプレと個別リンク",
+      "rule": "O-7 の Flex / P-1 / 個別リンク / 未払い者再共有",
+      "expected_result": "Flex と P-1 に幹事ラベル・イベント名・金額・締切・『支払先は幹事の決済アカウントで、アプリはお金を預かりません』の 5 要素（スナップショット）。Flex に参加者名が含まれない。個別リンクが参加者ごとに生成され、未払い者だけを再共有できる",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:unit（share-templates.test.ts, ShareSheet.test.tsx）",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-UX-01",
+        "R-LINE-06"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_090",
+      "target": "resolveProvider の順序と範囲",
+      "rule": "9 パターン（manual_confirm は全ガードをスキップ / 非 production / フラグ OFF / ゲート未通過 / valid_until 超過 / MODE off / binding 非 active / 幹事 suspended / minors_included）",
+      "expected_result": "manual_confirm 以外は該当条件で ProviderNotEnabledError。ゲート off でも Webhook 受信・保存・getPaymentStatus・refund は動作する",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:unit（tests/unit/payments/registry.test.ts）",
+      "constraint_ids": [
+        "L11"
+      ],
+      "risk_ids": [
+        "R-PAY-08",
+        "R-SEC-05",
+        "R-OPS-03",
+        "R-LAW-14",
+        "R-LAW-09",
+        "R-LAW-10"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_091",
+      "target": "ManualConfirm の受取リンク",
+      "rule": "幹事が任意 URL を登録しようとする。許可外ホストの識別子",
+      "expected_result": "任意 URL は受け付けない。リンクはサーバー側テンプレートから組み立てられ、許可外ホストは拒否。P-4 / P-5 に遷移先ホスト名が併記される",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:unit（manual-confirm.test.ts）と npm run test:security（deeplink-host.test.ts）",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-SEC-14"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_092",
+      "target": "オンボーディング分岐と適格性",
+      "rule": "初回起動。単発幹事（適格性チェック不通過）。minors_included=true のイベント",
+      "expected_result": "O-0 で手動確認版 / 自動検知版と所要期間が提示される。不通過の幹事と未成年含むイベントには自動決済が提示されず manual_confirm 固定",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:e2e（organizer-flow.spec.ts）と registry.test.ts",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-UX-06",
+        "R-LAW-03",
+        "R-LAW-09"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_093",
+      "target": "checkout の同時要求と金額型（C23 / C30）",
+      "rule": "同一請求へ同時に 2 回 checkout。Money の生成",
+      "expected_result": "生きた attempt は 1 つで 2 回目は同じ checkoutUrl。yen(5000) 以外のコンストラクタはコンパイルエラー。JPY で minor==major、均等割りの合計が原資と一致（プロパティテスト）。createCheckout に渡した金額と事業者 API リクエストの金額が同値",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（checkout.test.ts）と tests/unit/payments/money.test.ts と npm run test:conformance（C23, C30）",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-PAY-02",
+        "R-PAY-10",
+        "R-PAY-12"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_094",
+      "target": "台帳適用の不変条件",
+      "rule": "全遷移 × 全イベント種別。paid に expired。void 済みに succeeded。台帳残高 > 請求額。手動確認済みに自動入金",
+      "expected_result": "ランクは前進のみ。paid に expired で不変。void 済みは前進＋needs_attention。残高超過は overpay。手動＋自動は confirmation_method='mixed' でバッジが消えない。charged_back へ前進できる。全 status に到達可能",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:unit（tests/unit/ledger/apply.test.ts, balance.test.ts）",
+      "constraint_ids": [
+        "W3",
+        "W4"
+      ],
+      "risk_ids": [
+        "R-PAY-13",
+        "R-PAY-07"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_095",
+      "target": "Webhook ルートの入口防御",
+      "rule": "APP_ENV=staging で POST。許可外 IP から POST。不正な external_ref 書式。ゲート未通過",
+      "expected_result": "staging は 404。許可外 IP は DB に 1 行も残さず 403。不正書式は 400。ゲート未通過は受信・保存し適用保留（apply_result='held'）で、通過後に apply-pending が台帳へ載せる",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（webhook-route.test.ts）と npm run test:security（webhook-ip.test.ts）",
+      "constraint_ids": [
+        "W5",
+        "W6"
+      ],
+      "risk_ids": [
+        "R-SEC-05",
+        "R-SEC-11",
+        "R-PAY-08",
+        "R-PAY-11"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_096",
+      "target": "紛争と生ペイロードの許可リスト",
+      "rule": "disputed fixture。payment_event.raw_redacted のキー分布",
+      "expected_result": "settlement_status が charged_back へ前進し ledger_entry に kind='chargeback' の debit。raw_redacted に許可キー以外が無い",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:conformance（C16）と tests/integration/retention.test.ts",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-PAY-07",
+        "R-DATA-01"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_097",
+      "target": "複数 binding の資格情報分離（C13）",
+      "rule": "2 つの binding で同時に決済",
+      "expected_result": "それぞれ正しい資格情報が使われる（credential_fp がリクエストごとに異なる）。binding 省略は型エラー",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:conformance（C13）と npm run typecheck",
+      "constraint_ids": [
+        "P1"
+      ],
+      "risk_ids": [
+        "R-PAY-01"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_098",
+      "target": "ゲート off 中の受信と復帰後適用（C14）",
+      "rule": "MODE=off の状態で既存 external_ref の succeeded を POST → MODE=live → apply-pending",
+      "expected_result": "off 中に保存され、復帰後に台帳へ載る",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:conformance（C14）",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-PAY-08"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_099",
+      "target": "expired 後の入金（C15）",
+      "rule": "attempt を expired に落とした 3 日後に succeeded",
+      "expected_result": "台帳に載り paid。expired へ落とす前に getPaymentStatus が 1 回呼ばれている",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:conformance（C15）",
+      "constraint_ids": [
+        "W10"
+      ],
+      "risk_ids": [
+        "R-PAY-09"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_100",
+      "target": "紛争到達性（C16 / C17）",
+      "rule": "紛争 fixture。全 settlement_status 値",
+      "expected_result": "charged_back へ前進。全 status が少なくとも 1 つのイベント種別から到達可能（網羅テスト）",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:conformance（C16, C17）",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-PAY-07"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_101",
+      "target": "ConformanceKit C18〜C31 と provenance",
+      "rule": "少額支払い（C20）/ 削除済み参加者への入金（C21）/ 中止後入金（C22）/ 同時 checkout（C23）/ 混在（C24）/ timeout 後の入金（C25）/ 保存後クラッシュ（C26）/ 許可外ホスト（C27）/ 許可外 IP（C28）/ 返金期限超過（C29）/ 金額同値（C30）/ 未知 status（C31）/ captured_from 欠落 fixture",
+      "expected_result": "各ケースが期待どおり。captured_from 欠落の fixture はキットが登録を拒否。synthesized のみのアダプタは autoDetect=true を宣言できない。C18 / C19 は Phase 2 の部分返金非対応により n/a",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:conformance",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-PAY-04",
+        "R-PAY-03",
+        "R-PAY-06",
+        "R-PAY-02",
+        "R-PAY-13",
+        "R-PAY-12",
+        "R-PAY-11",
+        "R-SEC-14",
+        "R-SEC-11",
+        "R-PAY-10",
+        "R-PAY-15",
+        "R-TH-07"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_102",
+      "target": "照合ジョブのバッチとロック",
+      "rule": "未払い 300 件相当で reconcile。上限到達時",
+      "expected_result": "時間内に完走（複数回に分けて）、上限到達で note='truncated'。1 件 3 秒 timeout、並列 5。xact ロックがプロセス kill 後に残らない",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（reconcile-load.test.ts）",
+      "constraint_ids": [
+        "W9",
+        "W11"
+      ],
+      "risk_ids": [
+        "R-OPS-08"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_103",
+      "target": "expired 猶予と paid 再照会",
+      "rule": "expired から 4 日以内の attempt。paid から 30 日以内の請求",
+      "expected_result": "前者は走査対象に含まれ最終照会が行われる。後者は日次 1 回再照会され、事業者側の返金・紛争が反映される。reconciliation_run に paid_rescanned / post_paid_changes",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（reconcile.test.ts）",
+      "constraint_ids": [
+        "W10"
+      ],
+      "risk_ids": [
+        "R-PAY-09",
+        "R-PAY-07"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_104",
+      "target": "outbox・apply-pending・掃除・cron 認可",
+      "rule": "outbox の全 kind。保存後未適用の payment_event。24 時間経過の idempotency_key。CRON_SECRETS 無し。非 production",
+      "expected_result": "全 kind に transport があり未定義 0 件。max_attempts 超過で dead_lettered_at。apply-pending が未適用を台帳へ。期限切れキーが削除される。401 / 404",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（outbox.test.ts, apply-pending.test.ts）と tests/unit/cron-auth.test.ts",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-OPS-01",
+        "R-PAY-11",
+        "R-PAY-02",
+        "R-SEC-05"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_105",
+      "target": "管理面の認証とフラグの二人承認",
+      "rule": "LINE セッションで /api/admin/*。管理者 1 人で POST /api/admin/flags。/api/admin/gates に POST",
+      "expected_result": "LINE セッションでは 403。フラグ変更は申請と承認が別アカウントで audit_log に 2 行（第二承認者が無い間は A23 の縮退: 同一 actor の申請行と 24 時間以上後の承認行、cooling_period_sec 記録）。PAYMENTS_ENABLED の true 化は legal-clearance.cleared==true が無ければ 409。gates への書き込み経路が存在しない（405）",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（admin.test.ts）",
+      "constraint_ids": [
+        "L11"
+      ],
+      "risk_ids": [
+        "R-SEC-06",
+        "R-OPS-09"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_106",
+      "target": "サポート照会・匿名化・エクスポート",
+      "rule": "GET /api/admin/lookup。POST /api/admin/anonymize。GET /api/me/export.zip",
+      "expected_result": "lookup が display_label を 1 件も返さず、全アクセスが audit_log に actor_type='admin'。anonymize が識別情報のみを消し金額・ID・時刻を残す。export が本人の全イベントを出力",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（admin.test.ts）",
+      "constraint_ids": [
+        "L7"
+      ],
+      "risk_ids": [
+        "R-OPS-02",
+        "R-OPS-04"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_107",
+      "target": "規約・プライバシー・特商法表示",
+      "rule": "src/content/terms.md / privacy.md に対する gate:terms / gate:privacy-policy",
+      "expected_result": "gate:terms が全部免責文言を検出せず緑（一部免責・上限型）。gate:privacy-policy が委託先・保管国・外的環境・安全管理措置・プラットフォームログ保持・擬似匿名化の記載を確認して緑",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run gate:terms && npm run gate:privacy-policy",
+      "constraint_ids": [
+        "L7",
+        "L10"
+      ],
+      "risk_ids": [
+        "R-LAW-13",
+        "R-LAW-07",
+        "R-OPS-06"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_108",
+      "target": "インシデント対応・ランブック・証跡",
+      "rule": "docs/incident-response.md、docs/runbooks/RB-01..10、docs/legal-forensics.md",
+      "expected_result": "incident-response に漏えい検知から速報・確報・本人通知までの期限と担当。ランブック 10 本が『トリガー / 手順 / 人間承認が必要な操作 / 記録先』を持つ。legal-forensics に突合手順",
+      "manual_or_automated": "manual",
+      "verification_method": "レビュアが確認し review-log に記録",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-LAW-08",
+        "R-LAW-11"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_109",
+      "target": "悪用対策",
+      "rule": "上限超過。POST /api/e/report。幹事を suspended にした後の checkout",
+      "expected_result": "上限はサーバー側で強制（429）。通報が abuse_report に記録。suspended の幹事は resolveProvider で拒否され新規イベント作成不可",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（abuse-limits.test.ts）",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-LAW-10"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_110",
+      "target": "セキュリティテスト群",
+      "rule": "npm run test:security",
+      "expected_result": "IDOR / claim 3 本 / CSRF / XSS・CSP / 冪等キー越境（別ユーザーが同一キーで 409、他人の応答が返らない）/ ID トークン再利用 / 許可外 IP / deepLink ホスト / ゲート迂回 / ログ PII がすべて pass",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:security",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-SEC-01",
+        "R-SEC-02",
+        "R-SEC-08",
+        "R-SEC-11",
+        "R-SEC-12",
+        "R-SEC-14",
+        "R-PAY-02"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_111",
+      "target": "アクセシビリティ",
+      "rule": "npm run test:a11y",
+      "expected_result": "axe-core 違反 0。フォント 200% で崩れない。支払状態が色＋テキスト＋アイコン。最小タップ 44px。ダークモードで判読可能",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:a11y",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-UX-04"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_112",
+      "target": "手動版完走・LINE 非依存 E2E・ファネル",
+      "rule": "tests/e2e/manual-only-complete.spec.ts / web-only.spec.ts。週次メトリクス",
+      "expected_result": "手動確認版だけで幹事が 1 イベント完走し途中離脱しない。(web) の静的法務ページと管理者画面が LINE SDK 無しで描画される。着地 → 同意 → claim → checkout → paid の 5 段が weekly JSON に出る",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:e2e",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-UX-06",
+        "R-LINE-05",
+        "R-UX-08"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_113",
+      "target": "要対応の配達",
+      "rule": "mismatch / paid_after_void / orphan / overpay / 支払手段なし を発生させる",
+      "expected_result": "outbox の各 kind に transport が定義され、幹事（友だち追加済み）に Messaging API 経由で通知が送られ（モック）、運営者向け内部通知に PII が含まれない",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（outbox-delivery.test.ts）",
+      "constraint_ids": [
+        "N10"
+      ],
+      "risk_ids": [
+        "R-OPS-01"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_114",
+      "target": "degraded health と外形監視",
+      "rule": "DB 疎通失敗 / reconcile 鮮度 900 秒超 / outbox 最古 24h 超 / open attempt があるのに Webhook 1h 0 件",
+      "expected_result": "/api/health が status='degraded' を返す。外形監視から通知が届くことを 1 回実測",
+      "manual_or_automated": "manual",
+      "verification_method": "tests/unit/health.test.ts と外形監視の通知記録（record-run）",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-OPS-07"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_115",
+      "target": "要対応バッジと認知時間",
+      "rule": "要対応 1 件発生後に O-2 を表示。attention_unseen_hours の計測",
+      "expected_result": "O-2 に件数バッジ。発生から幹事の閲覧までの時間が weekly メトリクスに出る",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:e2e（organizer-flow.spec.ts）",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-OPS-01"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_116",
+      "target": "環境分離",
+      "rule": "staging URL から /api/webhooks/* と /api/cron/*。wrangler.toml の環境別バインディングと docs/ops/env-baseline.json のスナップショット（静的）＋認証済みなら wrangler secret list（ライブ）",
+      "expected_result": "404。gate:env が緑（staging に本番 project ref も本番 LIFF ID も無い）。staging が Cloudflare Access で保護されている。Hyperdrive 経由の統合テストが 1 回緑（A21）",
+      "manual_or_automated": "manual",
+      "verification_method": "curl の結果と npm run gate:env を record-run",
+      "constraint_ids": [
+        "I1"
+      ],
+      "risk_ids": [
+        "R-SEC-05"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_117",
+      "target": "復元リハーサル",
+      "rule": "npm run db:restore:drill",
+      "expected_result": "バックアップから別プロジェクトへ復元し test:integration と test:conformance が緑。RPO 15 分 / RTO 4 時間が docs/ops/backup.md に記載",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run db:restore:drill（結果を record-run）",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-OPS-04"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_118",
+      "target": "service role の隔離",
+      "rule": "ランタイム環境変数と CI シークレット",
+      "expected_result": "SUPABASE_SERVICE_ROLE_KEY がランタイム（wrangler のバインディング / .dev.vars）に存在せず、CI の environment: production にのみある（マイグレーション実行時のみ使用）",
+      "manual_or_automated": "manual",
+      "verification_method": "wrangler secret list（各環境）と GitHub environment 設定の目視を record-run",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-SEC-04",
+        "R-SEC-05"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_119",
+      "target": "実機確認と Phase 1 Go/No-Go",
+      "rule": "iOS / Android の LINE アプリでパーマネントリンクと外部 URL の往復、O-0〜O-8、P-1〜P-4。PROGRESS.md",
+      "expected_result": "往復成功の記録が [実測] で record-run にある。PROGRESS.md に Phase 1 Go/No-Go の全条件（implementation-plan §4-3 と premortem §2-7 の追加条件）が証拠付きで記録。クローズド β 限定の免除条件が ADR-011 にある",
+      "manual_or_automated": "manual",
+      "verification_method": "実施者が記録",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-LINE-01",
+        "R-LINE-08",
+        "R-TH-05"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_120",
+      "target": "PayPay アダプタの fixture と依存",
+      "rule": "tests/fixtures/paypay_online/*.json の captured_from。SDK の import 位置",
+      "expected_result": "全 fixture が captured_from: staging と取得日を持つ。SDK は providers/ 内でのみ import（gate:constraints P1）。C3 は n/a、C7 / C8 は pass",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:conformance と npm run gate:constraints",
+      "constraint_ids": [
+        "P1",
+        "W7"
+      ],
+      "risk_ids": [
+        "R-TH-07"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_121",
+      "target": "return_token 復帰と手続き中表示",
+      "rule": "Cookie の無いブラウザで GET /api/return/:returnToken。同一トークンで 2 回目。16 分後。別 invoice の token。短時間に 7 回。生きた attempt がある請求の名簿表示",
+      "expected_result": "1 回目は当該 invoice の金額と状態のみ返し getPaymentStatus を 1 回呼ぶ。2 回目は DB 現在値を返し getPaymentStatus を再実行しない。16 分後は 410。他 invoice には到達不能。7 回目は 429。名簿に『手続き中（確定前）』が出て催促導線が無効",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（return-token.test.ts）と tests/unit/components/InvoiceRow.test.tsx",
+      "constraint_ids": [
+        "P3",
+        "P4"
+      ],
+      "risk_ids": [
+        "R-LINE-01"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_122",
+      "target": "Firewall ルールと Webhook 到達性監視",
+      "rule": "infra/waf-rules.json（IP 許可リスト＋Rate Limiting）と実設定の照合（CI waf ジョブ / gate:waf）。Webhook が 1 時間 0 件かつ open attempt あり",
+      "expected_result": "CI の check-waf が差分 0。alert が発火する（テスト）",
+      "manual_or_automated": "automated",
+      "verification_method": "CI（npm run gate:waf）と tests/unit/health.test.ts",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-SEC-11",
+        "R-OPS-07"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_123",
+      "target": "binding 接続とカストディ",
+      "rule": "GATE-CRED-CUSTODY が unknown で POST /api/providers/bind。credentialCustody:'organizer' の経路",
+      "expected_result": "409 GATE_NOT_PASSED。provider_binding に資格情報の値が無い（キー名または暗号文のみ）。例外メッセージとログに資格情報が含まれない。organizer 経路が型と画面に存在する",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（binding.test.ts）と tests/unit/secrets.test.ts",
+      "constraint_ids": [
+        "L1"
+      ],
+      "risk_ids": [
+        "R-LAW-02"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_124",
+      "target": "イベント中止・一括返金・返金期限",
+      "rule": "POST /api/events/:id/cancel。refund-all で 1 件失敗。refundWindowDays 超過",
+      "expected_result": "配下の active invoice が void、生きた attempt が cancelCheckout、中止後入金が要対応＋返金タスク。refund-all は冪等で失敗分だけ再実行できる。期限超過は NotSupportedError → 409",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（cancel.test.ts, refund.test.ts）と npm run test:conformance（C22, C29）",
+      "constraint_ids": [
+        "L4",
+        "P7"
+      ],
+      "risk_ids": [
+        "R-PAY-06"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_125",
+      "target": "紛争の反映と月次突合",
+      "rule": "紛争 Webhook。docs/ops/reconcile-monthly.md",
+      "expected_result": "charged_back が O-9 の最上位に出て台帳に chargeback の debit。月次 CSV 突合の手順が存在し Phase 2 の運用条件に含まれる",
+      "manual_or_automated": "manual",
+      "verification_method": "tests/integration/dispute.test.ts と手順書の確認",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-PAY-07"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_126",
+      "target": "事業者アカウント停止と手数料提示",
+      "rule": "ProviderAccountError を N 回連続。O-11 の表示",
+      "expected_result": "binding が suspended に降格し、進行中イベントが manual_confirm へフォールバックして非自動ラベルが付く。O-11 に接続前の手数料と入金予定時期が表示される",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（provider-account-error.test.ts）と e2e",
+      "constraint_ids": [
+        "P6"
+      ],
+      "risk_ids": [
+        "R-OPS-03",
+        "R-PAY-14"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_127",
+      "target": "Phase 2 実測値",
+      "rule": "負荷 300 件。checkout → paid の時間。要対応発生から幹事認知までの時間",
+      "expected_result": "docs/ops/load-test.md に完走記録。time_to_paid_p95 と attention_unseen_hours の実測値が PROGRESS.md に記録",
+      "manual_or_automated": "manual",
+      "verification_method": "記録の確認",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-OPS-08",
+        "R-LINE-01",
+        "R-OPS-01"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_128",
+      "target": "legal-clearance の更新主体",
+      "rule": "docs/gates/legal-clearance.json の変更履歴",
+      "expected_result": "cleared:true への変更が PO の commit で、basis と approved_by が埋まっている。AI のセッションからの変更は Write も Bash リダイレクトも PreToolUse で遮断される。release-mode.json も同じ扱い",
+      "manual_or_automated": "manual",
+      "verification_method": "git log と record-run",
+      "constraint_ids": [
+        "L11"
+      ],
+      "risk_ids": [
+        "R-SEC-07"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_129",
+      "target": "PayjpAdapter の宣言と fixture",
+      "rule": "capabilities.refund。fixtures/payjp の captured_from",
+      "expected_result": "refund が 'full' 以下で宣言され部分返金が NotSupportedError。fixture が実キャプチャ。conformance で該当ケース pass",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:conformance（payjp）",
+      "constraint_ids": [
+        "P7"
+      ],
+      "risk_ids": [
+        "R-PAY-05",
+        "R-TH-07"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_130",
+      "target": "release.yml の実動作",
+      "rule": "release-mode.json.payments_enabled=false で workflow_dispatch。payments_enabled=true かつ cleared=false で workflow_dispatch",
+      "expected_result": "前者は (a) 段を通りデプロイステップに到達（staging 相当で確認）。後者は先頭で失敗しデプロイに到達しない。実施者・日時・観察結果を record-run --manual で記録",
+      "manual_or_automated": "manual",
+      "verification_method": "GitHub Actions のログを docs/run-log/task_009.json に記録",
+      "constraint_ids": [
+        "L11"
+      ],
+      "risk_ids": [
+        "R-SEC-07"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_131",
+      "target": "test-tamper-guard の実動作",
+      "rule": "tests/** に差分がありチェックリストが空の PR と、記入済みの PR を実際に作る",
+      "expected_result": "前者で test-tamper-guard が落ち、後者で通る。実施者・日時・PR 番号を記録",
+      "manual_or_automated": "manual",
+      "verification_method": "PR 2 本の CI 結果を record-run --manual で記録",
+      "constraint_ids": [],
+      "risk_ids": [
+        "R-TH-04"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_132",
+      "target": "法務文書のレビューと O-13 表示",
+      "rule": "利用規約・プライバシーポリシー・同意文言の弁護士レビュー記録。O-13 の表示",
+      "expected_result": "docs/PROGRESS.md または docs/decisions/ に弁護士レビュー済みの記録（日付・対象バージョン）がある。O-13 に運営者名・所在地・連絡先が Phase 1 から表示される（実機で目視）",
+      "manual_or_automated": "manual",
+      "verification_method": "記録の確認と実機目視を record-run --manual で記録",
+      "constraint_ids": [
+        "L7",
+        "L10"
+      ],
+      "risk_ids": [
+        "R-LAW-13",
+        "R-OPS-06"
+      ],
+      "evidence": null
+    },
+    {
+      "id": "check_133",
+      "target": "Hyperdrive 経由の DB 前提（A21）",
+      "rule": "tests/integration/hyperdrive-spike.test.ts を Hyperdrive 経由で実行",
+      "expected_result": "2 接続間で pg_try_advisory_xact_lock が排他になり、FOR UPDATE・生成列・BEFORE UPDATE トリガの RAISE EXCEPTION が動く。結果が run-log と implementation-plan.md §6 A21（[実測]）に記録",
+      "manual_or_automated": "automated",
+      "verification_method": "npm run test:integration（Hyperdrive 経由の実行環境で。record-run に環境を明記）",
+      "constraint_ids": [
+        "W11"
+      ],
+      "risk_ids": [
+        "R-OPS-08",
+        "R-SEC-03"
+      ],
+      "evidence": null
+    }
+  ]
+}
