@@ -26,7 +26,15 @@
     "gate:plan": "node scripts/validate-plan-json.mjs",
     "gate:acceptance": "node scripts/assert-acceptance.mjs",
     "gate:integrity": "node scripts/gate-integrity.mjs",
-    "test:gate-meta": "TZ=UTC vitest run tests/gates"
+    "test:gate-meta": "TZ=UTC vitest run tests/gates",
+    "gate:release-gate": "node scripts/ci/assert-release-gate.mjs",
+    "gate:pr-checklist": "node scripts/ci/check-pr-checklist.mjs",
+    "gate:secrets-grep": "bash scripts/ci/secrets-grep.sh",
+    "review:packet": "bash scripts/build-review-packet.sh",
+    "review:gemini": "node scripts/review-gemini.mjs",
+    "review:gpt": "node scripts/review-gpt.mjs",
+    "review:validate": "node scripts/validate-findings.mjs",
+    "review:merge": "bash scripts/merge-review.sh"
   },
   "private": true,
   "engines": {
