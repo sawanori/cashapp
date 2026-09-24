@@ -68,15 +68,10 @@ export async function isShareTargetPickerAvailable(deps: ShareLiffDeps = {}): Pr
   return result.ok && result.value;
 }
 
-export type ShareTargetPickerOutcome =
-  /** 送信が成立した。 */
-  | "sent"
-  /** 利用者が picker を閉じた・送信をやめた。 */
-  | "canceled"
-  /** この環境では使えない（呼び出し前に弾いた）。 */
-  | "unavailable"
-  /** SDK 呼び出し自体が失敗した。 */
-  | "failed";
+// 結果型は LIFF 非依存の置き場（src/lib/share-outcome.ts）に定義し、ここから再輸出する。
+// 画面側（src/components/ShareSheet.tsx）が src/lib/liff/** を import しないようにするため。
+import type { ShareTargetPickerOutcome } from "@/lib/share-outcome";
+export type { ShareTargetPickerOutcome };
 
 /**
  * `shareTargetPicker` を開く。呼ぶ前に必ず {@link isShareTargetPickerAvailable} で判定すること

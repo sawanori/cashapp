@@ -30,7 +30,7 @@ import {
   formatYenAmount,
   type ShareEventInfo,
 } from "@/lib/share-templates";
-import type { ShareTargetPickerOutcome } from "@/lib/liff/share";
+import type { ShareTargetPickerOutcome } from "@/lib/share-outcome";
 
 export interface ShareSheetParticipant {
   readonly id: string;
