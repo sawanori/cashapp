@@ -1002,6 +1002,78 @@ task_006 側は「自分のファイルは既にコミット済み」として�
   `docs/review-log/<task_id>.json` が無い完了済みタスクが残っているため。
   本周で task_009 のぶんは作った。残りは各タスクの担当周が作る。→ task_004 / 005 / 006 / 011 / 012
 
+## task_009（レビュー修正・3 周目）
+
+### 直したこと
+
+- **`release.yml` のゲートは `if: always()` の 1 行で無効化できた。**
+  `scripts/ci/assert-release-gate.mjs` は `needs` グラフの到達性しか見ておらず、
+  `deploy` に `needs: [release-gate]` を残したまま `if: always()` を足した `release.yml` を
+  「違反 0 件」で通した（レビューの再現手順をそのまま実行して確認）。
+  **`needs` は `if:` に状態関数を書くと既定の「先行が落ちたら走らない」が置き換わる。**
+  `release-gate` に `needs` で到達する全ジョブの `if:` に `always()` / `failure()` /
+  `cancelled()` / `success()` の否定・比較が無いこと、`release-gate` のジョブと各ステップに
+  `continue-on-error` が無いこと（ジョブ単位のそれは結論を success に変えて `needs` を
+  満たしてしまう）をアサートに足した。テストは 18 → 31 件。
+  **教訓: 「依存グラフが正しい」と「落ちたら止まる」は別の主張で、前者だけ検査しても関門にならない。**
+- **`acceptance` の再実行は台帳の文字列を `sh -c` に渡していた。**
+  `scripts/gate-check.mjs` の `scriptNameOf` は先頭の `npm run <name>` しか見ないので、
+  `npm run gate:check || true` は G2 を「実在スクリプト」として通り、そのまま `sh -c` に
+  渡されて再実行が常に exit 0 になった（旧実装で実測: `exit 3` のスクリプト＋`|| true` で
+  `実行 1 / 失敗 0` の exit 0）。F2（完了の過大申告）に対する唯一の対策が無音で外せた。
+  再実行ループを `^npm run <script>$` の完全一致に縛り、シェルを介さず
+  `npm run "<script>"` の引数として渡す形に変えた（一致しない値は実行せず `形式違反` で落とす）。
+  **`docs/task-list.json` は `test-tamper-guard` の保護対象でも G13 のハッシュ対象でもない**ので、
+  台帳を経由した細工は記録も残らない。台帳自体を保護対象にするかは task_006 との合意事項
+  （`docs/concerns/task_009.md` の 13）。
+- **`.open-next/cache` はサーバー側ではなくブラウザ配布面である。**
+  OpenNext はプリレンダ済みページのレスポンス本文（`{"type":"app", … "html":"<!DOCTYPE html>…`）を
+  `.open-next/cache/<BUILD_ID>/*.cache` に出す。2 周目の群分けでここがサーバー側に入り、
+  シークレット「名前」の走査から外れていた（値パターン 5 種に当たらない `PEPPER` /
+  `SESSION_KEYS` / `CRON_SECRETS` / `APP_RW_PASSWORD` の実値はレンダリング結果に載っても緑）。
+  群 (A) へ移し、群 (B) の除外名を `CLIENT_DIRS=(assets cache)` として 1 か所で管理した。
+  **今後 OpenNext がブラウザ配布面の出力先を増やしたら、この 2 か所を必ず同時に直すこと。**
+
+### 実測で埋まったこと（GitHub リモートが出来た）
+
+- 3 周目の作業中に `origin git@github.com:sawanori/cashapp.git`（public・default `main`）が
+  作られ、`gate` / `gate-integration` / `gate-web-only` が実走を始めた。
+  **1 / 2 周目の「CI を一度も実走していない」はもう正しくない。**
+- `gate`（run 35985828343 / commit `b1bc328`・push トリガ）: **9 ジョブ中 8 ジョブ success**。
+  赤は `acceptance` だけで、内訳は `実行 13 / 委譲 2 / 失敗 1 / 形式違反 0`、
+  唯一の失敗は `npm run gate:check`（G5 の他タスク残債）。
+  `secrets` ジョブは ubuntu ランナー上の実ビルドに対して success。
+- `release`（run 35986191784 / `workflow_dispatch`）: **`release-gate` = failure /
+  `deploy` = skipped**。`release-gate FAIL: docs/gates/release-mode.json がありません` →
+  `fail-closed で落とします（L11）` → exit 1。`cloudflare/wrangler-action` には到達していない。
+
+### 未解決 / concerns（3 周目時点）
+
+- **[severity: high] `docs/gates/release-mode.json` は依然として無い**（PO 専管で Write が遮断される）。
+  3 周目に `release.yml` を実走させて「無い状態では必ず落ちる」ことは実機で確認した。
+  裏を返せば**PO がこれを作るまで本番デプロイは 1 度も成功しない**。→ PO
+- **[severity: high] branch protection は未設定。理由が変わった。**
+  リモートが出来て `gh api` は叩ける（現在 404 `Branch not protected`）が、
+  **いま required status checks を入れると `main` への直 push が全面的に止まる**。
+  `gate` は他タスクの G5 残債（`docs/review-log/*.json` 不在 6 件）で `acceptance` が赤なので、
+  並行実行中の全タスクが詰まり、R-TH-04（回避のために保護ごと解除）を自分から作る手順になる。
+  **G5 の残債が 0 になってから設定すること。** 確定表は `docs/concerns/task_009.md` の 2。
+  → task_010 / PO
+- **[severity: high] PR 経路だけが未実測**。`test-tamper-guard` は `gate-tamper.yml` の
+  `on: pull_request` のみで起動するので、PR が 1 本も無い現在 1 度も走っていない
+  （`gh run list --workflow gate-tamper.yml` は 0 件）。check_131 はここが埋まるまで未達。
+  PR を作るにはブランチの publish が要るが `git push` は本ハーネスの禁止コマンドなので、
+  `gh api` でのブランチ作成も趣旨に反すると判断して行っていない。→ task_010 / PO
+- **[severity: medium] check_130 は部分達成**。「ファイル不在 → fail-closed」は実測できたが、
+  「`payments_enabled=false` で (a) 段を通る」「`true` かつ `cleared=false` で先頭で落ちる」の
+  2 通りは `release-mode.json` を作れないため未実測。→ PO（作成）→ task_010（実測）
+- **[severity: medium] `docs/task-list.json` は無記録で書き換えられる**。
+  `check-pr-checklist.mjs` の保護対象にも G13 にも入っていない。3 周目で acceptance 側の
+  コマンド注入は塞いだが、台帳そのものの改変検知は無い。→ task_006 との合意事項（同 13）
+- 2 周目からの持ち越し（`date-boundary` がアプリの日付ロジックを見ていない / G13 の基準値が
+  `--write-baseline` の Bash 実行で書き換えられる / `secrets` の値パターンが 5 種しか無い）は
+  そのまま残る。→ task_022 / task_038
+
 ## task_013（LIFF 外殻・起動順序・ループ防止・テレメトリ・静的フォールバック・ルートグループ）
 
 ### 決まったこと
@@ -1116,6 +1188,58 @@ task_006 側は「自分のファイルは既にコミット済み」として�
    最低でも G13 の `patterns` に `scripts/review-` と `merge-review.sh` /
    `build-review-packet.sh` を足すのは安い。
 3. GPT-6 Astra 経路は PO 承認待ち（task_010）。開通するまで「3 ベンダー体制」と称さない。
+
+## task_013（レビュー修正・2 周目）
+
+### 決まったこと
+
+- **`NEXT_PUBLIC_LIFF_MOCK` は「未設定にする」のではなく「`0` を設定する」。**
+  1 周目のコード・ADR・懸念が共通して依拠していた「本番ビルドでは未設定だから分岐ごと落ちる」は
+  **実測で偽**だった。Next.js の `getNextPublicEnvironmentVariables()`
+  （`node_modules/next/dist/lib/static-env.js`）は `for (const key in process.env)` で
+  **存在するキーだけ**を define に変換するので、未設定だと定数畳み込みが起きず、
+  `await import("./mock")` が到達可能なまま `@line/liff-mock` がクライアントチャンクに載る。
+  複製リポジトリに `bootLiff()` を呼ぶ page を置いた実測: 未設定 → `.next/static` に
+  `liff-mock` / `LiffMockPlugin` が **2 ファイル**、`NEXT_PUBLIC_LIFF_MOCK=0` → **0 ファイル**
+  （`isInClient` はどちらも 2 チャンクに存在するので、後者は「SDK ごと無い」のではない）。
+  → `scripts/build-web-only.mjs` の `delete` を `= "0"` に変え、`package.json` の
+  `build` / `build:cf` にも `NEXT_PUBLIC_LIFF_MOCK=${NEXT_PUBLIC_LIFF_MOCK:-0}` を前置した。
+  **この 2 か所から変数定義を外さないこと。** 外すと `npm run build:web-only` が検査 (0) で落ち、
+  `tests/unit/ci/web-only-workflow.test.ts` も落ちる（Next 側の前提そのものも毎回読み直す）。
+- **`build:web-only` は「`(web)` の到達範囲」ではなく「禁止側の全走査」で ADR-013 決定 1 を守る。**
+  1 周目の起点は `src/app/(web)/**` ＋ `src/app/layout.tsx` の 4 ファイルだけで、
+  ルートグループに属さない `src/app/page.tsx`（唯一の実ページ）と `src/middleware.ts` が
+  検査から漏れていた。いまは `src/` を全走査して
+  「`src/lib/liff/**` と `src/app/(liff)/**` 以外は LIFF を参照しない」ことを直接確かめる
+  （走査数 4 → 26 ファイル、import グラフも 4 → 24 ファイル）。
+  複製で `src/app/page.tsx` / `src/middleware.ts` に LIFF import を足すと exit 1 になることを実測。
+- **静的フォールバックの再試行は既定で常に出す。** 遷移先はアプリの入口 `/`。
+  `href=""`（現在の URL）にしないのは、`a[href]` を link ロールへ対応づける規則が
+  href の非空を条件にしている実装があるため（`aria-query` の `constraints:["set"]`）。
+  現在の URL へ戻したいときは呼び出し側が `retryHref` を渡す。
+- **LINE パーマネントリンクは `https://liff.line.me/{liffId}`。**
+  出どころはインストール済み `@line/liff` 2.31.0 の同梱物
+  （`@liff/permanent-link` の `createUrl` と `@liff/consts` の `PERMANENT_LINK_ORIGIN`）で、
+  `docs/vendor-docs/line/liff-sdk.md` §4 に退避した。SDK の `createUrl()` は `init` 成功後に
+  しか使えないため、**SDK が落ちたときの導線には使えない**。`liffPermanentLink()` を使うこと。
+
+### 未解決（詳細は docs/concerns/task_013.md）
+
+- **[severity: medium] `(liff)/layout.tsx` の `sdk_unavailable` では「LINE アプリで開く」を出せない。**
+  この分岐が出るのは LIFF ID そのものが解決できないときなので、リンクの材料が無い。
+  check_078 の 3 導線が実画面で揃うのは、`bootLiff()` の結果を画面が受ける task_014 以降。
+  そこで `liffPermanentLink()` と現在の URL を渡すこと（C-013-9）。
+- **[severity: medium] `gate-web-only` は 1 度も実走していない**（GitHub リモート未作成）。
+  この項目が残る限り task_013 を「完全達成」として扱わない（C-013-3）。
+  required status checks への `gate-web-only / web-only` 登録は task_009 側。
+- **[severity: medium] check_079 と R-LINE-04 はまだ「達成」ではない。**
+  本リポジトリの `.next/static` には LIFF 由来の文字列が 1 つも無く、
+  SDK が載った状態での grep は 1 度も走っていない（C-013-4）。→ task_014 で再実測。
+- **`npm run test:unit` は本タスクの最終状態でも exit 1。** 落ちるのは
+  `tests/unit/gate-constraints.test.ts` の 1〜2 件のみで、原因は既知の 5 秒タイムアウト
+  （上の「task_004 が当該 `it()` に明示 timeout を与える」）。単独実行では 17/17 緑（7.89 秒）、
+  フルスイートでも `--testTimeout=30000` なら **720/720 緑**。本タスクの 5 ファイル
+  （liff / components / telemetry / ci）は常に緑。→ task_004
 
 ## ターンログ（Stop フック自動追記）
 
