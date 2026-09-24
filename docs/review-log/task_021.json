@@ -1,0 +1,233 @@
+[
+  {
+    "schema_version": 1,
+    "task_id": "task_021",
+    "reviewer": "adversarial-reviewer-gemini",
+    "vendor": "gemini",
+    "reviewer_route": "verified",
+    "model_id_requested": "gemini-2.5-pro",
+    "model_id_actual": "gemini-2.5-pro",
+    "model_id_source": "cli_stats",
+    "cli_version": "0.38.1",
+    "backend": "gemini-cli",
+    "ran_at": "2026-09-24T18:26:18Z",
+    "commit": "1852fc8dc467f432a55e96261f8ea123ba85bd5a",
+    "verdict": "BLOCKED",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "high",
+        "title": "DBクライアントの副作用により、タイムスタンプの読み書きが破損し、冪等性・監査ログを含む全書き込み系APIの検証が不可能になっている",
+        "detail": "`src/lib/db/client.ts` の `createDbClient` が `drizzle()` を呼ぶ際の副作用として、`postgres.js` クライアントのタイムスタンプ処理を破壊しています。これにより、`timestamptz` 型の列が `Date` オブジェクトではなく文字列として返され、また `Date` オブジェクトを書き込もうとすると `TypeError` が発生します。この問題は `runIdempotent` や `appendAuditLog` を利用するすべてのステート変更API（本タスクで追加された `/api/admin/flags`, `/suspend`, `/anonymize`, `/api/e/report`, `/api/invoices/:id/refund` など）に影響を及ぼし、これらのエンドポイントの完全な統合テストと検証を妨げています。作者はこの問題を認識し、`tests/integration/_debug_admin.test.ts` で再現テストを固定していますが、この根本的な不具合が存在する限り、本タスクで追加されたコードの正当性を完全に保証することはできません。",
+        "file": "src/lib/db/client.ts",
+        "repro": "追加された `tests/integration/_debug_admin.test.ts` を実行すると、`createDbClient` 経由での `SELECT now()` が `string` を返し、`SELECT ${new Date()}` が `TypeError` で失敗することが実証される。",
+        "citation": "作者による自己申告: `[severity: high] createDbClient（src/lib/db/client.ts）がdrizzle()の副作用でdb.sqlのtimestamp列を壊す（読み取りは文字列化・Date書き込みは例外）。appendAuditLog/runIdempotent/resolveEventByJoinTokenを含む書き込み系ルート全般と参加者向けルート全般に波及する task_021 発見の横断的不具合` (from `docs/task-list.json` in `artifact.files`)",
+        "suggested_fix": "`src/lib/db/client.ts` で `drizzle()` を呼ぶ際にクライアントのオプションをミューテートしないようにするか、`db.sql` 用に別のミューテートされていないクライアントインスタンスを返すように修正する必要があります。",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-2",
+        "severity": "medium",
+        "title": "必須検証コマンド `npm run test:unit` が失敗しており、コードベースが不安定な状態にある",
+        "detail": "`docs/run-log/task_021.json` に記録されているように、`verify_commands` の一つである `npm run test:unit` が終了コード 1 で失敗しています。失敗箇所は `tests/unit/gate-check.test.ts` であり、`test:contract` というスクリプトが package.json に見つからないことが原因です。作者は `docs/task-list.json` で「既存の失敗であり本タスクとは無関係」と主張していますが、検証スイートがパスしない限り、変更のマージ安全性を保証できません。",
+        "file": "docs/run-log/task_021.json",
+        "repro": "`npm run test:unit` を実行する。",
+        "suggested_fix": "原因となっている `gate-check.test.ts` のフィクスチャを修正するか、参照されている `test:contract` スクリプトを適切なタスクで追加・定義してください。",
+        "effective_severity": "unknown"
+      },
+      {
+        "id": "F-3",
+        "severity": "info",
+        "title": "インシデント対応文書の報告期限が、一次資料未確認の暫定値に基づいている",
+        "detail": "`docs/incident-response.md` に記載されている個人情報保護委員会への報告期限（速報・確報）は、作者自身が「未確認事項」として明記している通り、一次資料の取得ができずに暫定値となっています。これは法務要件の遵守においてリスクとなりますが、作者によって明確に文書化され、後続タスクでの対応が示唆されています。",
+        "file": "docs/incident-response.md",
+        "duplicate_of": "`docs/incident-response.md` の「未確認事項」セクション、および `docs/task-list.json` の `concerns` for `task_021`",
+        "effective_severity": "info"
+      },
+      {
+        "id": "F-4",
+        "severity": "info",
+        "title": "スコープ内の「幹事あたりの合計請求額上限」が悪用対策として実装されていない",
+        "detail": "タスクスコープには「悪用対策: 幹事あたり上限（サーバー強制）」が含まれていますが、`docs/task-list.json` の作者の自己申告によると、この機能は実装されていません。`tests/integration/abuse-limits.test.ts` は通報のレート制限をテストしているのみで、請求総額の上限については未検証のままです。これはスコープの未達項目ですが、作者によって認識・文書化されています。",
+        "file": "docs/task-list.json",
+        "duplicate_of": "`docs/task-list.json` の `concerns` for `task_021`",
+        "effective_severity": "info"
+      }
+    ],
+    "raw_warnings": [],
+    "packet_bytes": 493428,
+    "validated_at": "2026-09-24T18:32:19Z",
+    "classification": "vote",
+    "source_file": "/var/folders/h6/2q0crwpx3zx94d5zxclh_f5c0000gn/T//cashapp-review/task_021/gemini.json",
+    "merged_at": "2026-09-24T18:32:19Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gemini-2.5-pro を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [
+        {
+          "finding_id": "F-2",
+          "from": "medium",
+          "to": "unknown",
+          "reason": "citation_missing"
+        }
+      ],
+      "counts": {
+        "high": 1,
+        "medium": 0,
+        "low": 0,
+        "info": 2,
+        "unknown": 1,
+        "total": 4,
+        "downgraded": 1
+      }
+    }
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_021",
+    "reviewer": "adversarial-reviewer-gpt",
+    "vendor": "gpt",
+    "reviewer_route": "cli-fallback",
+    "model_id_requested": "gpt-6-astra",
+    "model_id_actual": "gpt-6-astra",
+    "model_id_source": "self_report",
+    "cli_version": "codex-cli 0.154.0",
+    "backend": "codex",
+    "ran_at": "2026-09-24T18:32:13Z",
+    "commit": "1852fc8dc467f432a55e96261f8ea123ba85bd5a",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "high",
+        "title": "proposalIdに先頭ゼロを付けると承認済み申請を再実行できる",
+        "detail": "申請の検索はproposalIdをbigintに変換しますが、承認済み判定はdetail内の文字列と比較します。そのため「123」と「0123」は同じ申請を指しながら別の承認として扱われます。承認済みのフラグ変更を、新たな申請なしで再適用できます。",
+        "file": "src/lib/admin-auth.ts",
+        "line": 336,
+        "repro": "静的追跡による再現手順（未実行）。同梱テストと同じTransactionSql接続で、aliceがproposeAdminActionによりPROVIDER_TEST_MODE=onを申請し、18桁以下のproposalId=Pを得る。bobがapproveAdminAction({kind:'admin.flag',admin:{adminId:'gh:bob',login:'bob'},proposalId:P,requestId:'r1'})を実行する。続いて同じbobがproposalId:'0'+P、requestId:'r2'で承認する。後者の申請検索は同じ行に一致し、承認済み検索は一致しないため、再び承認される。HTTP経路の冪等キーも別にすれば、この文字列表現の差を防がない。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-2",
+        "severity": "high",
+        "title": "loginの大小文字の違いで同一管理者が二人承認を成立させられる",
+        "detail": "verifyAdminは許可リストとの比較だけを小文字化し、adminIdには応答のloginをそのまま使います。一方、承認者の同一性はadminIdの厳密比較です。同じ許可対象の大小文字違いを別人と判定し、24時間のクーリングを省略します。",
+        "file": "src/lib/admin-auth.ts",
+        "line": 210,
+        "repro": "静的追跡による再現手順（未実行）。ADMIN_ALLOWLIST='alice'とし、同梱テストのfetchImpl差し替えでGitHub応答を順に{id:7,login:'Alice'}、{id:7,login:'alice'}とする。最初のverifyAdminの戻り値gh:AliceでproposeAdminActionを呼ぶ。その直後、二番目の戻り値gh:aliceで同じproposalIdをapproveAdminActionに渡す。両方とも許可リストを通り、同一アカウントIDの応答列でもtwoPerson=trueとなって即時承認される。",
+        "suggested_fix": "",
+        "effective_severity": "high"
+      },
+      {
+        "id": "F-3",
+        "severity": "medium",
+        "title": "同時承認では承認済み検査が直列化されない",
+        "detail": "承認済み行を検索した後でappendAuditLogの監査用ロックを取得します。先行承認の完了を待った処理は承認済み検査をやり直さないため、同じ申請への並行承認が両方成立する経路があります。異なる冪等キーの要求はrunIdempotentでも直列化されません。",
+        "file": "src/lib/admin-auth.ts",
+        "line": 334,
+        "repro": "静的追跡による再現手順（未実行）。aliceの申請Pをコミットする。独立した二つのトランザクションT1、T2で、bobによるPの承認を別のrequestId・冪等キーで開始する。両方の承認済みSELECTが空を返したところで、T1だけを進めてコミットする。その後T2を進めると、監査ロック取得後に再検査せず承認行を追加するため、申請1行に対して承認2行が作られる。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-4",
+        "severity": "medium",
+        "title": "CSVの参加者名から数式を注入できる",
+        "detail": "csvFieldはCSVの区切り文字だけを処理し、数式として解釈される先頭文字をそのまま出力します。同梱のparseRequestAddBodyも「=1+1」を有効な表示名として受け付けるため、利用者入力が表計算ソフトで数式として評価されます。",
+        "file": "src/app/api/events/[id]/export.csv/route.ts",
+        "line": 45,
+        "repro": "静的追跡による再現手順（未実行）。buildCsv('manual_confirm',[{display_label:'=1+1',amount_minor:1000,settlement_status:'paid',auto_detected:false,confirmation_method:'manual_by_organizer'}])を呼ぶ。データ行は「=1+1,1000,paid,false,manual_by_organizer,0,1000」になる。これをExcelで開くと参加者名のセルが数式として評価され、名前の文字列ではなく2が表示される。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-5",
+        "severity": "medium",
+        "title": "「責任を一切負いません」を全部免責検査が見逃す",
+        "detail": "禁止パターンは「一切の責任を負いません」と「責任を一切負わない」を検出しますが、「責任を一切負いません」を検出しません。必須条項が残っていれば、この明示的な免責文言を追記しても検査が合格します。",
+        "file": "scripts/gate-terms.mjs",
+        "line": 56,
+        "repro": "静的追跡による再現手順（未実行）。同梱src/content/terms.mdの末尾に「運営者は責任を一切負いません。」を追加した文字列をcheckTermsへ渡す。必須マーカーはすべて存在し、追加文はどの禁止パターンにも一致しないため、missingとblanketHitsがともに空配列になる。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-6",
+        "severity": "medium",
+        "title": "所在地が営業地域の表記に留まり、住所が掲載されていない",
+        "detail": "プライバシーポリシーの所在地は「東京・横浜エリア」のみです。同梱の法務画面も同じ値を表示するため、事業者の住所を特定できません。docs/privacy-policy.mdの対応表は住所掲示の担保箇所としてこの画面を挙げていますが、gate-privacy-policyは「所在地:」という見出しだけで合格します。",
+        "file": "src/content/privacy.md",
+        "line": 13,
+        "repro": "同梱プライバシーポリシー第1節とsettings/legal/page.tsxのOPERATOR_ADDRESSを確認すると、どちらも「東京・横浜エリア」であり、具体的な住所は記載されていない。この本文はcheckPrivacyPolicyの全必須マーカーを満たす。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      }
+    ],
+    "diagnostics": {
+      "exit_code": 0,
+      "event_types": [
+        "thread.started",
+        "turn.started",
+        "item.completed",
+        "item.completed",
+        "turn.completed"
+      ],
+      "cli_errors": [
+        "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+      ],
+      "last_message_bytes": 3127,
+      "stderr_tail": "source_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n2026-09-24T18:26:20.073409Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T18:26:20.233818Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T18:26:20.597152Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer error=\\\"invalid_request\\\", error_description=\\\"No access token was provided in this request\\\", resource_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n"
+    },
+    "packet_bytes": 493428,
+    "validated_at": "2026-09-24T18:32:19Z",
+    "classification": "vote",
+    "source_file": "/var/folders/h6/2q0crwpx3zx94d5zxclh_f5c0000gn/T//cashapp-review/task_021/gpt.json",
+    "merged_at": "2026-09-24T18:32:19Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gpt-6-astra を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 2,
+        "medium": 4,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 6,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "type": "summary",
+    "task_id": "task_021",
+    "round": 1,
+    "merged_at": "2026-09-24T18:32:19Z",
+    "decision": "reject",
+    "envelopes": 2,
+    "votes": 2,
+    "vendors": [
+      "gemini",
+      "gpt"
+    ],
+    "author_vendor": "claude",
+    "missing_votes": 0,
+    "invalid_envelopes": 0,
+    "invalid_reviews": 0,
+    "self_reviews": 0,
+    "task_mismatches": 0,
+    "effective_high": 3,
+    "exit_code": 1
+  }
+]
