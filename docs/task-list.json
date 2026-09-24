@@ -2164,8 +2164,10 @@
       "adversarial_review": "required",
       "evidence_label": "[設計]",
       "optional": false,
-      "completion_status": null,
-      "concerns": []
+      "completion_status": "BLOCKED",
+      "concerns": [
+        "[severity: high] 依存タスク task_018（台帳適用・Webhook ルート・fixture_provider 契約テストヘルパー）が完全に未着手（files_to_create 22 本が全て未作成、コミット 0 件）のため、ProviderConformanceKit の C1〜C31 のうち大半（C1〜C4/C4b/C6〜C8/C11/C14〜C19/C21〜C26/C28〜C31）が Webhook ルートと applyToLedger を経由した DB 実状態の検証を要求し実装不能。 / 対応案: task_018 を先に完了させてから task_019 を再着手する。詳細は docs/concerns/task_019.md。"
+      ]
     },
     {
       "task_id": "task_020",

@@ -479,3 +479,18 @@
   全て exit 0（`test:unit` 1099/1099・`test:integration` 193/193）、(3) done_definition 5 項目めの
   「決済 SDK 無し」を `npm ls --all` の走査で確認（一致は `is-promise` の偽陽性 1 行のみ）を行い、
   未コミットで残っていた `docs/run-log/task_017.json` の実行ログをコミットした。追加の実装変更は無い。
+- task_019: BLOCKED — 依存タスク task_018（台帳適用・冪等基盤・Webhook ルート・
+  `fixture_provider` 契約テストヘルパー）が完全に未着手（`git log --all --grep=task_018` 0 件、
+  `files_to_create` 22 本が `find` で 0 件、全 `git worktree` にもコミット無し）であることを実測
+  確認した。`npm run gate:constraints` 自身が `defer P2 (0 targets; waiting on task_018)` /
+  `defer W4 (0 targets; waiting on task_018)` と出力し独立に裏付ける。`docs/research/design-
+  synthesis.md` §9-2 は「キットは保存済み fixture を HTTP で自前 Route Handler に投げる形で
+  実装」と明記しており、C1〜C31 のうち C1〜C4/C4b/C6〜C8/C11/C14〜C19/C21〜C26/C28〜C31 は
+  Webhook ルート（`src/app/api/webhooks/[providerKey]/[bindingRef]/route.ts`）と
+  `applyToLedger`（`src/lib/ledger/apply.ts`）を経由した DB 実状態の検証を要求するため、
+  task_018 のファイル群なしには `done_definition`「fixture_provider は C1〜C31 pass」を満たせ
+  ない。これらは全て task_018 の `files_to_create` であり、task_019 の担当範囲外のため実装
+  しなかった（他タスクのファイルを作らない・変更しない規約）。`npm run gate:constraints` は
+  `scripts/record-run.sh task_019` 経由で exit 0（`docs/run-log/task_019.json`）。残懸念は
+  `docs/concerns/task_019.md`（severity: high 1 件。対応案: task_018 完了後に task_019 再着手）。
+  実装コミットは 0 件（BLOCKED のため）。

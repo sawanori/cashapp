@@ -1,0 +1,18 @@
+[
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 81 file(s) read)\nok    L2 (forbid, 81 file(s) read)\nok    L3 (forbid, 81 file(s) read)\nok    L8 (forbid, 81 file(s) read)\nok    L12 (forbid, 81 file(s) read)\nok    P1 (forbid, 80 file(s) read)\ndefer P2 (0 targets; waiting on task_018)\nok    P9 (forbid, 12 file(s) read)\nok    W3 (forbid, 88 file(s) read)\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 79 file(s) read)\nok    N5 (forbid, 81 file(s) read)\nok    N7 (forbid, 81 file(s) read)\nok    N9 (forbid, 81 file(s) read)\nok    N11 (forbid, 81 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 24 file(s) read)\nok    I4 (forbid, 2 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 43 file(s) read)\nok    X-MONEY (forbid, 6 file(s) read)\nok    GC-XSS (forbid, 81 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 86 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\nok    GC-RANK-NEGATION (forbid, 88 file(s) read)\nok    GC-LIB-CLIENT-DIRECTIVE (forbid, 31 file(s) read)\n\ngate:constraints — scanned 25 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "692f24df09832dcc03512a29ed2da3cbbc161e6c",
+    "ran_at": "2026-09-24T16:52:04Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "task_018(台帳適用・冪等基盤・Webhookルート・fixture_provider契約テストヘルパー)が未着手であることを実測確認した。git log --all --grep=task_018 は0件、src/lib/ledger/*.ts・src/lib/outbox.ts・src/app/api/webhooks/[providerKey]/[bindingRef]/route.ts・scripts/audit-verify.mjs・tests/contract/**の全ファイルが存在しない（find で0件）。全worktree(git worktree list)を確認してもtask_018のコミットは無い。gate-constraints.shの出力自身が「defer P2 (0 targets; waiting on task_018)」「defer W4 (0 targets; waiting on task_018)」と明記している。task_019のScope（design-synthesis.md §9-2）は『キットは保存済みfixtureをHTTPで自前Route Handlerに投げる形で実装』と明記しており、C1〜C31のうちC1/C2/C3/C4/C4b/C6〜C8/C11/C14〜C19/C21〜C26/C28〜C31はWebhookルート(src/app/api/webhooks/[providerKey]/[bindingRef]/route.ts)とapplyToLedger(src/lib/ledger/apply.ts)を経由したDB実状態の検証を要求するため、task_018のファイル群なしにfixture_providerでC1〜C31を通すことは不可能。これらは全てtask_018のfiles_to_createであり、task_019のfiles_to_create/files_to_modifyの範囲外（他タスクのファイルは作らない・変更しないという共通ルールに抵触するため実装しない）。",
+    "commit": "692f24df09832dcc03512a29ed2da3cbbc161e6c",
+    "ran_at": "2026-09-24T16:52:16Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  }
+]
