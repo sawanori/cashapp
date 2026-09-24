@@ -71,6 +71,14 @@ export function SummaryBar({
       <p className="summary-bar__row tabular">
         受取見込額（推定）: {netMinorEstimate === null ? "未定" : formatYen(netMinorEstimate)}
       </p>
+      {paidAutomaticCount === 0 && paidManualCount > 0 ? (
+        // 「非自動ラベルの 8 層」④⑤（task_017）。内訳の数字だけだと「自動 0」が読み飛ばされ、
+        // 支払済みの件数が自動検知の結果に見える。Phase 1 の出荷アダプタは manual_confirm
+        // だけなので、この行は通常のイベントでは常に出る。
+        <p className="summary-bar__manual-note">
+          支払済みはすべて幹事が手動で確認したものです（自動照合ではありません）。
+        </p>
+      ) : null}
     </section>
   );
 }

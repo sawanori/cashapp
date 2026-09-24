@@ -1934,7 +1934,7 @@
       "completion_status": "DONE_WITH_CONCERNS",
       "concerns": [
         "[severity: medium] PayPay 受取リンクの URL 形式が一次資料未取得のため RECEIVING_LINK_TEMPLATES は verified:false。既定では deepLink が常に null で P-5 のホスト名併記は出ない / docs/vendor-docs/paypay/receiving-link.md を埋めてから verified:true にする（C-017-1）",
-        "[severity: medium] files_to_modify の src/components/InvoiceRow.tsx は並行実行の task_015 が同じ変更（self_reported）を未コミットで入れていたため本タスクでは触らずコミットにも含めていない / task_015 のコミットに含まれることを確認する（C-017-2）",
+        "[severity: low] files_to_modify の src/components/InvoiceRow.tsx は並行実行の task_015 が同じ変更（self_reported）を入れており本タスクでは触っていない。task_015 のコミット 2a17eb5 に含まれることを実測確認済み / 追補は不要、以後の変更時に check_031 / check_034 / check_087 を両方確認する（C-017-2）",
         "[severity: medium] 手動確認でも payment_attempt を write-ahead するため、manual-attest が走らない限り生きた試行が expires_at（24 時間）まで残る / 照合ジョブで statusQuery=false の試行を期限で expired に落とす（C-017-4）",
         "[severity: medium] manual-attest は最小追記で、applyToLedger の不変条件（金額不一致・二重払い・取消後入金）を持たない / task_018 で applyToLedger に寄せる（C-017-8）",
         "[severity: low] registry の 9 パターンは unit がフェイク、実 DB 版は tests/integration/checkout.test.ts にある / check_090 の verification_method に test:integration を併記する（C-017-3）",

@@ -402,3 +402,28 @@
   経由で exit 0**（`typecheck` / `test:unit` 43 ファイル **1096/1096** / `test:integration`
   10 ファイル **175/175**（新規 64 件）/ `gate:constraints` / `gate:wording`）。残懸念 7 件は
   `docs/concerns/task_015.md`（C-015-1〜7。medium 5・low 2）。
+- task_017: DONE_WITH_CONCERNS — PaymentProvider IF v2（全メソッドの第一引数が `binding`、
+  `ProviderCapabilities` 15 項目、`PaymentEventKind` に紛争・返金中、`ProviderAccountError`）、
+  ブランド型 `Money`（`yen()` 以外で作れず、オブジェクトリテラルは型エラー。均等割りは最大剰余法で
+  合計一致を 500 ケースのプロパティテストで固定）、レジストリ（**manual_confirm は全ガードを
+  スキップ** → 環境 → `PAYMENTS_ENABLED` → ゲート（正本は `docs/gates/compliance-gates.json`、
+  状態は DB 射影。射影に行が無いゲートは未通過扱い）→ MODE → binding → 幹事 suspended →
+  `minors_included` → fixture provenance。**止めるのは `createCheckout` と binding 作成だけ**で、
+  Webhook 受信・`getPaymentStatus`・`refund` の入口は `resolveProviderWithoutGate()` に分けた）、
+  `ManualConfirmAdapter`（幹事から任意 URL を受け取らず、識別子だけからサーバー側テンプレートで
+  組み立て、許可ホストを二重に検査。PayPay の URL 形式は一次資料未取得なのでテンプレートは
+  `verified: false` のままで既定では `deepLink` は `null`）、`POST /api/invoices/:id/manual-attest`
+  （reason 必須・`confidence='organizer_attested'`・`dedupe_key='attest:<id>'`・ランク前進ガード・
+  生きた試行の取り下げ）、`POST /api/e/checkout`（**金額を取らない**・生きた attempt の再利用・
+  write-ahead・ゲート解決を全書き込みより前に置いて `NO_PAYMENT_METHOD` / `GATE_NOT_PASSED`）、
+  画面 5 枚（O-0 適格性つき分岐 / O-8 確定前ダイアログ / P-4・P-5 ホスト名併記と「この方法では
+  払えない」/ P-6 幹事の確認待ち / P-7 会費受領記録）、`SummaryBar` に 8 層④⑤の明示行を追加。
+  新規 19 ファイル（`src/lib/payments/{types,money,gates,registry}.ts`、
+  `providers/manual-confirm.ts`、`src/lib/db/repositories/{gates,bindings}.ts`、API 2 本、画面 5 枚、
+  テスト 5 本、`docs/vendor-docs/paypay/receiving-link.md`）＋
+  `src/lib/payments/capabilities-static.ts` / `src/components/SummaryBar.tsx` の修正。
+  レジストリの 9 パターンは**フェイク（unit）と実 DB（integration）の二段**で検査した。
+  **verify_commands 6 本すべて `scripts/record-run.sh task_017` 経由で exit 0**
+  （`typecheck` / `lint` / `test:unit` 43 ファイル **1096/1096** / `test:integration`
+  11 ファイル **187/187** / `gate:constraints` / `gate:wording`）。`npm ls` に決済 SDK 無しも実測。
+  残懸念 10 件は `docs/concerns/task_017.md`（C-017-1〜10。medium 4・low 6）。

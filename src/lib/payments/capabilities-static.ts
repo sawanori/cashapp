@@ -54,6 +54,24 @@ export function getStaticProviderCapabilities(
   return STATIC_PROVIDER_CAPABILITIES.find((entry) => entry.providerKey === providerKey);
 }
 
+/**
+ * 静的表から必ず 1 件取り出す（task_017 の `PaymentProvider.capabilities` 用）。
+ *
+ * `getStaticProviderCapabilities` は「表に無い＝未定」を `undefined` で表すが、
+ * **アダプタ自身の能力宣言**は未定であってはならない（`ProviderCapabilities.feeModel.note` は
+ * 必須で、空文字や「未定」をアダプタが自分で名乗ると O-3 の手数料提示が壊れる）。
+ * 実装済みのアダプタが静的表に載っていないのは配線ミスなので、起動時に落とす。
+ */
+export function requireStaticProviderCapabilities(
+  providerKey: string,
+): ProviderCapabilitiesStatic {
+  const entry = getStaticProviderCapabilities(providerKey);
+  if (entry === undefined) {
+    throw new Error(`no static capabilities entry for provider: ${providerKey}`);
+  }
+  return entry;
+}
+
 export interface FeeEstimateInput {
   readonly providerKey: string;
   /** イベントの既定金額（1 人あたり）。未入力なら `null`。 */
