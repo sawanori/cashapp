@@ -1564,6 +1564,44 @@ task_006 側は「自分のファイルは既にコミット済み」として�
 - `.claude/workflows/*.ts` を 2 本直したので G13 基準値を `--write-baseline` で再生成した
   （差分は当該 2 エントリと timestamp のみ）。**この先も同ディレクトリを直すたびに要る。** → C-008-4
 
+## task_013（レビュー修正・4 周目）
+
+GPT-6 Astra の敵対レビュー（high 1 / medium 2）。**再現 2 件・非再現 1 件**。
+
+### 決まったこと
+
+- **[high F-1] ストレージが使えない環境でも打ち切る（fail-closed）**。`storage` が `null`／
+  読み書きが例外の場合、`readAttempts` が毎回 0 を返し `writeAttempts` が何も残さないため、
+  未ログインで戻り続けると 3 回目以降も `login()` が呼ばれていた（HEAD で再現。
+  `expected 1 to be 2` ほか 3 件赤）。`src/lib/liff/client.ts` にモジュール内の退避カウンタ
+  `memoryAttempts` を置き、「`null`／`getItem` が throw／値が壊れている／読めたが未記録」の
+  いずれでも 0 ではなく退避先を返す形にした。`setItem` が成功した回だけ退避先を使わない。
+  **既存の「`storage: null` でも起動を止めない」テストは弱めていない**（初回は従来どおり
+  `redirecting_to_login`）。→ 残懸念は C-013-13
+- **[medium F-2] HEAD では再現しない**。封筒は 2 周目の `4d22062` の木に対して組まれており、
+  3 周目の `455e594` で `liff.init()` も `withTimeout()` に包み済み。4 周目は封筒の repro を
+  **既定のタイムアウト**でなぞるテストを足して pass を実測し、素の `await` に戻すと
+  `Test timed out in 5000ms` で落ちる（空振りでない）ことも確認した。→ C-013-14
+- **[medium F-3] 本文は上限までしか読まない／レート制限は本文より前**。
+  `Content-Length` の無い chunked 本文では `request.text()` が読み終えるまで上限を検査しないため、
+  256 バイト上限が受信量を一切制限していなかった（HEAD で再現。4096 バイトを全部読んでいた）。
+  `readBoundedBody()` を追加してチャンクごとに読み、超えた時点で `reader.cancel()` して 400。
+  レート制限の判定を本文読み込みより前へ移した（バックエンドが無いときは
+  `request.bodyUsed === false` のまま 503）。→ C-013-15
+
+### 未解決
+
+- **[severity: medium] F-1 の修正が効くのはページ 1 回分**。`login()` はページ遷移を起こすので、
+  `sessionStorage` がまったく使えない端末では復帰時に退避カウンタも 0 に戻る。
+  再読み込みをまたいで数えるには回数を URL（`redirectUri` のクエリ）へ持ち出す必要があり、
+  それは `(liff)` 画面側（task_014）の設計判断。→ C-013-13
+- **[severity: medium] `npm run test:unit` は exit 1**。落ちたのは既知の
+  `tests/unit/gate-constraints.test.ts`（5 秒タイムアウト・C-013-12）と、**並行して編集中の
+  他タスクの未コミットファイル**起因のもの（`tests/unit/auth/csrf.test.ts` が未追跡の
+  `src/lib/auth/request-guard.ts` を咎める、`.claude/workflows/*.ts` 編集中の
+  `workflow-scripts.test.ts` など）。実行ごとに赤の顔ぶれが変わる（5 → 22 → 2 ファイル）。
+  task_013 所有テストの赤は 0 件（`tests/unit/liff` / `telemetry.test.ts` / `components` で 98/98 緑）。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -1670,3 +1708,17 @@ task_006 側は「自分のファイルは既にコミット済み」として�
 - 2026-09-24T12:45:14Z HEAD=522d543 決まったこと: evidence: acceptance-checks.json の evidence を検証コマンドの実行結果から書く唯一の経路 scripts/record-evidence.mjs / 未解決: 未コミット 22 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/run-log/task_008.json tests/unit/workflows/workflow-scripts.test.ts docs/run-log/task_014.json src/app/(liff)/events/ src/app/api/events/ 
 - 2026-09-24T12:48:59Z HEAD=d69c84d 決まったこと: review 経路: GPT-6 Astra が通るようになった実測を反映（task_004 に GPT の票を追記・ドライバの GPT タイムアウト延長） / 未解決: 未コミット 26 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_008.md docs/gates/integrity-baseline.json docs/run-log/task_008.json docs/task-list.json 
 - 2026-09-24T12:49:12Z HEAD=d69c84d 決まったこと: review 経路: GPT-6 Astra が通るようになった実測を反映（task_004 に GPT の票を追記・ドライバの GPT タイムアウト延長） / 未解決: 未コミット 26 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_008.md docs/gates/integrity-baseline.json docs/run-log/task_008.json docs/task-list.json 
+- 2026-09-24T12:51:11Z HEAD=f8f0c8c 決まったこと: task_008(6周目): 最終 HEAD d9fb432 での verify_commands 再実行ログ / 未解決: 未コミット 17 件: docs/run-log/task_014.json src/app/(liff)/events/ src/app/api/events/ src/components/FeeEstimate.tsx src/components/InvoiceRow.tsx src/components/SummaryBar.tsx src/lib/audit.ts src/lib/db/repositories/ 
+- 2026-09-24T12:54:00Z HEAD=6533340 決まったこと: G5: task_011 / 012 / 013 に GPT-6 Astra の票を追記（codex 経路開通後の実レビュー） / 未解決: 未コミット 20 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_014.json src/app/(liff)/events/ src/app/api/events/ src/components/FeeEstimate.tsx src/components/InvoiceRow.tsx src/components/SummaryBar.tsx 
+- 2026-09-24T12:54:10Z HEAD=6533340 決まったこと: G5: task_011 / 012 / 013 に GPT-6 Astra の票を追記（codex 経路開通後の実レビュー） / 未解決: 未コミット 20 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_014.json src/app/(liff)/events/ src/app/api/events/ src/components/FeeEstimate.tsx src/components/InvoiceRow.tsx src/components/SummaryBar.tsx 
+- 2026-09-24T13:00:57Z HEAD=3bdf5d4 決まったこと: harness-round2: H2-13（review-log 追記前の秘密値マスク。push protection で拒否された実測） / 未解決: 未コミット 28 件: docs/HANDOFF.md docs/constraints.json docs/run-log/task_004.json docs/run-log/task_008.json scripts/gate-constraints.sh scripts/wording-lint.mjs src/lib/liff/client.ts tests/unit/liff/client.test.ts 
+- 2026-09-24T13:02:32Z HEAD=3bdf5d4 決まったこと: harness-round2: H2-13（review-log 追記前の秘密値マスク。push protection で拒否された実測） / 未解決: 未コミット 30 件: docs/HANDOFF.md docs/constraints.json docs/run-log/task_004.json docs/run-log/task_008.json scripts/gate-constraints.sh scripts/wording-lint.mjs src/lib/liff/client.ts tests/unit/config/env.test.ts 
+- 2026-09-24T13:02:38Z HEAD=3bdf5d4 決まったこと: harness-round2: H2-13（review-log 追記前の秘密値マスク。push protection で拒否された実測） / 未解決: 未コミット 30 件: docs/HANDOFF.md docs/constraints.json docs/run-log/task_004.json docs/run-log/task_008.json scripts/gate-constraints.sh scripts/wording-lint.mjs src/lib/liff/client.ts tests/unit/config/env.test.ts 
+- 2026-09-24T13:03:26Z HEAD=3bdf5d4 決まったこと: harness-round2: H2-13（review-log 追記前の秘密値マスク。push protection で拒否された実測） / 未解決: 未コミット 31 件: docs/HANDOFF.md docs/constraints.json docs/run-log/task_004.json docs/run-log/task_008.json scripts/gate-constraints.sh scripts/wording-lint.mjs src/lib/liff/client.ts tests/unit/config/env.test.ts 
+- 2026-09-24T13:05:48Z HEAD=3bdf5d4 決まったこと: harness-round2: H2-13（review-log 追記前の秘密値マスク。push protection で拒否された実測） / 未解決: 未コミット 38 件: docs/HANDOFF.md docs/constraints.json docs/run-log/task_004.json docs/run-log/task_008.json scripts/gate-constraints.sh scripts/wording-lint.mjs src/app/api/auth/line/route.ts src/app/api/telemetry/client-error/route.ts 
+- 2026-09-24T13:12:20Z HEAD=3bdf5d4 決まったこと: harness-round2: H2-13（review-log 追記前の秘密値マスク。push protection で拒否された実測） / 未解決: 未コミット 49 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_013.md docs/constraints.json docs/run-log/task_004.json docs/run-log/task_008.json 
+- 2026-09-24T13:14:20Z HEAD=3bdf5d4 決まったこと: harness-round2: H2-13（review-log 追記前の秘密値マスク。push protection で拒否された実測） / 未解決: 未コミット 50 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/concerns/task_013.md docs/constraints.json docs/gates/integrity-baseline.json 
+- 2026-09-24T13:14:56Z HEAD=26eb304 決まったこと: task_004(2周目): 敵対レビュー high 2 / medium 5 を再現してから塞ぐ（quotePath・読めた0件・パターン5件） / 未解決: 未コミット 41 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/concerns/task_013.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_013.json docs/task-list.json 
+- 2026-09-24T13:15:20Z HEAD=26eb304 決まったこと: task_004(2周目): 敵対レビュー high 2 / medium 5 を再現してから塞ぐ（quotePath・読めた0件・パターン5件） / 未解決: 未コミット 42 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/concerns/task_012.md docs/concerns/task_013.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_013.json 
+- 2026-09-24T13:16:21Z HEAD=26eb304 決まったこと: task_004(2周目): 敵対レビュー high 2 / medium 5 を再現してから塞ぐ（quotePath・読めた0件・パターン5件） / 未解決: 未コミット 43 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_012.md docs/concerns/task_013.md docs/run-log/task_008.json docs/run-log/task_012.json 
+- 2026-09-24T13:16:37Z HEAD=26eb304 決まったこと: task_004(2周目): 敵対レビュー high 2 / medium 5 を再現してから塞ぐ（quotePath・読めた0件・パターン5件） / 未解決: 未コミット 43 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_012.md docs/concerns/task_013.md docs/run-log/task_008.json docs/run-log/task_012.json 

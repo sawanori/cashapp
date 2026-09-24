@@ -24,6 +24,13 @@
  *   セッション（タブ）を閉じれば消えてよい性質の値であり、支払状態・認証状態ではない。
  *   制約 N7 の注記が `sessionStorage` をこの用途に限って許している。
  *
+ *   **`sessionStorage` が使えない環境でも打ち切りは効かせる。** SSR 中・Safari の
+ *   プライベートモード等では `sessionStorage` へのアクセス自体が throw する。そこで
+ *   「読めない・書けない」を 0 とみなすと、未ログインで戻るたびに `login()` が呼ばれて
+ *   R-LINE-02 の往復がそのまま起きる。読み書きが成立しない回はモジュール内の
+ *   `memoryAttempts` へ退避して数え、上限に達したら同じように `auth_unavailable` に落とす
+ *   （fail-closed）。退避先の有効範囲はページ 1 回分なので `sessionStorage` の代用ではない。
+ *
  * ★ SDK は npm 依存として固定したものを **動的 import** で読む（R-LINE-03、制約 I4）。
  *   CDN の直リンクは使わない。モック（`@line/liff-mock`）へ到達する経路は
  *   `process.env.NEXT_PUBLIC_LIFF_MOCK === "1"` のガードの内側だけにある。
@@ -177,28 +184,52 @@ function defaultStorage(): AttemptStorage | null {
   }
 }
 
+/**
+ * `storage` が使えないときの**退避先カウンタ**。
+ *
+ * ★ これが無いと打ち切りがまるごと効かない。`storage` が `null`（SSR・
+ *   `sessionStorage` へのアクセス自体が throw する Safari のプライベートモード等）や、
+ *   読み書きが例外になる環境では、素直に書くと `readAttempts` が毎回 0 を返し
+ *   `writeAttempts` が何も残さないため、未ログインで戻ってくるたびに `login()` が呼ばれ、
+ *   R-LINE-02 が防ぎたい往復がそのまま起きる。**数えられないなら打ち切らない**ではなく、
+ *   **数えられる場所へ退避して打ち切る**（fail-closed）。
+ *
+ * ★ 有効範囲はこのモジュールが生きている間 ＝ **このページ（タブの 1 回の読み込み）**である。
+ *   `login()` → LINE の認可画面 → 復帰でページが作り直されればここも 0 に戻るので、
+ *   これは `sessionStorage` の代わりではなく、`sessionStorage` が無いときの**最後の砦**である。
+ *   再読み込みをまたいで数え続けたい場合は URL などページの外へ持ち出す必要があり、
+ *   それは本モジュールの担当ではない（`docs/concerns/task_013.md` C-013-13）。
+ */
+let memoryAttempts = 0;
+
 function readAttempts(storage: AttemptStorage | null): number {
-  if (storage === null) return 0;
+  if (storage === null) return memoryAttempts;
   try {
     const raw = storage.getItem(LOGIN_ATTEMPT_STORAGE_KEY);
-    if (raw === null) return 0;
+    // 読めたが未記録のときも退避先を見る。「前回の書き込みが落ちた」場合がここに来る。
+    if (raw === null) return memoryAttempts;
     const value = Number.parseInt(raw, 10);
-    return Number.isInteger(value) && value >= 0 ? value : 0;
+    return Number.isInteger(value) && value >= 0 ? value : memoryAttempts;
   } catch {
-    return 0;
+    return memoryAttempts;
   }
 }
 
 function writeAttempts(storage: AttemptStorage | null, value: number): void {
-  if (storage === null) return;
-  try {
-    storage.setItem(LOGIN_ATTEMPT_STORAGE_KEY, String(value));
-  } catch {
-    // 書けないなら打ち切りが効かないが、そのために起動を止めはしない。
+  if (storage !== null) {
+    try {
+      storage.setItem(LOGIN_ATTEMPT_STORAGE_KEY, String(value));
+      // 書けたなら退避先は要らない（健全な経路では `memoryAttempts` は 0 のまま）。
+      return;
+    } catch {
+      // 書けなかった。下の退避先で数える。
+    }
   }
+  memoryAttempts = value;
 }
 
 function clearAttempts(storage: AttemptStorage | null): void {
+  memoryAttempts = 0;
   if (storage === null) return;
   try {
     storage.removeItem(LOGIN_ATTEMPT_STORAGE_KEY);

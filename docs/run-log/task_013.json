@@ -707,5 +707,68 @@
     "commit": "8abccdd8cf7e851ec67bea559b0a98f80cad568f",
     "ran_at": "2026-09-24T11:11:19Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "3bdf5d4a5bf7f486adb9423d4aada8458748eb0e",
+    "ran_at": "2026-09-24T13:07:59Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run lint",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 lint\n> eslint .",
+    "commit": "3bdf5d4a5bf7f486adb9423d4aada8458748eb0e",
+    "ran_at": "2026-09-24T13:08:04Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 1,
+    "stdout_tail": "AssertionError: expected 'UNKNOWN' to be 'no-go' // Object.is equality\n\nExpected: \"no-go\"\nReceived: \"UNKNOWN\"\n\n ❯ tests/unit/workflows/workflow-scripts.test.ts:969:27\n    967|   it(\"legal-clearance の cleared が false なら無条件 no-go\", async () => {\n    968|     const { result } = await run(\n    969|       SCRIPTS.releaseAudit,\n       |                           ^\n    970|       { version: \"v0.1.0\" },\n    971|       auditResponder({ ...EVIDENCE_CLEAN, legal_clearance_cleared: fal…\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[21/22]⎯\n\n FAIL  tests/unit/workflows/workflow-scripts.test.ts > release-audit.ts > gate:check が非 0 なら go を出さない\nAssertionError: expected 'UNKNOWN' to be 'no-go' // Object.is equality\n\nExpected: \"no-go\"\nReceived: \"UNKNOWN\"\n\n ❯ tests/unit/workflows/workflow-scripts.test.ts:986:27\n    984|       SCRIPTS.releaseAudit,\n    985|       { version: \"v0.1.0\" },\n    986|       auditResponder({ ...EVIDENCE_CLEAN, release_mode_exists: false }…\n       |                           ^\n    987|         \"release-auditor\": { vendor: \"claude\", reviewer_route: \"ok\", v…\n    988|         gemini: { vendor: \"gemini\", reviewer_route: \"ok\", verdict: \"go…\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[22/22]⎯\n\n\n Test Files  3 failed | 34 passed (37)\n      Tests  22 failed | 928 passed (950)\n   Start at  13:08:09\n   Duration  63.48s (tests 80%, environment 10%, setup 6%, import 2%, transform 1%)\n\n    Isolate  37 workers spawned · ~1.13s startup each (spawn + environment, per file)\n             at least ~3.53s faster with isolate: false — reuses workers across files instead of one per file",
+    "commit": "3bdf5d4a5bf7f486adb9423d4aada8458748eb0e",
+    "ran_at": "2026-09-24T13:08:08Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx vitest run tests/unit/liff tests/unit/telemetry.test.ts tests/unit/components",
+    "exit_code": 0,
+    "stdout_tail": "(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  8 passed (8)\n      Tests  98 passed (98)\n   Start at  22:10:34\n   Duration  1.37s (environment 63%, tests 15%, setup 12%, transform 6%, import 3%)",
+    "commit": "3bdf5d4a5bf7f486adb9423d4aada8458748eb0e",
+    "ran_at": "2026-09-24T13:10:34Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 46 file(s) read)\nok    L2 (forbid, 46 file(s) read)\nok    L3 (forbid, 46 file(s) read)\nok    L8 (forbid, 46 file(s) read)\nok    L12 (forbid, 46 file(s) read)\nok    P1 (forbid, 46 file(s) read)\ndefer P2 (0 targets; waiting on task_018)\nok    P9 (forbid, 7 file(s) read)\nok    W3 (forbid, 53 file(s) read)\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 44 file(s) read)\nok    N5 (forbid, 46 file(s) read)\nok    N7 (forbid, 46 file(s) read)\nok    N9 (forbid, 46 file(s) read)\nok    N11 (forbid, 46 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 15 file(s) read)\nok    I4 (forbid, 2 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 18 file(s) read)\nok    X-MONEY (forbid, 1 file(s) read)\nok    GC-XSS (forbid, 46 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 51 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\n\ngate:constraints — scanned 23 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "3bdf5d4a5bf7f486adb9423d4aada8458748eb0e",
+    "ran_at": "2026-09-24T13:10:38Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run build:web-only",
+    "exit_code": 0,
+    "stdout_tail": "\n  Learn more: https://nextjs.org/docs/messages/middleware-to-proxy\n  Creating an optimized production build ...\n✓ Compiled successfully in 830ms\n  Running TypeScript ...\n  Finished TypeScript in 2.9s ...\n  Collecting page data using 9 workers ...\n  Generating static pages using 9 workers (0/9) ...\n  Generating static pages using 9 workers (2/9) \r\n  Generating static pages using 9 workers (4/9) \r\n  Generating static pages using 9 workers (6/9) \r\n✓ Generating static pages using 9 workers (9/9) in 160ms\n  Finalizing page optimization ...\n\nRoute (app)\n┌ ○ /\n├ ○ /_not-found\n├ ƒ /api/auth/line\n├ ƒ /api/consent\n├ ƒ /api/events\n├ ƒ /api/events/[id]\n├ ƒ /api/events/[id]/participants\n├ ƒ /api/events/[id]/participants/[pid]\n├ ƒ /api/health\n├ ƒ /api/me\n├ ƒ /api/telemetry/client-error\n├ ƒ /events\n├ ƒ /events/[id]\n├ ƒ /events/[id]/invoices/confirm\n├ ƒ /events/[id]/participants\n└ ƒ /events/new\n\n\nƒ Proxy (Middleware)\n\n○  (Static)   prerendered as static content\nƒ  (Dynamic)  server-rendered on demand\n\nbuild:web-only: .next/static を検査しました（禁止マーカー 4 件）\nbuild:web-only: OK（(web) は LINE SDK に依存せず、バンドルにモックも dev LIFF ID も無い）",
+    "commit": "3bdf5d4a5bf7f486adb9423d4aada8458748eb0e",
+    "ran_at": "2026-09-24T13:10:45Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run build",
+    "exit_code": 0,
+    "stdout_tail": "  To migrate automatically, run:\n  npx @next/codemod@canary middleware-to-proxy .\n\n  Learn more: https://nextjs.org/docs/messages/middleware-to-proxy\n  Creating an optimized production build ...\n✓ Compiled successfully in 136ms\n  Running TypeScript ...\n  Finished TypeScript in 1254ms ...\n  Collecting page data using 9 workers ...\n  Generating static pages using 9 workers (0/9) ...\n  Generating static pages using 9 workers (2/9) \r\n  Generating static pages using 9 workers (4/9) \r\n  Generating static pages using 9 workers (6/9) \r\n✓ Generating static pages using 9 workers (9/9) in 80ms\n  Finalizing page optimization ...\n\nRoute (app)\n┌ ○ /\n├ ○ /_not-found\n├ ƒ /api/auth/line\n├ ƒ /api/consent\n├ ƒ /api/events\n├ ƒ /api/events/[id]\n├ ƒ /api/events/[id]/participants\n├ ƒ /api/events/[id]/participants/[pid]\n├ ƒ /api/health\n├ ƒ /api/me\n├ ƒ /api/telemetry/client-error\n├ ƒ /events\n├ ƒ /events/[id]\n├ ƒ /events/[id]/invoices/confirm\n├ ƒ /events/[id]/participants\n└ ƒ /events/new\n\n\nƒ Proxy (Middleware)\n\n○  (Static)   prerendered as static content\nƒ  (Dynamic)  server-rendered on demand",
+    "commit": "3bdf5d4a5bf7f486adb9423d4aada8458748eb0e",
+    "ran_at": "2026-09-24T13:10:55Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]

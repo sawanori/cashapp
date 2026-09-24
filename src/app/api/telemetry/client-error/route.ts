@@ -7,9 +7,13 @@
  *
  * ★ 代わりに次の 4 つで守る。
  *   1. **IP 単位のレート制限**（`src/lib/auth/rate-limit.ts`。バックエンドが無ければ fail-closed）。
+ *      **本文を読む前に判定する**。後ろに置くと、制限に掛かる相手の本文を先に受け取ってしまう。
  *   2. **コードの allowlist**（`src/lib/telemetry.ts` の `CLIENT_ERROR_CODES`）。
  *      未知のコードは 400 で捨てる。自由入力欄を一切作らない。
  *   3. **ボディ長の上限**。`{"code":"..."}` 以上の大きさを読まない。
+ *      `Content-Length` があれば 1 バイトも読まずに拒否し、**無ければストリームを
+ *      上限までしか読まない**（`readBoundedBody`）。`await request.text()` だけだと
+ *      chunked 送信に対して「全部読んでから長さを測る」ことになり、上限が受信量を制限しない。
  *   4. **キーの本数**。`code` 以外のキーがあれば 400。「ついでに情報を載せる」経路を塞ぐ。
  *
  * ★ 記録するのは `{ code, liffIdFingerprint, uaClass, requestId }` の 4 つだけ。
@@ -43,6 +47,64 @@ type RouteEnv = RawEnv & RateLimitEnv;
  * 実体は `{"code":"login_loop_aborted"}` 程度（30 バイト前後）なので、桁で余裕を見ても 256 で足りる。
  */
 export const MAX_TELEMETRY_BODY_BYTES = 256;
+
+/**
+ * 本文を **最大 `maxBytes` バイトまでしか読まない**。超えた時点で読むのをやめて 400 にする。
+ *
+ * ★ `await request.text()` ではこの上限は成り立たない。`text()` は**本文を読み終えてから**
+ *   文字列を返すので、`Content-Length` を付けずにチャンクで送られると、長さを検査できるのは
+ *   全部受け取った後である。すなわち上限が守るのは「解析する量」だけで、
+ *   **受信量・メモリ使用量は何も制限されない**（セッション不要の公開エンドポイントなので、
+ *   ここは誰でも叩ける）。読む側で打ち切って初めて上限になる。
+ *
+ * ★ `Content-Length` があるときの早期拒否は残す（1 バイトも読まずに済む）。
+ *   ただしヘッダは自己申告なので、**申告が無い／過少申告**の場合はここが唯一の砦である。
+ *
+ * @param request 本文を持つリクエスト。`body` が無い実装では `text()` へ退避する。
+ * @param maxBytes 許すバイト数。これを **1 バイトでも超えたら** 400。
+ */
+export async function readBoundedBody(
+  request: Pick<Request, "body" | "text">,
+  maxBytes: number,
+): Promise<string> {
+  const stream = request.body;
+  if (stream === null || typeof stream.getReader !== "function") {
+    // ストリームが取れない実装（テストダブル等）。ここだけは読み切ってから測るしかない。
+    const text = await request.text();
+    if (new TextEncoder().encode(text).byteLength > maxBytes) {
+      throw badRequest("request body is too large");
+    }
+    return text;
+  }
+
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value === undefined) continue;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        // ここで読むのをやめる。残りは受け取らない（送信側の pull も止まる）。
+        await reader.cancel();
+        throw badRequest("request body is too large");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const joined = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    joined.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(joined);
+}
 
 /**
  * ボディの検査。**`code` ちょうど 1 キー**であることまで見る。
@@ -84,19 +146,9 @@ export async function POST(request: Request): Promise<Response> {
       throw badRequest("request body is too large");
     }
 
-    const raw = await request.text();
-    if (raw.length > MAX_TELEMETRY_BODY_BYTES) {
-      throw badRequest("request body is too large");
-    }
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw) as unknown;
-    } catch {
-      throw badRequest("request body is not JSON");
-    }
-    const { code } = parseClientErrorBody(parsed);
-
+    // --- レート制限は**本文を読む前**に判定する ---
+    //   後ろに置くと、制限に掛かる相手の本文を先に受け取ってしまう（＝制限が守るのは
+    //   ログ行の本数だけで、受信量は守らない）。バックエンドが無ければここで fail-closed。
     let rateLimiter;
     try {
       rateLimiter = resolveRateLimiter(routeEnv);
@@ -119,6 +171,17 @@ export async function POST(request: Request): Promise<Response> {
     if (!decision.allowed) {
       throw rateLimited("telemetry rate limit exceeded");
     }
+
+    // --- ここでようやく本文を読む（上限まで） ---
+    const raw = await readBoundedBody(request, MAX_TELEMETRY_BODY_BYTES);
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw) as unknown;
+    } catch {
+      throw badRequest("request body is not JSON");
+    }
+    const { code } = parseClientErrorBody(parsed);
 
     // LIFF ID の fingerprint は**サーバーの設定から**作る。設定が壊れていて作れないときこそ
     // 記録したい事象なので、作れなくても記録自体は続ける。

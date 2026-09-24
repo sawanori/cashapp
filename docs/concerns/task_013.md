@@ -366,3 +366,120 @@ files_to_modify に挙がっていた `.github/workflows/gate.yml` は **編集�
 `gate-constraints.sh` の呼び出し回数を減らす。
 
 **対応予定タスク**: task_004
+
+---
+
+## C-013-13 [high → 解消] ストレージが使えないとログイン回数の上限が機能しない（GPT-6 Astra F-1）
+
+**指摘（4 周目・敵対レビュー GPT-6 Astra / `docs/review-log/task_013.json`）**:
+`storage` が `null` の場合、`readAttempts` は毎回 0 を返し `writeAttempts` は何も保存せず終了する。
+読み書きが例外になる場合も同様で、未ログインで戻り続けると 3 回目以降も `login()` が呼ばれる。
+同梱テストは `storage: null` での**初回起動しか**検査していなかった。
+
+**HEAD での再現（実測）**: 封筒の repro をそのままテストに書き（`tests/unit/liff/client.test.ts` の
+`describe("ストレージが使えないときも打ち切る（F-1 / fail-closed）")`）、修正前の HEAD で**再現した**。
+
+```
+× storage が null でも 3 回目の未ログインでは login を呼ばず auth_unavailable
+  AssertionError: expected 1 to be 2   ← 2 回目も loginAttempts が 1 のまま（＝どこにも残らない）
+× storage の読み書きが例外を投げても 3 回目は login を呼ばず auth_unavailable
+  AssertionError: expected 'redirecting_to_login' to be 'auth_unavailable'
+× storage が書けなかった回の分も数える（読めるが書けないストレージ）
+  AssertionError: expected 'redirecting_to_login' to be 'auth_unavailable'
+Tests  3 failed | 18 passed (21)
+```
+
+**対応（実施済み）**: `src/lib/liff/client.ts` にモジュール内の退避カウンタ `memoryAttempts` を置き、
+「読めない・書けない」回はそこで数える。
+
+- `readAttempts`: `storage === null` / `getItem` が throw / 値が壊れている / **読めたが未記録**
+  のいずれでも 0 ではなく `memoryAttempts` を返す。
+- `writeAttempts`: `setItem` が成功したときだけ退避先を使わない。`null` か例外なら `memoryAttempts` に入れる。
+- `clearAttempts`: ログイン成立時に `memoryAttempts` も 0 に戻す（次の障害を独立に数えるため）。
+
+修正後は同じテストが 21/21 緑（`npx vitest run tests/unit/liff/client.test.ts`）。
+
+**残っていること（この項目の実質的な残懸念）**: 退避先の有効範囲は
+**このページ（タブの 1 回の読み込み）だけ**である。`login()` はページ遷移を起こすので、
+`sessionStorage` がまったく使えない端末では、復帰時にモジュールごと作り直されて退避先も 0 に戻る。
+したがってこの修正が確実に効くのは「同じページの中で `bootLiff()` が繰り返し呼ばれる」経路
+（再試行ボタン、React の再マウント、StrictMode の二重実行）である。
+再読み込みをまたいで数え続けるには、回数をページの外＝ URL（`login({ redirectUri })` のクエリ）
+などに持ち出す必要があり、それは `(liff)` 画面側の設計（task_014）を巻き込む。
+**いまの実装は「数えられないなら数えない」から「数えられる範囲では必ず打ち切る」への前進であって、
+ストレージ不能端末での完全な保証ではない。**
+
+**対応案**: task_014 の起動画面で `bootLiff()` を呼ぶときに、`sessionStorage` が使えない環境に限って
+試行回数を `redirectUri` のクエリに載せて往復させるかを決める（URL に載る値なので、
+載せてよいのは回数だけ・識別子は載せない）。
+
+**対応予定タスク**: task_014（最初の `(liff)` 画面）
+
+---
+
+## C-013-14 [medium → HEAD では再現せず] `liff.init()` のタイムアウト（GPT-6 Astra F-2）
+
+**指摘**: タイムアウトが `loadLiff()` にしか掛かっておらず、`liff.init()` が応答しないと
+`bootLiff` が pending のままでテレメトリも静的フォールバックも起きない。
+
+**再現結果: 再現せず。** 封筒は **2 周目のコミット `4d22062`** の木に対して組まれており
+（`docs/review-log/task_013.json` の `commit` フィールド）、この指摘は **3 周目の `455e594`
+「`liff.init` のタイムアウト」で既に修正済み**である（本ファイル C-013-10）。
+
+4 周目に、封筒の repro を**既定のタイムアウト**（`timeoutMs` を注入しない）でなぞるテストを
+追加して実測した。封筒の「3100 ミリ秒待つ」は偽タイマーを `SDK_LOAD_TIMEOUT_MS` だけ進める形に
+置き換えている（見ている点は同じ＝ `init` にも既定の 3 秒が掛かっているか）。
+
+- `tests/unit/liff/client.test.ts` の
+  `it("既定のタイムアウトは init にも掛かる（F-2 の repro を timeoutMs 未指定でなぞる）")`
+- HEAD で **pass**（`init_failed` ＋ テレメトリ `liff_init_failed`、`login` は未呼出）。
+
+**非空振りの実測**: `bootLiff` の `withTimeout(liff.init(...))` を一時的に素の `await` へ戻すと、
+この it は `Error: Test timed out in 5000ms` で落ちることを確認してから戻した
+（`Tests 3 failed | 19 passed (22)`。巻き込まれた 2 件は既存の `timeoutMs: 20` のケースと
+偽タイマーの相互作用）。つまり新しいテストは**空振りしていない**。
+
+---
+
+## C-013-15 [medium → 解消] 上限の検査前に任意長の本文を読み込む（GPT-6 Astra F-3）
+
+**指摘**: `POST /api/telemetry/client-error` は `Content-Length` の無いリクエストで
+`request.text()` が本文全体を読み終えるまで 256 バイト上限を検査しない。
+したがってこの上限は受信量・メモリ使用量を制限しない。レート制限の判定も本文読み込みの後にある。
+
+**HEAD での再現（実測）**: `tests/unit/telemetry.test.ts` の
+`describe("Content-Length の無い本文（F-3）")` に repro を書き、修正前の HEAD で**再現した**。
+
+```
+× 上限を超えた時点で読むのをやめる（本文全体を受け取らない）
+  AssertionError: expected 4096 to be less than or equal to 384   ← 本文 4096 バイトを全部読んでいた
+× レート制限の判定は本文を 1 バイトも読む前に終わっている
+  AssertionError: expected 400 to be 503   ← 本文読み込みの 400 がレート制限の 503 より先に出ていた
+Tests  2 failed | 15 passed (17)
+```
+
+前提も実測で確かめてある。undici（Node 22）の `new Request(url, { body: ReadableStream })` は
+`content-length` ヘッダを付けず（`null`）、`request.body` は pull 駆動なので、
+読むのをやめればソース側の `pull` も止まる。
+
+**対応（実施済み）**:
+
+- `readBoundedBody(request, maxBytes)` を追加した。`request.body` を `getReader()` で
+  **チャンクごとに読み**、累計が `maxBytes` を 1 バイトでも超えた時点で `reader.cancel()` して 400。
+  `body` が取れない実装のためだけに `request.text()` へ退避する枝を残してある
+  （そこは読み切ってからバイト長で測る）。
+- `Content-Length` がある場合の早期拒否（1 バイトも読まない）はそのまま残した。自己申告なので
+  **申告が無い／過少申告**の場合にストリーム側の上限が効く、という二段構えである。
+- レート制限の判定（`resolveRateLimiter` ＋ `check`）を**本文読み込みより前**へ移した。
+  バックエンドが無ければ本文に触れないまま fail-closed の 503 になる。
+- 併せて上限の単位を UTF-16 コード単位（`raw.length`）から**バイト**に直した。
+
+修正後は同じテストが 17/17 緑。「読んだ量」は 4096 バイト中 320 バイト（上限 256 ＋ 1 チャンク）で
+止まり、レート制限で落ちる場合は `request.bodyUsed === false`（本文ストリームに触れていない）になる。
+
+**残っていること**: `readBoundedBody` が守るのは**このハンドラが読む量**であって、
+Cloudflare Workers のランタイムがリクエスト全体をどこまで受信するかではない。
+実運用での上流の打ち切りは、レート制限バインディングと WAF の設定側の話であり、
+それらは未束縛のままである（C-013-6 と同じく task_024 / task_035）。
+
+**対応予定タスク**: なし（本文読み込みの範囲は解消。上流の受信制限は C-013-6 に含む）

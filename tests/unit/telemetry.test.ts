@@ -203,6 +203,95 @@ describe("POST /api/telemetry/client-error", () => {
     expect(response.status).toBe(400);
   });
 
+  /**
+   * Content-Length の無い本文（chunked）に対する上限（GPT-6 Astra F-3）。
+   *
+   * `request.text()` は**本文を読み終えてから**しか長さを返さないので、それだけでは
+   * 「256 バイト上限」は受信量を一切制限しない。上限は**読む量**に掛かっていなければならない。
+   * 実測の根拠は undici（Node 22）の挙動である。`new Request(url, { body: ReadableStream })` は
+   * `content-length` を付けず（ヘッダは `null`）、`request.body` は **pull 駆動**なので、
+   * 読むのをやめればソース側の `pull` も止まる。
+   */
+  describe("Content-Length の無い本文（F-3）", () => {
+    const CHUNK_BYTES = 64;
+
+    /** 送出したバイト数を数えながらチャンク送信するリクエストを作る。 */
+    function chunkedRequest(
+      totalBytes: number,
+      pulled: { bytes: number },
+      headers: Record<string, string> = {},
+    ): Request {
+      const encoder = new TextEncoder();
+      const chunkCount = Math.ceil(totalBytes / CHUNK_BYTES);
+      let index = 0;
+      const stream = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (index >= chunkCount) {
+            controller.close();
+            return;
+          }
+          const size = Math.min(CHUNK_BYTES, totalBytes - index * CHUNK_BYTES);
+          const chunk = encoder.encode("a".repeat(size));
+          index += 1;
+          pulled.bytes += chunk.byteLength;
+          controller.enqueue(chunk);
+        },
+      });
+      return new Request("https://example.test/api/telemetry/client-error", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...headers },
+        body: stream,
+        duplex: "half",
+      } as unknown as RequestInit);
+    }
+
+    it("チャンク本文が 257 バイトを超えたら 400（Content-Length は付いていない）", async () => {
+      const pulled = { bytes: 0 };
+      const request = chunkedRequest(MAX_TELEMETRY_BODY_BYTES + 1, pulled);
+      // 前提の確認: この経路には Content-Length が無い（あるなら別の枝で弾かれてしまう）。
+      expect(request.headers.get("content-length")).toBeNull();
+
+      const response = await POST(request);
+
+      expect(response.status).toBe(400);
+      const body = (await response.json()) as Record<string, unknown>;
+      expect(body["code"]).toBe("BAD_REQUEST");
+    });
+
+    it("上限を超えた時点で読むのをやめる（本文全体を受け取らない）", async () => {
+      const totalBytes = MAX_TELEMETRY_BODY_BYTES * 16; // 4096 バイト
+      const pulled = { bytes: 0 };
+
+      const response = await POST(chunkedRequest(totalBytes, pulled));
+
+      expect(response.status).toBe(400);
+      // 読んだ量は上限 + 1 チャンク以内で止まっている。本文全体は受け取っていない。
+      expect(pulled.bytes).toBeLessThanOrEqual(MAX_TELEMETRY_BODY_BYTES + CHUNK_BYTES * 2);
+      expect(pulled.bytes).toBeLessThan(totalBytes);
+    });
+
+    it("レート制限の判定は本文を読む前に終わっている（本文に触れずに 503）", async () => {
+      // バックエンドが無い ＝ fail-closed で 503。この判定が本文読み込みより後にあると、
+      // 「制限に掛かる相手の本文を先に全部読む」ことになる。
+      delete cloudflareEnv["ALLOW_LOCAL_RATE_LIMIT_BYPASS"];
+      const pulled = { bytes: 0 };
+      const totalBytes = MAX_TELEMETRY_BODY_BYTES * 16;
+      const request = chunkedRequest(totalBytes, pulled);
+
+      const response = await POST(request);
+
+      expect(response.status).toBe(503);
+      // ルートが本文へ触れていないことの直接の証拠。`bodyUsed` は本文ストリームが
+      // disturbed になった時点で true になる。
+      expect(request.bodyUsed).toBe(false);
+      expect(request.body?.locked).toBe(false);
+      // 送出済みの 1 チャンクは `ReadableStream` 既定の highWaterMark（1 チャンク）による
+      // 先読みであり、受け手とは無関係に出る（誰も触れなくても 64 バイト出ることを実測した）。
+      expect(pulled.bytes).toBeLessThanOrEqual(CHUNK_BYTES);
+      expect(pulled.bytes).toBeLessThan(totalBytes);
+    });
+  });
+
   it("レート制限のバックエンドが無ければ fail-closed で 503", async () => {
     delete cloudflareEnv["ALLOW_LOCAL_RATE_LIMIT_BYPASS"];
 

@@ -1475,7 +1475,9 @@
       "optional": false,
       "completion_status": "DONE_WITH_CONCERNS",
       "concerns": [
-        "[severity: medium] 残懸念の一覧は docs/concerns/task_013.md に記録（各項目に深刻度と対応案を付記）／対応案: 同ファイルの『対応案』欄に従い、対応予定タスクで解消する"
+        "[severity: medium] 残懸念の一覧は docs/concerns/task_013.md に記録（各項目に深刻度と対応案を付記）／対応案: 同ファイルの『対応案』欄に従い、対応予定タスクで解消する",
+        "[severity: medium] GPT-6 Astra F-1（high）の修正は「ページ 1 回分」しか効かない: sessionStorage が使えない端末では login() のページ遷移でメモリ退避カウンタも 0 に戻るため、再読み込みをまたぐ打ち切りは保証されない（docs/concerns/task_013.md C-013-13）／対応案: task_014 の (liff) 起動画面で、ストレージ不能時に限り試行回数を redirectUri のクエリへ載せて往復させるかを決める",
+        "[severity: low] GPT-6 Astra F-3（medium）で入れた readBoundedBody が守るのはハンドラが読む量であって、ランタイム／WAF がリクエストをどこまで受信するかではない（docs/concerns/task_013.md C-013-15）／対応案: レート制限バインディングと合わせて task_024 / task_035 の環境構築で上流の受信制限を設定する"
       ]
     },
     {

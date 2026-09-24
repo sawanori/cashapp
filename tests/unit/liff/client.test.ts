@@ -192,6 +192,37 @@ describe("bootLiff の起動順序", () => {
     expect(login).not.toHaveBeenCalled();
   });
 
+  /**
+   * GPT-6 Astra F-2 の repro を **既定のタイムアウト**（`timeoutMs` を注入しない）でなぞる。
+   *
+   * 封筒の手順は「`loadLiff` は即時に SDK を返す → その SDK の `init` は
+   * `() => new Promise(() => {})` → 3100 ミリ秒待つ → `report` が呼ばれていない」だった。
+   * 実時間で 3.1 秒待つ代わりに偽タイマーを 3000 ミリ秒進めて同じ点を見る
+   * （`SDK_LOAD_TIMEOUT_MS` が `init` 側にも掛かっていることの確認であり、
+   * 上の `timeoutMs: 20` のケースと違って**既定値の配線**を見ている）。
+   */
+  it("既定のタイムアウトは init にも掛かる（F-2 の repro を timeoutMs 未指定でなぞる）", async () => {
+    vi.useFakeTimers();
+    try {
+      const { liff, login } = fakeLiff({ initHangs: true });
+      // SDK の読み込みは即時に成功する。止まるのは init だけ。
+      const pending = bootLiff(LIFF_ID, {
+        loadLiff: async () => liff,
+        storage: memoryStorage(),
+        report,
+      });
+
+      await vi.advanceTimersByTimeAsync(SDK_LOAD_TIMEOUT_MS);
+      const result = await pending;
+
+      expect(result.state).toBe("init_failed");
+      expect(reported).toEqual([CLIENT_ERROR_CODES.LIFF_INIT_FAILED]);
+      expect(login).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("liff.init() には呼び出し元が渡した liffId がそのまま渡る", async () => {
     const { liff, init } = fakeLiff();
 
@@ -237,6 +268,116 @@ describe("bootLiff の起動順序", () => {
 
     expect(result.state).toBe("redirecting_to_login");
     expect(login).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * ストレージが使えないときの打ち切り（GPT-6 Astra F-1 / high）。
+   *
+   * 指摘の repro は「`storage: null` で `bootLiff` を 3 回呼ぶと 3 回とも
+   * `redirecting_to_login` になり、`login` が 3 回呼ばれる」だった。ストレージが無いと
+   * カウンタがどこにも残らないため、打ち切り（§7-3）がまるごと効かない。
+   *
+   * 退避先は **モジュール内のカウンタ**（このページが生きている間だけ数える）なので、
+   * テストの独立性は `vi.resetModules()` ＋ 動的 import で確保する。
+   * 静的 import 側のモジュール実体を共有すると、前のテストの残数が次のテストへ漏れる。
+   */
+  describe("ストレージが使えないときも打ち切る（F-1 / fail-closed）", () => {
+    beforeEach(() => {
+      vi.resetModules();
+    });
+
+    /** 読み書きの両方が throw するストレージ（Safari のプライベートモード等）。 */
+    function throwingStorage(): AttemptStorage {
+      return {
+        getItem: () => {
+          throw new Error("storage is not available");
+        },
+        setItem: () => {
+          throw new Error("storage is not available");
+        },
+        removeItem: () => {
+          throw new Error("storage is not available");
+        },
+      };
+    }
+
+    it("storage が null でも 3 回目の未ログインでは login を呼ばず auth_unavailable", async () => {
+      const { bootLiff: boot } = await import("@/lib/liff/client");
+      const { liff, login } = fakeLiff({ inClient: true, loggedIn: false });
+      const deps = { loadLiff: async () => liff, storage: null, report };
+
+      const first = await boot(LIFF_ID, deps);
+      expect(first.state).toBe("redirecting_to_login");
+      expect(first.loginAttempts).toBe(1);
+
+      const second = await boot(LIFF_ID, deps);
+      expect(second.state).toBe("redirecting_to_login");
+      expect(second.loginAttempts).toBe(2);
+
+      const third = await boot(LIFF_ID, deps);
+      expect(third.state).toBe("auth_unavailable");
+      expect(third.loginAttempts).toBe(MAX_LOGIN_ATTEMPTS);
+
+      // ここが F-1 の本体。ストレージが無くても 3 回目は login を呼ばない。
+      expect(login).toHaveBeenCalledTimes(MAX_LOGIN_ATTEMPTS);
+      expect(reported).toEqual([CLIENT_ERROR_CODES.LOGIN_LOOP_ABORTED]);
+    });
+
+    it("storage の読み書きが例外を投げても 3 回目は login を呼ばず auth_unavailable", async () => {
+      const { bootLiff: boot } = await import("@/lib/liff/client");
+      const { liff, login } = fakeLiff({ inClient: true, loggedIn: false });
+      const deps = { loadLiff: async () => liff, storage: throwingStorage(), report };
+
+      expect((await boot(LIFF_ID, deps)).state).toBe("redirecting_to_login");
+      expect((await boot(LIFF_ID, deps)).state).toBe("redirecting_to_login");
+
+      const third = await boot(LIFF_ID, deps);
+      expect(third.state).toBe("auth_unavailable");
+      expect(third.loginAttempts).toBe(MAX_LOGIN_ATTEMPTS);
+      expect(login).toHaveBeenCalledTimes(MAX_LOGIN_ATTEMPTS);
+      expect(reported).toEqual([CLIENT_ERROR_CODES.LOGIN_LOOP_ABORTED]);
+    });
+
+    it("ログインが成立したら退避先のカウンタも消える（次の障害を独立に数える）", async () => {
+      const { bootLiff: boot } = await import("@/lib/liff/client");
+      const loggedOut = fakeLiff({ inClient: true, loggedIn: false });
+
+      await boot(LIFF_ID, { loadLiff: async () => loggedOut.liff, storage: null, report });
+      await boot(LIFF_ID, { loadLiff: async () => loggedOut.liff, storage: null, report });
+
+      // ここでログインが成立する。
+      const loggedIn = fakeLiff({ inClient: true, loggedIn: true, idToken: "the-id-token" });
+      const ok = await boot(LIFF_ID, { loadLiff: async () => loggedIn.liff, storage: null, report });
+      expect(ok.state).toBe("ready");
+
+      // 再び未ログインになっても、カウンタは 0 から数え直す。
+      const again = await boot(LIFF_ID, {
+        loadLiff: async () => loggedOut.liff,
+        storage: null,
+        report,
+      });
+      expect(again.state).toBe("redirecting_to_login");
+      expect(again.loginAttempts).toBe(1);
+    });
+
+    it("storage が書けなかった回の分も数える（読めるが書けないストレージ）", async () => {
+      const { bootLiff: boot } = await import("@/lib/liff/client");
+      const { liff, login } = fakeLiff({ inClient: true, loggedIn: false });
+      // 読みは成功して常に「未記録」を返し、書きだけ落ちる（容量超過の quota エラー等）。
+      const readOnlyStorage: AttemptStorage = {
+        getItem: () => null,
+        setItem: () => {
+          throw new Error("QuotaExceededError");
+        },
+        removeItem: () => undefined,
+      };
+      const deps = { loadLiff: async () => liff, storage: readOnlyStorage, report };
+
+      expect((await boot(LIFF_ID, deps)).state).toBe("redirecting_to_login");
+      expect((await boot(LIFF_ID, deps)).state).toBe("redirecting_to_login");
+      expect((await boot(LIFF_ID, deps)).state).toBe("auth_unavailable");
+      expect(login).toHaveBeenCalledTimes(MAX_LOGIN_ATTEMPTS);
+    });
   });
 });
 
