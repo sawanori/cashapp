@@ -1,0 +1,39 @@
+# 提案: ハーネス 2 周目 — Phase 1 後半プレモータム（P-02 / P-04 / P-05 / P-06 / P-11）への対応
+
+- 起票日: 2026-09-24
+- 起票者: メインセッション（Claude）
+- 根拠: `docs/research/premortem-phase1b-2026-09-24.md`
+- 状態: **PO の判断待ち（未適用）**
+
+## なぜ今すぐ当てないのか
+
+5 件はいずれもゲート（`scripts/gate-check.mjs` / `scripts/gate-integrity.mjs`）やガード本体
+（`scripts/record-run.sh`）の判定条件を変える。実装ワークフロー v5（task_014〜023）が同じ作業ツリーで走って
+おり、各エージェントの Stop フックが `gate:check` を実行する。判定条件をいま変えると、進行中のタスクが自分の
+変更と無関係な理由で止まる（P-06 の G11 変更は特に、未コミット差分があるだけで違反になる）。
+`record-run.sh` は Edit/Write からも自己保全されており、AI は変更できない。
+
+したがって、**ワークフロー完了後の静かな時点で PO が順に適用する**前提で起票する。
+
+## 提案一覧
+
+| # | 対象 | 変更 | 影響 | 優先 |
+|---|---|---|---|---|
+| H2-1（P-02） | `scripts/gate-integrity.mjs` の `INTEGRITY_PATTERNS` | `docs/acceptance-checks.json` を単一ファイルとして追加し、G13 のハッシュ対象にする | 受入基準の本文を書き換えると G13 が落ち、基準値の再生成（= docs/gates/** の差分）が CODEOWNERS と tamper-guard に出る。evidence の記入も G13 を落とすため、**evidence は最終 HEAD で一括記入し、その直後に基準値を再生成する運用**が必要 | 高 |
+| H2-2（P-04） | `scripts/record-run.sh`（自己保全対象。PO が適用） | 記録に `dirty_files`（`git status --porcelain` の行数）と、同時に存在する他タスクのロック名を追加する。判定は変えない | G4 に「`dirty_files > 0` の記録は DONE の根拠にしない」を足すのは第 2 段階（並行実装が終わってから） | 中 |
+| H2-3（P-05） | `scripts/gate-check.mjs` に G15 | DONE 系タスクの `dependencies` がすべて DONE 系であること。`owner_model` が `human:` のタスクは、`docs/gates/dependency-bypass.json`（PO 専管、docs/gates/** 配下）に理由つきで記録された場合のみ bypass | 現状の bypass（task_035 / 007 / 013）を PO が明示的に記録することになる | 高 |
+| H2-4（P-06） | `scripts/gate-check.mjs` の G11 | 「`in_progress` が 1 件以上」に加えて「未コミット差分のパスが、未完了タスクの `files_to_create` / `files_to_modify` に一致する」を着手中の判定に含める | 並行ワークフロー中は常時発火しうる。適用はワークフロー完了後 | 中 |
+| H2-5（P-11） | `docs/task-list.json` の task_014〜021 の `verify_commands` | 画面を持つタスクに `test:a11y`（当該ページ限定）を追加。「完了済みタスク由来の赤」の引き受け先を `docs/PROGRESS.md` の運用規則として明記 | v5 の実装者は既に走っているため、追加分は task_022 の中で「到達しないページ数 0」を機械検査する形でも代替できる | 中 |
+
+## 適用順（提案）
+
+1. ワークフロー v5 完了（task_023 まで）を待つ。
+2. H2-3（G15）→ H2-1（acceptance-checks を G13 に）→ H2-4（G11）→ H2-2（record-run）→ H2-5 の順に、
+   1 件ずつ `npm run test:gate-meta` と `npm run gate:check` を通してコミットする。
+3. 各件の違反フィクスチャ（`tests/gates/fixtures/`）を同時に足し、G0（メタゲート）で空振りを防ぐ。
+
+## 参考: P-01 / P-03 / P-07 / P-08 / P-10 / P-12 の扱い
+
+これらは実装タスク側の失敗モードなので、`docs/task-list.json` の task_014〜023 の `files_to_read` に
+`docs/research/premortem-phase1b-2026-09-24.md` を配線した。各タスクの実装者とレビュアーが読む。
+P-03（`organizer_label NOT NULL` と check_043 の矛盾）と P-12（ADR-007 未作成）は PO 判断を伴う。
