@@ -170,5 +170,23 @@
     "commit": "b2addd370cf04e00f4f458dd7ae5539ecc7d1740",
     "ran_at": "2026-09-24T09:20:58Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  21 passed (21)\n      Tests  650 passed (650)\n   Start at  09:21:33\n   Duration  39.90s (tests 89%, setup 5%, environment 2%, transform 2%, import 1%)",
+    "commit": "f1caa39eb2d16b9e7f9a68f9b7123b4171071712",
+    "ran_at": "2026-09-24T09:21:33Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:integrity",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:integrity\n> node scripts/gate-integrity.mjs\n\n      ハッシュ対象 38 ファイル（sha256）\n\ngate:integrity — 38 ファイルを照合、0 件の不一致",
+    "commit": "f1caa39eb2d16b9e7f9a68f9b7123b4171071712",
+    "ran_at": "2026-09-24T09:22:13Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]
