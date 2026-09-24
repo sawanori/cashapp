@@ -1,0 +1,43 @@
+# 規約・プライバシーポリシーの機械検査ジョブ（task_021）。
+#
+# ★ 本ファイルは task_021 が単独で所有する。`.github/workflows/gate.yml`（task_009 所有）は
+#   編集しない（並行タスクの衝突回避規約。`gate.yml` 冒頭のコメント参照）。
+#
+# required status checks への登録（branch protection 設定）は PO / リポジトリ管理者の作業
+# であり、本ファイルの追加そのものには含まれない（`gate-integration.yml` の先例と同じ扱い）。
+
+name: gate-legal
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gate-legal-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  legal:
+    name: legal
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # .npmrc の ignore-scripts=true をそのまま活かす（R-SEC-13）。
+      - run: npm ci
+
+      - name: gate:terms（L5）
+        run: npm run gate:terms
+
+      - name: gate:privacy-policy（L7）
+        run: npm run gate:privacy-policy

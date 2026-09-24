@@ -614,3 +614,38 @@
   他タスクのファイルは変更しない規約に従い未対応）。残懸念 5 件は `docs/concerns/task_016.md`
   （C-016-1〜5。medium 2・low 3）。GATE-LINE-POLICY / GATE-LINE-SHARE はいずれも `unknown` の
   まま run-log に記録済み。
+- task_021: DONE_WITH_CONCERNS — 管理面（別 IdP＝GitHub `GET /user` の Bearer 検証・二人承認は
+  `audit_log` の propose/approve 2 行のみでステートレスに表現。A23 縮退は同一管理者 24 時間
+  クーリング。`PAYMENTS_ENABLED=true` は `docs/gates/legal-clearance.json` の写し
+  `LEGAL_CLEARANCE_CLEARED` を前提）、`GET /api/admin/gates`・`POST /api/admin/flags`・
+  `GET /api/admin/lookup`（`display_label`/`organizer_label` を一切返さない設計。invoice 単体
+  テーブルの SELECT のみで構造的に担保）・`POST /api/admin/anonymize`（`event.organizer_label`
+  を固定プレースホルダへ／`participant.display_label` を NULL へ）・`POST /api/admin/suspend`
+  （`session_epoch` を進め即時失効）、`GET /api/events/:id/export.csv`（O-12。固定文言は
+  `gate:wording` の W-RECEIPT が否定文でも「適格請求書」を禁止するため別の言い回しに書き換え）、
+  `GET /api/me/export.zip`（依存追加なしの手書き ZIP）、`POST /api/invoices/:id/refund`
+  （Phase 1 は `manual_confirm` の `capabilities.refund='none'` で常に 409 `NOT_SUPPORTED`）、
+  `POST /api/e/report`（abuse_report・`resolveRateLimiter` でレート制限）、O-9/O-10/O-11/O-13 の
+  4 画面、`src/content/terms.md`/`privacy.md`（草案 v1）、`scripts/gate-terms.mjs`/
+  `gate-privacy-policy.mjs`/`gate-compliance-freshness.mjs`、`.github/workflows/gate-legal.yml`、
+  `docs/incident-response.md`/`legal-forensics.md`/`privacy-policy.md`、`docs/runbooks/RB-01〜10`
+  を実装。**task_021 が発見した重大な横断的不具合**: `src/lib/db/client.ts` の `createDbClient`
+  が `drizzle(client,{schema})` の副作用で `db.sql`（`db.db` は未使用）の timestamp 列を壊し、
+  読み取りは `Date` ではなく文字列・`Date` 値の書き込みは例外になる。`appendAuditLog` /
+  `runIdempotent` / `resolveEventByJoinToken`（`.getTime()`）を含む書き込み系ルート全般と
+  参加者向けの入口ルート全般に及ぶ横断的な既知の不具合として
+  `tests/integration/_debug_admin.test.ts` に repro を固定（原因ファイルは files_to_modify 外
+  のため未修正。**task_022 以降は着手前に必読**）。この不具合により
+  `POST /api/admin/flags`/`suspend`/`anonymize` の実ルート経由 DB 書き込み往復は統合テストでき
+  ず、「フラグ変更が audit_log に 2 行」の要件は `proposeAdminAction`/`approveAdminAction` を
+  `withRollback` の `tx`（安全な接続）で直接呼ぶ形で検証した。**verify_commands 7 本すべて
+  `scripts/record-run.sh task_021` 経由で実行**（`typecheck` exit 0 / `test:integration` 15
+  ファイル 226/226 / `gate:wording` 0 violation / `gate:terms` 5/5 / `gate:privacy-policy` 9/9
+  / `gate:constraints` 0 violation。`test:unit` は exit 1 だが **task_021 の新規テスト
+  （export-csv 8・admin 16・abuse-limits 4・gate-terms 10 の計 38 件）はすべて pass**で、
+  失敗 2 件は `tests/unit/gate-check.test.ts`（task_006 所有）の task_018 `test:contract`
+  追加との衝突＝ `docs/concerns/task_023.md` §9 / task_016 と同一の既知の事象）。残懸念 8 件は
+  `docs/concerns/task_021.md`（high 1・medium 3・low 4）。幹事あたり合計請求額上限は
+  files_to_modify 不足で未実装（`POST /api/e/report` のレート制限で scope の別項目をカバー）。
+  O-9 の 10 種別分類は参加者一覧 API の内訳不足で部分実装。`GATE-LEGAL-PII` は `unknown` の
+  まま。

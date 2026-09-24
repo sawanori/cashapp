@@ -1,0 +1,65 @@
+[
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "4d339e1e431865cb3280ecefa83c214b4ce7a806",
+    "ran_at": "2026-09-24T18:14:30Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:wording",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:wording\n> node scripts/wording-lint.mjs\n\nok    W-AUTO (112 file(s) read)\nok    W-DONATION (112 file(s) read)\nok    W-SUPPORT (112 file(s) read)\nok    W-RECEIPT (112 file(s) read)\nok    W-MERCHANT-GUIDE (2 file(s) read)\nok    W-FEE-FIXED (112 file(s) read)\n\ngate:wording — scanned 6 pattern group(s), 0 violation(s), 0 empty gate(s)",
+    "commit": "4d339e1e431865cb3280ecefa83c214b4ce7a806",
+    "ran_at": "2026-09-24T18:14:34Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:terms",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:terms\n> node scripts/gate-terms.mjs\n\nok      DEBT_EXTINGUISH (支払債務の消滅時点)\nok      LIABILITY_CAP (一部免責・上限型の免責)\nok      MINORS (未成年に関する条項)\nok      ANTI_ORGANIZED_CRIME (反社会的勢力の排除)\nok      PSEUDO_ANONYMIZATION (擬似匿名化（削除請求への対応）)\n\ngate:terms — 5/5 required clauses present, 0 blanket-disclaimer hit(s)",
+    "commit": "4d339e1e431865cb3280ecefa83c214b4ce7a806",
+    "ran_at": "2026-09-24T18:14:37Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:privacy-policy",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:privacy-policy\n> node scripts/gate-privacy-policy.mjs\n\nok      OPERATOR_NAME (事業者名（L7）)\nok      OPERATOR_ADDRESS (住所（L7）)\nok      CONTACT (連絡先（L7）)\nok      PURPOSE (利用目的（L7）)\nok      ENTRUSTEE (委託先（scope）)\nok      STORAGE_COUNTRY (保管国・外的環境（scope）)\nok      SAFETY_MEASURES (安全管理措置（scope）)\nok      PLATFORM_LOG_RETENTION (プラットフォームログ保持（scope）)\nok      DISCLOSURE_PROCEDURE (開示等請求手続（L7）)\n\ngate:privacy-policy — 9/9 required items present",
+    "commit": "4d339e1e431865cb3280ecefa83c214b4ce7a806",
+    "ran_at": "2026-09-24T18:14:37Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 110 file(s) read)\nok    L2 (forbid, 110 file(s) read)\nok    L3 (forbid, 110 file(s) read)\nok    L8 (forbid, 110 file(s) read)\nok    L12 (forbid, 110 file(s) read)\nok    P1 (forbid, 109 file(s) read)\nok    P2 (forbid, 1 file(s) read)\nok    P9 (forbid, 13 file(s) read)\nok    W3 (forbid, 115 file(s) read)\nok    W4 (forbid, 5 file(s) read)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 107 file(s) read)\nok    N5 (forbid, 110 file(s) read)\nok    N7 (forbid, 110 file(s) read)\nok    N9 (forbid, 110 file(s) read)\nok    N11 (forbid, 110 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 31 file(s) read)\nok    I4 (forbid, 3 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 59 file(s) read)\nok    X-MONEY (forbid, 10 file(s) read)\nok    GC-XSS (forbid, 110 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 115 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\nok    GC-RANK-NEGATION (forbid, 115 file(s) read)\nok    GC-LIB-CLIENT-DIRECTIVE (forbid, 43 file(s) read)\n\ngate:constraints — scanned 27 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "4d339e1e431865cb3280ecefa83c214b4ce7a806",
+    "ran_at": "2026-09-24T18:14:40Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 1,
+    "stdout_tail": "\n- Expected\n+ Received\n\n- `test:contract` は未定義\n\n ❯ tests/unit/gate-check.test.ts:213:53\n    211|     const { results } = report([\"--root\", root, \"--base\", repoRoot]);\n    212|     expect(gate(results, \"G2\").violations).toEqual([]);\n    213|     expect(gate(results, \"G2\").warnings.join(\"\\n\")).toContain(\"`test:c…\n       |                                                     ^\n    214|   });\n    215|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯\n\n FAIL  tests/unit/gate-check.test.ts > G2 の 3 分岐 > 着手済みタスクの未定義スクリプト参照は違反になる\nAssertionError: expected '' to contain '`test:contract` が package.json.script…'\n\n- Expected\n+ Received\n\n- `test:contract` が package.json.scripts にありません\n\n ❯ tests/unit/gate-check.test.ts:226:55\n    224|     );\n    225|     const { results } = report([\"--root\", root, \"--base\", repoRoot]);\n    226|     expect(gate(results, \"G2\").violations.join(\"\\n\")).toContain(\"`test…\n       |                                                       ^\n    227|   });\n    228|\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯\n\n\n Test Files  1 failed | 49 passed (50)\n      Tests  2 failed | 1192 passed (1194)\n   Start at  18:14:50\n   Duration  102.25s (tests 94%, environment 2%, setup 2%, import 1%, transform 1%)",
+    "commit": "4d339e1e431865cb3280ecefa83c214b4ce7a806",
+    "ran_at": "2026-09-24T18:14:49Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:integration\n> TZ=UTC vitest run tests/integration --testTimeout=60000 --hookTimeout=60000\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  15 passed (15)\n      Tests  226 passed (226)\n   Start at  18:17:14\n   Duration  13.65s (tests 80%, import 12%, setup 4%, transform 3%)",
+    "commit": "4d339e1e431865cb3280ecefa83c214b4ce7a806",
+    "ran_at": "2026-09-24T18:17:14Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  }
+]

@@ -2411,8 +2411,17 @@
       "adversarial_review": "required",
       "evidence_label": "[設計]",
       "optional": false,
-      "completion_status": null,
-      "concerns": []
+      "completion_status": "DONE_WITH_CONCERNS",
+      "concerns": [
+        "[severity: high] createDbClient（src/lib/db/client.ts）がdrizzle()の副作用でdb.sqlのtimestamp列を壊す（読み取りは文字列化・Date書き込みは例外）。appendAuditLog/runIdempotent/resolveEventByJoinTokenを含む書き込み系ルート全般と参加者向けルート全般に波及する task_021 発見の横断的不具合 / 対応案: drizzle()を呼ばない(db.dbは未使用のため削除可)かoptionsを複製する。repro固定先はtests/integration/_debug_admin.test.ts",
+        "[severity: medium] 幹事あたりの合計請求額上限（サーバー強制）は対象ファイルがfiles_to_modifyに無く未実装。abuse-limits.test.tsはPOST /api/e/reportのレート制限（429）でスコープの一部をカバー / 対応案: files_to_modifyにinvoices関連を追加する後続タスクで実装",
+        "[severity: medium] O-9要対応インボックスの10種別自動分類は参加者一覧APIの内訳不足により部分実装（confirmationMethod=mixedとrosterStatus=canceledのみ機械分類、他は要確認に丸め）/ 対応案: 参加者一覧APIに分類用内訳を追加する後続タスク",
+        "[severity: medium] docs/incident-response.mdの個人情報保護委員会報告期限（速報/確報）はWebFetch 404・WebSearch予算超過で一次資料未取得のため暫定値 / 対応案: 一次資料取得後に弁護士確認とあわせて確定",
+        "[severity: low] (web)/layout.tsxへの法務リンク差し込みはfiles_to_modify対象外のため未実施（法務情報はsettings/legal/page.tsxに集約）/ 対応案: files_to_modifyにlayout.tsxを追加する後続タスク",
+        "[severity: low] POST /api/invoices/:id/refundの自動アダプタ経路はPhase1にmanual_confirm(capabilities.refund='none')しか無く統合テストで未到達 / 対応案: Phase2の自動アダプタ実装タスクで検証",
+        "[severity: low] GET /api/me/export.zipは依存追加なしの手書きZIP（無圧縮STORE・export.json単一エントリ）/ 対応案: 必要になればzipライブラリ追加で拡張",
+        "[severity: low] npm run test:unitでtests/unit/gate-check.test.tsの2件が既存失敗（task_018のtest:contract追加とtask_006側フィクスチャの食い違い、task_021のファイルとは無関係）/ 対応案: task_006所有側でフィクスチャの参照スクリプト名を差し替え"
+      ]
     },
     {
       "task_id": "task_022",

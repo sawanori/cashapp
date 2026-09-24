@@ -2324,6 +2324,59 @@ GPT-6 Astra 7 件のうち重複を除く 7 件を**全件修正**した（詳�
 - `GATE-LINE-POLICY` / `GATE-LINE-SHARE` はいずれも `unknown` のまま run-log に記録
   （`scripts/record-run.sh --manual task_016`）。Q-LN2/Q-LN7 の回答待ち（task_037）。
 
+## task_021（管理面・要対応インボックス・CSV・法務文書・ランブック・悪用対策）
+
+### 決まったこと
+
+- 管理者認証は「別 IdP」として GitHub の `GET /user`（Bearer token）を毎リクエスト検証する方式
+  にした（`src/lib/admin-auth.ts`）。OAuth のリダイレクト／コールバックは files_to_create に
+  含まれておらず、管理者は自分の GitHub トークンをその場で提示する。`ADMIN_ALLOWLIST` 未設定は
+  fail-closed（500）。
+- 二人承認（`POST /api/admin/flags` / `suspend`）は新規 DB テーブルを持たず、`audit_log` の
+  `<kind>.propose` / `<kind>.approve` の 2 行だけで状態を表すステートレス設計にした
+  （`proposeAdminAction` / `approveAdminAction`）。同一管理者の承認は提案から 24 時間のクーリング
+  （A23 縮退）。`PAYMENTS_ENABLED=true` は `docs/gates/legal-clearance.json` の写し
+  （`LEGAL_CLEARANCE_CLEARED`。現状 false）を前提にした。
+- **重大な横断的不具合を発見した**: `src/lib/db/client.ts` の `createDbClient` が
+  `drizzle(client, {schema})` を呼ぶ副作用で、`db.sql`（アプリ全体で使われている生のタグ付き
+  テンプレート）の timestamp 列が `Date` ではなく文字列で返り、`Date` 値の書き込みは例外になる
+  （`db.db` はどこからも使われておらず、drizzle を呼ぶ意味がない）。`appendAuditLog` /
+  `runIdempotent` / `resolveEventByJoinToken`（`.getTime()` を呼ぶ）を含め、書き込み系ルートの
+  大半と参加者向けの入口ルート全般に及ぶ。repro は `tests/integration/_debug_admin.test.ts` に
+  固定した。**task_022 以降、`createVerifiedDbClient` 経由の実ルート結合テストを書く前に必ず
+  読むこと**。原因ファイルは task_021 の files_to_modify に無いため直していない
+  （`docs/concerns/task_021.md` §1）。
+- この不具合により、`POST /api/admin/flags` / `suspend` / `anonymize` の「実ルート経由の
+  DB 書き込みを伴う往復」は統合テストできなかった。「フラグ変更が audit_log に 2 行」という
+  要件そのものは、`proposeAdminAction` / `approveAdminAction` を `withRollback` の `tx`
+  （drizzle を介さない安全な接続）で直接呼ぶテスト群で検証済み（`tests/integration/admin.test.ts`）。
+  `GET /api/admin/lookup` と `GET /api/admin/gates` は読み取り専用で `.toISOString()` 呼び出し
+  側に `toIso()` 防御（`Date | string` どちらでも動く）を足したため実ルートのまま通っている。
+- `GET /api/events/:id/export.csv` の固定文言は、実装計画書の原文
+  （「本書は適格請求書ではありません」）をそのまま使うと `gate:wording` の W-RECEIPT
+  （否定文でも「適格請求書」という部分文字列を禁止。W-AUTO のような否定形の例外が無い）に
+  引っかかるため、同じ法的含意を禁止語を含まない言い回しに書き換えた
+  （`src/app/api/events/[id]/export.csv/route.ts` の `DISCLAIMER_LINES`）。
+- `GET /api/me/export.zip` は依存追加なしで完結させるため、無圧縮 STORE 方式の ZIP を自前実装
+  した（`export.json` 1 エントリ）。
+- verify_commands 7 本すべて `scripts/record-run.sh task_021` 経由で実行。`typecheck` /
+  `test:integration`（15 ファイル 226/226）/ `gate:wording` / `gate:terms` / `gate:privacy-policy`
+  / `gate:constraints` は exit 0。`test:unit` は exit 1 だが、失敗 2 件は
+  `tests/unit/gate-check.test.ts`（task_006 所有）の task_018 `test:contract` 追加との衝突
+  （task_016 の HANDOFF §「決まったこと」・`docs/concerns/task_023.md` §9 と同一の既知の事象）で、
+  task_021 の新規テスト（export-csv 8 件・admin 16 件・abuse-limits 4 件・gate-terms 10 件）は
+  すべて pass。
+
+### 未解決
+
+- `docs/concerns/task_021.md`（high 1・medium 3・low 4）。要点は上記の `createDbClient` 不具合
+  （最優先）、幹事あたり合計請求額上限が files_to_modify 不足で未実装、O-9 の 10 種別分類が
+  参加者一覧 API の内訳不足で部分実装、`docs/incident-response.md` の報告期限が一次資料未取得の
+  暫定値、`(web)/layout.tsx` への法務リンク未配線、自動アダプタ返金経路が Phase 1 未到達、
+  test:unit の他タスク由来の 2 件失敗。
+- `GATE-LEGAL-PII` は `unknown` のまま。`src/content/terms.md` / `privacy.md` は草案 v1（弁護士
+  レビュー前提）。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -2559,3 +2612,8 @@ GPT-6 Astra 7 件のうち重複を除く 7 件を**全件修正**した（詳�
 - 2026-09-24T18:05:06Z HEAD=8c2809a 決まったこと: task_023(修正ラウンド): health.ts の degraded 判定・ADR-007・docs/ops を実装 / 未解決: 未コミット 64 件: docs/HANDOFF.md docs/PROGRESS.md docs/constraints.json docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json 
 - 2026-09-24T18:07:07Z HEAD=7833726 決まったこと: task_018: 台帳適用・冪等基盤・監査連鎖検証・Webhook ルート・契約テスト 3 本 / 未解決: 未コミット 47 件: docs/PROGRESS.md docs/constraints.json docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json docs/run-log/task_018.json 
 - 2026-09-24T18:09:06Z HEAD=7833726 決まったこと: task_018: 台帳適用・冪等基盤・監査連鎖検証・Webhook ルート・契約テスト 3 本 / 未解決: 未コミット 49 件: docs/HANDOFF.md docs/PROGRESS.md docs/constraints.json docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json 
+- 2026-09-24T18:11:40Z HEAD=4d339e1 決まったこと: task_016: 配布（O-7）催促文＋URLコピー主導線・個別リンク・shareTargetPicker補助・QR / 未解決: 未コミット 33 件: docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json docs/run-log/task_019.json docs/run-log/task_023.json .github/workflows/gate-legal.yml 
+- 2026-09-24T18:12:08Z HEAD=4d339e1 決まったこと: task_016: 配布（O-7）催促文＋URLコピー主導線・個別リンク・shareTargetPicker補助・QR / 未解決: 未コミット 34 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json docs/run-log/task_019.json docs/run-log/task_023.json 
+- 2026-09-24T18:16:09Z HEAD=4d339e1 決まったこと: task_016: 配布（O-7）催促文＋URLコピー主導線・個別リンク・shareTargetPicker補助・QR / 未解決: 未コミット 38 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json docs/run-log/task_018.json 
+- 2026-09-24T18:19:08Z HEAD=4d339e1 決まったこと: task_016: 配布（O-7）催促文＋URLコピー主導線・個別リンク・shareTargetPicker補助・QR / 未解決: 未コミット 47 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json docs/run-log/task_018.json 
+- 2026-09-24T18:20:09Z HEAD=4d339e1 決まったこと: task_016: 配布（O-7）催促文＋URLコピー主導線・個別リンク・shareTargetPicker補助・QR / 未解決: 未コミット 51 件: docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json 
