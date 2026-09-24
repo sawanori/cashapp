@@ -116,5 +116,12 @@
     "commit": "c25fab9edfe500626f7f9f818c5e5092fde6623c",
     "ran_at": "2026-09-24T04:29:02Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": ".claude/settings.json が参照する実体をすべて照合した。登録イベントは PostToolUse / PreToolUse / SessionStart / Stop / SubagentStop / UserPromptSubmit の 6 件で PreCompact は含まれない（check_063 後半の条件）。参照先 9 件（scripts 配下の実ファイル 6 件と npm スクリプト 3 件: typecheck / lint:changed / gate:constraints）はすべて実在し、欠落 0 件。",
+    "commit": "e87aa775e450d3dd06c2e86f2e29bf61cd07658a",
+    "ran_at": "2026-09-24T04:29:45Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]
