@@ -1870,6 +1870,36 @@ GPT-6 Astra の敵対レビュー（high 1 / medium 3）。**4 件すべて HEAD
   ファイルの有無までで、`approved_by` が誰かや承認の日付・対象バージョンの照合はしていない。
   `docs/gates/release-<version>.json` のスキーマ検査を足すなら封筒スキーマ側（task_010）で。
 
+## task_012（レビュー修正・4 周目）
+
+3 周目の修正（`d6f140f`）への G5。**Gemini 2.5 Pro = PASS（指摘 0）/ GPT-6 Astra = medium 2 件（high 0）**、
+**merge = pass**（実効 high 0 / 有効票 2 / 欠票 0）。差し戻しではないが 2 件とも実在の穴なので同じ周で塞いだ。
+
+### 決まったこと
+
+- **[medium] `gate:env` は表名とキー列を正規化してから判定する**。TOML は表名も引用符を取れる
+  （`[env.staging."vars"]`）しキーも点で区切れる（`vars."DATABASE_URL" = …`）ので、
+  「vars 表かどうか」の判定を外して禁止名の検査を丸ごと回避できた。新フィクスチャ
+  `quoted-tables` に対し **HEAD 版のスクリプトを取り出して実行し 0 violation / exit 0** を実測（再現）。
+  `normalizeTomlKeyPath()` と `findTopLevelEquals()` を足し、代入行の切り出しを
+  「引用符の外にある最初の `=`」に変えた。2 周目に「未対応」として残していた点区切りキーの穴も
+  同時に塞がった。→ C-012-23
+- **[medium] ライブ検査を「ランタイム × environment」の二重ループにした**。照会先がメインアプリ
+  Worker 1 本しかなく、cron Worker のシークレットに禁止名があっても検出できない構造だった。
+  cron には `--config workers/cron/wrangler.toml` を付ける（`-c, --config` の存在は
+  `npx wrangler secret list --help` で実測）。→ C-012-24
+
+### 未解決
+
+- **[severity: medium] ライブ検査の成功経路は cron・main とも未実走**。`CLOUDFLARE_API_TOKEN` が無く
+  Cloudflare アカウントも未作成のため、`secret list` の JSON から名前を拾う部分は動かせていない
+  （無効トークンで 4 通りの照会が試みられることまでは実測）。実走は task_024。→ C-012-24 / C-012-12
+- **[severity: medium] `npm run test:integration` は exit 1**。落ちたのは他タスク（task_014）の
+  `tests/integration/events.test.ts` の表示名ソート 1 件で、task_012 側の 4 ファイル（`auth` /
+  `schema` / `db-role` / `ci-workflow`）は 73/73 緑。
+- **[severity: low] TOML 読み取りは依然として最小実装**（複数行文字列・インラインテーブルは未対応）。
+  → C-012-23
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -2017,3 +2047,6 @@ GPT-6 Astra の敵対レビュー（high 1 / medium 3）。**4 件すべて HEAD
 - 2026-09-24T13:56:26Z HEAD=2b44ea3 決まったこと: task_013(4周目・4巡目): 退避先のキーを置き場オブジェクトからページのスコープへ / 未解決: 未コミット 13 件: .claude/workflows/release-audit.ts docs/PROGRESS.md docs/concerns/task_008.md docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/review-log/task_012.json docs/run-log/task_008.json docs/run-log/task_012.json 
 - 2026-09-24T13:58:29Z HEAD=2b44ea3 決まったこと: task_013(4周目・4巡目): 退避先のキーを置き場オブジェクトからページのスコープへ / 未解決: 未コミット 18 件: .claude/workflows/release-audit.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_008.md docs/constraints.json docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/review-log/task_012.json 
 - 2026-09-24T13:58:59Z HEAD=2b44ea3 決まったこと: task_013(4周目・4巡目): 退避先のキーを置き場オブジェクトからページのスコープへ / 未解決: 未コミット 19 件: .claude/workflows/release-audit.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_008.md docs/constraints.json docs/gates/integrity-baseline.json docs/review-log/task_004.json docs/review-log/task_012.json 
+- 2026-09-24T14:00:26Z HEAD=3323c11 決まったこと: task_008(8周目): 不達ベンダーの「PO 承認」を、承認ファイルの実在で判定する / 未解決: 未コミット 13 件: docs/constraints.json docs/review-log/task_004.json docs/review-log/task_012.json docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json scripts/gate-constraints.sh scripts/gate-env-scope.mjs 
+- 2026-09-24T14:01:26Z HEAD=15d9987 決まったこと: task_008(8周目): 最終 HEAD 3323c11 での verify_commands 再実行ログと、G13 不一致 2 件の出どころ / 未解決: 未コミット 15 件: docs/HANDOFF.md docs/concerns/task_012.md docs/constraints.json docs/review-log/task_004.json docs/review-log/task_012.json docs/run-log/task_012.json docs/run-log/task_014.json scripts/gate-constraints.sh 
+- 2026-09-24T14:04:30Z HEAD=7932d16 決まったこと: G5: task_013 の 4 巡目修正（2b44ea3）に対する最終レビューを追記（Gemini PASS / GPT high 1 で reject） / 未解決: 未コミット 18 件: docs/HANDOFF.md docs/concerns/task_012.md docs/constraints.json docs/review-log/task_004.json docs/review-log/task_012.json docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json 

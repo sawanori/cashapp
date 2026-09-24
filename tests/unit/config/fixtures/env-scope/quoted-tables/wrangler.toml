@@ -1,0 +1,32 @@
+# gate:env の回帰フィクスチャ（3 周目の敵対レビュー F-1, 2026-09-24）。
+#
+# TOML は**表名**も引用符を取れる（`[env.staging."vars"]`）し、キーも点で区切って
+# 複数の段を書ける（`vars."NAME" = …`）。表名・キー列を正規化しないと、
+# 「vars 表かどうか」の判定を外して禁止された変数名の検査を丸ごと回避できる。
+#
+# 値はすべて合成のダミーである（実在の資格情報ではない）。
+
+name = "fixture-quoted-tables-dev"
+main = ".open-next/worker.js"
+compatibility_date = "2026-09-24"
+
+[vars]
+APP_ENV = "development"
+
+[env.staging]
+name = "fixture-quoted-tables-staging"
+
+# 表名を引用符で囲んだ形。
+[env.staging."vars"]
+APP_ENV = "staging"
+SUPABASE_SERVICE_ROLE_KEY = "synthetic-service-role-value-00000000"
+
+[env.production]
+name = "fixture-quoted-tables-production"
+
+# 表名は素のまま、キー側を点区切り＋引用符にした形。
+[env.production]
+vars."DATABASE_URL" = "postgresql://user:pass@example.invalid:5432/db"
+
+[env.production.vars]
+APP_ENV = "production"

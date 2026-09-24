@@ -391,5 +391,145 @@
     "task_mismatches": 0,
     "effective_high": 1,
     "exit_code": 1
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_012",
+    "reviewer": "adversarial-reviewer-gemini",
+    "vendor": "gemini",
+    "reviewer_route": "verified",
+    "model_id_requested": "gemini-2.5-pro",
+    "model_id_actual": "gemini-2.5-pro",
+    "model_id_source": "cli_stats",
+    "cli_version": "0.38.1",
+    "backend": "gemini-cli",
+    "ran_at": "2026-09-24T13:51:20Z",
+    "commit": "9002e88c10727bb45b35720fbb067a5c6bb0af63",
+    "verdict": "PASS",
+    "findings": [],
+    "raw_warnings": [],
+    "packet_bytes": 208645,
+    "validated_at": "2026-09-24T13:55:58Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/review-012-r3/gemini.json",
+    "merged_at": "2026-09-24T13:55:58Z",
+    "round": 3,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gemini-2.5-pro を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 0,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_012",
+    "reviewer": "adversarial-reviewer-gpt",
+    "vendor": "gpt",
+    "reviewer_route": "cli-fallback",
+    "model_id_requested": "gpt-6-astra",
+    "model_id_actual": "gpt-6-astra",
+    "model_id_source": "self_report",
+    "cli_version": "codex-cli 0.154.0",
+    "backend": "codex",
+    "ran_at": "2026-09-24T13:55:09Z",
+    "commit": "9002e88c10727bb45b35720fbb067a5c6bb0af63",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "medium",
+        "title": "引用符付きの表名で禁止環境変数の検査を回避できる",
+        "detail": "表名は引用符を含む文字列のまま保持され、vars 判定は /(^|\\.)vars$/ で行われる。そのため有効な TOML の [env.staging.\"vars\"] 内では、SUPABASE_SERVICE_ROLE_KEY を検出しない。APP_ENV の未検出も pending にとどまるため、ゲートは成功する。今回追加された復号処理は代入キーと値だけに適用され、この経路を担保しない。静的な反例であり、実走は未実施。",
+        "file": "scripts/gate-env-scope.mjs",
+        "line": 164,
+        "repro": "同梱の quoted-keys-escaped/wrangler.toml を基に、[env.staging.vars] を [env.staging.\"vars\"] に変更し、production 側の \"PEPPE\\U00000052\" の代入行を削除する。この wrangler.toml だけを置いたディレクトリに対し node scripts/gate-env-scope.mjs --root <ディレクトリ> --no-live を実行する。staging の禁止変数は残っているが、コード上は violation 0、終了コード0になる。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-2",
+        "severity": "medium",
+        "title": "cron Worker の禁止シークレットがライブ検査の対象になっていない",
+        "detail": "ライブ検査は staging と production を反復するだけで、すべて REPO_ROOT を作業ディレクトリとして secret list を実行する。静的検査で収集した cron の設定ファイルはこの呼び出しに使われず、cron Worker のシークレット名を取得する経路がない。そのため、cron 側にある SUPABASE_SERVICE_ROLE_KEY を検出できない。静的な反例であり、実走は未実施。",
+        "file": "scripts/gate-env-scope.mjs",
+        "line": 600,
+        "repro": "静的検査が通る設定で、メイン Worker の staging・production には LINE_ENV_PROFILE、PEPPER、SESSION_KEYS、CRON_SECRETS を登録し、禁止名を登録しない。一方、cron Worker の production に SUPABASE_SERVICE_ROLE_KEY をシークレットとして登録する。有効な CLOUDFLARE_API_TOKEN を設定して node scripts/gate-env-scope.mjs を実行すると、ライブ照会はメイン Worker の2環境だけに行われ、cron 側の禁止名があっても終了コード0になる。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      }
+    ],
+    "diagnostics": {
+      "exit_code": 0,
+      "event_types": [
+        "thread.started",
+        "turn.started",
+        "item.completed",
+        "item.completed",
+        "turn.completed"
+      ],
+      "cli_errors": [
+        "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+      ],
+      "last_message_bytes": 1407,
+      "stderr_tail": "2026-09-24T13:51:23.490878Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T13:51:24.003883Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T13:51:24.183980Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer error=\\\"invalid_request\\\", error_description=\\\"No access token was provided in this request\\\", resource_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n"
+    },
+    "packet_bytes": 208645,
+    "validated_at": "2026-09-24T13:55:58Z",
+    "classification": "vote",
+    "source_file": "/private/tmp/claude-501/-Users-noritakasawada-AI-P-cashapp/f9bfc039-00e1-4fcc-9c92-b7b79b3e041c/scratchpad/review-012-r3/gpt.json",
+    "merged_at": "2026-09-24T13:55:58Z",
+    "round": 3,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gpt-6-astra を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 0,
+        "medium": 2,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 2,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "type": "summary",
+    "task_id": "task_012",
+    "round": 3,
+    "merged_at": "2026-09-24T13:55:58Z",
+    "decision": "pass",
+    "envelopes": 2,
+    "votes": 2,
+    "vendors": [
+      "gemini",
+      "gpt"
+    ],
+    "author_vendor": "claude",
+    "missing_votes": 0,
+    "invalid_envelopes": 0,
+    "invalid_reviews": 0,
+    "self_reviews": 0,
+    "task_mismatches": 0,
+    "effective_high": 0,
+    "exit_code": 0
   }
 ]

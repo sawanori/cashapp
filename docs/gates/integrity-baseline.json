@@ -2,9 +2,9 @@
   "$comment": "G13 の基準値。docs/gates/** は PO 専管のため、このファイルの唯一の書き込み経路は `node scripts/gate-integrity.mjs --write-baseline` である（scripts/deny-test-weakening.sh / deny-dangerous-bash.sh が Edit / Write / Bash 経由の直接書き込みを遮断する）。ゲート対象領域を意図して変更したときだけ再生成し、差分を PR で人間に見せること。",
   "schema_version": 1,
   "algorithm": "sha256",
-  "generated_at": "2026-09-24T13:53:11Z",
+  "generated_at": "2026-09-24T14:05:06Z",
   "generated_by": "scripts/gate-integrity.mjs --write-baseline",
-  "generated_at_commit": "3f2ea9bafd7a40b6fc4a95450523cbe7d343fd95",
+  "generated_at_commit": "7932d16a3e157a0d7ebeba433c7975339e871fa2",
   "patterns": [
     {
       "kind": "dir",
@@ -100,7 +100,7 @@
     "scripts/deny-test-weakening.sh": "b344cda4b41bb173ade1aa308bfee801158e6380a225bec173efbee749b80146",
     "scripts/gate-check.mjs": "38afbc84e85af92e121e2df73820dac4fe39d94a0077e5f959ef4ef4c61ddb49",
     "scripts/gate-constraints.sh": "a227c2a5166b01492af9f54647d50c25be7e1cf911975121b4171602a0829741",
-    "scripts/gate-env-scope.mjs": "8b885a53c39b5096515d24c7b7b82e3a4557e0546a6fde14f56be273c1add879",
+    "scripts/gate-env-scope.mjs": "d0827280c9e658175d09645ae2da0129ade3259675a29fc04e627bd361a8990c",
     "scripts/gate-integrity.mjs": "881c9bd24f7bbbba222564dba3bebb7c4d3df9e9509763957ec73b5c334b2630",
     "scripts/gate-status.mjs": "72c9cc0f3f2140cec25213f473688ca6a2d1dcbef93394f8759b61aceb6f173f",
     "scripts/gates-sync.mjs": "1b9e2da70a1aaa8f535222fe39e8eb3c06c9cc841d0ce6a3f9cf7010eedcc11c",

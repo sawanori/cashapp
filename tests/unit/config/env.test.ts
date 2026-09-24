@@ -395,4 +395,20 @@ describe("npm run gate:env（scripts/gate-env-scope.mjs）", () => {
     expect(result.output).toContain("SUPABASE_SERVICE_ROLE_KEY must never be a runtime var");
     expect(result.output).toContain("PEPPER is a secret");
   });
+
+  /**
+   * 3 周目の敵対レビュー F-1 の回帰。
+   *
+   * TOML は**表名**も引用符を取れる（`[env.staging."vars"]`）し、キーも点で区切れる
+   * （`vars."DATABASE_URL" = …`）。どちらも正規化しないと「vars 表かどうか」の判定を外れ、
+   * 禁止された変数名の検査（検査 (1)）を丸ごと回避できる。
+   */
+  it("引用符付きの表名・点区切りのキーでも vars 表として検査する（3 周目 F-1）", () => {
+    const result = runGateEnv(path.join(FIXTURES, "quoted-tables"));
+    expect(result.exitCode).not.toBe(0);
+    expect(result.output).toContain("SUPABASE_SERVICE_ROLE_KEY must never be a runtime var");
+    expect(result.output).toContain("DATABASE_URL is a secret");
+    // 表名を正規化しているので、APP_ENV の検査も素通りしない（pending が出ない）。
+    expect(result.output).toContain("APP_ENV of 'staging' is 'staging'");
+  });
 });

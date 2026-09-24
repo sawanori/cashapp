@@ -858,5 +858,122 @@
     "commit": "9d393be21a5eac85a567bb99f88e3106cd2d47bf",
     "ran_at": "2026-09-24T13:47:13Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:check",
+    "exit_code": 1,
+    "stdout_tail": "   warn G2 task_028: `test:conformance` は未定義（未着手タスクなので warn）\n   warn G2 task_029: `test:gate` は未定義（未着手タスクなので warn）\n   warn G2 task_029: `gate:compliance-freshness` は未定義（未着手タスクなので warn）\n   warn G2 task_030: `test:conformance` は未定義（未着手タスクなので warn）\nok    G3 各 check が 1 つ以上の task から参照されている — 対象 133 件\n        check 133 件 / 参照 133 件\nok    G4 完了タスクの run-log（全 verify_commands exit 0 / manual 記録） — 対象 25 件\n        完了タスク 12 件を検査\n        docs/PROGRESS.md の完了宣言 13 件 / 台帳との食い違い 0 件\n   warn G4 task_036: manual_verification[0]「python3 -c \"import json;json.l」は、どの項目の記録か名乗っていない manual エントリで充当しました。観察結果の先頭に `manual_verification[<索引>]` を書いてください\n   warn G4 task_002: manual_verification[0]「python3 で JSON を検査し record-run」は、どの項目の記録か名乗っていない manual エントリで充当しました。観察結果の先頭に `manual_verification[<索引>]` を書いてください\nwarn  G5 high × adversarial_review=required の完了に敵対レビュー記録 — 対象 8 件\n        対象 8 件。task_007（レビュー経路）が DONE になるまで G5 は warn（§15-2）\n   warn G5 task_014: docs/review-log/task_014.json がありません\nok    G6 DONE_WITH_CONCERNS の concerns に severity と対応案 — 対象 11 件\n        DONE_WITH_CONCERNS 11 件を検査\ndefer G7 tests/contract のファイル数が減っていない — 対象 0 件\n        tests/contract/ はまだ存在しません（task_018 で作成。基準値 0 と一致）\nok    G8 差分に実シークレットが含まれない — 対象 379 件\n        追加行 379 行を走査\ndefer G9 evidence.commit === HEAD — 対象 0 件\n        evidence 記入済みの check がまだ 0 件です（HEAD=d6f140f68452…）\nok    G10 [設計] / [不明] 依存の ADR が accepted になっていない — 対象 5 件\n        ADR 5 件を検査\nok    G11 severity=high の未解決 concerns 3 件以上で in_progress を禁止 — 対象 38 件\n        未解決 high concerns 36 件（task_004, task_005, task_006, task_007, task_009, task_011, task_012, task_013） / しきい値 3 件 / in_progress 0 件\n        集計元: docs/concerns/task_004.md=1 / docs/task-list.json=8 / docs/concerns/task_005.md=1 / docs/HANDOFF.md=14 / docs/concerns/task_006.md=1 / docs/concerns/task_007.md=4 / docs/concerns/task_009.md=4 / docs/concerns/task_012.md=2 / docs/concerns/task_013.md=1\ndefer G12 fixture の provenance（captured_from）と autoDetect の宣言 — 対象 0 件\n        tests/fixtures/<provider>/ がまだありません（task_018 / task_019 で作成）\nFAIL  G13 ゲート定義ファイルのハッシュが基準値と一致 — 対象 43 件\n        ハッシュ対象 43 ファイル（sha256）\n   FAIL G13 不一致: .claude/workflows/release-audit.ts（基準値 1583e4abd1d2… / 実測 6c19447209a6…）\n   FAIL G13 不一致: scripts/gate-env-scope.mjs（基準値 ac51d3088d9c… / 実測 8b885a53c39b…）\ndefer G14 直近 7 日の監査連鎖が audit:verify で検証済み — 対象 0 件\n        package.json に audit:verify がありません（task_018 で作成）\n\ngate:check — 15 ゲートを判定、1 ゲートが不合格（違反 2 件 / warn 21 件）\ngate:check — 15 ゲートを判定、1 ゲートが不合格（違反 2 件 / warn 21 件）\n   FAIL G13 不一致: .claude/workflows/release-audit.ts（基準値 1583e4abd1d2… / 実測 6c19447209a6…）\n   FAIL G13 不一致: scripts/gate-env-scope.mjs（基準値 ac51d3088d9c… / 実測 8b885a53c39b…）",
+    "commit": "d6f140f68452a33f54336418df2f28a2228f1b44",
+    "ran_at": "2026-09-24T13:50:53Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run build:web-only",
+    "exit_code": 0,
+    "stdout_tail": "\n  Learn more: https://nextjs.org/docs/messages/middleware-to-proxy\n  Creating an optimized production build ...\n✓ Compiled successfully in 1046ms\n  Running TypeScript ...\n  Finished TypeScript in 5.1s ...\n  Collecting page data using 9 workers ...\n  Generating static pages using 9 workers (0/9) ...\n  Generating static pages using 9 workers (2/9) \r\n  Generating static pages using 9 workers (4/9) \r\n  Generating static pages using 9 workers (6/9) \r\n✓ Generating static pages using 9 workers (9/9) in 193ms\n  Finalizing page optimization ...\n\nRoute (app)\n┌ ○ /\n├ ○ /_not-found\n├ ƒ /api/auth/line\n├ ƒ /api/consent\n├ ƒ /api/events\n├ ƒ /api/events/[id]\n├ ƒ /api/events/[id]/participants\n├ ƒ /api/events/[id]/participants/[pid]\n├ ƒ /api/health\n├ ƒ /api/me\n├ ƒ /api/telemetry/client-error\n├ ƒ /events\n├ ƒ /events/[id]\n├ ƒ /events/[id]/invoices/confirm\n├ ƒ /events/[id]/participants\n└ ƒ /events/new\n\n\nƒ Proxy (Middleware)\n\n○  (Static)   prerendered as static content\nƒ  (Dynamic)  server-rendered on demand\n\nbuild:web-only: .next/static を検査しました（禁止マーカー 4 件）\nbuild:web-only: OK（(web) は LINE SDK に依存せず、バンドルにモックも dev LIFF ID も無い）",
+    "commit": "3f2ea9bafd7a40b6fc4a95450523cbe7d343fd95",
+    "ran_at": "2026-09-24T13:52:44Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:wording",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:wording\n> node scripts/wording-lint.mjs\n\nok    W-AUTO (46 file(s) read)\nok    W-DONATION (46 file(s) read)\nok    W-SUPPORT (46 file(s) read)\nok    W-RECEIPT (46 file(s) read)\ndefer W-MERCHANT-GUIDE (0 targets; waiting on task_025)\nok    W-FEE-FIXED (46 file(s) read)\n\ngate:wording — scanned 5 pattern group(s), 0 violation(s), 0 empty gate(s)",
+    "commit": "3f2ea9bafd7a40b6fc4a95450523cbe7d343fd95",
+    "ran_at": "2026-09-24T13:53:15Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:check",
+    "exit_code": 0,
+    "stdout_tail": "   warn G2 task_021: `gate:privacy-policy` は未定義（未着手タスクなので warn）\n   warn G2 task_024: `db:restore:drill` は未定義（未着手タスクなので warn）\n   warn G2 task_025: `test:gate` は未定義（未着手タスクなので warn）\n   warn G2 task_026: `test:conformance` は未定義（未着手タスクなので warn）\n   warn G2 task_027: `test:conformance` は未定義（未着手タスクなので warn）\n   warn G2 task_028: `test:conformance` は未定義（未着手タスクなので warn）\n   warn G2 task_029: `test:gate` は未定義（未着手タスクなので warn）\n   warn G2 task_029: `gate:compliance-freshness` は未定義（未着手タスクなので warn）\n   warn G2 task_030: `test:conformance` は未定義（未着手タスクなので warn）\nok    G3 各 check が 1 つ以上の task から参照されている — 対象 133 件\n        check 133 件 / 参照 133 件\nok    G4 完了タスクの run-log（全 verify_commands exit 0 / manual 記録） — 対象 25 件\n        完了タスク 12 件を検査\n        docs/PROGRESS.md の完了宣言 13 件 / 台帳との食い違い 0 件\n   warn G4 task_036: manual_verification[0]「python3 -c \"import json;json.l」は、どの項目の記録か名乗っていない manual エントリで充当しました。観察結果の先頭に `manual_verification[<索引>]` を書いてください\n   warn G4 task_002: manual_verification[0]「python3 で JSON を検査し record-run」は、どの項目の記録か名乗っていない manual エントリで充当しました。観察結果の先頭に `manual_verification[<索引>]` を書いてください\nwarn  G5 high × adversarial_review=required の完了に敵対レビュー記録 — 対象 8 件\n        対象 8 件。task_007（レビュー経路）が DONE になるまで G5 は warn（§15-2）\n   warn G5 task_014: docs/review-log/task_014.json がありません\nok    G6 DONE_WITH_CONCERNS の concerns に severity と対応案 — 対象 11 件\n        DONE_WITH_CONCERNS 11 件を検査\ndefer G7 tests/contract のファイル数が減っていない — 対象 0 件\n        tests/contract/ はまだ存在しません（task_018 で作成。基準値 0 と一致）\nok    G8 差分に実シークレットが含まれない — 対象 537 件\n        追加行 537 行を走査\ndefer G9 evidence.commit === HEAD — 対象 0 件\n        evidence 記入済みの check がまだ 0 件です（HEAD=3f2ea9bafd7a…）\nok    G10 [設計] / [不明] 依存の ADR が accepted になっていない — 対象 5 件\n        ADR 5 件を検査\nok    G11 severity=high の未解決 concerns 3 件以上で in_progress を禁止 — 対象 38 件\n        未解決 high concerns 36 件（task_004, task_005, task_006, task_007, task_009, task_011, task_012, task_013） / しきい値 3 件 / in_progress 0 件\n        集計元: docs/concerns/task_004.md=1 / docs/task-list.json=8 / docs/concerns/task_005.md=1 / docs/HANDOFF.md=14 / docs/concerns/task_006.md=1 / docs/concerns/task_007.md=4 / docs/concerns/task_009.md=4 / docs/concerns/task_012.md=2 / docs/concerns/task_013.md=1\ndefer G12 fixture の provenance（captured_from）と autoDetect の宣言 — 対象 0 件\n        tests/fixtures/<provider>/ がまだありません（task_018 / task_019 で作成）\nok    G13 ゲート定義ファイルのハッシュが基準値と一致 — 対象 43 件\n        ハッシュ対象 43 ファイル（sha256）\ndefer G14 直近 7 日の監査連鎖が audit:verify で検証済み — 対象 0 件\n        package.json に audit:verify がありません（task_018 で作成）\n\ngate:check — 15 ゲートを判定、0 ゲートが不合格（違反 0 件 / warn 21 件）",
+    "commit": "3f2ea9bafd7a40b6fc4a95450523cbe7d343fd95",
+    "ran_at": "2026-09-24T13:53:41Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:security",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:security\n> TZ=UTC vitest run tests/security\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  2 passed (2)\n      Tests  29 passed (29)\n   Start at  13:53:59\n   Duration  537ms (tests 53%, setup 24%, transform 17%, import 6%, worker 1%)",
+    "commit": "3f2ea9bafd7a40b6fc4a95450523cbe7d343fd95",
+    "ran_at": "2026-09-24T13:53:59Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:server-only",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:server-only\n> node scripts/assert-server-only.mjs\n\nok        src/lib/db/client.ts imports server-only\nok        src/lib/config/env.ts imports server-only\nok        src/lib/logger.ts imports server-only\nok        src/lib/auth/pepper.ts imports server-only\nok        src/lib/auth/session.ts imports server-only\nok        src/lib/auth/csrf.ts imports server-only\nok        src/lib/auth/line-verify.ts imports server-only\nok        src/lib/auth/used-token.ts imports server-only\nok        src/lib/auth/rate-limit.ts imports server-only\nok        scanned 46 file(s) under src/ for server-only leakage\n\ngate:server-only — 0 violation(s), 10 check(s) passed",
+    "commit": "3f2ea9bafd7a40b6fc4a95450523cbe7d343fd95",
+    "ran_at": "2026-09-24T13:54:04Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "15d99875f3de1eccaf48cbef5b7abcb1652d307a",
+    "ran_at": "2026-09-24T14:00:50Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run lint",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 lint\n> eslint .",
+    "commit": "15d99875f3de1eccaf48cbef5b7abcb1652d307a",
+    "ran_at": "2026-09-24T14:00:54Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:env",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:env\n> node scripts/gate-env-scope.mjs\n\nok      main: APP_ENV of 'default' is 'development'\nok      main: APP_ENV of 'staging' is 'staging'\nok      main: APP_ENV of 'production' is 'production'\nok      main: staging and production share no non-trivial value\nok      cron: staging and production share no non-trivial value\nok      LINE_ENV_PROFILE is documented in .env.example\nok      PEPPER is documented in .env.example\nok      SESSION_KEYS is documented in .env.example\nok      CRON_SECRETS is documented in .env.example\nok      .env.example runtime section carries no local-only escape hatch\npending docs/ops/env-baseline.json not found — expected-name comparison is deferred to task_035. 実走したのは (1) 禁止名がランタイム var に無い / (2) APP_ENV が environment 名と一致 / (3) staging と production が同じ値を共有していない、の 3 つだけである。本番の値を staging **だけ**に書いた片側混入は (3) では検出できない\npending EXPECTED_SUPABASE_PROJECT_REF.production is still a placeholder — one-sided injection of the production Supabase project ref is NOT checked (task_024)\npending EXPECTED_SUPABASE_PROJECT_REF.staging is still a placeholder — one-sided injection of the staging Supabase project ref is NOT checked (task_035)\npending 片側混入を検出できない本番資源が残っている: production LIFF ID / production Hyperdrive id。ソース固定の宣言が無く、docs/ops/env-baseline.json の production_only_values 待ち（task_035 / task_024）\npending .dev.vars.example に無い必須秘密値: LINE_ENV_PROFILE, PEPPER, SESSION_KEYS, CRON_SECRETS — wrangler dev / next dev の platform proxy は .env / .env.local を読まないため、雛形どおりコピーした開発者はルートが 500 / 503 になる（.dev.vars.example は task_003 所有。task_003 / task_035 で追記）\nnote    **静的検査のみで判定した**: wrangler CLI が未認証（CLOUDFLARE_API_TOKEN 未設定）のため `wrangler secret list` との突き合わせは行っていない。CI 接続は task_024。\n\ngate:env — 0 violation(s), 5 pending, 10 check(s) passed",
+    "commit": "15d99875f3de1eccaf48cbef5b7abcb1652d307a",
+    "ran_at": "2026-09-24T14:01:00Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 46 file(s) read)\nok    L2 (forbid, 46 file(s) read)\nok    L3 (forbid, 46 file(s) read)\nok    L8 (forbid, 46 file(s) read)\nok    L12 (forbid, 46 file(s) read)\nok    P1 (forbid, 46 file(s) read)\ndefer P2 (0 targets; waiting on task_018)\nok    P9 (forbid, 7 file(s) read)\nok    W3 (forbid, 53 file(s) read)\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 44 file(s) read)\nok    N5 (forbid, 46 file(s) read)\nok    N7 (forbid, 46 file(s) read)\nok    N9 (forbid, 46 file(s) read)\nok    N11 (forbid, 46 file(s) read)\nok    I1 (require, 1 file(s) read)\nok    I2 (require, 1 file(s) read)\nok    I3 (forbid, 15 file(s) read)\nok    I4 (forbid, 2 file(s) read)\nok    X-TIME (forbid, 8 file(s) read)\nok    X-ID (forbid, 18 file(s) read)\nok    X-MONEY (forbid, 1 file(s) read)\nok    GC-XSS (forbid, 46 file(s) read)\nok    GC-ENV-PUBLIC (forbid, 51 file(s) read)\nok    GC-SERVER-ONLY (require, 2 file(s) read)\n\ngate:constraints — scanned 23 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "15d99875f3de1eccaf48cbef5b7abcb1652d307a",
+    "ran_at": "2026-09-24T14:01:01Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  37 passed (37)\n      Tests  981 passed (981)\n   Start at  14:01:09\n   Duration  161.79s (tests 88%, environment 5%, setup 4%, import 1%, transform 1%)",
+    "commit": "15d99875f3de1eccaf48cbef5b7abcb1652d307a",
+    "ran_at": "2026-09-24T14:01:09Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:integration",
+    "exit_code": 1,
+    "stdout_tail": "\n⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯\n\n FAIL  tests/integration/events.test.ts > 100 名の名簿をカーソルページングで取り切る（check_082 / R-UX-03） > sort=label_asc のカーソルページングは表示名の昇順どおりに、重複・欠落なく巡回できる\nAssertionError: expected [ '伊藤', '佐藤', '田中', '鈴木', '高橋', null ] to deeply equal [ '伊藤', '佐藤', '鈴木', '高橋', '田中', null ]\n\n- Expected\n+ Received\n\n  [\n    \"伊藤\",\n    \"佐藤\",\n+   \"田中\",\n    \"鈴木\",\n    \"高橋\",\n-   \"田中\",\n    null,\n  ]\n\n ❯ tests/integration/events.test.ts:599:20\n    597|\n    598|       // 期待順は DB 自身に `ORDER BY COALESCE(display_label, sentinel) ASC, …\n    599|       // 1 クエリで問い合わせて得る（collation 依存の並び順を決め打ちしない）。ページング結果の\n       |                    ^\n    600|       // id 列が、この 1 発クエリの id 列と完全に一致すれば「重複・欠落なく並び順どおり」が言える。\n    601|       const expected = await tx<{ id: string }[]>`\n ❯ tests/integration/setup.ts:107:27\n ❯ scope node_modules/postgres/src/index.js:260:18\n ❯ Function.begin node_modules/postgres/src/index.js:243:14\n ❯ Module.withRollback tests/integration/setup.ts:106:5\n ❯ tests/integration/events.test.ts:561:5\n\n⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯\n\n\n Test Files  1 failed | 5 passed (6)\n      Tests  1 failed | 92 passed (93)\n   Start at  14:03:56\n   Duration  23.57s (tests 73%, import 13%, setup 8%, transform 6%)",
+    "commit": "7932d16a3e157a0d7ebeba433c7975339e871fa2",
+    "ran_at": "2026-09-24T14:03:56Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npx vitest run tests/integration/auth.test.ts tests/integration/schema.test.ts tests/integration/db-role.test.ts tests/integration/ci-workflow.test.ts --testTimeout=60000 --hookTimeout=60000",
+    "exit_code": 0,
+    "stdout_tail": "(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  4 passed (4)\n      Tests  73 passed (73)\n   Start at  23:04:33\n   Duration  15.93s (tests 81%, import 10%, setup 5%, transform 4%)",
+    "commit": "7932d16a3e157a0d7ebeba433c7975339e871fa2",
+    "ran_at": "2026-09-24T14:04:32Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]

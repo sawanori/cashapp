@@ -151,40 +151,115 @@ function readTomlAssignments(text) {
     const withoutComment = stripTomlComment(raw).trim();
     if (withoutComment.length === 0) continue;
 
-    const arrayTable = /^\[\[([^\]]+)\]\]$/.exec(withoutComment);
+    const arrayTable = /^\[\[(.+)\]\]$/.exec(withoutComment);
     if (arrayTable !== null) {
-      const name = arrayTable[1].trim();
+      // ★ 表名も引用符を取れる（`[[env."staging".services]]`）。正規化してから使う。
+      const name = normalizeTomlKeyPath(arrayTable[1]);
       const next = (arrayIndex.get(name) ?? -1) + 1;
       arrayIndex.set(name, next);
       tablePath = `${name}[${next}]`;
       continue;
     }
-    const table = /^\[([^\]]+)\]$/.exec(withoutComment);
+    const table = /^\[(.+)\]$/.exec(withoutComment);
     if (table !== null) {
-      tablePath = table[1].trim();
+      tablePath = normalizeTomlKeyPath(table[1]);
       continue;
     }
 
-    // 素のキー / "引用符付きキー" / '引用符付きキー' の 3 形すべてを拾う。
-    const assignment =
-      /^(?:"([^"]*)"|'([^']*)'|([A-Za-z0-9_.-]+))\s*=\s*(.+)$/.exec(withoutComment);
-    if (assignment === null) continue;
-    // 基本文字列（"…"）はエスケープを解釈する。復号しないと
-    // `"SUPABASE_SERVICE_ROLE_KEY"` のような書き方で名前の突き合わせを回避できる。
-    // リテラル文字列（'…'）はエスケープを持たないので、そのまま使う。
-    const key =
-      assignment[1] !== undefined
-        ? decodeTomlBasicString(assignment[1])
-        : (assignment[2] ?? assignment[3]);
-    if (key === undefined) continue;
+    // キーは「点で区切られた複数の段」を取れる（`vars."NAME" = …`）。`=` の手前を
+    // まるごと読み、引用符とエスケープを外してから最後の段をキー、手前を表名に足す。
+    const equals = findTopLevelEquals(withoutComment);
+    if (equals < 0) continue;
+    const keyPath = normalizeTomlKeyPath(withoutComment.slice(0, equals));
+    if (keyPath.length === 0) continue;
+    const segments = keyPath.split(".");
+    const key = segments[segments.length - 1];
+    const prefix = segments.slice(0, -1).join(".");
+    if (key === undefined || key.length === 0) continue;
+    const path_ =
+      prefix.length === 0
+        ? tablePath
+        : tablePath.length === 0
+          ? prefix
+          : `${tablePath}.${prefix}`;
     out.push({
-      path: tablePath,
+      path: path_,
       key,
-      value: unquote(assignment[4].trim()),
+      value: unquote(withoutComment.slice(equals + 1).trim()),
       line: i + 1,
     });
   }
   return out;
+}
+
+/**
+ * 引用符の外にある最初の `=` の位置を返す（無ければ -1）。
+ *
+ * キーの側にも引用符が来るので（`"A=B" = 1`）、単純な `indexOf("=")` では切れない。
+ */
+function findTopLevelEquals(line) {
+  let inBasic = false;
+  let inLiteral = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (ch === '"' && !inLiteral && line[i - 1] !== "\\") {
+      inBasic = !inBasic;
+    } else if (ch === "'" && !inBasic) {
+      inLiteral = !inLiteral;
+    } else if (ch === "=" && !inBasic && !inLiteral) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/**
+ * TOML のキー列（表名・ドット付きキー）を、引用符とエスケープを外した正規形にする。
+ *
+ * `env."staging"."vars"` → `env.staging.vars`、`env.staging."VAR"` → `env.staging.VAR`。
+ * 引用符を外さないと `[env.staging."vars"]` が「vars 表ではない」と判定され、
+ * 禁止された変数名の検査（検査 (1)）をまるごと回避できる（3 周目の敵対レビュー F-1）。
+ *
+ * 段の中に `.` を含む引用符付きキー（`["a.b"]`）は、正規形では段の区切りと区別できなくなる。
+ * この用途（`vars` 表か / どの environment か）では**締まる側**に倒れるので許容する。
+ */
+function normalizeTomlKeyPath(raw) {
+  const parts = [];
+  let i = 0;
+  while (i < raw.length) {
+    while (i < raw.length && (raw[i] === " " || raw[i] === "\t" || raw[i] === ".")) i += 1;
+    if (i >= raw.length) break;
+
+    const quote = raw[i];
+    if (quote === '"' || quote === "'") {
+      i += 1;
+      let value = "";
+      while (i < raw.length) {
+        if (quote === '"' && raw[i] === "\\" && i + 1 < raw.length) {
+          value += raw[i] + raw[i + 1];
+          i += 2;
+          continue;
+        }
+        if (raw[i] === quote) {
+          i += 1;
+          break;
+        }
+        value += raw[i];
+        i += 1;
+      }
+      parts.push(quote === '"' ? decodeTomlBasicString(value) : value);
+      continue;
+    }
+
+    let value = "";
+    while (i < raw.length && raw[i] !== ".") {
+      value += raw[i];
+      i += 1;
+    }
+    const trimmed = value.trim();
+    if (trimmed.length > 0) parts.push(trimmed);
+  }
+  return parts.join(".");
 }
 
 /**
@@ -593,30 +668,60 @@ function main() {
           "`wrangler secret list` との突き合わせは行っていない。CI 接続は task_024。",
       );
     } else {
-      for (const envName of ["staging", "production"]) {
-        try {
-          const raw = execFileSync(
-            "npx",
-            ["--no-install", "wrangler", "secret", "list", "--env", envName],
-            { cwd: REPO_ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 60_000 },
-          );
-          const remoteNames = [...raw.matchAll(/"name"\s*:\s*"([^"]+)"/g)].map((m) => m[1]);
-          for (const name of REQUIRED_SECRET_NAMES) {
-            if (!remoteNames.includes(name)) {
-              violations.push(`${envName}: secret '${name}' is not set on the deployed Worker`);
+      /**
+       * ★ ランタイムは 2 つある（3 周目の敵対レビュー F-2）。
+       *   メインアプリ Worker だけを照会していたため、**cron Worker のシークレットに
+       *   禁止名があっても検出できなかった**。cron Worker は別の wrangler 設定なので、
+       *   `--config` でその設定を指して同じ照会を行う
+       *   （`wrangler secret list --help` に `-c, --config` があることを実測。wrangler 4.137.0）。
+       *
+       *   必須名（`REQUIRED_SECRET_NAMES`）はメインアプリの起動時アサートが要求するものなので、
+       *   cron Worker には求めない。**禁止名は両方に求める**。
+       */
+      const liveRuntimes = [{ label: "main", config: null, required: REQUIRED_SECRET_NAMES }];
+      if (existsSync(cronTomlPath)) {
+        liveRuntimes.push({
+          label: "cron",
+          config: path.relative(REPO_ROOT, cronTomlPath),
+          required: [],
+        });
+      } else {
+        pending.push(
+          "workers/cron/wrangler.toml not found — cron Worker のシークレット名はライブ照会していない",
+        );
+      }
+
+      for (const runtime of liveRuntimes) {
+        for (const envName of ["staging", "production"]) {
+          const label = `${runtime.label}/${envName}`;
+          try {
+            const argv = ["--no-install", "wrangler", "secret", "list"];
+            if (runtime.config !== null) argv.push("--config", runtime.config);
+            argv.push("--env", envName);
+            const raw = execFileSync("npx", argv, {
+              cwd: REPO_ROOT,
+              encoding: "utf8",
+              stdio: ["ignore", "pipe", "pipe"],
+              timeout: 60_000,
+            });
+            const remoteNames = [...raw.matchAll(/"name"\s*:\s*"([^"]+)"/g)].map((m) => m[1]);
+            for (const name of runtime.required) {
+              if (!remoteNames.includes(name)) {
+                violations.push(`${label}: secret '${name}' is not set on the deployed Worker`);
+              }
             }
-          }
-          for (const name of FORBIDDEN_RUNTIME_NAMES) {
-            if (remoteNames.includes(name)) {
-              violations.push(`${envName}: secret '${name}' must not exist on the Worker`);
+            for (const name of FORBIDDEN_RUNTIME_NAMES) {
+              if (remoteNames.includes(name)) {
+                violations.push(`${label}: secret '${name}' must not exist on the Worker`);
+              }
             }
+            ok.push(`${label}: wrangler secret list cross-check ran (${remoteNames.length} names)`);
+          } catch (error) {
+            notes.push(
+              `**静的検査のみで判定した**（${label}）: \`wrangler secret list\` を実行できなかった ` +
+                `(${error instanceof Error ? error.message.split("\n")[0] : "unknown error"})`,
+            );
           }
-          ok.push(`${envName}: wrangler secret list cross-check ran (${remoteNames.length} names)`);
-        } catch (error) {
-          notes.push(
-            `**静的検査のみで判定した**（${envName}）: \`wrangler secret list\` を実行できなかった ` +
-              `(${error instanceof Error ? error.message.split("\n")[0] : "unknown error"})`,
-          );
         }
       }
     }

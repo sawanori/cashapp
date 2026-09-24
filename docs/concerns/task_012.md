@@ -532,5 +532,75 @@ C-012-19 で足した回帰テストはエスケープを含まないキーだ�
 `PEPPER is a secret`）。エスケープ無しのフィクスチャ（C-012-19）と実リポジトリは従来どおり
 （それぞれ exit 1 / exit 0）。`tests/unit/config/env.test.ts` は 41 件が緑。
 
-**残懸念**: C-012-19 と同じく、これは完全な TOML パーサではない。複数行文字列・インラインテーブル・
-ドット付きの quoted key は依然として未対応で、そこに書かれた禁止名は黙って読み飛ばされる。
+**残懸念**: C-012-19 と同じく、これは完全な TOML パーサではない。複数行文字列・インラインテーブルは
+依然として未対応で、そこに書かれた禁止名は黙って読み飛ばされる
+（ドット付きの quoted key は C-012-23 で塞いだ）。
+
+---
+
+# 敵対レビュー 3 周目（GPT-6 Astra, 2026-09-24, review-view 9002e88）への対応
+
+2 周目の指摘を直したコミット（`d6f140f`）に対する 3 周目。
+Gemini 2.5 Pro は **PASS（指摘 0 件）**、GPT-6 Astra は **FAIL（medium 2 件・high 0 件）**。
+merge は **pass**（実効 high 0 / 有効票 2 / 欠票 0）。high が無いので差し戻しではないが、
+2 件とも実在の穴なので同じ周で塞いだ。
+
+---
+
+## C-012-23 [medium → 解消] 引用符付きの表名・点区切りのキーで `gate:env` の検査を回避できる
+
+**指摘（3 周目 F-1）**: 「表名は引用符を含む文字列のまま保持され、vars 判定は `/(^|\.)vars$/` で
+行われる。そのため有効な TOML の `[env.staging."vars"]` 内では `SUPABASE_SERVICE_ROLE_KEY` を
+検出しない。今回追加された復号処理は代入キーと値だけに適用され、この経路を担保しない」。
+
+**再現結果**: 再現した。`tests/unit/config/fixtures/env-scope/quoted-tables/wrangler.toml`
+（`[env.staging."vars"]` に `SUPABASE_SERVICE_ROLE_KEY`、`[env.production]` に
+`vars."DATABASE_URL" = …`）に対し、**修正前の HEAD 版のスクリプト**（`git show HEAD:` で取り出して
+実行）は `0 violation(s)` / exit 0 だった。
+
+**修正**: 表名とキー列を 1 つの正規化関数 `normalizeTomlKeyPath()` に通す。
+段ごとに引用符を外し、基本文字列ならエスケープも復号してから `.` で繋ぎ直す。
+併せて代入行の切り出しを「先頭がキーに見える正規表現」から
+**「引用符の外にある最初の `=`」**（`findTopLevelEquals()`）に変え、
+`vars."NAME" = …` のような**点区切りのキー**も拾えるようにした（最後の段がキー、手前は表名に足す）。
+これは C-012-19 / C-012-22 に「未対応」として残していた穴でもある。
+
+**実測**: 同フィクスチャで exit 1 / 違反 2 件
+（`SUPABASE_SERVICE_ROLE_KEY must never be a runtime var` / `DATABASE_URL is a secret …`）。
+表名を正規化したので `APP_ENV of 'staging' is 'staging'` も通る（従来は pending になっていた）。
+既存 3 フィクスチャと実リポジトリの判定は変わらない（`tests/unit/config/env.test.ts` 42 件が緑）。
+
+**残懸念**: 段の中に `.` を含む引用符付きキー（`["a.b"]`）は、正規形では段の区切りと区別できない。
+この用途（`vars` 表かどうか・どの environment か）では**締まる側**に倒れるので許容した。
+複数行文字列とインラインテーブルは依然として未対応である。
+
+---
+
+## C-012-24 [medium → 解消（ただしライブ実走は未実施）] cron Worker のシークレットがライブ検査の対象外だった
+
+**指摘（3 周目 F-2）**: 「ライブ検査は staging と production を反復するだけで、すべて `REPO_ROOT` を
+作業ディレクトリとして `secret list` を実行する。cron Worker のシークレット名を取得する経路がなく、
+cron 側にある `SUPABASE_SERVICE_ROLE_KEY` を検出できない」。
+
+**再現結果**: コードを読めば明らかな欠落（照会先が 1 ランタイム分しかない）であり、**指摘のとおり**。
+ただし**ライブ検査そのものは実走できていない**（`CLOUDFLARE_API_TOKEN` が無く、
+Cloudflare アカウントも未作成。C-012-12）。したがって「cron 側の禁止名が検出されなかった」ことを
+実データで再現したわけではない。
+
+**修正**: ライブ検査を「ランタイム × environment」の二重ループにし、cron Worker には
+`--config workers/cron/wrangler.toml` を付けて同じ照会を行う。
+必須名（`REQUIRED_SECRET_NAMES`）はメインアプリの起動時アサートが要求するものなので cron には求めず、
+**禁止名は両方に求める**。`workers/cron/wrangler.toml` が無い木では pending を出す。
+
+**実測**: `-c, --config` が `wrangler secret list` に存在することを
+`npx wrangler secret list --help` の出力で確認した（wrangler 4.137.0）。
+`CLOUDFLARE_API_TOKEN=invalid-token-for-local-check` を与えて実行すると、
+4 通り（main/staging・main/production・cron/staging・cron/production）すべてで照会が試みられ、
+それぞれ「実行できなかった」note が出る（cron 側のコマンド行に `--config workers/cron/wrangler.toml`
+が入っていることを出力で確認した）。
+
+**残懸念**: 認証が通った状態での成功経路（`secret list` の JSON から名前を拾う部分）は
+**cron・main とも未実走**である。これは本修正で増えた穴ではなく、C-012-12（ライブ検査の CI 接続は
+task_024）と同じ制約である。実走は Cloudflare アカウント作成後に task_024 で行う。
+
+**対応予定タスク**: task_024（ライブ検査の CI 接続と実走）
