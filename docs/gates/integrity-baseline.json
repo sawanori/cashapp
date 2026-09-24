@@ -2,9 +2,9 @@
   "$comment": "G13 の基準値。docs/gates/** は PO 専管のため、このファイルの唯一の書き込み経路は `node scripts/gate-integrity.mjs --write-baseline` である（scripts/deny-test-weakening.sh / deny-dangerous-bash.sh が Edit / Write / Bash 経由の直接書き込みを遮断する）。ゲート対象領域を意図して変更したときだけ再生成し、差分を PR で人間に見せること。",
   "schema_version": 1,
   "algorithm": "sha256",
-  "generated_at": "2026-09-24T14:18:05Z",
+  "generated_at": "2026-09-24T14:20:52Z",
   "generated_by": "scripts/gate-integrity.mjs --write-baseline",
-  "generated_at_commit": "ea10fe76c7c1f2f256317afe9f98ac2da149be08",
+  "generated_at_commit": "171760bea4c9405bdf516207a1966422ef246df6",
   "patterns": [
     {
       "kind": "dir",
