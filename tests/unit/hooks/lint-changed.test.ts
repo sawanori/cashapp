@@ -100,6 +100,14 @@ describe("lint:changed — 定義", () => {
     expect(script).toContain("HEAD");
     expect(script).toContain("--cached");
   });
+
+  // Write ツールが作る新規ファイルは git に未追跡のまま PostToolUse を起こす。
+  // HEAD 差分とステージ済み差分の和だけでは 1 件も拾えず、「対象なし」で緑に
+  // なっていた（空振りが新規ファイルに対して残っていた）。
+  it("未追跡ファイル（git ls-files --others）も見る", () => {
+    expect(script).toContain("ls-files --others");
+    expect(script).toContain("--exclude-standard");
+  });
 });
 
 describe("lint:changed — 実挙動", () => {
@@ -136,6 +144,46 @@ describe("lint:changed — 実挙動", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("対象なし");
     expect(result.eslintArgv).toEqual([]);
+  });
+
+  it("未追跡の新規 .ts が eslint に渡る（Write ツールが作る形）", () => {
+    const dir = makeRepo();
+    writeFileSync(path.join(dir, "src", "brand-new.ts"), "export const zzz = 1;\n");
+    const result = runScript(dir);
+    expect(result.status).toBe(0);
+    expect(result.stdout).not.toContain("対象なし");
+    expect(result.eslintArgv).toContain("src/brand-new.ts");
+  });
+
+  it("未追跡の新規 .tsx も eslint に渡る", () => {
+    const dir = makeRepo();
+    writeFileSync(path.join(dir, "src", "brand-new.tsx"), "export const C = () => null;\n");
+    const result = runScript(dir);
+    expect(result.status).toBe(0);
+    expect(result.eslintArgv).toContain("src/brand-new.tsx");
+  });
+
+  it("gitignore された未追跡 .ts は対象にならない", () => {
+    const dir = makeRepo();
+    writeFileSync(path.join(dir, ".gitignore"), "generated/\n");
+    git(dir, "add", ".gitignore");
+    git(dir, "commit", "-q", "-m", "ignore");
+    mkdirSync(path.join(dir, "generated"));
+    writeFileSync(path.join(dir, "generated", "gen.ts"), "export const g = 1;\n");
+    const result = runScript(dir);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("対象なし");
+    expect(result.eslintArgv).toEqual([]);
+  });
+
+  it("同じファイルがステージ済みかつ未追跡扱いでも重複して渡らない", () => {
+    const dir = makeRepo();
+    writeFileSync(path.join(dir, "src", "dup.ts"), "export const d = 1;\n");
+    git(dir, "add", "src/dup.ts");
+    writeFileSync(path.join(dir, "src", "dup.ts"), "export const d = 2;\n");
+    const result = runScript(dir);
+    expect(result.status).toBe(0);
+    expect(result.eslintArgv.filter((arg) => arg === "src/dup.ts")).toHaveLength(1);
   });
 
   it("eslint が落ちたら lint:changed も落ちる（空振りで緑にならない）", () => {

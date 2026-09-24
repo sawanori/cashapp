@@ -532,5 +532,109 @@
     "commit": "136be6dbb26adc96c36b639767ceeb6f4da2cde0",
     "ran_at": "2026-09-24T06:03:01Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 127,
+    "stdout_tail": "scripts/record-run.sh: line 120: npm run test:unit: command not found",
+    "commit": "51b093adaeee8a9dc68dfd4aeec4c01c80a382c3",
+    "ran_at": "2026-09-24T06:05:01Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  8 passed (8)\n      Tests  264 passed (264)\n   Start at  06:05:09\n   Duration  19.44s (tests 94%, setup 3%, import 1%, transform 1%)",
+    "commit": "51b093adaeee8a9dc68dfd4aeec4c01c80a382c3",
+    "ran_at": "2026-09-24T06:05:09Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 5 file(s))\nok    L2 (forbid, 5 file(s))\nok    L3 (forbid, 5 file(s))\nok    L8 (forbid, 5 file(s))\nok    L12 (forbid, 5 file(s))\nok    P1 (forbid, 5 file(s))\ndefer P2 (0 targets; waiting on task_018)\ndefer P9 (0 targets; waiting on task_017)\nok    W3 (forbid, 12 file(s))\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 5 file(s))\nok    N5 (forbid, 5 file(s))\nok    N7 (forbid, 5 file(s))\nok    N9 (forbid, 5 file(s))\nok    N11 (forbid, 5 file(s))\nok    I1 (require, 1 file(s))\nok    I2 (require, 1 file(s))\nok    I3 (forbid, 2 file(s))\nok    I4 (forbid, 2 file(s))\nok    X-TIME (forbid, 8 file(s))\nok    X-ID (forbid, 3 file(s))\ndefer X-MONEY (0 targets; waiting on task_017)\nok    GC-XSS (forbid, 5 file(s))\nok    GC-ENV-PUBLIC (forbid, 10 file(s))\nok    GC-SERVER-ONLY (require, 1 file(s))\n\ngate:constraints — scanned 21 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "51b093adaeee8a9dc68dfd4aeec4c01c80a382c3",
+    "ran_at": "2026-09-24T06:05:32Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  8 passed (8)\n      Tests  321 passed (321)\n   Start at  06:31:58\n   Duration  21.72s (tests 96%, setup 2%, import 1%, transform 1%)",
+    "commit": "9172e63cadf6c657e6490646042d142eb7a09294",
+    "ran_at": "2026-09-24T06:31:58Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:constraints",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:constraints\n> bash scripts/gate-constraints.sh\n\nok    L1 (forbid, 5 file(s))\nok    L2 (forbid, 5 file(s))\nok    L3 (forbid, 5 file(s))\nok    L8 (forbid, 5 file(s))\nok    L12 (forbid, 5 file(s))\nok    P1 (forbid, 5 file(s))\ndefer P2 (0 targets; waiting on task_018)\ndefer P9 (0 targets; waiting on task_017)\nok    W3 (forbid, 12 file(s))\ndefer W4 (0 targets; waiting on task_018)\ndefer W9 (0 targets; waiting on task_020)\ndefer W11 (0 targets; waiting on task_020)\nok    N2 (forbid, 5 file(s))\nok    N5 (forbid, 5 file(s))\nok    N7 (forbid, 5 file(s))\nok    N9 (forbid, 5 file(s))\nok    N11 (forbid, 5 file(s))\nok    I1 (require, 1 file(s))\nok    I2 (require, 1 file(s))\nok    I3 (forbid, 2 file(s))\nok    I4 (forbid, 2 file(s))\nok    X-TIME (forbid, 8 file(s))\nok    X-ID (forbid, 3 file(s))\ndefer X-MONEY (0 targets; waiting on task_017)\nok    GC-XSS (forbid, 5 file(s))\nok    GC-ENV-PUBLIC (forbid, 10 file(s))\nok    GC-SERVER-ONLY (require, 1 file(s))\n\ngate:constraints — scanned 21 grep entr(y|ies), 0 violation(s), 0 empty gate(s)",
+    "commit": "9172e63cadf6c657e6490646042d142eb7a09294",
+    "ran_at": "2026-09-24T06:32:27Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "9172e63cadf6c657e6490646042d142eb7a09294",
+    "ran_at": "2026-09-24T06:32:28Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run lint",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 lint\n> eslint .",
+    "commit": "9172e63cadf6c657e6490646042d142eb7a09294",
+    "ran_at": "2026-09-24T06:32:29Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run lint:changed",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 lint:changed\n> files=$(git diff --name-only --diff-filter=ACMR HEAD -- \"*.ts\" \"*.tsx\"; git diff --cached --name-only --diff-filter=ACMR -- \"*.ts\" \"*.tsx\"; git ls-files --others --exclude-standard -- \"*.ts\" \"*.tsx\"); files=$(echo \"$files\" | grep -E \"[.]tsx?$\" | sort -u | tr \"\\n\" \" \"); if [ -z \"$files\" ]; then echo \"lint:changed: 対象なし（HEAD との差分・ステージ済み差分・未追跡ファイルに .ts / .tsx がありません）\"; else echo \"lint:changed: $files\"; eslint --max-warnings=0 $files; fi\n\nlint:changed: tests/integration/db-role.test.ts tests/integration/setup.ts tests/unit/hooks/deny-dangerous-bash.test.ts tests/unit/hooks/deny-test-weakening.test.ts tests/unit/hooks/lint-changed.test.ts ",
+    "commit": "9172e63cadf6c657e6490646042d142eb7a09294",
+    "ran_at": "2026-09-24T06:32:31Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "ライブ確認: mcp__serena__replace_content で scripts/deny-dangerous-bash.sh を編集しようとしたところ PreToolUse:mcp__serena__replace_content hook error で BLOCKED（deny-test-weakening.sh）。MCP のファイル編集ツールが matcher に入り、ガードが実起動することを実環境で確認した",
+    "commit": "79993a63ab1f7b165c1b36d3300ef817b3b5e47d",
+    "ran_at": "2026-09-24T06:32:58Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "ライブ確認: メールボックス形式のパッチ適用コマンドを実行したところ PreToolUse:Bash hook error で BLOCKED（適用先を判定できません）。修正前は exit 0 で素通りしていた。副作用として、コマンド行の散文にパッチ適用コマンド名が現れるだけでも遮断される（fail-closed。既存のパッチ適用ルールと同じ性質で、docs/concerns/task_005.md に記録）",
+    "commit": "79993a63ab1f7b165c1b36d3300ef817b3b5e47d",
+    "ran_at": "2026-09-24T06:33:06Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:wording",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:wording\n> node scripts/wording-lint.mjs\n\nok    W-AUTO (5 file(s))\nok    W-DONATION (5 file(s))\nok    W-SUPPORT (5 file(s))\nok    W-RECEIPT (5 file(s))\ndefer W-MERCHANT-GUIDE (0 targets; waiting on task_025)\nok    W-FEE-FIXED (5 file(s))\n\ngate:wording — scanned 5 pattern group(s), 0 violation(s), 0 empty gate(s)",
+    "commit": "f7494a6a13806c941d025bea007e2b3f0b5cdcff",
+    "ran_at": "2026-09-24T06:34:25Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:wording",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:wording\n> node scripts/wording-lint.mjs\n\nok    W-AUTO (5 file(s))\nok    W-DONATION (5 file(s))\nok    W-SUPPORT (5 file(s))\nok    W-RECEIPT (5 file(s))\ndefer W-MERCHANT-GUIDE (0 targets; waiting on task_025)\nok    W-FEE-FIXED (5 file(s))\n\ngate:wording — scanned 5 pattern group(s), 0 violation(s), 0 empty gate(s)",
+    "commit": "f7494a6a13806c941d025bea007e2b3f0b5cdcff",
+    "ran_at": "2026-09-24T06:35:46Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]

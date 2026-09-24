@@ -69,6 +69,18 @@ const blockedDestructive: string[] = [
   "pnpm install",
   "pnpm run build",
   "npm publish",
+  // コマンド名を語頭で錨づけしていたため、パス付き実行と
+  // `npx <名前>@<版>` は本番デプロイの判定を素通りしていた。
+  // 判定は「各トークンを basename 化し @版 を落とした変種」にも当てる。
+  "./node_modules/.bin/wrangler deploy --env production",
+  "node_modules/.bin/wrangler versions deploy",
+  "npx wrangler@latest deploy",
+  "./node_modules/.bin/supabase db push",
+  "/usr/local/bin/npm publish",
+  // `+` 付き refspec はフラグを 1 つも使わない強制 push。
+  "git push origin +main",
+  "git push origin +main:main",
+  "git push origin +HEAD",
   `curl -H "Authorization: Bearer ${LIVE_SECRET}" https://api.example.com`,
   "node scripts/charge.mjs --live",
 ];
@@ -127,6 +139,16 @@ const blockedWrites: string[] = [
   `ruby -e "File.write('docs/run-log/x.json','[]')"`,
   // dd の of= はリダイレクトと同じく宛先を切り詰める。
   "dd if=/dev/null of=docs/run-log/task_005.json",
+  // 宛先をディレクトリ名そのもので書く形。PROTECTED_RE は末尾に何か続く
+  // パスしか見ないので、cp/mv も rm と同じく protected_tree() を併用する。
+  "cp /tmp/legal-clearance.json docs/gates",
+  "cp /tmp/settings.json .claude",
+  "mv /tmp/x.json docs/run-log",
+  "rsync -a /tmp/logs/ tests",
+  // 宛先が `-t` / `--target-directory=` の後ろに隠れる形。
+  "mv -t docs/run-log /tmp/a.json",
+  "cp --target-directory=docs/gates /tmp/a.json",
+  "cp -t .claude /tmp/settings.json",
 ];
 
 const blockedAliases: string[] = [
@@ -154,6 +176,10 @@ const blockedAliases: string[] = [
   "yarn --silent deploy:production",
   // フラグ付きでも解決不能 + risky 名なら fail-closed
   "npm run --silent prod-push",
+  // Node 22 は package.json.scripts を直接起動できる（engines は node>=22）。
+  "node --run deploy:production",
+  "node --run=deploy:production",
+  "node --run nested:deploy",
 ];
 
 // 保護対象パスを「名指ししない」形の迂回路。いずれも修正前は exit 0 だった。
@@ -200,6 +226,22 @@ const blockedEvasions: string[] = [
   "echo x > ${F}",
   "OUT=$HOME/x; echo y > $OUT",
   "echo x | tee $DEST",
+  // (5) cd をサブシェル・ブレースグループ・bash -c・pushd・& でくるむと、
+  // 節の先頭が literal `cd` でなくなり追跡が外れていた。
+  "(cd docs/run-log && echo x > y.json)",
+  "{ cd docs/run-log; echo x > y.json; }",
+  "bash -c 'cd docs/gates && echo x > legal-clearance.json'",
+  "sh -c 'cd .claude && echo x > settings.json'",
+  "pushd docs/run-log && echo x > y.json",
+  "cd docs/run-log & echo x > y.json",
+  "(cd docs && cd run-log && cat /tmp/a.json > y.json)",
+  // 解決できない cd の後は、相対の宛先を保護対象外だと示せない。
+  "cd $TARGET && echo x > y.json",
+  "cd ~ && echo x | tee y.json",
+  // (6) git am も diff の中身でしか適用先が分からない。git apply と同じ扱い。
+  "git am /tmp/evil.patch",
+  "git am < /tmp/evil.patch",
+  "git am --3way /tmp/evil.patch",
 ];
 
 const allowed: string[] = [
@@ -243,6 +285,20 @@ const allowed: string[] = [
   "cd src/app && rm page.tsx",
   "cd docs && ls run-log",
   "git diff --name-only --diff-filter=ACMR HEAD -- '*.ts'",
+  // サブシェル・ブレースグループの cd 追跡が、保護対象の外まで巻き込まないこと。
+  "(cd src && echo x > page.tsx)",
+  "{ cd src/app; echo x > page.tsx; }",
+  "(cd /tmp && echo x > y.json)",
+  // このリポジトリ自身の PostToolUse フックの書き方。cd 先が変数で解決できない
+  // が、書き込みを伴わない節は通る。
+  'cd "$CLAUDE_PROJECT_DIR" && npm run --silent typecheck',
+  'cd "$CLAUDE_PROJECT_DIR" && npm run --silent gate:constraints',
+  // 解決できない cd の後でも、宛先が絶対パスなら判定できる。
+  "cd $TARGET && echo x > /tmp/y.json",
+  // basename 化した変種の判定が、無害なパスまで巻き込まないこと。
+  "./node_modules/.bin/vitest run tests/unit",
+  "node --run test:unit",
+  "git push origin main",
   "scripts/record-run.sh task_005 npm run gate:constraints",
   "scripts/record-run.sh --manual task_005 'SessionStart の注入を目視で確認した'",
 ];

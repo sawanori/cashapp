@@ -57,6 +57,10 @@ function multiEdit(
   return runHook({ tool_name: "MultiEdit", tool_input: { file_path: filePath, edits } });
 }
 
+function mcp(toolName: string, toolInput: Record<string, unknown>): RunResult {
+  return runHook({ tool_name: toolName, tool_input: toolInput });
+}
+
 const TWO_ASSERTIONS = [
   'it("rank は動かない", () => {',
   "  expect(invoice.settlementRank).toBe(0);",
@@ -263,6 +267,131 @@ describe("deny-test-weakening.sh — .claude/settings.json の構造検査", () 
     const result = write(".claude/settings.json", rewritten('"matcher": "Bash"', '"matcher": "Task"'));
     expect(result.status).toBe(2);
     expect(result.stderr).toContain("PreToolUse[Bash] -> deny-dangerous-bash.sh");
+  });
+});
+
+// PreToolUse の matcher が Edit|Write|MultiEdit だけだった間、MCP のファイル
+// 編集ツールはこのガードを 1 度も起動せずに保護対象を書き換えられた。matcher を
+// 広げたうえで、tool_input の relative_path 等から対象を取り出して同じ判定に掛ける。
+describe("deny-test-weakening.sh — MCP のファイル編集ツール", () => {
+  it("tests/** のアサーションを減らす replace_content は exit 2", () => {
+    const result = mcp("mcp__serena__replace_content", {
+      relative_path: "tests/contract/duplicate.test.ts",
+      needle: TWO_ASSERTIONS,
+      repl: ONE_ASSERTION,
+      mode: "literal",
+    });
+    expect(result.status).toBe(2);
+  });
+
+  it("編集前を示さない symbol 編集で tests/** を触ると exit 2", () => {
+    const result = mcp("mcp__serena__replace_symbol_body", {
+      relative_path: "tests/contract/duplicate.test.ts",
+      name_path: "duplicate",
+      body: "it('x', () => {});",
+    });
+    expect(result.status).toBe(2);
+  });
+
+  it("シンボル削除で tests/** を触ると exit 2", () => {
+    const result = mcp("mcp__serena__safe_delete_symbol", {
+      relative_path: "tests/contract/duplicate.test.ts",
+      name_path_pattern: "duplicate",
+    });
+    expect(result.status).toBe(2);
+  });
+
+  it("ガード本体を MCP で書き換えると exit 2", () => {
+    const result = mcp("mcp__serena__replace_symbol_body", {
+      relative_path: "scripts/deny-dangerous-bash.sh",
+      name_path: "block",
+      body: "exit 0",
+    });
+    expect(result.status).toBe(2);
+  });
+
+  it("docs/run-log を MCP で書き換えると exit 2", () => {
+    const result = mcp("mcp__serena__replace_content", {
+      relative_path: "docs/run-log/task_005.json",
+      needle: "[]",
+      repl: "[{}]",
+      mode: "literal",
+    });
+    expect(result.status).toBe(2);
+  });
+
+  it("docs/gates を MCP で書き換えると exit 2", () => {
+    const result = mcp("mcp__serena__replace_content", {
+      relative_path: "docs/gates/legal-clearance.json",
+      needle: "false",
+      repl: "true",
+      mode: "literal",
+    });
+    expect(result.status).toBe(2);
+  });
+
+  it(".claude/** は構造検査を組み立てられないので MCP からは一律 exit 2", () => {
+    const result = mcp("mcp__serena__replace_content", {
+      relative_path: ".claude/settings.json",
+      needle: "Bash",
+      repl: "Task",
+      mode: "literal",
+    });
+    expect(result.status).toBe(2);
+  });
+
+  it("対象ファイルを限定しない一括編集は exit 2", () => {
+    const result = mcp("mcp__serena__replace_in_files", {
+      needle: "expect(",
+      repl: "// expect(",
+      mode: "literal",
+    });
+    expect(result.status).toBe(2);
+  });
+
+  it("グロブで保護対象へ広げる一括編集は exit 2", () => {
+    const result = mcp("mcp__serena__replace_in_files", {
+      relative_path: "src",
+      paths_include_glob: "tests/**/*.ts",
+      needle: "expect(",
+      repl: "//",
+      mode: "literal",
+    });
+    expect(result.status).toBe(2);
+  });
+
+  it("本番鍵を書き込む MCP 編集は exit 2", () => {
+    const result = mcp("mcp__serena__replace_symbol_body", {
+      relative_path: "src/lib/payments/keys.ts",
+      name_path: "KEY",
+      body: `const KEY = "${LIVE_SECRET}";`,
+    });
+    expect(result.status).toBe(2);
+  });
+
+  it("読み取り専用の MCP ツールは素通しする", () => {
+    const result = mcp("mcp__serena__find_symbol", {
+      relative_path: "tests/contract/duplicate.test.ts",
+      name_path: "duplicate",
+    });
+    expect(result.status).toBe(0);
+  });
+
+  it("src 配下の MCP 編集は通す", () => {
+    const result = mcp("mcp__serena__replace_symbol_body", {
+      relative_path: "src/app/page.tsx",
+      name_path: "Page",
+      body: "export default function Page() {\n  return null;\n}",
+    });
+    expect(result.status).toBe(0);
+  });
+
+  it("settings.json の PreToolUse 編集側 matcher が MCP ツールを覆っている", () => {
+    const doc: unknown = JSON.parse(readFileSync(path.join(repoRoot, ".claude/settings.json"), "utf8"));
+    const preToolUse =
+      (doc as { hooks: { PreToolUse?: { matcher?: string }[] } }).hooks.PreToolUse ?? [];
+    const editEntry = preToolUse.find((entry) => (entry.matcher ?? "").split("|").includes("Edit"));
+    expect(editEntry?.matcher).toContain("mcp__serena__");
   });
 });
 

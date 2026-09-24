@@ -483,6 +483,59 @@
   `ALTER ROLE app_rw …` を撃つコードが増えると同じ失敗が再発する。後続の統合テストは
   必ず `ensureAppRwLoginPassword()` を経由すること。
 
+## task_005（レビュー修正・4 周目）
+
+### 決まったこと
+
+- **コマンド名の判定は「トークンを basename 化し `@版` を落とした変種」にも当てる**。
+  `raw_rules_hit()` は `(^| )wrangler +deploy( |$)` のように語頭を錨づけしていたため、
+  `./node_modules/.bin/wrangler deploy` と `npx wrangler@latest deploy` が本番デプロイの遮断を
+  素通りしていた（`node_modules/.bin/wrangler` の symlink は実在する）。`basename_clause()` を
+  追加し、元の節と basename 化した変種の両方に rule set A を当てる。
+- **`cp` / `mv` / `rsync` / `install` は `protected_tree()` も見る**。`PROTECTED_RE` は
+  `docs/gates/` のように末尾に何か続くパスしか拾わないので、宛先を `docs/gates` や `.claude` と
+  ディレクトリ名で書くと通っていた。`-t <dir>` と `--target-directory=<dir>` の値も
+  `opt_value()` で取り出して同じ判定に掛ける。
+- **`cd` の追跡はラッパを剥がしてから判定する**。`normalize()` が `(` `)` `{` `}` `&` も節区切りに
+  畳むようになり、`strip_wrappers()` が `bash -c` / `sh -c` / `sudo` / `env` / `VAR=…` を落とす。
+  `pushd` も `cd` と同じく追跡し、`popd` と解決できない `cd` 先（`$VAR` / `~` / 引数なし）の後は
+  相対の宛先を fail-closed で拒否する（絶対パスの宛先は従来どおり判定できるので通す）。
+- **`git am` もパッチ適用の判定対象**。`git apply` / `patch` と同じく、読めるパッチは本文を走査し、
+  適用先を示せなければ fail-closed。
+- **`git push` の `+` 付き refspec は強制 push として遮断**（`git push origin +main`）。
+- **`node --run <script>` を `package.json.scripts` の解決経路に流す**（engines は node>=22）。
+- **MCP のファイル編集ツールがガードを起動する**。PreToolUse の編集側 matcher を
+  `Edit|Write|MultiEdit|NotebookEdit|mcp__serena__.*` に広げ、`deny-test-weakening.sh` に
+  MCP 分岐を追加した。`relative_path` / `paths_include_glob` から対象を取り出して同じ判定に掛け、
+  対象を限定しない一括編集・`.claude/**`・編集前本文を示さない `tests/**` 編集は fail-closed。
+  ライブのフックで `mcp__serena__replace_content` が実際に BLOCKED になることを実測済み。
+- **`lint:changed` は未追跡ファイルも見る**。`git ls-files --others --exclude-standard` を足して
+  3 つの和にした。Write ツールが作る新規ファイルはまさに未追跡なので、修正前は「対象なし」で
+  緑になっていた（構文エラーのある新規 `.ts` でも eslint が 1 度も起動しないことを実測）。
+- 4 周目の修正そのものは、**まだ通っていた `git am`** でメールボックス形式のパッチを当てて適用した。
+  ガード本体は Edit/Write も Bash 書き込みも自分自身のルールで拒むため、これが唯一の経路だった。
+  適用後は同じ経路が塞がっている（`docs/concerns/task_005.md` §3）。
+
+### 未解決
+
+- **[severity: high] `docs/concerns/task_005.md` §2 の残穴は未閉塞**。`awk -i inplace` / `ed` / `ex` /
+  `vim -es` / `sponge` / `find -delete` / `xargs rm` / `git stash` / `git revert` / `git reset`
+  （`--hard` 以外）はいずれも現状 exit 0。`write_rules_hit()` がコマンド名の列挙である限り
+  漏れは構造的に残るので、allowlist 方式（読み取り専用と明示できるコマンド以外は、保護対象パスが
+  現れた時点で fail-closed）への転換を次の hardening ラウンドで起票する。
+  **したがって「ガードをセッション内から変更する経路は 1 つも無い」とは言えない**
+  （3 周目の記述は誤りだったので §3 で訂正した）。
+- **[severity: low] パッチ適用ルールは散文も巻き込む**。コマンド行に `git apply` / `git am` /
+  `patch` という語が並ぶだけで遮断されるので、コミットメッセージや
+  `record-run.sh --manual` の観察文では言い換えが要る（実測済み）。
+- **[severity: low] PostToolUse の matcher は `Edit|Write|MultiEdit` のまま**。MCP 経由の編集は
+  typecheck / lint:changed / gate:constraints を起動しない。指摘は PreToolUse のガードに
+  限られていたのでそこだけを直した。
+- **check_053 / check_063 は 3 周目のヘッドレス新規セッションの実測で達成済み**。4 周目では
+  再実行していない。
+- GitHub リモート未作成のため CI 実走は deferred（task_005 は `.github/workflows/**` を作らないので
+  done_definition には影響しない）。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -525,3 +578,4 @@
 - 2026-09-24T06:29:37Z HEAD=9172e63 決まったこと: task_005(4周目): 名前を経由した迂回路・MCP 編集ツールの入口を塞ぐ / 未解決: 未コミット 10 件: .claude/settings.json docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json package.json tests/integration/db-role.test.ts 
 - 2026-09-24T06:29:39Z HEAD=9172e63 決まったこと: task_005(4周目): 名前を経由した迂回路・MCP 編集ツールの入口を塞ぐ / 未解決: 未コミット 10 件: .claude/settings.json docs/HANDOFF.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json package.json tests/integration/db-role.test.ts 
 - 2026-09-24T06:32:40Z HEAD=9172e63 決まったこと: task_005(4周目): 名前を経由した迂回路・MCP 編集ツールの入口を塞ぐ / 未解決: 未コミット 14 件: .claude/settings.json docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_011.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json docs/run-log/task_011.json 
+- 2026-09-24T06:35:38Z HEAD=f7494a6 決まったこと: task_011(5周目): 最終 HEAD 79993a6 での verify_commands 再実行ログと引き継ぎ / 未解決: 未コミット 11 件: .claude/settings.json docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_005.md docs/run-log/task_003.json docs/run-log/task_004.json docs/run-log/task_005.json package.json 
