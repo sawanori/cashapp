@@ -1361,6 +1361,124 @@ task_006 側は「自分のファイルは既にコミット済み」として�
   本タスクは当該ファイル・`scripts/gate-constraints.sh`・`docs/constraints.json` を
   1 行も触っていない（最終更新 `7ba8eae` / task_004）。→ C-013-12 / task_004
 
+## task_009（レビュー修正・4 周目）
+
+### 直したこと
+
+- **[high] acceptance の再実行ループが、標準入力を読むコマンド 1 本で後続を全部飛ばしていた。**
+  一覧を `done < <(jq …)` でループの標準入力として流し込んでいたため、
+  `npm` スクリプトが標準入力を読むと残りの一覧を食い尽くし、**後続の `verify_commands` が
+  実行されないまま「失敗 0 / exit 0」で緑**になった。スキップした旨の出力すら出ない。
+  実測: 台帳が `["npm run aaa-eats-stdin","npm run zzz-should-fail"]`
+  （前者 `cat > /dev/null`、後者 `exit 7`）のとき、
+  旧実装は `実行 1 / 委譲 0 / 失敗 0` で **EXIT=0**。`aaa-eats-stdin` を外すと
+  同じ `zzz-should-fail` が `FAIL` / EXIT=1 になる。つまり**台帳に 1 行足すだけで
+  F2（完了の過大申告）の最終防衛線が無音で外せた**。
+  一覧の読み出しを fd 3 に逃がし（`while IFS= read -r cmd <&3; … done 3< <(jq …)`）、
+  再実行の子プロセスの標準入力を `npm run "$name" < /dev/null` で塞いだ。
+  同じ fixture で修正後は `実行 1 / 失敗 1` / EXIT=1。
+  あわせて「対象 0 件」の判定を `RAN + SKIPPED` ではなく**読めた行数 `TOTAL`** に変えた
+  （全件が形式違反のときに「台帳の読み取りが壊れている」と誤記していた）。
+- **[medium] `release.yml` の (a) 段の `PAYMENTS_ENABLED` 検証が空振りだった。**
+  走査対象 5 ファイル（`wrangler.toml` / `workers/cron/wrangler.toml` / `next.config.ts` /
+  `open-next.config.ts` / `.env.example`）のどれにも `PAYMENTS_ENABLED` という文字列が無く、
+  `true` を探す `grep` は構造上 1 件も当たらないまま常に通っていた。
+  「`true` の不在」ではなく「**`false` の明示が 1 件以上あること**」を要求する形に変え、
+  走査対象にフラグの正本（`supabase/migrations/*.sql` の `feature_flag` seed）を加えた。
+  旧実装はフラグ不在の fixture で EXIT=0、修正後は
+  `走査対象のどこにも PAYMENTS_ENABLED=false の明示がありません` / EXIT=1。
+- **[medium] `release-gate` の 2 段ゲート本体（シェル）に自動テストが 1 本も無かった。**
+  `assert-release-gate.mjs` は `run:` 本文の文字列と構造しか見ておらず、分岐の判定は無検証。
+  acceptance 側と同じ手法（実 YAML から `run:` 本文を取り出して一時ディレクトリで `bash` に
+  食わせる）で `tests/unit/ci/release-gate-shell.test.ts` を新設した。
+  `docs/gates/` は fixture のディレクトリ名に置換するので、PO 専管の `docs/gates/**` には
+  一切書き込まない。`npm ci` / `npm ls` も fixture 読みに置換し、
+  **置換が空振りしたらテストが即座に落ちる**ようにした。31 件。
+- **branch protection を設定した（check_039 達成）。** 3 周目に書いた解除条件
+  （`origin/main` がローカル `main` まで進み、その commit で `gate` が緑）が満たされた。
+
+### 実測で埋まったこと
+
+| 実測 | 結果 |
+|---|---|
+| `git rev-parse origin/main` / ローカル `main` | どちらも `d722cc4`。`git rev-list --count origin/main..HEAD` = **0**（3 周目は `b1bc328` / 10） |
+| `gate` run 35989181608（`d722cc4`） | ワークフロー全体 **success**。9 ジョブ中 8 success ＋ `adversarial` skipped |
+| `gate-integration` run 35989181611 / `gate-web-only` run 35989181733 | どちらも success |
+| `gh api -X PUT …/branches/main/protection` の読み戻し | required 11 件（`static` / `gate-meta` / `gate-integrity` / `secrets` / `deps` / `acceptance` / `test-tamper-guard` / `date-boundary` / `labels` / `security` / `integration`）・`approvals: 0`・`strict: false`・`force_push: false`・`deletions: false`・**`enforce_admins: false`** |
+| 実台帳（16 本）を修正後のループに食わせた dry-run | `実行 14 / 委譲 2 / 失敗 0 / 形式違反 0`。形の縛りに引っかかる既存エントリは 0 件 |
+
+### 未解決 / concerns（4 周目時点）
+
+- **`enforce_admins` は false のまま**。管理者（唯一の push 者）は required status checks と
+  PR 必須を迂回して `main` に直接 push できる。理由: required の `acceptance` は
+  `gate:check` を再実行するので、G5 が FAIL になれば `main` が赤になる。G5 は
+  「task_007 が DONE になるまで warn」であり、DONE の瞬間に FAIL へ転じうる。
+  さらに 4 周目の実測では、ローカルの G5 が `ok` なのは
+  **task_005 / 006 / 011 / 012 の `docs/review-log/*.json` 4 本が未追跡で
+  ワーキングツリーに存在するから**で（`git status --short docs/review-log/` が `??` 4 件）、
+  CI がチェックアウトする commit にはまだ入っていない。
+  `enforce_admins: true` でこれが FAIL に振れると、実装エージェントが `git push` できない
+  本ハーネスでは `main` が凍結し R-TH-04 を自作することになる。
+  **解除条件**: (1) `docs/review-log/` の 4 本が commit 済み、(2) `gate:check` の G5 が `ok` で
+  task_007 が DONE、(3) `main` の `gate` が success。→ task_010
+- **PR 経路（check_131）は deferred のまま**。`test-tamper-guard` は `on: pull_request` のみで、
+  PR が 1 本も無いため 1 度も起動していない（`gh run list --workflow gate-tamper.yml` /
+  `gh pr list --state all` はいずれも 0 件）。PR を作るにはリモートへの publish が要り、
+  `git push` は本ハーネスの禁止コマンドである（`gh api` でのブランチ作成も同じ趣旨に当たる
+  と判断した）。4 周目で required に入れたので、PR が 1 本立てば必ず起動する。→ PO / task_010
+- **`docs/gates/release-mode.json` は依然として存在しない**（`deny-test-weakening.sh` が
+  `docs/gates/**` への Write を無条件に遮断する）。check_130 の 2 通りは GitHub 上では未実測。
+  ただし判定そのものは `tests/unit/ci/release-gate-shell.test.ts` の 31 ケースで固定した。→ PO
+- **(a) 段の `PAYMENTS_ENABLED` 検査は依然としてテキストの `grep`** であり、実行時に
+  アプリが読む値そのものではない。migration や設定のコメントに `PAYMENTS_ENABLED = true` と
+  書くだけで赤になる（fail-closed 側なので安全だが偽陽性）。本番 DB の `feature_flag` が
+  seed 以降に UPDATE されていても検出できない。恒久対処は決済タスクで
+  「本番 DB の `feature_flag` を読む」判定を足し、`release-gate` から呼ぶこと。→ task_022 系
+
+## task_007（レビュー修正・4 周目 — BLOCKED のまま）
+
+**決まったこと**
+
+- **封筒の宛先（`task_id`）を照合するようにした**。`scripts/merge-review.sh` は封筒の
+  `task_id` と畳み先の `task_id` を比べていなかったため、**他タスクで正規に取得した封筒を
+  そのまま渡すだけで** 任意のタスクに `decision: pass` / exit 0 を作れた。改竄も偽造も要らない。
+  実測（負の対照つき）: `task_id: "task_009"` の正規形式の封筒 1 通を task_007 へ畳むと、
+  修正前は `pass … 有効票=1 投票ベンダー=gemini` / **exit 0**、修正後は
+  `not_established … 有効票=0 … 宛先違い=1` / **exit 3**。封筒の `task_id` を `task_007` に
+  直せば exit 0 に戻る。不一致は `classification: "task_mismatch"` として記録し、
+  有効票にも欠票にも**実効 high にも**数えない（別の diff に対する指摘だから）。
+- **作者自身の懸念台帳をレビュー対象から外した**。`scripts/build-review-packet.sh` は
+  diff が触れた全ファイルの全文を同梱していたので、`docs/concerns/<task_id>.md` が必ず
+  封筒に入り、**レビュアは作者が書いた既知懸念を読み上げるだけで high を作れた**。
+  懸念を誠実に記録するほど差し戻しやすくなるため 3 周ループが構造的に収束しない
+  （round 3 の finding 3 件はすべて `docs/concerns/task_007.md` の既存項目と 1 対 1 対応）。
+  `docs/concerns/**` / `docs/HANDOFF.md` / `docs/PROGRESS.md` を `artifact.diff`（pathspec 除外）と
+  `artifact.files` の両方から外し、**中身は同梱せず**パス・バイト数・理由だけを
+  `artifact.excluded_paths` と `self_declared_concerns`（`content_included: false`）に残す。
+  `reply_format.finding` に `duplicate_of` とルール 2 本を足した。
+  実測: 同じ範囲（`--base HEAD~1 --head HEAD`）で `artifact.files` 14 → 11 本、
+  payload **479,449 → 151,359 bytes**、diff 中の自己申告ハンク 3 → 0 本。
+- テストは減らしていない。`tests/unit/merge-review.test.ts` 20 → 25 件、
+  `tests/unit/build-review-packet.test.ts` 6 → 11 件（後者は実 git リポジトリの
+  フィクスチャを作り、`SENTINEL_*` の本文が封筒の生テキストのどこにも出ないことを固定した）。
+
+**未解決**
+
+- **task_007 は BLOCKED のまま**。§15-3 step 5 の「3 周後も high が残れば PO 裁定」に該当し、
+  未修正の実効 high 2 件は F-2（GPT 経路の遮断解除 = PO 承認事項。AI は解除しない）と
+  F-1 の残り（封筒そのものの改竄防止 = task_006 / 008 / 009 / 010）である。→ PO
+- **G5 はエントリの `task_id` も `classification` も見ない**。宛先違いで exit 3 に終わった
+  周回でも、review-log に残ったエントリだけで G5 は充足する。`scripts/gate-check.mjs` は
+  task_006 の所有なので本タスクでは触っていない。→ task_006
+- **`npm run test:unit` はフレーキー**。同一 HEAD で連続 2 回走らせ、1 回目 exit 0
+  （790/790 pass）、2 回目 exit 1（`tests/unit/gate-constraints.test.ts` の 2 件が
+  `Test timed out in 5000ms`）。原因は task_004 所有ファイルの 5 秒タイムアウトで
+  task_007 側に直せる箇所は無い。CI の acceptance は verify_commands を再実行するため、
+  当該 `it()` に明示 timeout が入るまで赤になり得る。→ task_004
+- 自己申告のパス集合（`docs/concerns/**` / `HANDOFF.md` / `PROGRESS.md`）は
+  `build-review-packet.sh` 内の固定リストである。台帳を別の場所に書けばこの扱いから外れる。
+  パス集合の正本化は封筒スキーマ側で決めること。→ task_008 / task_010
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -1451,3 +1569,5 @@ task_006 側は「自分のファイルは既にコミット済み」として�
 - 2026-09-24T10:46:57Z HEAD=d722cc4 決まったこと: task_007(3周目): 最終 HEAD 8066980 での verify_commands 再実行ログ / 未解決: 未コミット 10 件: docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_006.json docs/run-log/task_009.json docs/run-log/task_012.json docs/run-log/task_013.json scripts/build-web-only.mjs src/lib/liff/client.ts 
 - 2026-09-24T10:49:31Z HEAD=d722cc4 決まったこと: task_007(3周目): 最終 HEAD 8066980 での verify_commands 再実行ログ / 未解決: 未コミット 14 件: docs/HANDOFF.md docs/PROGRESS.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json docs/run-log/task_012.json docs/run-log/task_013.json package.json 
 - 2026-09-24T10:57:22Z HEAD=d722cc4 決まったこと: task_007(3周目): 最終 HEAD 8066980 での verify_commands 再実行ログ / 未解決: 未コミット 19 件: .github/workflows/gate.yml .github/workflows/release.yml docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_013.md docs/run-log/task_006.json docs/run-log/task_007.json docs/run-log/task_009.json 
+- 2026-09-24T11:13:55Z HEAD=8abccdd 決まったこと: task_013(3周目): 最終 HEAD 455e594 での verify_commands 再実行ログと実測 2 件の記録 / 未解決: 未コミット 24 件: .github/workflows/gate.yml .github/workflows/release.yml docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_007.md docs/concerns/task_009.md docs/review-log/README.md docs/run-log/task_006.json 
+- 2026-09-24T11:14:46Z HEAD=8abccdd 決まったこと: task_013(3周目): 最終 HEAD 455e594 での verify_commands 再実行ログと実測 2 件の記録 / 未解決: 未コミット 24 件: .github/workflows/gate.yml .github/workflows/release.yml docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_007.md docs/concerns/task_009.md docs/review-log/README.md docs/run-log/task_006.json 

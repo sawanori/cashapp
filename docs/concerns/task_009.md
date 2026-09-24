@@ -5,6 +5,21 @@ GitHub Actions CI・PR テンプレート・test-tamper-guard・release.yml の 
 
 ---
 
+## 0-c. 4 周目（2026-09-24）で直したこと
+
+敵対レビューの high 1 件 / medium 5 件のうち、実装で直せる 3 件を「まず穴を再現 → 直す →
+同じ手順で塞がったことを実測」の順で直し、branch protection（懸念 2）を設定した。
+残る 2 件（`release-mode.json` の不在・PR 経路）は下の 1 / 3 のとおり deferred。
+
+| 指摘 | 対応 | 実測 |
+|---|---|---|
+| **[high]** `gate.yml` の acceptance 再実行ループは一覧を `done < <(jq …)` で**ループの標準入力**に流し込むため、標準入力を読む `npm` スクリプトが 1 本混ざると、そのコマンドが残りの一覧を食い尽くし、後続の `verify_commands` が実行されないまま「失敗 0 / exit 0」で緑になる。検出ログすら出ない | 一覧の読み出しを fd 3 に逃がし（`while IFS= read -r cmd <&3; … done 3< <(jq …)`）、再実行する子プロセスの標準入力を `npm run "$name" < /dev/null` で塞いだ。あわせて「対象 0 件」の判定を `RAN + SKIPPED` ではなく**読めた行数 `TOTAL`** で見るようにした（全件が形式違反のときに「台帳の読み取りが壊れている」と誤記していた） | 実ファイルの `run:` 本文を YAML から取り出し、`{"aaa-eats-stdin":"cat > /dev/null; exit 0","zzz-should-fail":"exit 7"}` の fixture で走らせた。**旧実装（`git show HEAD:`）は `RUN npm run aaa-eats-stdin` のあと `実行 1 / 委譲 0 / 失敗 0` で EXIT=0**、`zzz-should-fail` は 1 度も実行されない。`aaa-eats-stdin` を台帳から外すと同じ `zzz-should-fail` が `FAIL` / EXIT=1 になる（stdin を読むコマンドの有無だけで赤が緑になる）。修正後は同じ fixture で `実行 1 / 失敗 1` / EXIT=1。`tests/unit/ci/acceptance-rerun.test.ts` 15 件で固定 |
+| **[medium]** `release.yml` の (a) 段「ビルド設定の `PAYMENTS_ENABLED` が false であること」の検証が空振り。走査対象 5 ファイルのどれにも `PAYMENTS_ENABLED` という文字列が無く、`true` を探す `grep` は構造上 1 件も当たらないまま常に通る。同じスクリプトが `CONFIG_FILES` 0 件と `npm ls` 出力 0 件は「走査 0 件を緑にしない」として落とすのに、フラグ不在だけが緑だった | 「`true` の不在」ではなく「**`false` の明示が 1 件以上あること**」を要求する。走査対象にフラグの正本（`supabase/migrations/*.sql` の `feature_flag` seed）を加え、`KEY = "value"` / `KEY: value` / `'KEY', 'value'`（SQL の VALUES）の 3 形を読む正規表現にした | 旧実装に「走査対象に `PAYMENTS_ENABLED` が 1 つも無い」fixture を食わせると `ビルド設定の PAYMENTS_ENABLED: true の記述なし` → `(a) 段を通過しました` / **EXIT=0**。修正後は同じ fixture で `走査対象のどこにも PAYMENTS_ENABLED=false の明示がありません` / EXIT=1。正本の SQL（`VALUES ('PAYMENTS_ENABLED', 'false', 'po:noritaka')`）だけがある fixture では EXIT=0 で、`supabase/migrations/0002_seed_gates.sql:2:` を根拠として出力する |
+| **[medium]** `release-gate` の 2 段ゲート本体（シェル）に自動テストが 1 本も無い。`assert-release-gate.mjs` は `run:` 本文に文字列と構造があることしか見ておらず、分岐が実際にどう判定するかは無検証。実機で取れたのは `release-mode.json` 不在の 1 経路のみ | acceptance 側と同じ手法（実 YAML から `run:` 本文を取り出して一時ディレクトリで実行）で `tests/unit/ci/release-gate-shell.test.ts` を新設。`docs/gates/` は fixture のディレクトリ名に置換するので、PO 専管の `docs/gates/**` には一切書き込まない。`npm ci` / `npm ls` の 2 行も fixture 読みに置換し、**置換が空振りしたらテストが即座に落ちる**ようにした | 31 件 pass。fail-closed 3 件（ファイル不在 / 値が true・false でない / キーが無い）、(a) 段 16 件（正常系・provider_keys 2 形・フラグの 3 表記 × false・正本の SQL・true の 3 形・走査 0 件・決済 SDK 4 種・`npm ls` 空・偽陽性の対照）、(b) 段 12 件（clearance 不在・`cleared=false`・`basis`/`approved_by`/`approved_at` の空と null・正常系・(a) 段の SDK 検査を通らないこと） |
+| **[medium]** branch protection（check_039）が未達で、懸念 2 に書いた「いま入れられない理由」が実測値として古い | 解除条件（`origin/main` がローカル `main` まで進み、その commit で `gate` が緑）が満たされたので**設定した**。懸念 2 を実測値ごと書き直した | `origin/main = d722cc4` = ローカル `main`、未 push 0。`gate` run 35989181608 が 9 ジョブ中 8 success ＋ `adversarial` skipped でワークフロー全体 success。`gate-integration` / `gate-web-only` も success。設定後の読み戻しで required 11 件 / approvals 0 / force push 不可を確認。**`enforce_admins` だけ false のまま残した**（理由と解除条件は懸念 2） |
+
+---
+
 ## 0-b. 3 周目（2026-09-24）で直したこと
 
 敵対レビューの medium 3 件（実装で直せるもの）を直した。残る 2 件（`release-mode.json` の
@@ -102,55 +117,82 @@ GitHub Actions CI・PR テンプレート・test-tamper-guard・release.yml の 
   つまり「正本が無い状態でリリースを起動すると必ず落ちる」ことは**実機で確認済み**であり、
   危険な状態（ゲートを素通りしてデプロイ）にはなっていない。逆に言えば、
   **PO がこのファイルを作るまで本番デプロイは 1 度も成功しない**。
+- **4 周目（2026-09-24）の追記**: ファイルは依然として作れない（`ls docs/gates/` は
+  `compliance-gates.json` / `integrity-baseline.json` / `legal-clearance.json` / `README.md` のみ）。
+  **deferred: PO が作成する**は変わらない。ただし「このファイルがあったときに (a) 段 /
+  (b) 段がどう判定するか」は 4 周目に `tests/unit/ci/release-gate-shell.test.ts` で
+  31 ケース固定した。テストは実 YAML の `run:` 本文を取り出し、`docs/gates/` を
+  fixture のディレクトリ名（`gates-fixture/`）に置換して一時ディレクトリで走らせるので、
+  **`docs/gates/**` には一切書き込まない**（ガードを迂回していない）。
+  PO がファイルを作ったあとに残る未実測は「GitHub Actions のランナー上で同じ分岐が
+  起きること」（check_130 の `workflow_dispatch` 2 通り）だけである。
 - **対応予定タスク**: PO（作成）／task_038（ハーネス規約の整理でこの衝突を台帳に反映）
 
 ---
 
-## 2. ブランチ保護を設定していない（check_039 未達）
+## 2. ブランチ保護 — 4 周目（2026-09-24）に設定した。残るのは `enforce_admins` だけ
 
-- **指摘**: `scope` の「gh api で branch protection（required status checks、直 push 禁止、
-  承認必須なし）」は実施していない。
-- **3 周目（2026-09-24）で理由が変わった**: 1 / 2 周目の理由は「`git remote -v` が空で
-  GitHub 上にリポジトリが無い」だったが、3 周目の作業中に
-  `origin git@github.com:sawanori/cashapp.git` が作られ、`gh api repos/sawanori/cashapp/...`
-  は叩ける状態になった（`gh auth status` = `sawanori`、token scope に `repo` / `workflow` を
-  含む。`gh api repos/sawanori/cashapp/branches/main/protection` は現在 404
-  `Branch not protected`）。**それでも本周では設定していない**。理由は 2 つで、どちらも
-  環境の制約ではなく判断である:
-  1. **いま required status checks ＋ 直 push 禁止を入れると、まだ push されていない
-     10 コミットが `main` に入れられなくなる**。`origin/main` は `b1bc328` で止まっており、
-     ローカルの `main`（`1937645`）との差は 10 コミット（`git rev-list --count
-     origin/main..HEAD` = 10、実測 2026-09-24）。しかも `b1bc328` 時点の `gate` は
-     `acceptance` が赤（G5: `docs/review-log/*.json` 不在）で、**その赤を消す修正が
-     まさにその未 push の 10 コミットの中にある**（ローカルでは `npm run gate:check` が
-     exit 0 になっている）。この状態で保護を入れると、修正を運び込む経路ごと塞がる。
-     R-TH-04（回避のために保護ごと解除される）を自分から作りに行く手順である。
-     **`origin/main` が現在のローカル `main` まで進み、その commit で `gate` が緑に
-     なったことを確認してから**設定すること。
-  2. **PR を作るにはブランチの publish が要る**。本ハーネスの禁止コマンドに `git push` が
-     明記されており、`gh api` でブランチを作るのはその趣旨（リモートへの publish）に
-     当たると判断して行っていない。
-- **深刻度**: high。CI ジョブを書いただけでは「ローカルフックを迂回したコミットをリモートで
-  止める」という本タスクの goal は成立しない。required status checks に載るまで、gate.yml は
-  「走るが落ちても止められない」状態である。
-- **対応案**: **deferred: GitHub リモート作成後に実施**。リモート作成後に設定する内容を確定して
-  おく（required に入れるのは実走で緑を確認できたものだけ）:
+> **この節は 4 周目に書き換えた。** 3 周目に書いた「いま入れると未 push の 10 コミットが
+> `main` に入れられなくなる」は**もう成り立たない**（当時の実測値は
+> `origin/main = b1bc328` / 未 push 10 だった）。解除条件として書いた
+> 「`origin/main` が現在のローカル `main` まで進み、その commit で `gate` が緑になったこと」
+> が満たされたので、設定した。
 
-  | 設定 | 値 |
+- **状態**: check_039 は**達成**。`gh api -X PUT repos/sawanori/cashapp/branches/main/protection`
+  を実行し、読み戻しで確認した（`scripts/record-run.sh task_009` 経由で記録）。
+
+  ```json
+  {"approvals":0,"deletions":false,"enforce_admins":false,"force_push":false,
+   "required_contexts":["static","gate-meta","gate-integrity","secrets","deps","acceptance",
+   "test-tamper-guard","date-boundary","labels","security","integration"],"strict":false}
+  ```
+
+- **設定した時点の実測値（2026-09-24）**:
+
+  | 観測 | 値 |
   |---|---|
-  | required status checks | `static` / `gate-meta` / `gate-integrity` / `secrets` / `deps` / `acceptance` / `date-boundary` / `labels` / `security`（以上 `gate.yml`）＋ `test-tamper-guard`（`gate-tamper.yml` 由来）＋ `integration`（`gate-integration.yml` 由来） |
-  | required に入れない | `adversarial`（R-TH-03。task_010 の実測まで）、`e2e`（別 workflow・nightly） |
-  | required approving reviews | **0**（単一アカウント。A19 / R-TH-04） |
-  | 直 push | 禁止（`enforce_admins` を含む） |
+  | `git rev-parse origin/main` | `d722cc4` |
+  | ローカル `main` | `d722cc4`（`git rev-list --count origin/main..HEAD` = **0**） |
+  | `gate` ワークフロー run 35989181608（`d722cc4`） | **9 ジョブ中 8 success ＋ `adversarial` skipped**（`static` / `gate-meta` / `gate-integrity` / `secrets` / `deps` / `acceptance` / `date-boundary` / `labels` / `security`）。ワークフロー全体の conclusion も success |
+  | `gate-integration` run 35989181611 | success |
+  | `gate-web-only` run 35989181733 | success |
+  | `npm run gate:check` の G5 | `warn`（FAIL ではない。task_007 が DONE になるまで warn。残債は task_005 / 006 / 011 / 012 の `docs/review-log/*.json` 不在 4 件） |
 
-  ジョブ名はワークフローのジョブ ID と一致させてある（`name:` を別に与えていないため、
-  status check のコンテキスト名はジョブ ID になる）。ジョブ ID は 6 本のワークフロー全体で
-  一意であることを静的検証で確認済み（同名ジョブが複数ワークフローにあると、
-  required に入れたときどちらを待つのかが曖昧になる）。
+- **設定内容**:
 
-  **`test-tamper-guard` は 2 周目で `gate-tamper.yml` に移した**（上の 0 節）。status check の
-  名前は変わっていないので、この表のままで設定できる。
-- **対応予定タスク**: task_010（リモート作成後のハーネス実測）／PO（リポジトリ作成）
+  | 設定 | 値 | 根拠 |
+  |---|---|---|
+  | required status checks | `static` / `gate-meta` / `gate-integrity` / `secrets` / `deps` / `acceptance` / `date-boundary` / `labels` / `security`（`gate.yml`）＋ `test-tamper-guard`（`gate-tamper.yml`）＋ `integration`（`gate-integration.yml`） | §16-6 の required 表。`gh api repos/.../commits/d722cc4/check-runs` で実際のコンテキスト名を読み、ジョブ ID と一致することを確認してから入れた |
+  | `strict`（ブランチを最新に保つ） | **false** | true にすると並行タスクのコミットが入るたび全 PR の再 rebase が要る。並行実行下では詰まる側の失敗が大きい |
+  | required approving reviews | **0** | 単一アカウント（A19 / R-TH-04）。承認を必須にしても記入者とマージ者が同一人物なので関門にならない |
+  | `allow_force_pushes` / `allow_deletions` | false | 履歴の消去を止める |
+  | required に入れない | `adversarial`（R-TH-03。task_010 の実測まで）／`web-only`（task_013 所有。§16-6 の required 表に無い）／`e2e`（nightly） | |
+
+- **残る未達 —『直 push 禁止』は `enforce_admins: false` で部分的**:
+  - **深刻度**: medium。scope の文言は「直 push 禁止（`enforce_admins` を含む）」だが、
+    **`enforce_admins` は false のままにした**。管理者（`sawanori` = 唯一の push 者）は
+    required status checks と PR 必須を迂回して `main` に直接 push できる。
+  - **理由**: required の `acceptance` は「完了タスクの `verify_commands` を CI で再実行」
+    するので `npm run gate:check` を含み、G5 が FAIL になれば `main` が赤になる。
+    G5 は `gate:check` の出力どおり「task_007（レビュー経路）が DONE になるまで warn」で、
+    **task_007 が DONE になった瞬間に FAIL へ転じうる**。しかも 4 周目の実測では、
+    ローカルの G5 が `ok` なのは **task_005 / 006 / 011 / 012 の
+    `docs/review-log/*.json` 4 本がワーキングツリーに未追跡で存在するから**であり
+    （`git status --short docs/review-log/` が `?? docs/review-log/task_005.json` 以下 4 件）、
+    CI がチェックアウトする commit にはまだ入っていない。
+    つまり G5 の色は他タスクのコミット状況に依存して動く。
+    `enforce_admins: true` の状態でこれが FAIL に振れると `main` は完全に凍結し、
+    本ハーネスでは実装エージェントが `git push` を実行できないため、
+    凍結を解く修正を運び込む経路は PO の手作業だけになる。
+    これは R-TH-04（回避のために保護ごと解除される）を自分から作る手順である。
+  - **解除条件（観測可能な形）**: 次の 3 つが同時に満たされたとき、
+    `gh api -X PUT repos/sawanori/cashapp/branches/main/protection/enforce_admins` で
+    true にする。
+    1. `git status --short docs/review-log/` が空（4 本が commit 済み）
+    2. `npm run gate:check` の G5 が **`ok`** で、task_007 が DONE
+    3. `gh run list --repo sawanori/cashapp --workflow gate.yml --branch main --limit 1` の
+       conclusion が `success`
+- **対応予定タスク**: task_010（`enforce_admins` の反転と、その後の PR 経路の実測）
 
 ---
 
@@ -165,6 +207,10 @@ GitHub Actions CI・PR テンプレート・test-tamper-guard・release.yml の 
     G5 残債（`docs/review-log/*.json` 不在 6 件）。ubuntu ランナー上でのみ走る経路
     （`secrets` ジョブの `npm run build` → `build:cf` → `secrets-grep.sh`、`deps` ジョブの
     OSV バイナリ取得）も含めて緑になった。
+  - **4 周目の追記**: `d722cc4` では `gate` ワークフロー全体が success
+    （run 35989181608。9 ジョブ中 8 success ＋ `adversarial` skipped）。
+    `gate-integration`（run 35989181611）と `gate-web-only`（run 35989181733）も success。
+    G5 は `warn` に落ち着いており、`acceptance` の赤は解消している。
   - `release` ワークフローを `workflow_dispatch` で実走させ、**`release-gate` = failure /
     `deploy` = skipped** を確認（run 35986191784）。`cloudflare/wrangler-action` には
     到達していない。
@@ -172,13 +218,28 @@ GitHub Actions CI・PR テンプレート・test-tamper-guard・release.yml の 
   1. 「**PR を 1 本作り** static / … / test-tamper-guard / date-boundary が緑」
      — push 実走で 8 ジョブの緑は取れたが、`test-tamper-guard`（`gate-tamper.yml`）は
      `on: pull_request` のみなので PR が無い限り 1 度も起動しない
-     （`gh run list --workflow gate-tamper.yml` は 0 件）。
+     （`gh run list --workflow gate-tamper.yml` は 4 周目でも 0 件、
+     `gh pr list --state all` も 0 件）。
+     **deferred: PO がブランチを publish して PR を作ったあとに実施**。
+     PR を作るにはリモートへの publish が要り、`git push` は本ハーネスの禁止コマンドである。
+     `gh api` でブランチ ref を作って Contents API でコミットするのも同じ趣旨
+     （リモートへの書き込み）に当たると判断して行っていない。
+     なお 4 周目で `test-tamper-guard` を required status check に入れたので、
+     **PR が 1 本でも立てば必ず起動する**。
   2. 「tests/** に差分がありチェックリスト空の PR で `test-tamper-guard` が落ちることを実測」
      （check_131）— 同上。PR が要る。
   3. 「`payments_enabled=false` で (a) 段を通り、`true` かつ `cleared=false` で先頭で失敗」
-     （check_130）— `docs/gates/release-mode.json` を作れないので 2 通りとも未実測。
-     取れたのは「ファイル不在 → fail-closed」の 1 通りだけ。
-  4. branch protection（check_039）— 上の懸念 2 のとおり、いま入れると並行実行が止まる。
+     （check_130）— `docs/gates/release-mode.json` を作れないので **GitHub 上では**
+     2 通りとも未実測。取れたのは「ファイル不在 → fail-closed」の 1 通りだけ。
+     **4 周目の追記**: 判定そのものは `tests/unit/ci/release-gate-shell.test.ts` で
+     31 ケース固定した（実 YAML の `run:` 本文を取り出し、`docs/gates/` を fixture の
+     ディレクトリ名に置換して一時ディレクトリで `bash` に食わせる）。
+     (a) 段の正常系・provider_keys 不正・フラグ true・フラグ不在・決済 SDK 混入・
+     `npm ls` 空、(b) 段の clearance 不在・`cleared=false`・`basis`/`approved_by`/
+     `approved_at` の空と null・正常系を両方向で固定してある。
+     **残っているのは「GitHub Actions のランナー上で同じ分岐が起きること」だけ**である。
+  4. branch protection（check_039）— **4 周目で設定した**。上の懸念 2 を参照
+     （`enforce_admins` のみ false のまま残した）。
 - **以下は 1 / 2 周目の記録（リモートが無かった時点のもの。経緯として残す）**
 - **指摘**: 次の 4 項目は GitHub 上でしか確かめられず、リモートが無いので実施していない。
   1. 「PR を 1 本作り static / gate-meta / gate-integrity / secrets / deps / acceptance /

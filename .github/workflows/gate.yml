@@ -247,6 +247,18 @@ jobs:
       #   F2（完了の過大申告）に対する唯一の対策が無音で外せる穴だったので、
       #   ここでは形そのものを `^npm run <script>$` の完全一致に縛り、シェルを介さず
       #   `npm run "<script>"` の引数として渡す（実測 2026-09-24、敵対レビューの指摘）。
+      #
+      # ★ 再実行する子プロセスの標準入力を必ず塞ぐ（`< /dev/null`）。
+      #   一覧は `done < <(jq …)` でループの標準入力として流し込まれるので、
+      #   標準入力を読むコマンドが 1 本でも混ざると、そのコマンドが残りの一覧を
+      #   食い尽くし、後続の verify_commands が**実行されないまま**
+      #   「失敗 0 / exit 0」で緑になっていた（スキップした旨の出力すら出ない）。
+      #   実測 2026-09-24: 台帳が `["npm run aaa-eats-stdin","npm run zzz-should-fail"]`
+      #   （前者は `cat > /dev/null`、後者は `exit 7`）のとき、旧実装は
+      #   `実行 1 / 失敗 0` で EXIT=0。`aaa-eats-stdin` を外すと同じ
+      #   `zzz-should-fail` が `FAIL` / EXIT=1 になる。つまり台帳に 1 行足すだけで
+      #   F2（完了の過大申告）の最終防衛線が無音で外せた。
+      #   一覧の読み出し自体も fd 3 に逃がし、ループ本体の標準入力と分離する。
       - name: 完了タスクの verify_commands を CI で再実行
         run: |
           set -uo pipefail
@@ -258,8 +270,10 @@ jobs:
           SKIPPED=0
           RAN=0
           MALFORMED=0
-          while IFS= read -r cmd; do
+          TOTAL=0
+          while IFS= read -r cmd <&3; do
             [ -n "$cmd" ] || continue
+            TOTAL=$((TOTAL + 1))
             if ! printf '%s' "$cmd" | grep -qE '^npm run [A-Za-z0-9][A-Za-z0-9:_.-]*$'; then
               echo "acceptance FAIL: verify_command が \`npm run <script>\` の完全一致ではありません: ${cmd}" >&2
               echo "  この位置ではシェルを介さないので、引数やパイプ・&&・|| を付けた値は実行せず違反にします。" >&2
@@ -273,17 +287,20 @@ jobs:
               continue
             fi
             echo "RUN   npm run ${name}"
-            if npm run "$name"; then
+            if npm run "$name" < /dev/null; then
               RAN=$((RAN + 1))
             else
               echo "FAIL  npm run ${name}" >&2
               FAILED=$((FAILED + 1))
             fi
-          done < <(jq -r '.tasks[] | select(.completion_status != null) | .verify_commands[]?' docs/task-list.json | sort -u)
+          done 3< <(jq -r '.tasks[] | select(.completion_status != null) | .verify_commands[]?' docs/task-list.json | sort -u)
 
           echo
           echo "verify_commands 再実行 — 実行 ${RAN} / 委譲 ${SKIPPED} / 失敗 ${FAILED} / 形式違反 ${MALFORMED}"
-          if [ "$((RAN + SKIPPED))" -eq 0 ]; then
+          # 「台帳から 1 行も読めなかった」だけを『読み取りが壊れている』として扱う。
+          # 失敗・形式違反は下で個別に非 0 にするので、ここで数に入れると
+          # 「全部落ちた」を「1 件も読めなかった」と誤記した診断になる。
+          if [ "$TOTAL" -eq 0 ]; then
             echo "acceptance FAIL: 再実行の対象が 0 件です（台帳の読み取りが壊れている可能性）" >&2
             exit 1
           fi

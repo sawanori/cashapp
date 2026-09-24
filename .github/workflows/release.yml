@@ -83,23 +83,48 @@ jobs:
                 exit 1
               fi
 
-              # ビルド設定側で PAYMENTS_ENABLED が true になっていないこと。
-              # 値が書かれていない場合は false 扱い（src/lib/payments/registry.ts は
-              # フラグが厳密に "true" のときだけ自動アダプタを解決する）。
+              # ビルド設定側で PAYMENTS_ENABLED が false と**明示されている**こと。
+              #
+              # ★ 「true が無い＝false 扱い」にしない（実測 2026-09-24、敵対レビューの指摘）。
+              #   2 周目までの走査対象 5 ファイルには PAYMENTS_ENABLED という文字列が
+              #   1 つも無く、`true` を探す grep は構造上 1 件も当たらないまま常に通っていた。
+              #   同じスクリプトが「CONFIG_FILES 0 件」と「npm ls 出力 0 件」を
+              #   『走査 0 件を緑にしない』として exit 1 にしているのに、フラグがどこにも
+              #   書かれていない状態だけが緑を通っていた。フラグの置き場所が変わった
+              #   瞬間に無音で通る形なので、false の明示を 1 件以上要求する。
+              #
+              #   フラグの正本は DB の feature_flag（supabase/migrations/0002_seed_gates.sql が
+              #   'PAYMENTS_ENABLED','false' で seed する）なので、走査対象に
+              #   supabase/migrations/*.sql を含める。あとから flag を true に倒す
+              #   migration が入ればここで当たる。
               CONFIG_FILES=""
               for f in wrangler.toml workers/cron/wrangler.toml next.config.ts open-next.config.ts .env.example; do
+                [ -f "$f" ] && CONFIG_FILES="${CONFIG_FILES} ${f}"
+              done
+              for f in supabase/migrations/*.sql; do
                 [ -f "$f" ] && CONFIG_FILES="${CONFIG_FILES} ${f}"
               done
               if [ -z "$CONFIG_FILES" ]; then
                 echo "release-gate FAIL: 走査対象のビルド設定が 1 つもありません（走査 0 件を緑にしません）" >&2
                 exit 1
               fi
+              # `KEY = "true"` / `KEY: true` / `'KEY', 'true'`（SQL の VALUES）の 3 形を見る。
+              FLAG_VALUE_RE="PAYMENTS_ENABLED['\"]?[[:space:]]*[:=,][[:space:]]*['\"]?"
               # shellcheck disable=SC2086
-              if grep -nEH 'PAYMENTS_ENABLED[[:space:]]*[:=][[:space:]]*"?[tT]rue"?' $CONFIG_FILES; then
+              if grep -nEH "${FLAG_VALUE_RE}[tT]rue" $CONFIG_FILES; then
                 echo "release-gate FAIL: ビルド設定が PAYMENTS_ENABLED を true にしています（payments_enabled=false と矛盾。L11）" >&2
                 exit 1
               fi
-              echo "ビルド設定の PAYMENTS_ENABLED: true の記述なし（走査:${CONFIG_FILES}）"
+              # shellcheck disable=SC2086
+              FALSE_LINES="$(grep -nEH "${FLAG_VALUE_RE}[fF]alse" $CONFIG_FILES || true)"
+              if [ -z "$FALSE_LINES" ]; then
+                echo "release-gate FAIL: 走査対象のどこにも PAYMENTS_ENABLED=false の明示がありません（走査:${CONFIG_FILES}）" >&2
+                echo "  フラグの不在を false と見なすと、置き場所が変わった瞬間に無音で通ります。" >&2
+                echo "  DB の feature_flag（supabase/migrations の seed）か、本番のビルド設定に false を明示してください（L11）。" >&2
+                exit 1
+              fi
+              printf '%s\n' "$FALSE_LINES"
+              echo "ビルド設定の PAYMENTS_ENABLED: false の明示 $(printf '%s\n' "$FALSE_LINES" | wc -l | tr -d ' ') 件 / true の記述なし（走査:${CONFIG_FILES}）"
 
               # 決済 SDK が依存ツリーに無いこと。
               npm ci
