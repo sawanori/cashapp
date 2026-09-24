@@ -122,6 +122,21 @@ describe("verifyAdmin — 非管理者 403 / 未設定は fail-closed", () => {
       }),
     ).rejects.toMatchObject({ status: 500 });
   });
+
+  it("GitHub login の大小文字が異なっても同一の adminId に正規化される（G5 レビュー是正: 大小文字違いによる二人承認の偽装を防ぐ）", async () => {
+    const identityLower = await verifyAdmin({
+      request: adminRequest("https://admin.example/api/admin/gates", "token-1"),
+      env: { ADMIN_ALLOWLIST: "alice" },
+      fetchImpl: githubFetch("alice"),
+    });
+    const identityMixedCase = await verifyAdmin({
+      request: adminRequest("https://admin.example/api/admin/gates", "token-2"),
+      env: { ADMIN_ALLOWLIST: "alice" },
+      fetchImpl: githubFetch("Alice"),
+    });
+    expect(identityLower.adminId).toBe("gh:alice");
+    expect(identityMixedCase.adminId).toBe("gh:alice");
+  });
 });
 
 describe("GET /api/admin/gates — 非管理者は実ルートでも 403", () => {
@@ -274,6 +289,38 @@ describe("proposeAdminAction / approveAdminAction — 二人承認と A23 縮退
           admin: ADMIN_2,
           proposalId: proposal.proposalId,
           requestId: "req-approve-wrong-kind",
+        }),
+      ).rejects.toMatchObject({ status: 404 });
+    });
+  });
+
+  it("proposalId に先頭ゼロを付けると 404（G5 レビュー是正: 先頭ゼロで承認済み申請を再承認できた不具合の防止）", async () => {
+    await withRollback(appRw, async (tx) => {
+      const subjectId = "PROVIDER_TASK021TEST4_MODE";
+      const proposal = await proposeAdminAction(tx, {
+        kind: "admin.flag",
+        admin: ADMIN_1,
+        subjectType: "feature_flag",
+        subjectId,
+        detail: { key: subjectId, value: "on" },
+        requestId: "req-propose-4",
+      });
+      await approveAdminAction(tx, {
+        kind: "admin.flag",
+        admin: ADMIN_2,
+        proposalId: proposal.proposalId,
+        requestId: "req-approve-4a",
+      });
+
+      // 既に承認済みの proposalId に先頭ゼロを付けて再承認を試みる。修正前は
+      // `id = ...::bigint` が数値として一致する一方、`detail->>'proposalId' = ...` の
+      // 文字列一致だけが先頭ゼロで外れ、二重承認が成立してしまっていた。
+      await expect(
+        approveAdminAction(tx, {
+          kind: "admin.flag",
+          admin: ADMIN_1,
+          proposalId: `0${proposal.proposalId}`,
+          requestId: "req-approve-4b-padded",
         }),
       ).rejects.toMatchObject({ status: 404 });
     });

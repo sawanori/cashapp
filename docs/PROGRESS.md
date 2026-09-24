@@ -709,12 +709,14 @@
   ファイルを変更しない）に従い触れていない。abuse-limits.test.ts / admin.test.ts のルート
   経由成功系テストが `withRollback` の tx 直呼びで代替している根本原因も同じで、未解消のまま
   `docs/concerns/task_021.md` に記録した。**verify_commands 7 本すべて
-  `scripts/record-run.sh task_021` 経由で再実行**: `typecheck` exit 0 / `test:integration`
-  21 ファイル 251/251 pass（新規回帰テスト 2 件を含む）/ `gate:wording` 0 violation /
-  `gate:terms` 5/5 / `gate:privacy-policy` 9/9 はすべて exit 0。`test:unit` は exit 1
-  （`tests/unit/gate-check.test.ts` の既存 2 件のみ、task_006 所有で task_021 と無関係）、
-  `gate:constraints` も exit 1（`src/lib/reconcile.ts` W11 の 1 件のみ、task_020 所有かつ
-  task_020 は未着手）で、いずれも前回セッションから変化なし。G5 は規約により再レビューしない。
+  `scripts/record-run.sh task_021` 経由で再実行し、最終的に 7 本とも exit 0**:
+  `typecheck` / `test:integration`（21 ファイル 251/251 pass、新規回帰テスト 2 件を含む）/
+  `gate:wording`（0 violation）/ `gate:terms`（5/5）/ `gate:privacy-policy`（9/9）/
+  `test:unit`（1214/1214 pass）/ `gate:constraints`（29 grep entry 0 violation）。`test:unit`
+  と `gate:constraints` は初回実行時にそれぞれ task_006 所有 `tests/unit/gate-check.test.ts`
+  と task_020 所有 `src/lib/reconcile.ts`（W11）の既存失敗で exit 1 だったが、本ラウンド中に
+  該当タスクの並行コミット（`90c8968` / task_020 の advisory lock 実装）が着地し、再実行で
+  解消を確認した（task_021 自身のファイルは無関係）。G5 は規約により再レビューしない。
 - task_020: DONE_WITH_CONCERNS — cron 6 本を実装。`src/lib/reconcile.ts`（状態走査のみ・時刻カーソル無し /
   `pg_try_advisory_xact_lock` をこのファイルで直接発行 / バッチ 100・1 件 3 秒 timeout・並列 5 /
   期限切れ猶予 4 日と最終照会 / paid 30 日の日次再照会と `paid_rescanned`・`post_paid_changes`）、

@@ -207,7 +207,13 @@ export async function verifyAdmin(options: VerifyAdminOptions): Promise<AdminIde
     throw adminForbidden(`login not in allowlist: ${login}`);
   }
 
-  return { adminId: `gh:${login}`, login };
+  // GitHub の login は大小文字を区別しない（同一アカウントが表示上の大文字小文字を
+  // 変更できる）。`adminId` を正規化しないと、二人承認の同一人物判定
+  // （`approveAdminAction` の `proposedBy !== input.admin.adminId`）が大小文字違いだけで
+  // 「別人」と誤判定し、同一管理者が単独で二人承認を成立させてしまう
+  // （task_021 G5 レビュー指摘: 敵対レビューで発見）。`login` フィールドは表示用に生の
+  // 大小文字のまま返すが、`adminId`（audit_log.actor_ref に入る不透明 ID）は常に小文字で正規化する。
+  return { adminId: `gh:${login.toLowerCase()}`, login };
 }
 
 // ============================================================================
@@ -298,8 +304,20 @@ interface ProposalRow {
   readonly detail: Record<string, unknown>;
 }
 
-/** `proposalId` の形（`audit_log.id` は bigint）。 */
-export const ADMIN_PROPOSAL_ID_RE = /^[0-9]{1,19}$/;
+/**
+ * `proposalId` の形（`audit_log.id` は bigint）。**先頭ゼロを許さない正規表現の 10 進数のみ**。
+ *
+ * 理由: 下の `approveAdminAction` は `proposalId` を 2 通りに使う。
+ *   1. `id = ${input.proposalId}::bigint`（数値としてキャスト。"007" は 7 として一致する）
+ *   2. `detail->>'proposalId' = ${input.proposalId}`（**文字列としての完全一致**。承認済み行の
+ *      `detail.proposalId` は propose 時の `appended.id`（postgres の bigint→text は常に正規形、
+ *      先頭ゼロを付けない）そのまま格納されている）
+ * この 2 つの正規化がずれているため、先頭ゼロを付けた `proposalId`（例: "007"）で承認を呼ぶと、
+ * 1 は同じ提案（id=7）にヒットするのに、2 の文字列一致は "7" ≠ "007" で外れ、既に承認済みの
+ * 提案を再承認（二重承認）できてしまう（task_021 G5 レビュー指摘: 敵対レビューで発見）。
+ * 正規形（先頭ゼロ無し）だけを許可することで、この 2 つの比較が常に同じ文字列を見るようにする。
+ */
+export const ADMIN_PROPOSAL_ID_RE = /^(0|[1-9][0-9]{0,18})$/;
 
 /**
  * 提案を承認し、`audit_log` に 2 行目（`<kind>.approve`）を追記する。
