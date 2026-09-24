@@ -539,3 +539,23 @@
   緑）は task_018 完了後に持ち越し。
   `npm run gate:constraints` は task_018/task_020 の並行未コミット WIP により実行時点で
   exit 1（task_019 自身のファイルは原因ではない。詳細は `docs/concerns/task_019.md` §0〜§3）。
+- task_023（修正ラウンド）: BLOCKED のまま（task_020/task_018 未着手・ADR-007 の PO 決定が
+  未確定という根本原因は解消していない）。ただし敵対レビュー（`docs/review-log/task_023.json`、
+  decision=reject）の high 指摘「health.ts の degraded 判定は task_018/020 に依存せず着手
+  可能」を受け、`src/lib/health.ts`（DB 側 degraded の 4 条件。`reconciliation_run` /
+  `outbox` / `payment_attempt` / `webhook_delivery` を直接読む。`src/lib/outbox.ts` は
+  import しない）・`src/app/api/health/route.ts`（degraded 判定込みに拡張。詳細な理由は
+  ボディに出さない）・`tests/unit/health.test.ts`（24 件追加。合成行で 4 条件を検証）を
+  実装した。`docs/decisions/ADR-007-raw-userid-consent.md` をパターン A/B の `proposed` で
+  起票し、`docs/ops/line-channels.md` / `docs/ops/monitoring.md`（手順・候補の記録）を新規
+  作成した。`verify_commands` 4 本を `scripts/record-run.sh task_023` 経由で HEAD `9421d14`
+  にて実行し、`typecheck` exit 0・`test:integration`（12 ファイル **203/203**）exit 0。
+  `test:unit` は exit 1 だが失敗 2 件はいずれも `tests/unit/gate-check.test.ts`（task_006
+  所有）で、task_018 が並行して `test:contract` を `package.json.scripts` に追加した環境変化
+  が原因（新規追加した health 関連 24 件は全件 pass）。`gate:constraints` は exit 1（4 件、
+  すべて `src/components/ShareSheet.tsx` / `src/lib/liff/share.ts`。task_017 所有で
+  task_023 のファイルではない。なお前回記録した `src/lib/outbox.ts:44` の L3 誤検知は
+  task_018 側で解消済みを確認）。`check_113`（outbox 配達）と `check_115`
+  （週次メトリクス側）は依然未達。残懸念は `docs/concerns/task_023.md`（high 3・medium 3・
+  low 2）。`docs/review-log/task_023.json` は既存のものを維持し、再レビューは実施していない
+  （共通ルールどおり）。

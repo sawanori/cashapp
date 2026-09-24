@@ -2064,8 +2064,17 @@
       "adversarial_review": "required",
       "evidence_label": "[設計]",
       "optional": false,
-      "completion_status": null,
-      "concerns": []
+      "completion_status": "DONE_WITH_CONCERNS",
+      "concerns": [
+        "[severity: high] Hyperdrive 経路（A21 / premortem P-05・P-09）を 1 度も通していない。全テストは direct 接続（app_rw）でのみ緑 / deferred: task_035 完了後に Hyperdrive 経路で test:integration と test:contract を再実行する",
+        "[severity: medium] Stop フックへの test:gate 登録は行っていない（共通規約と §16-4 により task_019 の担当）。npm スクリプト test:gate の定義までを本タスクで実施 / task_019 が .claude/settings.json に登録する",
+        "[severity: medium] 適用保留に専用の apply_result 値が無い（CHECK に held が無いため NULL＝未処理で表す） / CHECK への held 追加か check_095 の文言改訂を task_020 で確定する",
+        "[severity: medium] tests/unit/gate-check.test.ts の G2 2 件が test:contract の実在で赤（task_006 のフィクスチャが未定義であることを前提にしている） / フィクスチャの placeholder を替えるのは当該テストの所有者（task_006）",
+        "[severity: medium] trust='unverified' は applyToLedger で適用せず apply_result='ignored' にする（再照会のアダプタを持たないため） / task_020 の reconcile が getPaymentStatus で reverified にして流し直す",
+        "[severity: low] audit:verify のローカル実行は rowsChecked=0（統合テストが全てロールバックするため） / 連鎖破壊の検出は verifyChain の合成行テストと写し一致テストで担保、実データは task_035 以降",
+        "[severity: low] WEBHOOK_IP_ALLOWLIST / WEBHOOK_SIGNING_SECRETS を env 雛形に未記載（未設定なら fail-closed） / task_035 / task_024 の env 台帳整備で登録する",
+        "[severity: low] gate:constraints に他タスクの未コミット成果物（ShareSheet.tsx / share.ts）由来の違反 4 件。本タスク由来の L3 違反は修正済み / 当該ファイルの所有タスクが解消する"
+      ]
     },
     {
       "task_id": "task_019",
@@ -2582,11 +2591,14 @@
       "optional": false,
       "completion_status": "BLOCKED",
       "concerns": [
-        "[severity: high] 依存タスク task_020（cron: 照合バッチ・outbox 配達）が完全に未着手（files_to_create 16 本が find で 0 件、docs/PROGRESS.md に完了宣言なし、gate:constraints が defer W9/W11 waiting on task_020 と独立に裏付ける）。health.ts の degraded 判定 4 条件が参照する producer 側（reconcile / outbox 投入 / webhook 受信）が存在しないため check_113 / check_115 が構造的に満たせない／対応案: docs/concerns/task_023.md §1。task_018 → task_020 完了後に再着手",
-        "[severity: high] task_018（task_020 の依存元）の outbox 基盤が本セッション中に同一ワークツリーで未コミットのまま並行ドラフトされており、src/lib/outbox.ts の OUTBOX_TRANSPORT（organizer_notify/ops_alert の2段抽象）が task_023 の前提語彙（line_messaging/internal_webhook/none）と食い違い、かつ organizer_notify のdocstringは「Phase 1 は画面内の要対応・Messaging API はPhase 3」としており task_023 のPhase 1 LINE配達という目標と Phase 帰属が矛盾する／対応案: docs/concerns/task_023.md §2。task_018 のコミット確定後、その正本を受けて scope を絞り直す",
-        "[severity: high] ADR-007（幹事の生 LINE userId 保持の同意設計）が未作成。premortem P-12（S2×high）は §7-5（生値非保存）との衝突を指摘し、保存する/しないの二択をPO判断としている。PIIの新規保存可否は実装者の裁量を超えるため未決定のまま実装しなかった／対応案: docs/concerns/task_023.md §3。PO判断（ADR-007）後に再着手",
-        "[severity: medium] check_115（attention_unseen_hours）は§17-6が定める週次ログ集計＋docs/metrics/パイプラインを前提にしており、これを files_to_create に持つタスクが台帳上見当たらない。tests/e2e/organizer-flow.spec.tsも未存在／対応案: docs/concerns/task_023.md §4。週次集計を専任タスクへ切り出すPO判断が必要",
-        "[severity: low] Messaging API の通数課金と幹事の友だち追加率は未検証（設計時からの既存懸念、本セッションでは未着手のため検証していない）"
+        "[severity: high] 依存タスク task_020（cron: 照合バッチ・outbox 配達）が依然未着手（本ラウンドも find で files_to_create 0 件を再確認）。outbox の実配達（Messaging API push）はこれに依存し続けており check_113 は未達／対応案: docs/concerns/task_023.md §1。task_018 → task_020 完了後に再着手",
+        "[severity: high] task_018 の outbox.ts（OUTBOX_TRANSPORT: organizer_notify/ops_alert）は本ラウンドも同一ワークツリーで未コミットのままで、task_023 の前提語彙との食い違いは未解消。src/lib/outbox-transports.ts は今回も実装していない／対応案: docs/concerns/task_023.md §2。task_018 確定後に scope を絞り直す",
+        "[severity: high] ADR-007 を proposed で起票した（docs/decisions/ADR-007-raw-userid-consent.md、パターンA/Bを提示）が、生 userId 保持の可否は依然 PO 未決定。src/lib/line/messaging.ts と src/lib/outbox-transports.ts は据え置いたまま／対応案: docs/concerns/task_023.md §6。PO が ADR-007 を accepted にしたら再着手",
+        "[severity: medium] health.ts の DB 側 degraded 判定（4 条件）は task_018/020 に依存せず実装可能というレビュー指摘を受けて今回実装した: src/lib/health.ts（読み取り専用）・src/app/api/health/route.ts 拡張・tests/unit/health.test.ts に24件追加。scripts/record-run.sh task_023 で typecheck exit0・test:unit exit0（新規24件）・test:integration exit0（203/203）を確認済み。check_114 の自動化部分は達成、外形監視の実測（手動部分）は staging デプロイが前提のため未達／対応案: docs/concerns/task_023.md §5",
+        "[severity: medium] docs/ops/line-channels.md と docs/ops/monitoring.md を新規作成した（手順・候補の記録のみ。実際のチャネル開設・監視サービス契約は未実施）／対応案: docs/concerns/task_023.md §7",
+        "[severity: medium] check_115（attention_unseen_hours・O-2バッジ）は週次ログ集計パイプラインの所有タスク不在に加え、src/app/(liff)/events/page.tsx の配線も本ラウンドは未着手／対応案: docs/concerns/task_023.md §4・§8。週次集計の切り出しをPO判断で行ってから着手",
+        "[severity: low] npm run test:unit は tests/unit/gate-check.test.ts（task_006 所有）の 2 件が失敗するが、原因は task_018 が package.json.scripts に test:contract を追加した並行変更で、task_023 のファイルには起因しない／対応案: docs/concerns/task_023.md §9。task_006 側で対応",
+        "[severity: low] Messaging API の通数課金と幹事の友だち追加率は未検証（既存懸念。docs/ops/line-channels.md の未確認事項として持ち越し）"
       ]
     },
     {

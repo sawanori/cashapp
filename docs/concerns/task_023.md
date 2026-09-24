@@ -4,7 +4,17 @@ Messaging API チャネル・幹事向け要対応通知（outbox 配達）・�
 （`docs/implementation-plan.md` §7-3, §7-7, §17-6、`docs/research/premortem-phase1b-2026-09-24.md`
 P-10 / P-11 / P-12、`check_113` / `check_114` / `check_115`）。
 
-書式は「指摘 / 深刻度 / 対応案 / 対応予定タスク」。**実装コミットは 0 件（BLOCKED のため）。**
+書式は「指摘 / 深刻度 / 対応案 / 対応予定タスク」。
+
+**2026-09-25 修正ラウンド**: 前回（実装コミット 0 件の BLOCKED）に対する敵対レビュー
+（`docs/review-log/task_023.json`、decision=reject）の high 指摘（§1〜§4 の下の「レビューの
+ギャップ」参照）を受け、task_018 / task_020 / ADR-007 の PO 決定に依存しない範囲を実装した:
+`src/lib/health.ts`（DB 側 degraded 判定の 4 条件。読み取り専用、`src/lib/outbox.ts` は import
+しない）、`src/app/api/health/route.ts`（degraded 判定込みに拡張）、`tests/unit/health.test.ts`
+（24 件のテストを追加。合成行で 4 条件それぞれを検証）、`docs/decisions/ADR-007-raw-userid-
+consent.md`（`proposed` で起票）、`docs/ops/line-channels.md` / `docs/ops/monitoring.md`
+（手順の記録）。§1〜§4 はいずれも根本原因（task_018/020 未着手・PO 未決定・週次集計パイプライン
+不在）が解消していないため、下記のとおり更新して残す。以下は新しい指摘。
 
 ---
 
@@ -113,3 +123,79 @@ P-10 / P-11 / P-12、`check_113` / `check_114` / `check_115`）。
   スコープとし、週次集計と `organizer-flow.spec.ts` は当該タスクへ委譲する形に
   `done_definition` を改訂することを提案する。
 - **対応予定タスク**: 未定（新規タスク切り出しが PO 判断）→ task_023 再着手
+
+## 5. `check_114` の自動化部分は実装・検証済み。手動実測部分（外形監視の通知到達）は deferred
+
+- **指摘**: `check_114`（degraded health と外形監視）の `verification_method` は
+  「`tests/unit/health.test.ts` と外形監視の通知記録（record-run）」の 2 部構成。自動化部分
+  （4 条件の degraded 判定）は `src/lib/health.ts` の `assessDbHealth()` を合成行の
+  `HealthDbReader` モックで検証するテスト 12 件と、`GET /api/health` へ配線した結果（503 +
+  詳細非公開の `code: "DEGRADED"`）を検証するテスト 6 件、合計 24 件を追加し、
+  `scripts/record-run.sh task_023 npm run test:unit` で実行して確認した（本ラウンド分は
+  degraded 判定に無関係な `tests/unit/gate-check.test.ts` の 2 件を除き全件 pass。§9 参照）。
+  手動実測部分（外形監視から degraded 通知が実際に届くことの 1 回実測）は、監視対象となる
+  公開 URL（staging デプロイ）が無いと実行できない。ローカルの `wrangler deploy` は
+  `scripts/deny-dangerous-bash.sh`（§16-4）が常に遮断し、デプロイは CI（
+  `.github/workflows/release.yml`）経由のみ許可される。
+- **深刻度**: medium（自動化部分は達成。手動実測は本タスクの範囲外の前提条件を要する）
+- **対応案**: `docs/ops/monitoring.md` に監視対象 URL・推奨間隔（5 分）・無料枠の候補サービス
+  （UptimeRobot / Better Stack / Healthchecks.io）を記録した。staging デプロイ後、候補から
+  1 つを選び、degraded を意図的に発生させて通知到達を実測し、`scripts/record-run.sh --manual
+  task_023 "<観察結果>"` で記録する。
+- **対応予定タスク**: task_024（本番環境分離）以降の staging デプロイ後
+
+## 6. ADR-007 は `proposed` で起票済み。PO 決定はまだ無い
+
+- **指摘**: §3 の指摘（ADR-007 未作成）を解消し、`docs/decisions/ADR-007-raw-userid-
+  consent.md` を `ADR-010-q-lg1-negative-branch.md` と同じ「PO 回答受領前の分岐設計。proposed」
+  の型で起票した。パターン A（生 userId を保持する。§7-5 改訂・擬似匿名化対象表・PEPPER
+  ローテーション設計への組み込みが追加スコープとして発生）とパターン B（保持せず outbox は
+  運営者向け内部通知のみ。Phase 1 では要対応が幹事に push されない）を列挙した。**どちらを
+  採るかは依然 PO 判断待ちであり**、`src/lib/line/messaging.ts` と `src/lib/outbox-transports.ts`
+  は本ラウンドでも実装していない。
+- **深刻度**: high（PII 新規保存の可否という実装者の裁量を超える判断が未決のまま。§3 から
+  格下げしない）
+- **対応案**: PO が ADR-007 のパターン A / B のいずれかを選び、ステータスを `accepted` に
+  更新したら、選択されたパターンに沿って `src/lib/line/messaging.ts`
+  （パターン A の場合）または `src/lib/outbox-transports.ts` の `ops_alert` 実装（パターン B
+  の場合）に着手する。
+- **対応予定タスク**: PO 判断（ADR-007 を `accepted` へ）→ task_023 再着手
+
+## 7. `docs/ops/line-channels.md` / `docs/ops/monitoring.md` を作成した（手順の記録のみ）
+
+- **指摘**: scope 第 1 項・第 4 項に対応する両ドキュメントが未作成だった指摘を解消した。
+  いずれも手順・候補の記録であり、実際の Messaging API チャネル開設・監視サービスの契約は
+  未実施（両ファイル末尾の「実施記録」は空欄のまま）。`docs/wording-policy.md` の禁止語グロブ
+  （`src/**/*.ts`, `src/**/*.tsx`, `src/content/**/*.md`, `docs/pilot/**/*.md`）に `docs/ops/**`
+  は含まれないため `gate:wording` の対象外であることを確認した。
+- **深刻度**: low（手順の記録という scope は満たした。実施自体は task_025 以降 / staging
+  デプロイ後）
+- **対応案**: 実施したら各ファイル末尾の「実施記録」に追記する。
+- **対応予定タスク**: task_025（`docs/ops/line-channels.md` の N1 実機確認）、task_024 以降
+  （`docs/ops/monitoring.md` の実測）
+
+## 8. `src/app/(liff)/events/page.tsx`（O-2 バッジ）は本ラウンドでも未着手
+
+- **指摘**: `files_to_modify` の 3 本目。`check_115` の O-2 バッジ表示自体は §4 の週次集計
+  パイプラインの不在とは独立した論点だが、本ラウンドは §1 の `レビューのギャップ`
+  （health high 1 件）と §3 の medium 2 件（ADR-007・docs/ops）の解消を優先し、O-2 バッジの
+  配線には着手していない。
+- **深刻度**: medium（§4 の対応予定タスク切り出しと合わせて着手するのが妥当）
+- **対応案**: §4 の対応予定タスクが定まった時点で、週次集計とは切り離した「単発計測 +
+  バッジ表示」だけを先に task_023 の残スコープとして実装する。
+- **対応予定タスク**: §4 と同じ（新規タスク切り出しが PO 判断）→ task_023 再着手
+
+## 9. `npm run test:unit` は task_023 と無関係な 2 件の失敗を含む（task_006 の所有）
+
+- **指摘**: 本ラウンド終盤の `scripts/record-run.sh task_023 npm run test:unit` は exit 1 だが、
+  失敗 2 件はいずれも `tests/unit/gate-check.test.ts`（`scripts/gate-check.mjs` は task_006
+  所有）で、`package.json.scripts` に `test:contract`（task_018 の scope）が実際に追加された
+  ことで、同テストの「`test:contract` は未定義」という前提のフィクスチャ検証が現在の
+  `package.json` の実体と食い違ったことが原因（本セッション中の他タスクの並行コミットによる
+  環境変化。`python3 -c "..."` で `test:contract` が `package.json.scripts` に実在することを
+  確認済み）。`src/lib/health.ts` / `route.ts` / `tests/unit/health.test.ts` に起因する失敗は
+  無い（新規追加した 24 件はすべて pass）。
+- **深刻度**: low（task_023 のスコープ外。他タスクのファイルは変更しない規約に従い未対応）
+- **対応案**: `tests/unit/gate-check.test.ts` のフィクスチャ（`report()` に渡す `base`/`root`
+  の分離、または期待値の更新）は task_006 の所有者が対応する。
+- **対応予定タスク**: task_006（所有者による確認）
