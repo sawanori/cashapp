@@ -40,7 +40,16 @@ diff 150KB）は `gemini-2.5-pro` が 900 秒で応答を返さずタイムア�
 同梱したバイト数は `metrics.payload_bytes` にある（R-TH-10 の代理指標）。
 
 `merge-review.sh` の終了コード: `0` = pass / `1` = 差し戻し（実効 high が 1 件以上）/
-`3` = レビュー不成立（有効票 0、または無効な封筒あり）/ `64` = usage。
+`3` = レビュー不成立（有効票 0、無効な封筒あり、または宛先違いの封筒あり）/ `64` = usage。
+
+**作者の自己申告（`docs/concerns/**` / `docs/HANDOFF.md` / `docs/PROGRESS.md`）は封筒の
+レビュー対象に入らない。** `build-review-packet.sh` はこれらを `artifact.diff` からも
+`artifact.files` からも外し、パスと大きさだけを `artifact.excluded_paths` と
+`self_declared_concerns` に残す（中身は同梱しない）。作者が自分で書いた既知懸念を
+レビュアが読み上げて high にすると、懸念を誠実に記録するほど差し戻しやすくなり
+task-loop が収束しないため [実測 2026-09-24 / task_007 round 3: finding 3 件が
+すべて `docs/concerns/task_007.md` の既存項目と 1 対 1 対応していた]。
+封筒サイズの面でも効く（実測: 同じ範囲で 479,449 → 151,359 bytes）。
 
 ## エントリの形
 
@@ -56,11 +65,42 @@ diff 150KB）は `gemini-2.5-pro` が 900 秒で応答を返さずタイムア�
 | `verdict` | `PASS` / `FAIL` / `BLOCKED` / `UNKNOWN` |
 | `findings[]` | `id` / `severity` / `title` / `detail` と、`effective_severity`（降格後） |
 | `unavailable_reason` / `attempted_command` | `reviewer_route: "unavailable"` のとき必須 |
-| `classification` | `vote` / `missing_vote` / `invalid` / `invalid_review` / `self_review` |
+| `classification` | `vote` / `missing_vote` / `invalid` / `invalid_review` / `self_review` / `task_mismatch` |
 | `validation` | `validate-findings.mjs` の errors / warnings / downgrades / counts |
 
 `type: "summary"` のエントリは判定のほかに `vendors`（有効票を投じたベンダー集合）・
-`author_vendor`（作者ベンダー）・`self_reviews`（自己レビューとして票から外した通数）を持つ。
+`author_vendor`（作者ベンダー）・`self_reviews`（自己レビューとして票から外した通数）・
+`task_mismatches`（宛先違いとして票から外した通数）を持つ。
+
+`classification` の意味は次のとおり。**`vote` 以外は「敵対レビューを受けた」証拠にならない。**
+
+| `classification` | 意味 | 判定への効き方 |
+|---|---|---|
+| `vote` | 有効票 | `votes` に加算。実効 high は差し戻しに数える |
+| `missing_vote` | 欠票（`reviewer_route: "unavailable"`） | 判定をブロックしない。記録だけ残す |
+| `invalid` | 封筒として無効（必須フィールド欠落など） | レビュー不成立（exit 3） |
+| `invalid_review` | 封筒は読めるが票にならない（`model_mismatch`） | レビュー不成立（exit 3） |
+| `self_review` | 作者と同じベンダー | 票から外す。実効 high は差し戻しに数える |
+| `task_mismatch` | 封筒の `task_id` が畳み先と違う | レビュー不成立（exit 3）。実効 high も数えない |
+
+## 宛先照合 — 他タスクの封筒を流用できない
+
+封筒の `task_id` は「そのレビューが何を読んだか」である。`merge-review.sh <task_id>` の
+`<task_id>` と違う封筒は、**別のタスクの diff に対するレビュー**であって、こちらのタスクの
+敵対レビューではない。照合が無いと、他タスクで正規に取得した封筒をそのまま渡すだけで
+`decision: pass` / exit 0 を作れる（改竄も偽造も要らない）。`merge-review.sh` は不一致の封筒を
+`classification: "task_mismatch"` として記録し、有効票にも欠票にも数えず `not_established` /
+exit 3 に落とす [実測 2026-09-24: `task_id: "task_009"` の正規形式封筒 1 通を task_007 へ畳むと
+修正前は pass / exit 0、修正後は not_established / exit 3]。
+
+エントリ側の `task_id` は封筒の申告どおり残す（証拠を書き換えない）ので、
+`docs/review-log/<task_id>.json` の中に別タスクの `task_id` を持つエントリが現れることがある。
+その場合は必ず `classification: "task_mismatch"` が付いている。
+
+なお **G5（`scripts/gate-check.mjs`）はエントリの `task_id` も `classification` も見ない**ため、
+不成立で終わった周回でも log に残ったエントリだけで G5 は充足する。G5 側の強化は task_006 の
+所有（`docs/concerns/task_007.md` の 20）。`review-log` があることを「敵対レビューを受けたこと」の
+証明として扱わない、という原則はここでも変わらない。
 
 ## ベンダー独立性 — `vendor: "claude"` は敵対レビューの票にならない
 

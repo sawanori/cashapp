@@ -30,6 +30,16 @@
 # exit 0 が機械的に成立し、「敵対レビュー済み」を自作できてしまう。
 # 自己レビューを票に数えたい特殊な用途では `--author-vendor none` を渡す。
 #
+# ## 封筒の宛先照合（task_id）
+#
+# 封筒の `task_id` は「そのレビューが何を読んだか」である。畳み先の task_id と
+# 違う封筒は、**別のタスクの diff に対するレビュー**であって、こちらのタスクの
+# 敵対レビューではない。これを票に数えると、他タスクで正規に取得した封筒を
+# そのまま流用して `decision: pass` / exit 0 を作れてしまう（偽造は一切要らない）。
+# したがって不一致の封筒は `classification: "task_mismatch"` として記録し、
+# 有効票にも欠票にも数えず、レビュー不成立（exit 3）に落とす。
+# 指摘（実効 high）も数えない。別の diff に対する指摘だからである。
+#
 # review-log は G5（scripts/gate-check.mjs）が読む正本でもある。G5 は各エントリが
 #   (a) model_id_actual / cli_version / backend を持つ finding 封筒、または
 #   (b) reviewer_route=unavailable の欠票記録
@@ -159,6 +169,7 @@ missing_votes=0
 invalid_envelopes=0
 invalid_reviews=0
 self_reviews=0
+task_mismatches=0
 effective_high=0
 VOTE_VENDORS=""
 
@@ -188,10 +199,17 @@ for f in "${ENVELOPES[@]}"; do
   vote="$(jq -r '.counts_as_vote' "$TMP_REPORT")"
   high="$(jq -r '.counts.high' "$TMP_REPORT")"
   vendor="$(jq -r '.envelope.vendor // ""' "$TMP_REPORT")"
+  envelope_task_id="$(jq -r '.envelope.task_id // ""' "$TMP_REPORT")"
 
   if [ "$valid" != "true" ]; then
     classification="invalid"
     invalid_envelopes=$((invalid_envelopes + 1))
+  elif [ "$envelope_task_id" != "$TASK_ID" ]; then
+    # 宛先違い: 別タスクの diff に対するレビューであって、このタスクの票ではない。
+    # 欠票（missing_vote）にも数えない。欠票は「この diff を見ようとして届かなかった」
+    # 記録であり、こちらは「そもそも別の diff を見ている」記録だからである。
+    classification="task_mismatch"
+    task_mismatches=$((task_mismatches + 1))
   elif [ "$route" = "unavailable" ]; then
     classification="missing_vote"
     missing_votes=$((missing_votes + 1))
@@ -243,7 +261,7 @@ for f in "${ENVELOPES[@]}"; do
   mv "$TMP_JSON" "$TMP_ENTRIES"
 done
 
-blocking_invalid=$((invalid_envelopes + invalid_reviews))
+blocking_invalid=$((invalid_envelopes + invalid_reviews + task_mismatches))
 
 if [ "$effective_high" -gt 0 ]; then
   DECISION="reject"
@@ -270,6 +288,7 @@ jq -n \
   --argjson invalid_envelopes "$invalid_envelopes" \
   --argjson invalid_reviews "$invalid_reviews" \
   --argjson self_reviews "$self_reviews" \
+  --argjson task_mismatches "$task_mismatches" \
   --argjson vendors "$VOTE_VENDORS_JSON" \
   --argjson effective_high "$effective_high" \
   --argjson exit_code "$EXIT_CODE" \
@@ -288,6 +307,7 @@ jq -n \
      invalid_envelopes: $invalid_envelopes,
      invalid_reviews: $invalid_reviews,
      self_reviews: $self_reviews,
+     task_mismatches: $task_mismatches,
      effective_high: $effective_high,
      exit_code: $exit_code
    }' > "$TMP_REPORT"
@@ -312,9 +332,10 @@ if [ "$DRY_RUN" -eq 0 ]; then
 fi
 
 VOTE_VENDORS_LABEL="$(printf '%s' "$VOTE_VENDORS_JSON" | jq -r 'if length == 0 then "なし" else join(",") end')"
-printf 'merge-review: %s task=%s round=%s 有効票=%s 投票ベンダー=%s 欠票=%s 無効封筒=%s 無効レビュー=%s 自己レビュー=%s(作者=%s) 実効high=%s\n' \
+printf 'merge-review: %s task=%s round=%s 有効票=%s 投票ベンダー=%s 欠票=%s 無効封筒=%s 無効レビュー=%s 自己レビュー=%s(作者=%s) 宛先違い=%s 実効high=%s\n' \
   "$DECISION" "$TASK_ID" "$ROUND" "$votes" "$VOTE_VENDORS_LABEL" "$missing_votes" \
-  "$invalid_envelopes" "$invalid_reviews" "$self_reviews" "$AUTHOR_VENDOR" "$effective_high"
+  "$invalid_envelopes" "$invalid_reviews" "$self_reviews" "$AUTHOR_VENDOR" \
+  "$task_mismatches" "$effective_high"
 if [ "$DRY_RUN" -eq 0 ]; then
   printf 'merge-review: review-log=%s\n' "$OUT"
 else

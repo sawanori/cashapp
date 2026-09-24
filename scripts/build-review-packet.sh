@@ -16,6 +16,21 @@
 #     **diff が触れたファイルの全文と、それらが import している自作モジュールの
 #     全文**を同梱して、レビュアが担保箇所を見られるようにする。
 #
+# ## 作者の自己申告は「レビュー対象」から外す（3 周ループの構造的な原因）
+#
+# `docs/concerns/<task_id>.md` / `docs/HANDOFF.md` / `docs/PROGRESS.md` は、作者が
+# 自分で書いた**既知の懸念の台帳**である。これを diff と同じ扱いで同梱すると、
+# レビュアは台帳に書いてある懸念をそのまま読み上げて high の finding にできる。
+# 懸念を誠実に記録するほど台帳が厚くなり、周回を重ねるほど差し戻しやすくなるので、
+# task-loop が収束しない [実測 2026-09-24 / task_007 round 3: 3 件の finding が
+# すべて docs/concerns/task_007.md の既存項目と 1 対 1 対応していた]。
+#
+# そこでこれらのパスは `artifact.diff` / `artifact.files`（＝レビュー対象）から外し、
+# **全文を `self_declared_concerns` として別枠で渡す**。隠すのではない。外した事実は
+# `artifact.excluded_paths` に理由つきで書き、中身も全部見せたうえで
+# 「既に自己申告されている事項は新規 finding にせず `duplicate_of` で参照せよ」と
+# `reply_format` で指示する。
+#
 # 使い方:
 #   scripts/build-review-packet.sh <task_id> [--base <git-ref>] [--out <file>]
 #                                  [--import-depth <n>] [--max-file-bytes <n>]
@@ -112,12 +127,24 @@ trap cleanup EXIT
 DIFF_FILE="$TMP_DIR/diff.txt"
 CHANGED="$TMP_DIR/changed.txt"
 
+# 自己申告の台帳。diff からは外し（下の pathspec）、全文は別枠で渡す。
+# --name-only 側は**外さない**。外したファイルを self_declared_concerns として
+# 拾い直すために、触れたファイルの一覧は完全なままでなければならない。
+SELF_DECLARED_EXCLUDE=(':(exclude)docs/concerns' ':(exclude)docs/HANDOFF.md' ':(exclude)docs/PROGRESS.md')
+
+is_self_declared() {
+  case "$1" in
+    docs/concerns/*|docs/HANDOFF.md|docs/PROGRESS.md) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 if [ -n "$BASE" ]; then
-  git -C "$ROOT" diff "$BASE...$HEAD_REF" > "$DIFF_FILE" 2>/dev/null || : > "$DIFF_FILE"
+  git -C "$ROOT" diff "$BASE...$HEAD_REF" -- . "${SELF_DECLARED_EXCLUDE[@]}" > "$DIFF_FILE" 2>/dev/null || : > "$DIFF_FILE"
   git -C "$ROOT" diff --name-only "$BASE...$HEAD_REF" 2>/dev/null | sed '/^$/d' > "$CHANGED" || : > "$CHANGED"
   DIFF_SPEC="$BASE...$HEAD_REF"
 else
-  git -C "$ROOT" diff HEAD > "$DIFF_FILE" 2>/dev/null || : > "$DIFF_FILE"
+  git -C "$ROOT" diff HEAD -- . "${SELF_DECLARED_EXCLUDE[@]}" > "$DIFF_FILE" 2>/dev/null || : > "$DIFF_FILE"
   {
     git -C "$ROOT" diff --name-only HEAD 2>/dev/null
     git -C "$ROOT" ls-files --others --exclude-standard 2>/dev/null
@@ -142,20 +169,48 @@ fi
 # diff と全文がずれ得ることは承知のうえでこの選択にしている。
 
 FILES_JSON="$TMP_DIR/files.json"
+SELF_JSON="$TMP_DIR/self-declared.json"
+EXCLUDED_JSON="$TMP_DIR/excluded.json"
 echo "[]" > "$FILES_JSON"
+echo "[]" > "$SELF_JSON"
+echo "[]" > "$EXCLUDED_JSON"
 TRUNCATED=0
 
 append_file() {
   # $1 = リポジトリ相対パス, $2 = 役割（changed | imported）
+  #
+  # 自己申告の台帳（docs/concerns/** / docs/HANDOFF.md / docs/PROGRESS.md）は
+  # artifact.files に入れない。**中身も同梱しない**。理由は 2 つある。
+  #   * レビュアが台帳の既知懸念を読み上げて high にする経路を断つため
+  #   * R-TH-10 — この 3 種は最も厚くなるファイル群で、実測 docs/HANDOFF.md 199KB /
+  #     docs/PROGRESS.md 72KB。封筒が大きいほどレビューは返ってこない
+  # 存在は隠さない。パスと大きさを artifact.excluded_paths と
+  # self_declared_concerns.files に書き、外した理由も添える。
   rel="$1"
   role="$2"
   abs="$ROOT/$rel"
   [ -f "$abs" ] || return 0
-  # 既に入っていれば足さない
+
+  # 既に入っていれば足さない（レビュー対象側・自己申告側のどちらでも）
   if jq -e --arg p "$rel" 'any(.[]; .path == $p)' "$FILES_JSON" >/dev/null 2>&1; then
     return 0
   fi
+  if jq -e --arg p "$rel" 'any(.[]; .path == $p)' "$SELF_JSON" >/dev/null 2>&1; then
+    return 0
+  fi
+
   bytes="$(wc -c < "$abs" | tr -d ' ')"
+
+  if is_self_declared "$rel"; then
+    jq --arg path "$rel" --argjson bytes "$bytes" \
+       '. + [{path: $path, role: "self_declared_concerns", bytes: $bytes, content_included: false}]' \
+       "$SELF_JSON" > "$TMP_DIR/files.next" && mv "$TMP_DIR/files.next" "$SELF_JSON"
+    jq --arg path "$rel" --argjson bytes "$bytes" \
+       '. + [{path: $path, bytes: $bytes, reason: "self_declared_concerns", note: "作者が書いた既知の懸念・進捗の台帳。レビュー対象（diff と全文）から外した。ここに書かれている事項は作者が把握済みであり、この周回の指摘対象ではない"}]' \
+       "$EXCLUDED_JSON" > "$TMP_DIR/excluded.next" && mv "$TMP_DIR/excluded.next" "$EXCLUDED_JSON"
+    return 0
+  fi
+
   src="$abs"
   truncated=false
   if [ "$bytes" -gt "$MAX_FILE_BYTES" ]; then
@@ -280,6 +335,8 @@ jq -n \
   --argjson constraints "$CONSTRAINTS_JSON" \
   --argjson wording "$WORDING_FORBIDDEN" \
   --slurpfile files "$FILES_JSON" \
+  --slurpfile self_declared "$SELF_JSON" \
+  --slurpfile excluded "$EXCLUDED_JSON" \
   --rawfile diff "$DIFF_FILE" \
   --arg diff_spec "$DIFF_SPEC" \
   --arg commit "$HEAD_SHA" \
@@ -314,7 +371,13 @@ jq -n \
        diff_bytes_total: $diff_bytes_total,
        import_depth: $import_depth,
        truncated_files: $truncated_files,
-       files: $files[0]
+       files: $files[0],
+       excluded_paths: $excluded[0]
+     },
+     self_declared_concerns: {
+       note: "作者自身が書いた既知の懸念・進捗の台帳。レビュー対象（artifact.diff / artifact.files）から外してあり、中身も同梱していない（R-TH-10: 封筒が大きいとレビューが返らない）。存在は隠していない。これらの事項は作者が把握済みなので、この周回の指摘対象ではない。指摘は artifact.diff と artifact.files から出すこと。",
+       content_included: false,
+       files: $self_declared[0]
      },
      reply_format: {
        note: "返信は JSON オブジェクト 1 個だけを出力する。前後に説明文を付けない。",
@@ -323,11 +386,14 @@ jq -n \
        verdict: ["PASS", "FAIL", "BLOCKED", "UNKNOWN"],
        finding: {
          required: ["id", "severity", "title", "detail"],
+         optional: ["repro", "citation", "file", "line", "suggested_fix", "duplicate_of"],
          severity: ["high", "medium", "low", "info", "unknown"],
          rules: [
            "severity=high には repro（再現する具体的な入力列）が必須。repro の無い high は info へ機械的に降格される（R-TH-08）",
            "vendor=gemini の high / medium には citation（逐語引用 + URL + 取得日）が必須。無い指摘は unknown へ降格される",
-           "artifact に無いコードについて指摘しない。担保箇所が同梱ファイルにあるなら指摘しない"
+           "artifact に無いコードについて指摘しない。担保箇所が同梱ファイルにあるなら指摘しない",
+           "self_declared_concerns に挙がっているファイル（作者の懸念・進捗の台帳）は指摘の対象ではない。中身は同梱していないので、そこに書かれていそうな内容を推測して finding にしない。既知事項の再掲が必要なときは severity: \"info\" とし duplicate_of にその根拠（ファイルと見出し）を書く",
+           "指摘は artifact.diff と artifact.files（＝この周回のレビュー対象）から出す。artifact.excluded_paths のファイルは対象外である"
          ]
        }
      }
@@ -337,15 +403,17 @@ PAYLOAD_BYTES="$(wc -c < "$PACKET" | tr -d ' ')"
 jq --argjson bytes "$PAYLOAD_BYTES" \
    --argjson constraints_included "$(printf '%s' "$CONSTRAINTS_JSON" | jq 'length')" \
    --argjson files_included "$(jq 'length' "$FILES_JSON")" \
-   '. + {metrics: {payload_bytes: $bytes, constraints_included: $constraints_included, files_included: $files_included}}' \
+   --argjson self_declared_files "$(jq 'length' "$SELF_JSON")" \
+   '. + {metrics: {payload_bytes: $bytes, constraints_included: $constraints_included, files_included: $files_included, self_declared_files: $self_declared_files}}' \
    "$PACKET" > "$TMP_DIR/packet.final" && mv "$TMP_DIR/packet.final" "$PACKET"
 
 if [ -n "$OUT" ]; then
   mkdir -p "$(dirname "$OUT")"
   cp "$PACKET" "$OUT"
-  printf 'build-review-packet: %s（%s bytes / 制約 %s 件 / ファイル %s 本）\n' \
+  printf 'build-review-packet: %s（%s bytes / 制約 %s 件 / ファイル %s 本 / 自己申告 %s 本）\n' \
     "$OUT" "$PAYLOAD_BYTES" \
-    "$(printf '%s' "$CONSTRAINTS_JSON" | jq 'length')" "$(jq 'length' "$FILES_JSON")" >&2
+    "$(printf '%s' "$CONSTRAINTS_JSON" | jq 'length')" "$(jq 'length' "$FILES_JSON")" \
+    "$(jq 'length' "$SELF_JSON")" >&2
 else
   cat "$PACKET"
 fi

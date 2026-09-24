@@ -244,6 +244,22 @@
   つまり**この作業ツリーでは `npm run test:unit` が「誰か 1 タスクの責任で緑になる」状態に
   ない**。全ハーネスタスクが完了しクリーンなチェックアウトになった時点で、
   もう一度 `npm run test:unit` を走らせて残る赤を確定させること。
+- **追記（4 周目・deferred の確認）**: `tests/unit/gate-constraints.test.ts` は
+  `7ba8eae`（task_004 の実装コミット）以降**変更されておらず**、当該 3 つの `it()` に
+  明示 timeout は付いていない [実測: `git log -- tests/unit/gate-constraints.test.ts` /
+  該当行の目視]。落ちる件数は 2 件のときと 3 件のときがあり（3 件目は
+  `fails an I1 / I2 tree whose required Cloudflare settings are missing`）、
+  **並列実行時のタイミングに依存して動く**。メッセージはいずれも
+  `Test timed out in 5000ms.` である。task_007 側で直せる箇所は無い（deferred）。
+  **同一 HEAD で連続 2 回走らせた実測 [2026-09-24]**: 1 回目は
+  `Test Files 28 passed / Tests 790 passed` の **exit 0**、2 回目は
+  `Test Files 1 failed | 27 passed / Tests 2 failed | 788 passed` の **exit 1**
+  （落ちたのは `passes on a clean tree`(377 行) と `catches the real forbidden patterns`(387 行)。
+  当該ファイルだけで 17,255ms かかっている）。**この赤はフレーキーであり、
+  「緑だった実行がある」ことを合格の根拠にしてはならない。**
+  両方の実行は `docs/run-log/task_007.json` に残してある。
+  **CI の acceptance ジョブは verify_commands を再実行するため、task_004 が当該
+  `it()` に timeout を与えるまで赤であり続ける。これは PO 裁定の材料に含めること。**
 - **対応予定タスク**: task_004（所有者）。PO が一括で直すなら vitest.config.ts ではなく
   当該 `it()` 側に付けること。並行編集ぶんは各タスクの完了時に消える見込み。
 
@@ -449,3 +465,76 @@
   発見の経緯は、17 の負の対照を取るために HEAD 版スクリプトを検証ディレクトリへ
   コピーして走らせたときに踏んだもの。
 - **対応予定タスク**: task_007 の次ラウンド、または task_010
+
+## 20. （4 周目で解消）`merge-review.sh` が封筒の宛先（`task_id`）を照合していなかった
+
+- **指摘**: `scripts/merge-review.sh` は封筒の `task_id` と畳み先の `task_id` を比べて
+  いなかったため、**他タスクで正規に取得した封筒をそのまま流用すれば** 任意のタスクに
+  `decision: pass` / exit 0 を作れた。3 周目で塞いだのは「作者が自分の名前で自分を通す」
+  経路（ベンダー照合）だけで、こちらは**偽造も改竄も一切必要としない**別の抜け道である。
+- **深刻度**: medium
+- **実測（負の対照つき）**: `task_id: "task_009"` の正規形式の封筒
+  （`vendor: gemini` / `reviewer_route: verified` / `model_id_actual: gemini-2.5-pro` /
+  `cli_version: 0.38.1` / `backend: gemini-cli` / `findings: []`）1 通を task_007 へ畳むと、
+  **修正前（HEAD `d722cc4`）は** `merge-review: pass task=task_007 … 有効票=1 投票ベンダー=gemini
+  … 実効high=0` / **exit 0**。**修正後は** `merge-review: not_established … 有効票=0
+  投票ベンダー=なし … 宛先違い=1 実効high=0` / **exit 3**。
+  同じ封筒の `task_id` を `task_007` に直すと exit 0 に戻る（負の対照）。
+- **対応（実施済み）**: 検証ループの `valid` 判定の直後に `envelope.task_id != $TASK_ID` を
+  `classification: "task_mismatch"` として記録し、`blocking_invalid` に加算して
+  `not_established`（exit 3）に落とす。有効票にも欠票にも数えず、**実効 high にも数えない**
+  （別の diff に対する指摘だから）。summary に `task_mismatches` を足し、
+  標準出力にも `宛先違い=N` を出す。エントリ側の `task_id` は封筒の申告どおり残す
+  （証拠を書き換えない）。`docs/review-log/README.md` に classification 表と
+  「宛先照合」節を足した。`tests/unit/merge-review.test.ts` に 5 件追加（20 → 25 件）。
+- **対応予定タスク**: （解消済み）
+
+## 21. （4 周目で解消）封筒が作者自身の懸念台帳を同梱し、3 周ループが構造的に収束しなかった
+
+- **指摘**: `scripts/build-review-packet.sh` は diff が触れた全ファイルの全文を
+  `artifact.files` に入れるため、`docs/concerns/<task_id>.md` が必ず同梱されていた。
+  レビュアは**作者自身が書いた既知の懸念を読み上げるだけで high の finding を作れる**。
+  懸念を誠実に記録するほど台帳が厚くなるので、周回を重ねるほど差し戻しやすくなり、
+  3 周ループが収束しない。15 に「round 3 の finding 3 件は封筒に同梱した
+  `docs/concerns/task_007.md` の既知懸念の読み上げで、F-1 / F-2 / F-3 が同ファイルの
+  12 / 1 / 11 に 1 対 1 対応する」と観察までは書いていたが、**`build-review-packet.sh` の
+  欠陥として登録していなかった**（本タスクが BLOCKED である機械的な原因はここにある）。
+- **深刻度**: medium
+- **対応（実施済み）**: `docs/concerns/**` / `docs/HANDOFF.md` / `docs/PROGRESS.md` を
+  レビュー対象から外した。
+  (1) `artifact.diff` から外す（`git diff -- . ':(exclude)docs/concerns' …` の pathspec）。
+  (2) `artifact.files` に入れない。
+  (3) **中身は同梱しない**。R-TH-10 の面でも最も厚くなるファイル群であるため
+  （実測: `docs/HANDOFF.md` 199,206 bytes / `docs/PROGRESS.md` 71,982 bytes）。
+  (4) **隠さない**。パス・バイト数・理由を `artifact.excluded_paths` と
+  `self_declared_concerns`（`content_included: false`）に残す。
+  (5) `reply_format.finding` に `duplicate_of` を足し、「self_declared_concerns の
+  ファイルは指摘対象ではない。既知事項の再掲は `severity: "info"` ＋ `duplicate_of`」を
+  ルールに加えた。
+- **実測（負の対照つき）**: 同じ範囲（`--base HEAD~1 --head HEAD`）で
+  **修正前（HEAD `d722cc4` 版スクリプト）** は `artifact.files` 14 本・payload 479,449 bytes・
+  diff に `docs/HANDOFF.md` / `docs/PROGRESS.md` / `docs/concerns/task_013.md` の
+  ハンク 3 本を含む。**修正後**は `artifact.files` 11 本・payload 151,359 bytes・
+  自己申告のハンク 0 本、外した 3 本は `excluded_paths` にバイト数つきで残る。
+  `tests/unit/build-review-packet.test.ts` に 5 件追加（6 → 11 件。git リポジトリの
+  フィクスチャを作り、diff とファイル全文の両方から外れること、`SENTINEL_*` 本文が
+  封筒の生テキストのどこにも出ないことを固定した）。
+- **残る穴**: 自己申告のパス集合は `build-review-packet.sh` 内の固定リストである。
+  台帳を別の場所に書けばこの扱いから外れる（意図的に外すこともできる）。
+  パス集合の正本化は task_008 / task_010 の封筒スキーマ側で決めること。
+- **対応予定タスク**: （本体は解消済み。パス集合の正本化は task_008 / task_010）
+
+## 22. G5 はエントリの `task_id` も `classification` も見ない（merge-review 側では塞げない）
+
+- **指摘**: 20 の修正で `merge-review.sh` は宛先違いの封筒を exit 3 に落とすが、
+  `--dry-run` でなければ**エントリ自体は review-log に書かれる**（証拠として残すため）。
+  `scripts/gate-check.mjs` の G5 は各エントリの `model_id_actual` / `cli_version` /
+  `backend` の有無しか見ず、`task_id` も `classification` も見ないため、
+  **不成立で終わった周回のエントリだけでも G5 は充足する**。
+  「review-log があること」は依然として「敵対レビューを受けたこと」の証明にならない
+  （12 と同じ構図の残り）。
+- **深刻度**: medium
+- **対応案**: G5 側で「`classification: "vote"` のエントリが 1 件以上あり、その
+  `task_id` がファイル名と一致し、最新 round の summary が `decision: "pass"` である」
+  ことまで見る。`scripts/gate-check.mjs` は task_006 の所有なので本タスクでは触らない。
+- **対応予定タスク**: task_006（G5 の強化）。封筒の改竄防止そのものは task_008 / task_009 / task_010。

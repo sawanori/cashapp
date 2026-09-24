@@ -68,6 +68,7 @@ afterEach(() => {
 
 interface LogEntry {
   type?: string;
+  task_id?: string;
   classification?: string;
   reviewer_route?: string;
   vendor?: string;
@@ -83,6 +84,7 @@ interface LogEntry {
   invalid_envelopes?: number;
   invalid_reviews?: number;
   self_reviews?: number;
+  task_mismatches?: number;
   effective_high?: number;
   round?: number;
   validation?: { errors?: string[]; downgrades?: unknown[] };
@@ -406,5 +408,60 @@ describe("merge-review.sh — ベンダー独立性（§16-1 の 2）", () => {
   it("--author-vendor に未知の値を渡すと usage エラー（exit 64）", () => {
     const res = merge([envelope()], ["--author-vendor", "bogus"]);
     expect(res.status).toBe(64);
+  });
+});
+
+describe("merge-review.sh — 封筒の宛先照合（task_id）", () => {
+  // 封筒の task_id は「そのレビューが何を読んだか」である。畳み先と違う封筒は
+  // 別タスクの diff に対するレビューなので、こちらの敵対レビューの票にならない。
+  // これを塞がないと、他タスクで正規に取得した封筒を流用するだけで
+  // decision=pass / exit 0 を作れる（偽造は一切要らない）。
+
+  it("畳み先と違う task_id の封筒は票にならずレビュー不成立（exit 3）", () => {
+    const res = merge([envelope({ task_id: "task_009" })]);
+    expect(res.status).toBe(3);
+    const s = summaryOf(res.log);
+    expect(s?.decision).toBe("not_established");
+    expect(s?.votes).toBe(0);
+    expect(s?.task_mismatches).toBe(1);
+    expect(s?.vendors).toEqual([]);
+    const entry = res.log.find((e) => e.type !== "summary");
+    expect(entry?.classification).toBe("task_mismatch");
+    // エントリ側は封筒の申告どおり残す（証拠を書き換えない）。
+    expect(entry?.task_id).toBe("task_009");
+  });
+
+  it("有効票が別にあっても宛先違いが 1 通あればレビュー不成立（exit 3）", () => {
+    const res = merge([envelope({ task_id: "task_009" }), envelope()]);
+    expect(res.status).toBe(3);
+    const s = summaryOf(res.log);
+    expect(s?.decision).toBe("not_established");
+    expect(s?.votes).toBe(1);
+    expect(s?.task_mismatches).toBe(1);
+  });
+
+  it("宛先違いの封筒の実効 high は差し戻しに数えない（別の diff への指摘）", () => {
+    const res = merge([envelope({ task_id: "task_009", verdict: "FAIL", findings: [finding()] })]);
+    expect(res.status).toBe(3);
+    const s = summaryOf(res.log);
+    expect(s?.decision).toBe("not_established");
+    expect(s?.effective_high).toBe(0);
+  });
+
+  it("宛先違いの不達封筒は欠票にも数えない", () => {
+    const res = merge([unavailableEnvelope({ task_id: "task_009" })]);
+    expect(res.status).toBe(3);
+    const s = summaryOf(res.log);
+    expect(s?.missing_votes).toBe(0);
+    expect(s?.task_mismatches).toBe(1);
+  });
+
+  it("task_id が一致する封筒はこれまでどおり票になる（負の対照）", () => {
+    const res = merge([envelope({ task_id: "task_900" })]);
+    expect(res.status).toBe(0);
+    const s = summaryOf(res.log);
+    expect(s?.decision).toBe("pass");
+    expect(s?.votes).toBe(1);
+    expect(s?.task_mismatches).toBe(0);
   });
 });
