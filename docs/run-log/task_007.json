@@ -188,5 +188,12 @@
     "commit": "f1caa39eb2d16b9e7f9a68f9b7123b4171071712",
     "ran_at": "2026-09-24T09:22:13Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "最終確認（2026-09-24T09:2xZ 以降）で npm run gate:check が 2 ゲート不合格になった。(1) G5 = 意図した強制力（task_007 の完了で review-log を持たない完了済み 6 タスクが列挙される。task_007 自身は docs/review-log/task_007.json を持つため対象外）。(2) G13 = scripts/ci/secrets-grep.sh のハッシュ不一致 1 件。これは task_009 の成果物で、コミット a261bd9 の後に未コミットのまま書き換えられている（git status で ' M scripts/ci/secrets-grep.sh'）。task_007 の 8 ファイル（.claude/agents/*.md 7 本と scripts/validate-findings.mjs）は基準値と一致しており不一致に含まれない。本タスクのコミット直後に走らせた gate:integrity は exit 0 で記録済み。基準値の再生成は task_009 / PO の担当（docs/concerns/task_007.md の 2）。",
+    "commit": "7e4267d294f551f96983f2646452090ef8b9ff37",
+    "ran_at": "2026-09-24T09:23:01Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]

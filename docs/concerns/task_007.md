@@ -49,6 +49,10 @@
   未コミットのまま基準値に焼き込まれた**（task_009 自身が `docs/HANDOFF.md` にそう書いている）。
   本タスクのコミット後は `gate:integrity` が 38 ファイル / 不一致 0 件で通る [実測]。
 - **深刻度**: medium（現時点は緑だが、焼かれた経緯が「意図した再生成」ではない）
+  本タスクの最終確認時点（2026-09-24T09:2xZ 以降）では **`scripts/ci/secrets-grep.sh` の
+  ハッシュ不一致 1 件で G13 が FAIL** になっている。これは task_009 の成果物が
+  コミット `a261bd9` の後に未コミットのまま書き換えられたためで（`git status` に
+  ` M scripts/ci/secrets-grep.sh`）、task_007 の 8 ファイルは基準値と一致している。
 - **対応案**: エージェント定義やレビュースクリプトを今後編集したら、そのタスクが
   `node scripts/gate-integrity.mjs --write-baseline` をやり直し、差分を PR で人間に見せる。
   **全ハーネスタスク完了後に、クリーンなチェックアウトで `npm run gate:integrity` が
