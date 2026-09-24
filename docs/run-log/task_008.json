@@ -287,5 +287,14 @@
     "commit": "d9fb432bf941f53b0728081a7abf6983917722aa",
     "ran_at": "2026-09-24T12:50:35Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  35 passed (35)\n      Tests  904 passed (904)\n   Start at  12:51:09\n   Duration  27.00s (tests 89%, environment 5%, setup 4%, transform 1%, import 1%)",
+    "commit": "f8f0c8c8bd71e1b627b15e8bb749384e0198c314",
+    "ran_at": "2026-09-24T12:51:09Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]
