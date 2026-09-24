@@ -446,5 +446,12 @@
     "commit": "4d22062cbece9a6e11ac342a6723779cba6d617b",
     "ran_at": "2026-09-24T10:26:37Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "3 周目の敵対レビュー（round 3 相当・review-log の 6 件目）を実経路で実施した。封筒は scripts/build-review-packet.sh task_009 --base b1bc328 --head 836d86d --max-file-bytes 12000 --max-diff-bytes 30000 で 136148 bytes（ファイル 8 本・制約 1 件）。既定値および --head を最終 HEAD にすると 281085 bytes になり task_007 の実測（265KB で Gemini が 900 秒タイムアウト）を超えるため、task_009 のコード変更コミット 836d86d に絞った。node scripts/review-gemini.mjs は route=verified / model=gemini-2.5-pro で exit 0、verdict=PASS / findings 0 件。node scripts/review-gpt.mjs は route=unavailable で exit 3（codex の非 Claude モデル遮断。1 / 2 周目と同じ症状）。bash scripts/merge-review.sh の結果は decision=pass / 有効票 1（gemini）/ 欠票 1 / 無効封筒 0 / 自己レビュー 0 / 実効 high 0。**2 ベンダーの合意ではなく Gemini 単独の PASS である**ことを明記する。",
+    "commit": "55d7ebd22b0ebb1d19731af07de3aa963e03e1f6",
+    "ran_at": "2026-09-24T10:29:35Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]
