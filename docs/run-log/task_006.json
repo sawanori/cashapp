@@ -145,5 +145,120 @@
     "commit": "c053281d817421c0ac153b5532621f099f5e0429",
     "ran_at": "2026-09-24T07:39:24Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  14 passed (14)\n      Tests  499 passed (499)\n   Start at  07:44:07\n   Duration  24.73s (tests 93%, setup 4%, transform 2%, import 1%)",
+    "commit": "3cc3a197133f28825e31985f2ee5cdbf94010663",
+    "ran_at": "2026-09-24T07:44:07Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:gate-meta",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:gate-meta\n> TZ=UTC vitest run tests/gates\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  2 passed (2)\n      Tests  29 passed (29)\n   Start at  07:44:32\n   Duration  10.21s (tests 99%, setup 1%)",
+    "commit": "597123e92376f391bcd8acdd5b47ab5d9ee30049",
+    "ran_at": "2026-09-24T07:44:32Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:plan",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:plan\n> node scripts/validate-plan-json.mjs\n\n\ngate:plan — task 38 件 / check 133 件 / 制約 57 件を検査、0 件の構造違反",
+    "commit": "597123e92376f391bcd8acdd5b47ab5d9ee30049",
+    "ran_at": "2026-09-24T07:44:42Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:check",
+    "exit_code": 0,
+    "stdout_tail": "   warn G2 task_019: `test:conformance` は未定義（未着手タスクなので warn）\n   warn G2 task_019: `test:gate` は未定義（未着手タスクなので warn）\n   warn G2 task_020: `audit:verify` は未定義（未着手タスクなので warn）\n   warn G2 task_021: `gate:terms` は未定義（未着手タスクなので warn）\n   warn G2 task_021: `gate:privacy-policy` は未定義（未着手タスクなので warn）\n   warn G2 task_024: `db:restore:drill` は未定義（未着手タスクなので warn）\n   warn G2 task_025: `test:gate` は未定義（未着手タスクなので warn）\n   warn G2 task_026: `test:conformance` は未定義（未着手タスクなので warn）\n   warn G2 task_027: `test:conformance` は未定義（未着手タスクなので warn）\n   warn G2 task_028: `test:conformance` は未定義（未着手タスクなので warn）\n   warn G2 task_029: `test:gate` は未定義（未着手タスクなので warn）\n   warn G2 task_029: `gate:compliance-freshness` は未定義（未着手タスクなので warn）\n   warn G2 task_030: `test:conformance` は未定義（未着手タスクなので warn）\nok    G3 各 check が 1 つ以上の task から参照されている — 対象 133 件\n        check 133 件 / 参照 133 件\nok    G4 完了タスクの run-log（全 verify_commands exit 0 / manual 記録） — 対象 1 件\n        完了タスク 1 件を検査\nwarn  G5 high × adversarial_review=required の完了に敵対レビュー記録 — 対象 1 件\n        対象 1 件。task_007（レビュー経路）が DONE になるまで G5 は warn（§15-2）\n   warn G5 task_011: docs/review-log/task_011.json がありません\nok    G6 DONE_WITH_CONCERNS の concerns に severity と対応案 — 対象 1 件\n        DONE_WITH_CONCERNS 1 件を検査\ndefer G7 tests/contract のファイル数が減っていない — 対象 0 件\n        tests/contract/ はまだ存在しません（task_018 で作成。基準値 0 と一致）\nok    G8 差分に実シークレットが含まれない — 対象 45 件\n        追加行 45 行を走査\ndefer G9 evidence.commit === HEAD — 対象 0 件\n        evidence 記入済みの check がまだ 0 件です（HEAD=597123e92376…）\nok    G10 [設計] / [不明] 依存の ADR が accepted になっていない — 対象 4 件\n        ADR 4 件を検査\nok    G11 severity=high の未解決 concerns 3 件以上で in_progress を禁止 — 対象 38 件\n        未解決 high concerns 1 件 / しきい値 3 件 / in_progress 0 件\ndefer G12 fixture の provenance（captured_from）と autoDetect の宣言 — 対象 0 件\n        tests/fixtures/<provider>/ がまだありません（task_018 / task_019 で作成）\nok    G13 ゲート定義ファイルのハッシュが基準値と一致 — 対象 21 件\n        ハッシュ対象 21 ファイル（sha256）\ndefer G14 直近 7 日の監査連鎖が audit:verify で検証済み — 対象 0 件\n        package.json に audit:verify がありません（task_018 で作成）\n\ngate:check — 15 ゲートを判定、0 ゲートが不合格（違反 0 件 / warn 20 件）",
+    "commit": "597123e92376f391bcd8acdd5b47ab5d9ee30049",
+    "ran_at": "2026-09-24T07:44:42Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:acceptance",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:acceptance\n> node scripts/assert-acceptance.mjs\n\n        G3 check 133 件 / 参照 133 件\n        G4 完了タスク 1 件を検査\n        G9 evidence 記入済みの check がまだ 0 件です（HEAD=597123e92376…）\n\ngate:acceptance — 対象 134 件（evidence 付き 0 件）、違反 0 件 / warn 0 件",
+    "commit": "597123e92376f391bcd8acdd5b47ab5d9ee30049",
+    "ran_at": "2026-09-24T07:44:43Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:integrity",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:integrity\n> node scripts/gate-integrity.mjs\n\n      ハッシュ対象 21 ファイル（sha256）\n\ngate:integrity — 21 ファイルを照合、0 件の不一致",
+    "commit": "597123e92376f391bcd8acdd5b47ab5d9ee30049",
+    "ran_at": "2026-09-24T07:44:43Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "bash scripts/test-hook-enforcement.sh",
+    "exit_code": 0,
+    "stdout_tail": "  ok      SessionStart: (matcher なし) -> node \"$CLAUDE_PROJECT_DIR/scripts/session-brief.mjs\"\n  ok      UserPromptSubmit: (matcher なし) -> node \"$CLAUDE_PROJECT_DIR/scripts/gate-status.mjs\"\n  ok      PreToolUse: Bash -> bash \"$CLAUDE_PROJECT_DIR/scripts/deny-dangerous-bash.sh\"\n  ok      PreToolUse: Edit|Write|MultiEdit|NotebookEdit|mcp__serena__.* -> bash \"$CLAUDE_PROJECT_DIR/scripts/deny-test-weakening.sh\"\n  ok      PostToolUse: Edit|Write|MultiEdit -> cd \"$CLAUDE_PROJECT_DIR\" && npm run --silent typecheck ; cd \"$CLAUDE_PROJECT_DIR\" && npm run --silent lint:changed ; cd \"$CLAUDE_PROJECT_DIR\" && npm run --silent gate:constraints ; cd \"$CLAUDE_PROJECT_DIR\" && npm run --silent gate:plan\n  ok      Stop: (matcher なし) -> bash \"$CLAUDE_PROJECT_DIR/scripts/append-handoff.sh\" ; cd \"$CLAUDE_PROJECT_DIR\" && npm run --silent gate:check\n  ok      SubagentStop: (matcher なし) -> bash \"$CLAUDE_PROJECT_DIR/scripts/assert-diff-exists.sh\"\n\n== B 単体挙動（登録されたコマンドに stdin でフック入力を渡す）\n  ok      SessionStart / session-brief.mjs: exit 0  {\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"【セッションブリーフ】scripts/session-brief.mjs（SessionStart）\\n\\n■ �\n  ok      UserPromptSubmit / gate-status.mjs: exit 0  {\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"【ゲート状況】未通過 check: 133 / 133（evidence 未記入。docs/accep\n  ok      PreToolUse(Bash) / 保護ツリーの削除は遮断: exit 2  deny-dangerous-bash.sh: BLOCKED   該当: rm -rf（rm -rf docs/run-log）   理由: 破壊的操作・本番デプロイ・本番決済はローカルから実�\n  ok      PreToolUse(Bash) / 通常コマンドは通す: exit 0  \n  ok      PreToolUse(Write) / run-log への直接書き込みは遮断: exit 2  deny-test-weakening.sh: BLOCKED   対象: /Users/noritakasawada/AI_P/cashapp/docs/run-log/task_probe.json   理由: docs/run-log/** に書けるのは scripts/r\n  ok      PreToolUse(Write) / 通常のソースは通す: exit 0  \n  ok      PostToolUse / npm run typecheck: exit 0  \n  ok      PostToolUse / npm run lint:changed: exit 0  lint:changed: tests/gates/probe.test.ts \n  ok      PostToolUse / npm run gate:constraints: exit 0  ok    L1 (forbid, 19 file(s)) ok    L2 (forbid, 19 file(s)) ok    L3 (forbid, 19 file(s)) ok    L8 (forbid, 19 file(s)) ok    L12 (forbid, 19 file(s)) ok    P1 \n  ok      PostToolUse / npm run gate:plan: exit 0   gate:plan — task 38 件 / check 133 件 / 制約 57 件を検査、0 件の構造違反\n  ok      Stop / append-handoff.sh: exit 0  \n  ok      Stop / append-handoff.sh が HANDOFF に 1 行追記した（使い捨てディレクトリで確認）\n  ok      SubagentStop / assert-diff-exists.sh: exit 0  \n  ok      SubagentStop / assert-diff-exists.sh が session_id 付き baseline を書いた\n\n== C ライブ痕跡（実セッションの transcript とフックの副作用）\n  transcript: /Users/noritakasawada/.claude/projects/-Users-noritakasawada-AI-P-cashapp （228 ファイル）\n  SessionStart     注入の記録: 12 件\n  UserPromptSubmit 注入の記録: 48 件\n  PreToolUse(Bash)      遮断: 175 件\n  PreToolUse(Write)     遮断: 23 件\n  PreToolUse(Edit)      遮断: 4 件\n  PreToolUse(MCP 編集)  遮断: 12 件\n  PostToolUse           差し戻し: 3 / 1 件（Edit / Write）\n  Stop          追記行数: 49 行（docs/HANDOFF.md のターンログ節）\n  Stop          最終追記: 2026-09-24T07:44:36Z\n  SubagentStop  baseline ファイル: 2 件（.locks/subagent-head-baseline*）\n                subagent-head-baseline 最終更新 2026-09-24T04:23:14Z\n                subagent-head-baseline-f9bfc039-00e1-4fcc-9c92-b7b79b3e041c 最終更新 2026-09-24T07:43:59Z\n\ntest-hook-enforcement — 登録 6 イベント・単体挙動すべて期待どおり",
+    "commit": "597123e92376f391bcd8acdd5b47ab5d9ee30049",
+    "ran_at": "2026-09-24T07:44:54Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run typecheck",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 typecheck\n> tsc --noEmit",
+    "commit": "597123e92376f391bcd8acdd5b47ab5d9ee30049",
+    "ran_at": "2026-09-24T07:45:04Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run lint",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 lint\n> eslint .",
+    "commit": "597123e92376f391bcd8acdd5b47ab5d9ee30049",
+    "ran_at": "2026-09-24T07:45:05Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "manual",
+    "observation": "コミット経路の事実記録。task_006 の成果物を明示パス指定で git add した直後、並行タスク task_012 が広い add でコミットしたため、task_006 のファイル群は task_012 のコミット 20f379f のツリーに含まれて記録された。task_006 自身のコミット 3cc3a19 には .claude/settings.json と vitest.config.ts の 2 ファイルだけが入っている。git ls-tree で HEAD を検査し、scripts/gate-check.mjs / gate-integrity.mjs / validate-plan-json.mjs / assert-verify-commands.mjs / assert-acceptance.mjs / test-hook-enforcement.sh、tests/gates/meta.test.ts と違反フィクスチャ 52 ファイル、tests/unit/gate-check.test.ts、docs/harness-capability.md / concerns/task_006.md / gates/integrity-baseline.json / run-log/task_006.json、package.json の 5 スクリプト、.claude/settings.json の Stop 側 gate:check がすべて HEAD に存在することを確認した。成果物の欠落は無いが、コミット単位はタスク境界と一致していない。",
+    "commit": "597123e92376f391bcd8acdd5b47ab5d9ee30049",
+    "ran_at": "2026-09-24T07:45:07Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run test:unit",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 test:unit\n> TZ=UTC vitest run tests/unit\n\n(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:\n  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `\"type\": \"module\"` in the closest package.json\nSet `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.\n\n RUN  v5.0.1 /Users/noritakasawada/AI_P/cashapp\n\n\n Test Files  14 passed (14)\n      Tests  499 passed (499)\n   Start at  07:45:19\n   Duration  21.99s (tests 93%, setup 4%, import 1%, transform 1%)",
+    "commit": "86620496a184d261a255bcc09a1007c7c62a1b1e",
+    "ran_at": "2026-09-24T07:45:19Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:check",
+    "exit_code": 0,
+    "stdout_tail": "   warn G2 task_019: `test:conformance` は未定義（未着手タスクなので warn）\n   warn G2 task_019: `test:gate` は未定義（未着手タスクなので warn）\n   warn G2 task_020: `audit:verify` は未定義（未着手タスクなので warn）\n   warn G2 task_021: `gate:terms` は未定義（未着手タスクなので warn）\n   warn G2 task_021: `gate:privacy-policy` は未定義（未着手タスクなので warn）\n   warn G2 task_024: `db:restore:drill` は未定義（未着手タスクなので warn）\n   warn G2 task_025: `test:gate` は未定義（未着手タスクなので warn）\n   warn G2 task_026: `test:conformance` は未定義（未着手タスクなので warn）\n   warn G2 task_027: `test:conformance` は未定義（未着手タスクなので warn）\n   warn G2 task_028: `test:conformance` は未定義（未着手タスクなので warn）\n   warn G2 task_029: `test:gate` は未定義（未着手タスクなので warn）\n   warn G2 task_029: `gate:compliance-freshness` は未定義（未着手タスクなので warn）\n   warn G2 task_030: `test:conformance` は未定義（未着手タスクなので warn）\nok    G3 各 check が 1 つ以上の task から参照されている — 対象 133 件\n        check 133 件 / 参照 133 件\nok    G4 完了タスクの run-log（全 verify_commands exit 0 / manual 記録） — 対象 1 件\n        完了タスク 1 件を検査\nwarn  G5 high × adversarial_review=required の完了に敵対レビュー記録 — 対象 1 件\n        対象 1 件。task_007（レビュー経路）が DONE になるまで G5 は warn（§15-2）\n   warn G5 task_011: docs/review-log/task_011.json がありません\nok    G6 DONE_WITH_CONCERNS の concerns に severity と対応案 — 対象 1 件\n        DONE_WITH_CONCERNS 1 件を検査\ndefer G7 tests/contract のファイル数が減っていない — 対象 0 件\n        tests/contract/ はまだ存在しません（task_018 で作成。基準値 0 と一致）\nok    G8 差分に実シークレットが含まれない — 対象 106 件\n        追加行 106 行を走査\ndefer G9 evidence.commit === HEAD — 対象 0 件\n        evidence 記入済みの check がまだ 0 件です（HEAD=86620496a184…）\nok    G10 [設計] / [不明] 依存の ADR が accepted になっていない — 対象 4 件\n        ADR 4 件を検査\nok    G11 severity=high の未解決 concerns 3 件以上で in_progress を禁止 — 対象 38 件\n        未解決 high concerns 1 件 / しきい値 3 件 / in_progress 0 件\ndefer G12 fixture の provenance（captured_from）と autoDetect の宣言 — 対象 0 件\n        tests/fixtures/<provider>/ がまだありません（task_018 / task_019 で作成）\nok    G13 ゲート定義ファイルのハッシュが基準値と一致 — 対象 21 件\n        ハッシュ対象 21 ファイル（sha256）\ndefer G14 直近 7 日の監査連鎖が audit:verify で検証済み — 対象 0 件\n        package.json に audit:verify がありません（task_018 で作成）\n\ngate:check — 15 ゲートを判定、0 ゲートが不合格（違反 0 件 / warn 20 件）",
+    "commit": "86620496a184d261a255bcc09a1007c7c62a1b1e",
+    "ran_at": "2026-09-24T07:45:41Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:integrity",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:integrity\n> node scripts/gate-integrity.mjs\n\n      ハッシュ対象 21 ファイル（sha256）\n\ngate:integrity — 21 ファイルを照合、0 件の不一致",
+    "commit": "86620496a184d261a255bcc09a1007c7c62a1b1e",
+    "ran_at": "2026-09-24T07:45:41Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]
