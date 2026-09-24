@@ -17,6 +17,19 @@
 # 言い換える余地を作らないため、不成立は成功（0）では返さない。ただし欠票の
 # 存在そのものは差し戻し（1）とも区別する。どちらも非 0 なので DONE には進めない。
 #
+# ## ベンダー独立性（§16-1 の 2 / §16-2）
+#
+# 「検出者と作者は別ベンダー」が敵対レビューの定義である。作者と同じベンダーの
+# 封筒は、封筒として妥当でも**敵対レビューの票にはならない**。`--author-vendor`
+# （既定 `claude`）と同じ `vendor` の封筒は `classification: "self_review"` として
+# 記録し、有効票から外す。自己レビューが出した実効 high は差し戻しに数える
+# （自己点検で見つかった欠陥を見逃す理由は無いため。票にしないことと、指摘を
+# 無視することは別である）。
+#
+# これが無いと、作者と同じベンダーの封筒 1 通だけで `decision: pass` /
+# exit 0 が機械的に成立し、「敵対レビュー済み」を自作できてしまう。
+# 自己レビューを票に数えたい特殊な用途では `--author-vendor none` を渡す。
+#
 # review-log は G5（scripts/gate-check.mjs）が読む正本でもある。G5 は各エントリが
 #   (a) model_id_actual / cli_version / backend を持つ finding 封筒、または
 #   (b) reviewer_route=unavailable の欠票記録
@@ -24,7 +37,11 @@
 #
 # 使い方:
 #   scripts/merge-review.sh <task_id> [--out <file>] [--round <n>] [--dry-run]
-#                           [--root <dir>] [--whitelist <file>] <envelope.json>...
+#                           [--root <dir>] [--whitelist <file>]
+#                           [--author-vendor <gemini|gpt|claude|none>] <envelope.json>...
+#
+#   --author-vendor は「このレビュー対象の書き手のベンダー」。既定は claude
+#   （本リポジトリのコードは Claude 系が書いている）。none を渡すと除外しない。
 #
 #   --whitelist は合格モデル一覧（docs/metrics/model-bench.md 形式）を明示するための
 #   逃げ道で、validate-findings.mjs へそのまま渡す。省略すると検証側が
@@ -38,7 +55,12 @@ set -uo pipefail
 usage() {
   cat >&2 <<'EOF'
 Usage:
-  scripts/merge-review.sh <task_id> [--out <file>] [--round <n>] [--dry-run] [--root <dir>] [--whitelist <file>] <envelope.json>...
+  scripts/merge-review.sh <task_id> [--out <file>] [--round <n>] [--dry-run] [--root <dir>]
+                          [--whitelist <file>] [--author-vendor <gemini|gpt|claude|none>]
+                          <envelope.json>...
+
+--author-vendor（既定 claude）と同じ vendor の封筒は self_review として記録し、
+敵対レビューの有効票には数えません（§16-1 の 2「検出者と作者は別ベンダー」）。
 
 終了コード: 0 = pass / 1 = 差し戻し（high あり）/ 3 = レビュー不成立 / 64 = usage
 EOF
@@ -68,6 +90,7 @@ ROUND=1
 DRY_RUN=0
 ROOT=""
 WHITELIST=""
+AUTHOR_VENDOR="claude"
 ENVELOPES=()
 
 while [ "$#" -gt 0 ]; do
@@ -94,6 +117,15 @@ while [ "$#" -gt 0 ]; do
       shift
       [ "$#" -ge 1 ] || usage
       WHITELIST="$1"
+      ;;
+    --author-vendor)
+      shift
+      [ "$#" -ge 1 ] || usage
+      AUTHOR_VENDOR="$1"
+      case "$AUTHOR_VENDOR" in
+        gemini|gpt|claude|none) ;;
+        *) usage ;;
+      esac
       ;;
     --dry-run) DRY_RUN=1 ;;
     -h|--help) usage ;;
@@ -126,7 +158,9 @@ votes=0
 missing_votes=0
 invalid_envelopes=0
 invalid_reviews=0
+self_reviews=0
 effective_high=0
+VOTE_VENDORS=""
 
 for f in "${ENVELOPES[@]}"; do
   if [ ! -f "$f" ]; then
@@ -153,6 +187,7 @@ for f in "${ENVELOPES[@]}"; do
   route="$(jq -r '.reviewer_route' "$TMP_REPORT")"
   vote="$(jq -r '.counts_as_vote' "$TMP_REPORT")"
   high="$(jq -r '.counts.high' "$TMP_REPORT")"
+  vendor="$(jq -r '.envelope.vendor // ""' "$TMP_REPORT")"
 
   if [ "$valid" != "true" ]; then
     classification="invalid"
@@ -164,9 +199,17 @@ for f in "${ENVELOPES[@]}"; do
     # model_mismatch: 封筒としては読めるが、どのモデルが答えたか信用できない。
     classification="invalid_review"
     invalid_reviews=$((invalid_reviews + 1))
+  elif [ "$AUTHOR_VENDOR" != "none" ] && [ "$vendor" = "$AUTHOR_VENDOR" ]; then
+    # §16-1 の 2: 作者と同じベンダーのレビューは敵対レビューの票にならない。
+    # ただし指摘そのものは捨てない。実効 high は差し戻しに数える。
+    classification="self_review"
+    self_reviews=$((self_reviews + 1))
+    effective_high=$((effective_high + high))
   else
     classification="vote"
     votes=$((votes + 1))
+    VOTE_VENDORS="${VOTE_VENDORS}${vendor}
+"
     effective_high=$((effective_high + high))
   fi
 
@@ -213,16 +256,21 @@ else
   EXIT_CODE=0
 fi
 
+VOTE_VENDORS_JSON="$(printf '%s' "$VOTE_VENDORS" | jq -R -s 'split("\n") | map(select(length > 0)) | unique')"
+
 jq -n \
   --arg type "summary" \
   --arg task_id "$TASK_ID" \
   --arg merged_at "$MERGED_AT" \
   --arg decision "$DECISION" \
+  --arg author_vendor "$AUTHOR_VENDOR" \
   --argjson round "$ROUND" \
   --argjson votes "$votes" \
   --argjson missing_votes "$missing_votes" \
   --argjson invalid_envelopes "$invalid_envelopes" \
   --argjson invalid_reviews "$invalid_reviews" \
+  --argjson self_reviews "$self_reviews" \
+  --argjson vendors "$VOTE_VENDORS_JSON" \
   --argjson effective_high "$effective_high" \
   --argjson exit_code "$EXIT_CODE" \
   --argjson envelopes "$(printf '%s' "${#ENVELOPES[@]}")" \
@@ -234,9 +282,12 @@ jq -n \
      decision: $decision,
      envelopes: $envelopes,
      votes: $votes,
+     vendors: $vendors,
+     author_vendor: $author_vendor,
      missing_votes: $missing_votes,
      invalid_envelopes: $invalid_envelopes,
      invalid_reviews: $invalid_reviews,
+     self_reviews: $self_reviews,
      effective_high: $effective_high,
      exit_code: $exit_code
    }' > "$TMP_REPORT"
@@ -260,8 +311,10 @@ if [ "$DRY_RUN" -eq 0 ]; then
   fi
 fi
 
-printf 'merge-review: %s task=%s round=%s 有効票=%s 欠票=%s 無効封筒=%s 無効レビュー=%s 実効high=%s\n' \
-  "$DECISION" "$TASK_ID" "$ROUND" "$votes" "$missing_votes" "$invalid_envelopes" "$invalid_reviews" "$effective_high"
+VOTE_VENDORS_LABEL="$(printf '%s' "$VOTE_VENDORS_JSON" | jq -r 'if length == 0 then "なし" else join(",") end')"
+printf 'merge-review: %s task=%s round=%s 有効票=%s 投票ベンダー=%s 欠票=%s 無効封筒=%s 無効レビュー=%s 自己レビュー=%s(作者=%s) 実効high=%s\n' \
+  "$DECISION" "$TASK_ID" "$ROUND" "$votes" "$VOTE_VENDORS_LABEL" "$missing_votes" \
+  "$invalid_envelopes" "$invalid_reviews" "$self_reviews" "$AUTHOR_VENDOR" "$effective_high"
 if [ "$DRY_RUN" -eq 0 ]; then
   printf 'merge-review: review-log=%s\n' "$OUT"
 else

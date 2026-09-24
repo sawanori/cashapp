@@ -730,8 +730,9 @@
       "adversarial_review": "required",
       "evidence_label": "[設計]",
       "optional": true,
-      "completion_status": "DONE_WITH_CONCERNS",
+      "completion_status": "BLOCKED",
       "concerns": [
+        "[severity: high] BLOCKED の理由: 敵対レビューを 3 周（round 1 = not_established / round 2 = pass / round 3 = reject）消化した結果、round 3 が実効 high 2 件で decision=reject のまま終わっている。implementation-plan.md §15-3 step 5 は「3 周後も high が残れば BLOCKED で PO 裁定（DONE_WITH_CONCERNS で通すことを禁止）」と定めており、check_066 の expected_result も同じ。試したこと: 3 周目で F-1（review-log の出所担保）に対しベンダー独立性を merge-review.sh 内で閉じられる範囲まで実装した（作者ベンダーの票を self_review として除外）が、封筒の改竄防止そのもの（deny-dangerous-bash.sh = task_006 / integrity-baseline.json = task_009 / 封筒スキーマ = task_008・task_010）は所有権の外。F-2（GPT 経路の遮断解除）は PO の承認事項で AI は触れない（§16-1 の 4 / F13）。エスカレーション先: PO（F-2 の裁定と再開可否）・task_004（test:unit の赤）・task_006 / 008 / 009 / 010（F-1）。解除条件: 所有タスク側で F-1 / F-2 が解消してから 4 周目を回して pass を取り直す。",
         "[severity: high] GPT-6 Astra 経路は codex 側フック（block-non-claude-model.sh）で遮断中 [実測]。codex exec は exit 0 のままエージェント応答を返さない。解除は PO 承認事項（task_010）で、それまで敵対レビューは Gemini 単独であり欠票を review-log に残し続ける。この状態を「3 ベンダー体制」と称さない。",
         "[severity: high] task_007 の完了により G5 がブロッキングになり、review-log を持たない完了済みタスクが違反として列挙される（§15-2 の設計どおりの強制力）。解消手順は docs/concerns/task_007.md の 3 に記載。欠票で敷き詰めず Gemini 経路で実レビューを取ること。",
         "[severity: high] 2 周目の敵対レビュー（round 3、対象 commit 62e31be）は decision=reject で終わっている [実測]。有効票 1（Gemini verified / gemini-2.5-pro / model_id_source=cli_stats / cli_version=0.38.1）・欠票 1（GPT）・実効 high 2。3 件の finding はこの diff が作った欠陥ではなく、封筒に同梱した docs/concerns/task_007.md の既知の懸念の読み上げ（F-1=同 12 / F-2=同 1 / F-3=同 11）で、3 件とも task_007 の所有ファイルでは直せないため未修正のまま残した。詳細は docs/concerns/task_007.md の 15。",
@@ -740,6 +741,10 @@
         "[severity: medium] CI の adversarial ジョブ（task_009 の gate.yml）が scripts/review/run-adversarial.* を探すが、実際の入口は build-review-packet.sh / review-gemini.mjs / review-gpt.mjs / validate-findings.mjs / merge-review.sh の 5 本でパスが一致しない。入口名をそろえるかラッパーを足すかは task_010 が決める（required には入れない）。",
         "[severity: medium] 合格モデルのホワイトリスト docs/metrics/model-bench.md が未作成のため model_mismatch を検出できず、validate-findings.mjs は model_whitelist_unconfigured の警告のみを出す。R-TH-11 の「名乗らせる」は効いているが「照合する」は未実装。task_010 のベンチで確定させる。なお 2 周目でテスト側は --whitelist をフィクスチャで明示するようにしたので、このファイルが出来ても tests/unit/{merge-review,validate-findings}.test.ts は影響を受けない。",
         "[severity: medium] 封筒のペイロードが大きいとレビューが返ってこない（265KB の封筒で gemini-2.5-pro が 900 秒タイムアウト、76KB なら返る [実測]）。--max-diff-bytes（既定 120000）/ --max-file-bytes / --head で絞れるようにしたが、既定値は task_008 / task_010 で実測に基づいて見直すこと。metrics.payload_bytes を task-loop が 1 周ごとに run-log へ記録する（task_008）。",
+        "[severity: medium] （3 周目で部分的に解消）作者と同じベンダーの封筒 1 通で decision=pass / exit 0 が機械的に成立していた [実測]。merge-review.sh は vendor を一切見ず、vendor:\"claude\" の自己レビューでも有効票 1 として通していた。3 周目で --author-vendor（既定 claude）を足し、同一ベンダーの封筒を classification=\"self_review\" として票から外した（実効 high は差し戻しに数える）。残る穴は「封筒そのものの改竄防止」で、これは task_006 / 008 / 009 / 010 の所有。詳細は docs/concerns/task_007.md の 17。",
+        "[severity: medium] task_007 を BLOCKED にしたことで G5（review-log の強制）が warn へ戻る。§15-2 の文言が「task_007 が DONE になるまで warn」であるため設計どおりの帰結だが、結果として review-log を持たない完了済みタスクが当面ブロックされない。task_007 が 4 周目で pass を取り DONE 系に戻った時点で再びブロッキングになる。詳細は docs/concerns/task_007.md の 16。",
+        "[severity: low] commit 0a060bf が docs/task-list.json の task_001 / task_013 のエントリ（両者の completion_status と concerns[]）と末尾改行の削除を巻き込んでいた [実測]。当時の報告は「task_007 のエントリのみ同期した」と述べており実際の diff と食い違う。3 周目で末尾改行を戻し、報告を訂正した。内容自体は各所有タスクの宣言と一致していたため revert はしていない。詳細は docs/concerns/task_007.md の 18。",
+        "[severity: low] merge-review.sh の一部のエラーメッセージが bash 3.2（macOS 既定）で壊れる [実測]。全角括弧に囲まれた $f が識別子の一部として解釈され、set -u により「unbound variable」で exit 1 になる（意図は exit 64）。発生するのは validate-findings.mjs が見つからない等のエラー経路のみで、正常系・テストは影響を受けない。今回のレビュー指摘の範囲外なので未修正。対応案は $f を全角括弧の外へ出すか \"${f}\" と明示すること。詳細は docs/concerns/task_007.md の 19。",
         "[severity: low] deferred: CI の adversarial ジョブ追加と実走は GitHub リモート作成後に実施する（PO 判断待ち）。追加する場合は .github/workflows/gate-adversarial.yml として独立ファイルで足し、required status checks には入れない（R-TH-03）。"
       ]
     },

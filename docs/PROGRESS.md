@@ -20,7 +20,8 @@
 - task_012（レビュー修正・2 周目）: DONE_WITH_CONCERNS — レビュー指摘 high 1 件 / medium 2 件を修正し、担当範囲外の medium 3 件を deferred として記録した。(1) **nonce CSP が実際には機能していなかった**。`src/middleware.ts` は CSP をレスポンスにだけ載せ、nonce を独自ヘッダ `x-csp-nonce` でリクエストへ渡していたが、Next.js が自前の `<script>`（ブートストラップと `self.__next_f` のインラインデータ）へ nonce を付ける経路は**リクエストヘッダの `Content-Security-Policy` を読む 1 本だけ**で、独自ヘッダは見ない（`node_modules/next/dist/server/app-render/app-render.js:209-210` の `getScriptNonceFromHeader()` を Next 16.3.6 で確認）。配信 CSP は `script-src 'nonce-…' 'strict-dynamic'` で `'self'` も `'unsafe-inline'` も無いため、task_013 が LIFF フロントを載せた時点でアプリの JS が全部ブロックされる状態だった。`requestHeaders.set(CSP_HEADER, buildContentSecurityPolicy(nonce))` を追加して塞ぎ、再発検出のために **Next.js 自身の抽出関数**（`next/dist/server/app-render/get-script-nonce-from-header`）を直接呼ぶ検査を `tests/unit/security-headers.test.ts` に 7 ケース追加した（`x-middleware-override-headers` / `x-middleware-request-*` を解いてレンダラが受け取るリクエストヘッダを実検査）。修正行を外すと 6 ケースが落ちることを実測（負の対照）。(2) **`gate:env` が片側混入型の本番値混入を素通りしていた**。staging と production の値の衝突しか見ていなかったため、本番 ref を staging **だけ**に書く形（実リポジトリでは ref も LIFF ID も secret 側にあるので混入するならこの形になる）が exit 0 で通ることを再現したうえで、検査 (7) を追加した。`src/lib/config/env.ts` の `EXPECTED_SUPABASE_PROJECT_REF`（起動時アサートが使う同じ正本。値を書き写さず読む）と突き合わせ、ref が自分の environment の外に現れたら違反にする。フィクスチャ 2 本（`one-sided-leak` = exit 1 / `pinned-ok` = exit 0）で機械検査。実 ref が入った時点で自動的に実効化する。(3) **pending の文言が実際より広い範囲を検査したように読めた**ので、実走した 3 項目を列挙し「片側混入は検出できない」と明記する文言に置き換え、検出できない本番資源（LIFF ID / Hyperdrive id）を毎回名指しするようにした。(4) `.dev.vars.example` に起動時必須の 4 変数が無く `wrangler dev` / `next dev` の platform proxy 経路ではルートが 500 / 503 になる件は、同ファイルが task_003 所有のため追記せず、`gate:env` が毎回 pending で名指しする検査を足してテストで固定した（C-012-14 deferred）。verify_commands 5 本（`typecheck` / `test:unit` 499 → 510 件 / `test:integration` 73 件 / `gate:constraints` / `gate:env`）と追加の `test:security`(29) / `gate:server-only` / `gate:wording` / `lint` はすべて `scripts/record-run.sh task_012` 経由で exit 0。deferred は C-012-2（レート制限バインディング未追加＝デプロイ環境で `/api/auth/line` が 503。`wrangler.toml` は task_003 / 035 所有）・C-012-14（`.dev.vars.example`。task_003 / 035）・C-012-15（LIFF ID / Hyperdrive id の片側混入。task_035 / 024）・C-012-12（CI 実走。GitHub リモート未作成）・C-012-7（`tests/security/*` は task_022 所有）。
 - task_009: DONE_WITH_CONCERNS — `.github/workflows/gate.yml`（static / gate-meta / gate-integrity / labels / security / secrets / deps / acceptance / test-tamper-guard / date-boundary の 10 ジョブ ＋ required に入れない adversarial）・`e2e.yml`（nightly ＋ dispatch）・`release.yml`（先頭 2 段ゲート → `cloudflare/wrangler-action@v4` で `deploy --env production`）・`.github/PULL_REQUEST_TEMPLATE.md`・`.github/CODEOWNERS`（承認必須には使わない。A19 / R-TH-04）を作成。判定器 3 本 `scripts/ci/{check-pr-checklist.mjs,assert-release-gate.mjs,secrets-grep.sh}` を実装し、`tests/unit/ci/*` 44 件（release.yml を 14 通りに壊した fixture・PR 本文 26 ケース）で機械検証。`npm run gate:acceptance` / `gate:check` / `gate:integrity` はいずれも `scripts/record-run.sh task_009` 経由で exit 0。**`docs/gates/release-mode.json` は作成できなかった**（`scripts/deny-test-weakening.sh` が `docs/gates/**` への Write を新規作成でも遮断する。遮断ログは `docs/concerns/task_009.md` の 1）。`release.yml` は当該ファイルが無い場合に fail-closed で先頭終了する実装にしてあり、作成は PO に委ねる。**ブランチ保護と CI 実走は deferred**（`git remote -v` が空＝ GitHub にリポジトリが無い。`gh` は `sawanori` で認証済みだが対象リポジトリが無いため `gh api .../protection` を叩けない）。代替として 4 本のワークフロー YAML がパースでき、`run:` が呼ぶ `npm run <name>` がすべて `package.json.scripts` に実在し、`node`/`bash` が呼ぶ `scripts/**` が実在することを静的検証した（問題 0 件）。
 
-- task_007: DONE_WITH_CONCERNS — エージェント定義 7 本（`.claude/agents/`。敵対レビュー
+- task_007: BLOCKED — **（3 周目で `DONE_WITH_CONCERNS` から訂正した。理由は本ファイル末尾の
+  「task_007（レビュー修正・3 周目）」を参照）** エージェント定義 7 本（`.claude/agents/`。敵対レビュー
   Gemini / GPT・payment-contract-guard・compliance-gatekeeper・release-auditor・
   premortem-facilitator・acceptance-test-generator-restricted）と、レビュー封筒の 5 本
   （`scripts/build-review-packet.sh` / `review-gemini.mjs` / `review-gpt.mjs` /
@@ -191,7 +192,8 @@
   実行経路が未検証、下限未満判定の取りこぼし、テレメトリの集計・アラート未実装
   （`docs/concerns/task_013.md`）。
 
-- task_007（レビュー修正・2 周目）: DONE_WITH_CONCERNS — レビュー指摘 medium 4 件のうち、
+- task_007（レビュー修正・2 周目）: BLOCKED — **（当時の宣言は `DONE_WITH_CONCERNS`。3 周目で
+  §15-3 step 5 に従い訂正した）** レビュー指摘 medium 4 件のうち、
   本タスクの所有ファイルで直せる 2 件を直した。(1) **封筒の制約絞り込みが部分一致だった**
   （R-TH-10 違反）。`scripts/build-review-packet.sh` の `select([.id] | inside($ids))` は
   jq の仕様上「`$ids` のいずれかが `.id` を**部分文字列として**含むか」を見るため、
@@ -233,4 +235,35 @@
   封筒は 76896 bytes で 780 秒タイムアウトし、43007 bytes に絞って返った
   （1 周目は 76688 bytes で返っていたので、同じサイズでも返る日と返らない日がある）。
 - task_036: DONE_WITH_CONCERNS — ゲート台帳（compliance-gates.json・10 ゲート unknown）と照会追跡台帳（external-inquiries.json）の雛形を作成（7f258ac）。PROGRESS.md 不在のため当時は未記入、後追いで記録。
+
+- task_007（レビュー修正・3 周目）: BLOCKED — **完了ステータスを `DONE_WITH_CONCERNS` から
+  `BLOCKED` へ訂正した。** 敵対レビューは round 1 = `not_established` / round 2 = `pass` /
+  round 3 = `reject`（実効 high 2）で 3 周を消化しており、`docs/implementation-plan.md`
+  §15-3 step 5 の「**3 周後も high が残れば BLOCKED で PO 裁定（`DONE_WITH_CONCERNS` で
+  通すことを禁止）**」および `check_066` の expected_result に正面から反する状態のまま
+  完了扱いにしていた。台帳（`docs/task-list.json`）と本ファイルの 2 か所の宣言を
+  `BLOCKED` にそろえ、残る実効 high 2 件を所有タスクと PO へ明示的にエスカレーションする。
+  **PO 裁定が必要なもの**: F-2 = GPT-6 Astra 経路の遮断解除（`~/.codex/hooks/
+  block-non-claude-model.sh`。§16-1 の 4 / F13 により AI は解除してはならない）。
+  **所有タスクへ起票**: F-1 = review-log の出所担保（task_006 の `deny-dangerous-bash.sh` /
+  task_009 の `integrity-baseline.json` / task_008・task_010 の封筒スキーマ）、
+  F-3 = `tests/unit/gate-constraints.test.ts` の 5 秒タイムアウト（task_004）。
+  あわせて、**F-1 のうち task_007 の所有ファイルで閉じられる部分を実装した**:
+  `scripts/merge-review.sh` が `vendor` を一切見ず、作者と同じベンダー（`claude`）の
+  封筒 1 通でも `decision: pass` / exit 0 を返していた（§16-1 の 2「検出者と作者は別ベンダー」
+  違反）。`--author-vendor`（既定 `claude`）を足し、同一ベンダーの封筒を
+  `classification: "self_review"` として有効票から外し、summary に `vendors` /
+  `author_vendor` / `self_reviews` を出すようにした。**自己レビューが出した実効 high は
+  差し戻しに数える**（票にしないことと指摘を無視することは別）。実測: 同じ自作封筒 1 通に
+  対し HEAD（`48f3061`）は `pass` / exit 0、修正後は `not_established` / exit 3。
+  回帰は `tests/unit/merge-review.test.ts` に 7 件追加（13 → 20 件）。
+  `docs/review-log/README.md` の vendor 表にも「`claude` は自己レビューであり敵対レビューの
+  票にならない」と明記した。さらに commit `0a060bf` が `docs/task-list.json` の
+  task_001 / task_013 のエントリと末尾改行の削除を巻き込んでいた件（当時の報告と実 diff の
+  食い違い）を `docs/concerns/task_007.md` の 18 で訂正し、末尾改行を戻した。
+  **verify_commands の再実行**（`scripts/record-run.sh task_007` 経由、HEAD で実測）の結果は
+  `docs/run-log/task_007.json` と `docs/concerns/task_007.md` の 16〜19 に記録した。
+  **`npm run test:unit` は依然 exit 1** で、落ちるのは task_004 所有の
+  `tests/unit/gate-constraints.test.ts` の 5 秒タイムアウトのみ（task_007 起因 0 件）。
+  これも BLOCKED の理由に含める（CI の acceptance ジョブは verify_commands を再実行するため）。
 - task_013（レビュー修正・2 周目）: DONE_WITH_CONCERNS — レビュー指摘 high 1 件 / medium 4 件のうち、担当範囲で直せる 3 件を直し、2 件を deferred として記録した。(1) **モックの定数畳み込みが実際には効いていなかった**。`scripts/build-web-only.mjs` は `next build` の前に `delete env["NEXT_PUBLIC_LIFF_MOCK"]` していたが、Next.js の `getNextPublicEnvironmentVariables()`（`node_modules/next/dist/lib/static-env.js`）は `for (const key in process.env)` で**存在するキーだけ**を define にするため、未設定だと置換が起きず `await import("./mock")` が到達可能なまま残る。リポジトリの複製に `bootLiff()` を呼ぶ `src/app/page.tsx` を置いて実測したところ、未設定では `.next/static` に `liff-mock` / `LiffMockPlugin` が **2 ファイル**（うち 1 つは `@line/liff-mock` 本体）出力され、`NEXT_PUBLIC_LIFF_MOCK=0` では **0 ファイル**（`isInClient` はどちらも 2 チャンクに存在）だった。`delete` を `= "0"` に変え、`package.json` の `build` / `build:cf` にも `NEXT_PUBLIC_LIFF_MOCK=${NEXT_PUBLIC_LIFF_MOCK:-0}` を前置し、`build:web-only` に「本番ビルド経路が変数を定義しているか」の検査 (0) を追加。`tests/unit/ci/web-only-workflow.test.ts` に回帰テスト 3 件（`delete` に戻したら落ちる／Next 側の前提そのものを毎回読み直す）を足した。制約 I4 と check_079 の担保が初めて実体を持った。(2) **`build:web-only` の import グラフ起点が 4 ファイルしかなく、`src/app/page.tsx` と `src/middleware.ts` が検査から漏れていた**（どちらもルートグループに属さず毎ビルドに載る）。禁止側の全走査（`src/lib/liff/**` と `src/app/(liff)/**` 以外は LIFF を参照しない）に置き換え、起点も `src/app/**` の `(liff)` 以外 ＋ `src/middleware.ts` に拡張（走査 4 → 26 / import グラフ 4 → 24 ファイル）。複製で両ファイルに LIFF import を足すと exit 1 になることを実測（修正前は exit 0 で素通り）。(3) **静的フォールバックに「再試行」も「LINE で開く」も出ていなかった**（3 か所の呼び出しが props を渡していないため、出るのは幹事への連絡の固定文だけ）。再試行を既定で常設し（遷移先はアプリの入口 `/`。`href=""` は `a[href]` を link ロールへ対応づける規則が非空を条件にする実装があるため採らない）、パーマネントリンクを LIFF ID から組み立てる `liffPermanentLink()` を追加した（URL 形式の一次資料はインストール済み `@line/liff` 2.31.0 の `@liff/permanent-link` と `@liff/consts`。`docs/vendor-docs/line/liff-sdk.md` §4 に退避）。`tests/unit/components/StaticFallback.test.tsx` 7 件で固定。verify_commands 6 本のうち 5 本（`typecheck` / `lint` / `build` / `build:web-only` / `gate:constraints`）と追加の `gate:wording` / `gate:server-only` / `gate:env` は `scripts/record-run.sh task_013` 経由で exit 0。**`test:unit` だけ exit 1**（落ちるのは `tests/unit/gate-constraints.test.ts` の 1〜2 件のみで、原因は既知の 5 秒タイムアウト。単独実行 17/17 緑、フルスイートも `--testTimeout=30000` なら 720/720 緑。task_004 の担当）。deferred は C-013-3（作業中に GitHub リモートが作成され `gate-web-only / web-only` は push イベントで **2 回とも緑**（run 35985828331 / 35984699932）だが、走ったのは 1 周目のスクリプトであり、`pull_request` での緑と 2 周目修正版の実走は未了。`git push` が禁止コマンドのため本エージェントからは実走させられない。branch protection も未設定 = required status checks 未登録）・C-013-4（`(liff)` ページが無く check_079 / R-LINE-04 はまだ達成扱いにできない。task_014）・C-013-9（`sdk_unavailable` では LIFF ID 自体が無いため「LINE で開く」を出せない。3 導線が揃うのは task_014 以降）。

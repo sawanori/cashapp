@@ -165,7 +165,13 @@
 - **対応案**: **deferred: GitHub リモート作成後に実施。** ジョブを追加するときは
   `.github/workflows/gate-adversarial.yml` として独立ファイルで足し、`gate.yml` は編集しない。
   required status checks には入れない。
-- **対応予定タスク**: task_009 / task_010
+- **3 周目の更新 [実測 2026-09-24]**: `git remote -v` は
+  `origin git@github.com:sawanori/cashapp.git` を返すようになっており、**リモートは
+  作成されている**（task_013 の 2 周目の記録と一致）。ただし **`git push` は本ハーネスの
+  禁止コマンド**なので、このエージェントからはワークフローを実走させられない。
+  したがって本項は **deferred のまま**で、理由が「リモート不在」から
+  「push 権限がハーネス側で禁止されている（PO / 人手の操作が要る）」へ変わる。
+- **対応予定タスク**: task_009 / task_010 / PO（push とブランチ保護の設定）
 
 ## 9. 受入テスト生成のツール制限は「エージェント定義の許可ツール」でしか担保していない
 
@@ -343,3 +349,103 @@
   レビュアの言うとおり「verify_commands が赤いまま完了扱いにするのは不健全」であり、
   **F-3 が直るまで CI の acceptance ジョブは落ちる**。
 - **対応予定タスク**: task_004（F-3）/ task_006・task_008・task_009・task_010（F-1）/ PO（F-2）
+- **3 周目での訂正**: この状態を `DONE_WITH_CONCERNS` で通したこと自体が §15-3 step 5 違反
+  だったので、完了ステータスを **`BLOCKED`** へ改めた。16 を参照。
+
+---
+
+# 3 周目（レビュー指摘の反映）で追加した項目
+
+## 16. 完了ステータスを `DONE_WITH_CONCERNS` から `BLOCKED` へ訂正した
+
+- **指摘**: `docs/implementation-plan.md` §15-3 step 5 は「**3 周後も high が残れば BLOCKED で
+  PO 裁定（`DONE_WITH_CONCERNS` で通すことを禁止）**」と明記しており、`check_066` の
+  expected_result も「3 周後は BLOCKED（`DONE_WITH_CONCERNS` にならない）」である。
+  一方で本タスクの敵対レビューは
+  **round 1 = `not_established` / round 2 = `pass` / round 3 = `reject`（実効 high 2）**
+  で 3 周を消化しており（`docs/review-log/task_007.json`）、「まだ周回途中」ではない。
+  それにもかかわらず `docs/task-list.json` と `docs/PROGRESS.md` は
+  `DONE_WITH_CONCERNS` を宣言していた。15 に記録はあったが `accepted-risk` の裁定は
+  受けていない。**計画の禁止事項に正面から反していた。**
+- **深刻度**: high
+- **対応**: 3 周目で `docs/task-list.json` の `completion_status` と `docs/PROGRESS.md` の
+  task_007 宣言 2 か所を **`BLOCKED`** に改め、3 周目の項を追記した。
+  - **何にブロックされているか**: 未修正の実効 high 2 件。
+    F-1 = review-log の出所担保（本ファイルの 12）/ F-2 = GPT 経路の遮断（同 1）。
+  - **何を試したか**: F-1 のうち **task_007 の所有ファイルで閉じられる部分**
+    （ベンダー独立性）は 3 周目で実装した（17）。封筒そのものの改竄防止は
+    `scripts/deny-dangerous-bash.sh`（task_006）・`docs/gates/integrity-baseline.json`
+    （task_009）・封筒スキーマ（task_008 / task_010）の変更が要る。
+    F-2 は `~/.codex/hooks/block-non-claude-model.sh` の解除で、**PO の承認事項**であり
+    AI が触ってはならない（§16-1 の 4 / F13）。
+  - **解除条件**: 所有タスク側で F-1 / F-2 が解消してから 4 周目を回し、`pass` を
+    取り直した時点で DONE 系へ戻す。
+- **副作用（記録）**: `scripts/gate-check.mjs` の G5 は「task_007 が DONE 系になるまで warn」
+  という実装（`task007Done`）なので、**BLOCKED にすると G5 は warn へ戻る** [実測]。
+  §15-2 の文言どおりの帰結だが、結果として review-log を持たない完了済みタスクが
+  当面ブロックされない。**この緩和はステータス訂正の副作用であって、意図した緩和ではない。**
+  4 周目で DONE 系に戻れば再びブロッキングになる。
+- **対応予定タスク**: PO（F-2 の裁定・再開可否）/ task_006・task_008・task_009・task_010（F-1）/
+  task_004（F-3 = 11）
+
+## 17. （3 周目で解消）`merge-review.sh` がベンダー独立性を一切見ていなかった
+
+- **指摘**: `scripts/merge-review.sh` は封筒の `vendor` を判定に使っておらず、
+  **作者と同じベンダー（`vendor: "claude"`）の封筒 1 通だけでも有効票 1 として
+  `decision: pass` / exit 0 を返していた** [実測]。`validate-findings.mjs` の `VENDORS` に
+  `"claude"` が入っており `docs/review-log/README.md` も認めているため、これは偽造ではなく
+  **スキーマ上正当な経路**である。G5（`scripts/gate-check.mjs`）は
+  `model_id_actual` / `cli_version` / `backend` の有無しか見ないので、自作自演の 1 票で
+  「敵対レビュー済み」が機械的に成立していた。`docs/implementation-plan.md` §16-1 の 2
+  「**検出者と作者は別ベンダー**」および §16-2 の敵対レビュー A / B の定義に反する。
+- **深刻度**: medium（12 の「出所の担保が無い」の一部で、**こちらは task_007 の所有ファイル内で
+  閉じられる**）
+- **対応（実装済み）**: `--author-vendor <gemini|gpt|claude|none>`（既定 `claude`）を足し、
+  同じ `vendor` の封筒を `classification: "self_review"` として記録し **`votes` から外した**。
+  summary に `vendors`（有効票を投じたベンダー集合）/ `author_vendor` / `self_reviews` を出す。
+  **自己レビューが出した実効 high は差し戻し（exit 1）に数える** — 票にしないことと、
+  指摘を無視することは別である。`docs/review-log/README.md` にも「`claude` は自己レビューで
+  あり敵対レビューの票にならない」を明記した。
+  - **実測（負の対照つき）**: 同一の自作封筒
+    （`vendor: "claude"` / `reviewer_route: "verified"` / `model_id_actual: "claude-opus-5"`）に対し
+    HEAD `48f3061` の `merge-review.sh` は
+    `merge-review: pass … 有効票=1 … 実効high=0` / **exit 0**、
+    修正後は `merge-review: not_established … 有効票=0 … 自己レビュー=1(作者=claude)` /
+    **exit 3**。`--author-vendor none` を渡すと修正後も exit 0 に戻る。
+    `--author-vendor bogus` は exit 64（usage）。
+  - **回帰**: `tests/unit/merge-review.test.ts` に 7 件追加（13 → 20 件、ファイル単体で
+    `TZ=UTC npx vitest run` が 20 passed / exit 0）。
+- **残る穴**: 封筒そのものの改竄防止（手書きの `vendor: "gemini"` 封筒は依然作れる）。
+  これは 12 のとおり task_006 / 008 / 009 / 010 の所有。**ベンダー独立性の担保は
+  「作者が自分の名前で自分を通す」経路を塞いだだけで、「他人の名前を騙る」経路は塞いでいない。**
+- **対応予定タスク**: （本項は解消）残りは task_006 / task_008 / task_009 / task_010（12）
+
+## 18. （3 周目で訂正）commit `0a060bf` が他タスクの台帳エントリと末尾改行を巻き込んでいた
+
+- **指摘**: 2 周目の commit `0a060bf` は、`docs/task-list.json` について
+  **task_001 と task_013 の `completion_status` / `concerns[]` を同じコミットに巻き込み**、
+  さらに **ファイル末尾の改行を削っていた** [実測: `git show 0a060bf -- docs/task-list.json`]。
+  当時の報告（deviations）は「`docs/task-list.json` は … task_007 の `completion_status` と
+  `concerns[]` のみ同期した。他タスクのエントリは触っていない」と述べており、**実 diff と
+  食い違う**。共有台帳を丸ごと `git add` する運用は、並行タスクの未コミット状態を
+  別タスクの履歴に焼き込むため、G4（PROGRESS ⇔ 台帳の一致）の帰属を壊す。
+- **深刻度**: low（混入した内容自体は各所有タスクの宣言と一致していたため `revert` は不要）
+- **対応**: (1) 上記の報告を本項で訂正する。(2) 末尾改行を戻した。(3) 3 周目の台帳変更は
+  **task_007 のエントリだけを編集し、他タスクのエントリに触れていないことを
+  `git diff docs/task-list.json` で確認してからステージする**。
+- **対応予定タスク**: （本項は訂正済み。運用規律として以後のラウンドに引き継ぐ）
+
+## 19. `merge-review.sh` のエラーメッセージが bash 3.2 で壊れる（未修正・スコープ外）
+
+- **指摘**: `scripts/merge-review.sh` のエラー経路にある
+  `echo "…（$f）" >&2` / `echo "…（$f, exit $rc）" >&2` は、macOS 既定の
+  **GNU bash 3.2.57** では全角の `）` が識別子の一部として解釈され、`set -u` により
+  `f…: unbound variable` で **exit 1** になる（意図は exit 64） [実測]。
+  発生するのは `validate-findings.mjs` が見つからない / 出力が JSON として読めない等の
+  エラー経路のみで、正常系とテスト（20 件）は影響を受けない。
+- **深刻度**: low
+- **対応案**: `$f` を全角括弧の外へ出すか `"${f}"` と明示する。
+  **今回のレビュー指摘の範囲外なので 3 周目では修正していない**（スコープ規律）。
+  発見の経緯は、17 の負の対照を取るために HEAD 版スクリプトを検証ディレクトリへ
+  コピーして走らせたときに踏んだもの。
+- **対応予定タスク**: task_007 の次ラウンド、または task_010

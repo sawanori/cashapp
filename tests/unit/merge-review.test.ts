@@ -70,15 +70,19 @@ interface LogEntry {
   type?: string;
   classification?: string;
   reviewer_route?: string;
+  vendor?: string;
   model_id_actual?: string;
   cli_version?: string;
   backend?: string;
   source_file?: string;
   decision?: string;
   votes?: number;
+  vendors?: string[];
+  author_vendor?: string;
   missing_votes?: number;
   invalid_envelopes?: number;
   invalid_reviews?: number;
+  self_reviews?: number;
   effective_high?: number;
   round?: number;
   validation?: { errors?: string[]; downgrades?: unknown[] };
@@ -303,5 +307,104 @@ describe("merge-review.sh — review-log", () => {
     const res = merge([envelope()], ["--dry-run"]);
     expect(res.status).toBe(0);
     expect(fs.existsSync(res.logPath)).toBe(false);
+  });
+});
+
+describe("merge-review.sh — ベンダー独立性（§16-1 の 2）", () => {
+  /** 作者と同じベンダー（claude）の封筒。スキーマ上は完全に妥当である。 */
+  function selfReviewEnvelope(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return envelope({
+      reviewer: "self-review-by-author",
+      vendor: "claude",
+      model_id_actual: "claude-opus-5",
+      cli_version: "n/a",
+      backend: "self",
+      ...overrides,
+    });
+  }
+
+  const whitelistWithClaude = (): string =>
+    writeWhitelist(["gpt-6-astra", "gemini-2.5-pro", "claude-opus-5"]);
+
+  it("作者と同じベンダーの封筒 1 通ではレビューが成立しない（exit 3）", () => {
+    // これが通ると「敵対レビュー済み」を作者自身が 1 通で作れてしまう。
+    const res = merge([selfReviewEnvelope()], ["--whitelist", whitelistWithClaude()]);
+    expect(res.status).toBe(3);
+    const s = summaryOf(res.log);
+    expect(s?.decision).toBe("not_established");
+    expect(s?.votes).toBe(0);
+    expect(s?.self_reviews).toBe(1);
+    expect(s?.vendors).toEqual([]);
+    expect(res.log.find((e) => e.type !== "summary")?.classification).toBe("self_review");
+  });
+
+  it("作者ベンダー以外の有効票が 1 件あれば通る（自己レビューは票に数えない）", () => {
+    const res = merge(
+      [selfReviewEnvelope(), envelope({ reviewer: "adversarial-reviewer-gpt" })],
+      ["--whitelist", whitelistWithClaude()],
+    );
+    expect(res.status).toBe(0);
+    const s = summaryOf(res.log);
+    expect(s?.decision).toBe("pass");
+    expect(s?.votes).toBe(1);
+    expect(s?.self_reviews).toBe(1);
+    expect(s?.vendors).toEqual(["gpt"]);
+  });
+
+  it("自己レビューが出した実効 high は差し戻しに数える（票にしないことと無視は別）", () => {
+    const res = merge(
+      [selfReviewEnvelope({ verdict: "FAIL", findings: [finding()] }), envelope()],
+      ["--whitelist", whitelistWithClaude()],
+    );
+    expect(res.status).toBe(1);
+    const s = summaryOf(res.log);
+    expect(s?.decision).toBe("reject");
+    expect(s?.effective_high).toBe(1);
+  });
+
+  it("--author-vendor none で自己レビュー除外を外せる", () => {
+    const res = merge(
+      [selfReviewEnvelope()],
+      ["--whitelist", whitelistWithClaude(), "--author-vendor", "none"],
+    );
+    expect(res.status).toBe(0);
+    const s = summaryOf(res.log);
+    expect(s?.votes).toBe(1);
+    expect(s?.self_reviews).toBe(0);
+    expect(s?.vendors).toEqual(["claude"]);
+  });
+
+  it("--author-vendor gemini なら gemini の票が自己レビューになる", () => {
+    const res = merge(
+      [
+        envelope({ reviewer: "adversarial-reviewer-gemini", vendor: "gemini", model_id_actual: "gemini-2.5-pro" }),
+        envelope(),
+      ],
+      ["--author-vendor", "gemini"],
+    );
+    expect(res.status).toBe(0);
+    const s = summaryOf(res.log);
+    expect(s?.votes).toBe(1);
+    expect(s?.self_reviews).toBe(1);
+    expect(s?.vendors).toEqual(["gpt"]);
+    expect(s?.author_vendor).toBe("gemini");
+  });
+
+  it("summary は投票ベンダー集合を重複なしで持つ", () => {
+    const res = merge([
+      envelope(),
+      envelope({ reviewer: "adversarial-reviewer-gpt-2" }),
+      envelope({ reviewer: "adversarial-reviewer-gemini", vendor: "gemini", model_id_actual: "gemini-2.5-pro" }),
+    ]);
+    expect(res.status).toBe(0);
+    const s = summaryOf(res.log);
+    expect(s?.votes).toBe(3);
+    expect(s?.vendors).toEqual(["gemini", "gpt"]);
+    expect(s?.author_vendor).toBe("claude");
+  });
+
+  it("--author-vendor に未知の値を渡すと usage エラー（exit 64）", () => {
+    const res = merge([envelope()], ["--author-vendor", "bogus"]);
+    expect(res.status).toBe(64);
   });
 });

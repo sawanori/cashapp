@@ -49,15 +49,33 @@ diff 150KB）は `gemini-2.5-pro` が 900 秒で応答を返さずタイムア�
 | フィールド | 意味 |
 |---|---|
 | `schema_version` | 1 固定 |
-| `task_id` / `reviewer` / `vendor` | 対象タスク、エージェント名、ベンダー（gemini / gpt / claude） |
+| `task_id` / `reviewer` / `vendor` | 対象タスク、エージェント名、ベンダー（gemini / gpt / claude）。**`claude` は作者と同じベンダーなので敵対レビューの票にならない**（下記） |
 | `reviewer_route` | `verified` / `cli-fallback` / `unavailable` / `model_mismatch` |
 | `model_id_actual` / `model_id_source` | 実際に応答したモデル ID と、その出どころ（`cli_stats` = 観測 / `self_report` = 自己申告） |
 | `cli_version` / `backend` | ラッパーが観測した CLI バージョンと応答元 |
 | `verdict` | `PASS` / `FAIL` / `BLOCKED` / `UNKNOWN` |
 | `findings[]` | `id` / `severity` / `title` / `detail` と、`effective_severity`（降格後） |
 | `unavailable_reason` / `attempted_command` | `reviewer_route: "unavailable"` のとき必須 |
-| `classification` | `vote` / `missing_vote` / `invalid` / `invalid_review` |
+| `classification` | `vote` / `missing_vote` / `invalid` / `invalid_review` / `self_review` |
 | `validation` | `validate-findings.mjs` の errors / warnings / downgrades / counts |
+
+`type: "summary"` のエントリは判定のほかに `vendors`（有効票を投じたベンダー集合）・
+`author_vendor`（作者ベンダー）・`self_reviews`（自己レビューとして票から外した通数）を持つ。
+
+## ベンダー独立性 — `vendor: "claude"` は敵対レビューの票にならない
+
+§16-1 の 2「**検出者と作者は別ベンダー**」が敵対レビューの定義である。本リポジトリの
+コードは Claude 系が書いているので、`vendor: "claude"` の封筒は**自己レビュー**であり、
+封筒として妥当でも敵対レビューの票にはならない。`merge-review.sh` は
+`--author-vendor`（既定 `claude`）と同じ `vendor` の封筒を `classification: "self_review"`
+として記録し、`votes` から外す。したがって claude の封筒だけを渡すと `votes: 0` となり
+`decision: "not_established"` / exit 3 になる [実測 2026-09-24]。
+
+**自己レビューの指摘そのものは捨てない。** 実効 high は差し戻し（exit 1）に数える。
+票にしないことと、指摘を無視することは別である。
+
+自己レビューも票に数えたい特殊な用途では `--author-vendor none` を渡す。この値を使った
+記録は summary の `author_vendor` に残るので、後から「独立性を外して通した」ことが分かる。
 
 ## 降格の規則（`scripts/validate-findings.mjs` が機械的に適用する）
 

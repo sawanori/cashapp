@@ -1249,6 +1249,65 @@ task_006 側は「自分のファイルは既にコミット済み」として�
   フルスイートでも `--testTimeout=30000` なら **720/720 緑**。本タスクの 5 ファイル
   （liff / components / telemetry / ci）は常に緑。→ task_004
 
+## task_007（レビュー修正・3 周目 — BLOCKED へ訂正）
+
+### 決まったこと
+
+- **task_007 の完了ステータスを `DONE_WITH_CONCERNS` から `BLOCKED` へ訂正した。**
+  敵対レビューは round 1 = `not_established` / round 2 = `pass` / round 3 = `reject`
+  （実効 high 2）で 3 周を消化済み。`docs/implementation-plan.md` §15-3 step 5 の
+  「3 周後も high が残れば BLOCKED で PO 裁定（`DONE_WITH_CONCERNS` で通すことを禁止）」と
+  `check_066` の expected_result に反する状態のまま完了扱いにしていたため。
+  `docs/task-list.json` の `completion_status` と `docs/PROGRESS.md` の宣言 2 か所を
+  そろえた（`npm run gate:check` の G4 は「台帳との食い違い 0 件」）。
+- **PO 裁定に上げる**: F-2 = GPT-6 Astra 経路の遮断解除（`~/.codex/hooks/
+  block-non-claude-model.sh`）。§16-1 の 4 / F13 により **AI は解除してはならない**。
+  これが解けるまで敵対レビューは Gemini 単独であり「3 ベンダー体制」とは呼べない。
+- **所有タスクへ起票**: F-1 = review-log の出所担保 → task_006（`deny-dangerous-bash.sh`）/
+  task_009（`docs/gates/integrity-baseline.json` の対象接頭辞）/ task_008・task_010（封筒スキーマ）。
+  F-3 = `tests/unit/gate-constraints.test.ts` の 5 秒タイムアウト → **task_004**。
+- **F-1 のうち task_007 の所有ファイルで閉じられる部分は実装した**:
+  `scripts/merge-review.sh` にベンダー独立性の判定を入れた。`--author-vendor`
+  （既定 `claude`）と同じ `vendor` の封筒は `classification: "self_review"` として
+  記録し、**有効票から外す**（§16-1 の 2「検出者と作者は別ベンダー」）。
+  summary に `vendors` / `author_vendor` / `self_reviews` を出す。
+  **自己レビューの実効 high は差し戻しに数える** — 票にしないことと指摘を無視することは別。
+  実測: 同じ自作封筒 1 通に対し HEAD `48f3061` は `pass` / exit 0、修正後は
+  `not_established` / exit 3。`--author-vendor none` で従来動作に戻せる。
+- `docs/review-log/README.md` に「`vendor: "claude"` は自己レビューであり敵対レビューの
+  票にならない」を明記した。**「review-log がある」ことを「敵対レビューを受けた」ことの
+  証明として扱わない**（封筒の改竄防止はまだ無い）。
+- `docs/task-list.json` の末尾改行を戻した（commit `0a060bf` が削っていた）。
+  同コミットが task_001 / task_013 のエントリも巻き込んでいた件は
+  `docs/concerns/task_007.md` の 18 で報告を訂正した（内容は各所有タスクの宣言と一致する
+  ため revert はしない）。**共有台帳は自タスクのエントリだけを変更してステージする。**
+
+### 未解決
+
+- **task_007 は BLOCKED。PO 裁定待ち。** 解除条件は、所有タスク側で F-1 / F-2 が
+  解消してから 4 周目の敵対レビューを回して `pass` を取り直すこと。
+- **副作用**: `scripts/gate-check.mjs` の G5 は「task_007 が DONE 系になるまで warn」
+  という実装なので、**BLOCKED にすると G5 は warn へ戻る** [実測]。§15-2 の文言どおりの
+  帰結だが、review-log を持たない完了済みタスク（task_005 / 006 / 011 / 012）が当面
+  ブロックされない。**意図した緩和ではない。** → 4 周目で DONE 系に戻れば再び効く。
+- **`npm run test:unit` は exit 1 のまま**。落ちるのは task_004 所有の
+  `tests/unit/gate-constraints.test.ts` の 3 件のみで、いずれも
+  `Test timed out in 5000ms`。`--testTimeout=30000` を付ければ **727/727 緑**
+  （task_007 起因の失敗 0 件）。**CI の acceptance ジョブは verify_commands を再実行する
+  ので、直るまでそこで落ちる。** → task_004
+- **ベンダー独立性は「作者が自分の名前で自分を通す」経路を塞いだだけ**で、
+  「他人の名前を騙る」経路（手書きの `vendor: "gemini"` 封筒）は塞いでいない。
+  `docs/review-log/**` は `deny-dangerous-bash.sh` の保護対象外で、G13 の対象接頭辞も
+  `merge-review.sh` / `build-review-packet.sh` / `review-*.mjs` を含まない。
+  → task_006 / task_008 / task_009 / task_010
+- **GitHub リモートは作成済み**（`origin git@github.com:sawanori/cashapp.git` [実測]）だが
+  **`git push` は本ハーネスの禁止コマンド**なので、`adversarial` ジョブの追加と実走は
+  引き続き deferred（理由が「リモート不在」から「push は人手の操作」へ変わった）。
+  → PO / task_009 / task_010
+- `scripts/merge-review.sh` のエラー経路のメッセージが bash 3.2 で
+  `f…: unbound variable` になり exit 64 が exit 1 になる [実測]。正常系は影響なし。
+  今回の指摘範囲外のため未修正（`docs/concerns/task_007.md` の 19）。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
