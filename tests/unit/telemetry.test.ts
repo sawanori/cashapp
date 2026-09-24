@@ -292,9 +292,18 @@ describe("POST /api/telemetry/client-error", () => {
       expect(textCalls).toBe(0);
     });
 
-    it("本文が無いリクエスト（body === null）は空文字として扱う", async () => {
-      const empty = { body: null, text: async () => "" };
+    it("本文が無いリクエスト（body === null）は text() すら呼ばずに空文字", async () => {
+      let textCalls = 0;
+      const empty = {
+        body: null,
+        // 仕様に反して巨大な文字列を返す実装を渡しても、読み切る経路が無いこと。
+        text: async () => {
+          textCalls += 1;
+          return "a".repeat(MAX_TELEMETRY_BODY_BYTES * 16);
+        },
+      };
       await expect(readBoundedBody(empty, MAX_TELEMETRY_BODY_BYTES)).resolves.toBe("");
+      expect(textCalls).toBe(0);
     });
 
     it("レート制限の判定は本文を読む前に終わっている（本文に触れずに 503）", async () => {

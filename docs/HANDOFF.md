@@ -1663,6 +1663,24 @@ GPT-6 Astra の敵対レビュー（high 1 / medium 2）。**再現 2 件・非�
   「古い値が読める」経路を踏んでいなかった。ストレージの故障モードは
   「読めない」「書けない」「古い値が読める」の 3 つに分けて書くこと。
 
+### 3 巡目
+
+- **GPT-6 Astra が high をもう 1 件**（merge-review: `reject` / 有効票 2 / 実効 high 1）。
+  2 巡目の `writeAttempts` は `setItem` が成功した回に退避先を更新せず `return` していたため、
+  **2 回保存できた後にストレージが落ちる**と保存値も退避先も 0 になり 3 回目の `login()` が通る。
+  退避先を `WeakMap<AttemptStorage, number>`（＋ `storage === null` 用の変数 1 本）にし、
+  `setItem` の成否に関わらず必ず更新・減らさない（`Math.max`）形にした。→ C-013-18
+- 置き場をキーにしたのは、本番の置き場が `globalThis.sessionStorage` ＝ ページごとに 1 つの
+  固定オブジェクトだからである。**モジュール変数 1 本にすると別の置き場を使う呼び出しにまで
+  数が漏れる**（テストどうしの独立性も壊れる）。
+- gemini の medium（`readBoundedBody` の `body === null` の枝がまだ `text()` を呼ぶ）は、
+  実 `Request` では起きない（実測済み）が枝ごと消した。→ C-013-17 の追補
+- **verify_commands 6 本すべて exit 0**（`typecheck` / `lint` / `test:unit` 37 ファイル 971/971 /
+  `build` / `build:web-only` / `gate:constraints`）。上の「未解決」に書いた `test:unit` の赤は
+  この周の最後の再実行で解消している（並行タスクの未コミットファイルが落ち着いたため）。
+- **教訓（ストレージの故障モードは 4 つ）**: 「置き場が無い」「読めない」「書けない」
+  「古い値が読める」に加えて **「途中で使えなくなる」**。3 巡とも同じ関数の別の穴だった。
+
 ## task_012（レビュー修正・2 周目）
 
 GPT-6 Astra の敵対レビュー（high 1 / medium 3）。**4 件すべて HEAD で再現してから塞いだ**（非再現 0 件）。
@@ -1846,3 +1864,10 @@ GPT-6 Astra の敵対レビュー（high 1 / medium 3）。**4 件すべて HEAD
 - 2026-09-24T13:29:22Z HEAD=12fc3b9 決まったこと: task_012(2周目): HANDOFF に決まったこと / 未解決を追記（並行タスクのターンログ行を同梱） / 未解決: 未コミット 40 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_008.md docs/concerns/task_013.md docs/constraints.json docs/review-log/task_004.json 
 - 2026-09-24T13:29:59Z HEAD=12fc3b9 決まったこと: task_012(2周目): HANDOFF に決まったこと / 未解決を追記（並行タスクのターンログ行を同梱） / 未解決: 未コミット 42 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_008.md docs/concerns/task_013.md docs/constraints.json docs/decisions/ADR-009-id-token-single-use.md 
 - 2026-09-24T13:31:25Z HEAD=42e6378 決まったこと: task_013(4周目・2巡目): 保存値を優先したための打ち切り漏れと、上限を迂回する本文読みを塞ぐ / 未解決: 未コミット 35 件: .claude/workflows/release-audit.ts .claude/workflows/task-loop.ts docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_008.md docs/constraints.json docs/decisions/ADR-009-id-token-single-use.md docs/gates/integrity-baseline.json 
+- 2026-09-24T13:33:23Z HEAD=4f6c0e9 決まったこと: task_008(7周目): 独立性の会計を封筒の自己申告から外し、形の壊れた封筒を有効票にしない / 未解決: 未コミット 28 件: docs/constraints.json docs/decisions/ADR-009-id-token-single-use.md docs/review-log/task_004.json docs/run-log/task_008.json docs/run-log/task_012.json scripts/gate-constraints.sh scripts/wording-lint.mjs tests/unit/gate-constraints.test.ts 
+- 2026-09-24T13:35:22Z HEAD=96aca7d 決まったこと: task_008(7周目): 最終 HEAD 4f6c0e9 での verify_commands 再実行ログと、赤 2 件の出どころの記録 / 未解決: 未コミット 33 件: docs/HANDOFF.md docs/constraints.json docs/decisions/ADR-009-id-token-single-use.md docs/review-log/task_004.json docs/review-log/task_012.json docs/review-log/task_013.json docs/run-log/task_012.json scripts/gate-constraints.sh 
+- 2026-09-24T13:36:24Z HEAD=96aca7d 決まったこと: task_008(7周目): 最終 HEAD 4f6c0e9 での verify_commands 再実行ログと、赤 2 件の出どころの記録 / 未解決: 未コミット 35 件: docs/HANDOFF.md docs/constraints.json docs/decisions/ADR-009-id-token-single-use.md docs/review-log/task_004.json docs/review-log/task_012.json docs/review-log/task_013.json docs/run-log/task_012.json scripts/gate-constraints.sh 
+- 2026-09-24T13:37:23Z HEAD=96aca7d 決まったこと: task_008(7周目): 最終 HEAD 4f6c0e9 での verify_commands 再実行ログと、赤 2 件の出どころの記録 / 未解決: 未コミット 41 件: docs/HANDOFF.md docs/concerns/task_004.md docs/concerns/task_013.md docs/constraints.json docs/decisions/ADR-009-id-token-single-use.md docs/review-log/task_004.json docs/review-log/task_012.json docs/review-log/task_013.json 
+- 2026-09-24T13:38:33Z HEAD=96aca7d 決まったこと: task_008(7周目): 最終 HEAD 4f6c0e9 での verify_commands 再実行ログと、赤 2 件の出どころの記録 / 未解決: 未コミット 43 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/concerns/task_013.md docs/constraints.json docs/decisions/ADR-009-id-token-single-use.md docs/review-log/task_004.json docs/review-log/task_012.json 
+- 2026-09-24T13:40:23Z HEAD=e4d1bd2 決まったこと: task_005: 6 周目の修正案（GPT-6 Astra の high 8 件）を docs/proposals に起票 / 未解決: 未コミット 42 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/concerns/task_013.md docs/constraints.json docs/decisions/ADR-009-id-token-single-use.md docs/review-log/task_004.json docs/review-log/task_012.json 
+- 2026-09-24T13:42:06Z HEAD=e4d1bd2 決まったこと: task_005: 6 周目の修正案（GPT-6 Astra の high 8 件）を docs/proposals に起票 / 未解決: 未コミット 44 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_004.md docs/concerns/task_013.md docs/constraints.json docs/decisions/ADR-009-id-token-single-use.md docs/review-log/task_004.json docs/review-log/task_012.json 

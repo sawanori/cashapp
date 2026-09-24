@@ -521,3 +521,37 @@ C-013-13 の修正版 `readAttempts` は、保存値が有効な整数ならそ�
 従来どおり `text()`（結果は空文字）で、**本文はあるのに読み取り機が無い**場合は
 `text()` を呼ばずに 400 で落とす（fail-closed）。`tests/unit/telemetry.test.ts` に
 「`text()` は 1 回も呼ばれない」ことと「`body === null` は空文字として扱う」ことを固定した。
+
+**3 巡目の追補（gemini F-1 medium）**: 残った `body === null` の枝も `text()` を呼んでいたため、
+「仕様に反して巨大な本文を返す `text()`」を渡されると読み切る経路が復活する、という指摘があった。
+実 `Request` では `body === null` ⇔ 本文が無いので起きない（実測: Node 22 / undici で
+`new Request(url, { method: "POST" })` は `body === null` かつ `text().length === 0`、
+本文を渡すと `body` は必ずストリームになる）が、枝そのものを消すほうが短いので
+**`text()` を呼ばずに空文字を返す**形にした。テストも「`text()` が 1 回も呼ばれない」を見る。
+
+---
+
+## C-013-18 [high → 解消] 保存できた回を退避先に残していなかった（途中でストレージが落ちる経路）
+
+**指摘（4 周目・3 巡目。GPT-6 Astra F-1）**: C-013-16 までの `writeAttempts` は
+`setItem` が成功した回は退避先を更新せずに `return` していた。そのため
+**2 回保存できた後にストレージが使えなくなる**と（タブ復帰時の quota 逼迫、プライベートモードへの
+切り替え等）、`readStoredAttempts` は例外で 0、退避先も 0 のままとなり、3 回目の `login()` が通る。
+同じモジュール実体の中で起きるので、C-013-13 の「ページ再読み込みで消える」とは別の経路である。
+
+**HEAD での再現（実測）**: `Map` を持ち `available=false` の間だけ全メソッドが throw する
+ストレージで、`available=true` のまま `bootLiff` を 2 回（保存値 `"2"`・`login` 2 回）呼んだ後に
+`available=false` にして 3 回目を呼ぶテストを足したところ、
+`AssertionError: expected 'redirecting_to_login' to be 'auth_unavailable'` で再現した。
+
+**対応（実施済み）**: 退避先を**置き場ごとの高水位**にした。
+
+- 退避先を `WeakMap<AttemptStorage, number>`（＋ `storage === null` 用の変数 1 本）にし、
+  `writeAttempts` は **`setItem` の成否に関わらず必ず**退避先を更新する。
+- 退避先は減らさない（`Math.max` で上書き）。`clearAttempts`（ログイン成立）でのみ 0 に戻す。
+- 置き場をキーにしたのは、本番の置き場が `globalThis.sessionStorage` ＝ ページごとに 1 つの
+  固定オブジェクトで、実質「このページのカウンタ」になるためである。モジュール変数 1 本にすると
+  **別の置き場を使う呼び出しにまで数が漏れる**（テストどうしの独立性も壊れる）。
+
+修正後は `tests/unit/liff/client.test.ts` 24 件が緑。C-013-13 に書いた
+「ページ 1 回分しか効かない」という制約は**そのまま残る**（再読み込みで WeakMap ごと消える）。

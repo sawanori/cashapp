@@ -69,12 +69,13 @@ export async function readBoundedBody(
 ): Promise<string> {
   const stream = request.body;
   if (stream === null) {
-    // 本文そのものが無いリクエスト。読むものが無いので `text()` は空文字になる。
-    const text = await request.text();
-    if (new TextEncoder().encode(text).byteLength > maxBytes) {
-      throw badRequest("request body is too large");
-    }
-    return text;
+    // 本文そのものが無いリクエスト。**`text()` すら呼ばない**。
+    // Fetch の仕様では `body === null` は「本文が無い」ことなので、読むものは存在しない
+    // （実測: Node 22 / undici で `new Request(url, { method: "POST" })` は
+    // `body === null` かつ `text()` が空文字。本文を渡すと `body` は必ずストリームになる）。
+    // ここで `text()` を呼ぶと、仕様に反する実装を渡されたときだけ
+    // 「読み切ってから測る」経路が復活してしまうので、呼ばずに空文字を返す。
+    return "";
   }
   if (typeof stream.getReader !== "function") {
     // 本文はあるのにストリームとして読めない。**上限を掛ける手段が無い**ので、

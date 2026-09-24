@@ -392,6 +392,49 @@ describe("bootLiff の起動順序", () => {
       expect(reported).toEqual([CLIENT_ERROR_CODES.LOGIN_LOOP_ABORTED]);
     });
 
+    /**
+     * 4 周目の 3 巡目に GPT-6 Astra が挙げた反例。
+     *
+     * 「書けた回は退避先を使わない」実装だと、**2 回保存できた後にストレージが落ちる**と
+     * 保存値も退避先も読めなくなり、3 回目の `login()` が通ってしまう。
+     * 同じモジュール実体の中で起きるので、ページ再読み込みによる消失とは別の経路である。
+     */
+    it("2 回保存できた後にストレージが落ちても 3 回目は login を呼ばない", async () => {
+      const { bootLiff: boot } = await import("@/lib/liff/client");
+      const { liff, login } = fakeLiff({ inClient: true, loggedIn: false });
+      const map = new Map<string, string>();
+      let available = true;
+      const flakyStorage: AttemptStorage = {
+        getItem: (key) => {
+          if (!available) throw new Error("storage is not available");
+          return map.get(key) ?? null;
+        },
+        setItem: (key, value) => {
+          if (!available) throw new Error("storage is not available");
+          map.set(key, value);
+        },
+        removeItem: (key) => {
+          if (!available) throw new Error("storage is not available");
+          map.delete(key);
+        },
+      };
+      const deps = { loadLiff: async () => liff, storage: flakyStorage, report };
+
+      expect((await boot(LIFF_ID, deps)).loginAttempts).toBe(1);
+      expect((await boot(LIFF_ID, deps)).loginAttempts).toBe(2);
+      expect(map.get(LOGIN_ATTEMPT_STORAGE_KEY)).toBe("2");
+      expect(login).toHaveBeenCalledTimes(2);
+
+      // ここでストレージが使えなくなる（モジュールは作り直していない）。
+      available = false;
+      const third = await boot(LIFF_ID, deps);
+
+      expect(third.state).toBe("auth_unavailable");
+      expect(third.loginAttempts).toBe(MAX_LOGIN_ATTEMPTS);
+      expect(login).toHaveBeenCalledTimes(MAX_LOGIN_ATTEMPTS);
+      expect(reported).toEqual([CLIENT_ERROR_CODES.LOGIN_LOOP_ABORTED]);
+    });
+
     it("storage が書けなかった回の分も数える（読めるが書けないストレージ）", async () => {
       const { bootLiff: boot } = await import("@/lib/liff/client");
       const { liff, login } = fakeLiff({ inClient: true, loggedIn: false });

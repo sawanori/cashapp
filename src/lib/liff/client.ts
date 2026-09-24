@@ -185,7 +185,7 @@ function defaultStorage(): AttemptStorage | null {
 }
 
 /**
- * `storage` が使えないときの**退避先カウンタ**。
+ * 試行回数の**退避先カウンタ**（置き場ごとに 1 つ）。
  *
  * ★ これが無いと打ち切りがまるごと効かない。`storage` が `null`（SSR・
  *   `sessionStorage` へのアクセス自体が throw する Safari のプライベートモード等）や、
@@ -194,13 +194,44 @@ function defaultStorage(): AttemptStorage | null {
  *   R-LINE-02 が防ぎたい往復がそのまま起きる。**数えられないなら打ち切らない**ではなく、
  *   **数えられる場所へ退避して打ち切る**（fail-closed）。
  *
+ * ★ 置き場（`AttemptStorage` のインスタンス）をキーにする。本番の置き場は
+ *   `globalThis.sessionStorage` ＝ ページごとに 1 つの固定オブジェクトなので、
+ *   実質「このページのカウンタ」になる。モジュール変数 1 本にしないのは、置き場が違えば
+ *   数も別であるべきだからである（`storage: null` のぶんだけ別に持つ）。
+ *
  * ★ 有効範囲はこのモジュールが生きている間 ＝ **このページ（タブの 1 回の読み込み）**である。
  *   `login()` → LINE の認可画面 → 復帰でページが作り直されればここも 0 に戻るので、
- *   これは `sessionStorage` の代わりではなく、`sessionStorage` が無いときの**最後の砦**である。
+ *   これは `sessionStorage` の代わりではなく、`sessionStorage` が使えないときの**最後の砦**である。
  *   再読み込みをまたいで数え続けたい場合は URL などページの外へ持ち出す必要があり、
  *   それは本モジュールの担当ではない（`docs/concerns/task_013.md` C-013-13）。
  */
-let memoryAttempts = 0;
+const memoryAttemptsByStorage = new WeakMap<AttemptStorage, number>();
+
+/** `storage` が `null`（置き場そのものが無い）ときの退避先。 */
+let memoryAttemptsWithoutStorage = 0;
+
+function readMemoryAttempts(storage: AttemptStorage | null): number {
+  if (storage === null) return memoryAttemptsWithoutStorage;
+  return memoryAttemptsByStorage.get(storage) ?? 0;
+}
+
+/** 退避先は**減らさない**（一度数えた試行はこのページの中で消えない）。 */
+function writeMemoryAttempts(storage: AttemptStorage | null, value: number): void {
+  if (storage === null) {
+    memoryAttemptsWithoutStorage = Math.max(memoryAttemptsWithoutStorage, value);
+    return;
+  }
+  const current = memoryAttemptsByStorage.get(storage) ?? 0;
+  memoryAttemptsByStorage.set(storage, Math.max(current, value));
+}
+
+function clearMemoryAttempts(storage: AttemptStorage | null): void {
+  if (storage === null) {
+    memoryAttemptsWithoutStorage = 0;
+    return;
+  }
+  memoryAttemptsByStorage.delete(storage);
+}
 
 /** `storage` に残っている値。読めない・壊れている・置き場が無いときは 0。 */
 function readStoredAttempts(storage: AttemptStorage | null): number {
@@ -224,24 +255,29 @@ function readStoredAttempts(storage: AttemptStorage | null): number {
  *   大きいほうを採れば、どちらか一方でも数えられている限り打ち切りに到達する。
  */
 function readAttempts(storage: AttemptStorage | null): number {
-  return Math.max(memoryAttempts, readStoredAttempts(storage));
+  return Math.max(readMemoryAttempts(storage), readStoredAttempts(storage));
 }
 
+/**
+ * 試行回数を残す。**退避先は書けたかどうかに関わらず必ず更新する。**
+ *
+ * ★ 「`setItem` が成功したら退避先は要らない」としてはいけない。2 回保存できた後に
+ *   ストレージが使えなくなると（タブ復帰時の quota 逼迫・プライベートモードへの切り替え等）、
+ *   保存値も読めず退避先も 0 のままになり、3 回目の `login()` が通る。
+ *   同じページの中で起きるので、再読み込みによる消失とは別の経路である。
+ */
 function writeAttempts(storage: AttemptStorage | null, value: number): void {
-  if (storage !== null) {
-    try {
-      storage.setItem(LOGIN_ATTEMPT_STORAGE_KEY, String(value));
-      // 書けたなら退避先は要らない（健全な経路では `memoryAttempts` は 0 のまま）。
-      return;
-    } catch {
-      // 書けなかった。下の退避先で数える。
-    }
+  writeMemoryAttempts(storage, value);
+  if (storage === null) return;
+  try {
+    storage.setItem(LOGIN_ATTEMPT_STORAGE_KEY, String(value));
+  } catch {
+    // 書けなくても退避先で数え続けられる。
   }
-  memoryAttempts = value;
 }
 
 function clearAttempts(storage: AttemptStorage | null): void {
-  memoryAttempts = 0;
+  clearMemoryAttempts(storage);
   if (storage === null) return;
   try {
     storage.removeItem(LOGIN_ATTEMPT_STORAGE_KEY);
