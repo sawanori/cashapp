@@ -743,5 +743,14 @@
     "commit": "69935e55d34255afce72f8a18bfc8cccc6bddf19",
     "ran_at": "2026-09-24T06:09:30Z",
     "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
+  },
+  {
+    "type": "command",
+    "command": "npm run gate:wording",
+    "exit_code": 0,
+    "stdout_tail": "\n> cashapp@0.1.0 gate:wording\n> node scripts/wording-lint.mjs\n\nok    W-AUTO (5 file(s))\nok    W-DONATION (5 file(s))\nok    W-SUPPORT (5 file(s))\nok    W-RECEIPT (5 file(s))\ndefer W-MERCHANT-GUIDE (0 targets; waiting on task_025)\nok    W-FEE-FIXED (5 file(s))\n\ngate:wording — scanned 5 pattern group(s), 0 violation(s), 0 empty gate(s)",
+    "commit": "771511d31df4cfce7ea16a3d7a4dcfde3fde959a",
+    "ran_at": "2026-09-24T06:10:23Z",
+    "by": "noritakasawada@NoritakaSawadanoMacBook-Air"
   }
 ]
