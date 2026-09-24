@@ -6,7 +6,14 @@
  * ★ 必須: 表示名（`organizerLabel`）・タイトル・未成年申告（`minorsIncluded`）・
  *   手数料提示への同意（`FeeEstimate` が持つ）。
  * ★ `joinToken` は作成応答で**一度だけ**返る。ここで見せてから遷移する。
- * ★ 二重送信抑止: `Idempotency-Key` を送信のたびに新しく発行する（1 送信 = 1 キー）。
+ * ★ 二重送信抑止: `Idempotency-Key` は**論理的な 1 回の送信の試行**につき 1 つ（ボタン連打を
+ *   防ぐ）。ただし通信断・応答受信前のタイムアウト等で失敗した再試行は**同じキーを使い回す**
+ *   （敵対レビュー GPT F-3 是正）。以前は送信のたびに新しいキーを発行していたため、サーバー側で
+ *   コミットが成立した直後に応答だけを失った場合、ユーザーが再度「作成」を押すと別のキーとして
+ *   扱われ `createEvent` が再実行され、同一内容のイベントが重複作成され得た。キーを使い回しても
+ *   内容が変わらない限り安全（`runIdempotent` が同一キー・同一内容の再送を検知して応答を
+ *   再生するだけで再実行しない）。キーは**成功したときだけ**使い切り、次の作成では新しいキーを
+ *   発行する。
  */
 
 import Link from "next/link";
@@ -35,9 +42,17 @@ function newIdempotencyKey(): string {
   return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function parseDefaultAmountMinor(raw: string): number | null {
-  if (raw.trim().length === 0) return null;
-  const parsed = Number.parseInt(raw, 10);
+/** テスト用に export（`tests/unit/components/EventCreateAmountParsing.test.ts` GPT F-7）。 */
+export function parseDefaultAmountMinor(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return null;
+  // 敵対レビュー GPT F-7: `Number.parseInt` は文字列の先頭だけを読み進め、末尾の余りは
+  // 無視して捨てる。`type="number"` の input は指数表記（"5e2" 等）をブラウザ側で妥当な値として
+  // 受け付けるため、"5e2" を「500」のつもりで入力すると `parseInt("5e2", 10)` は 5 を返し、
+  // ユーザーの意図と異なる金額が静かに保存されていた。`Number()` は文字列全体を解釈し、指数表記
+  // は数値として正しく展開し、余分な文字が混じっていれば NaN を返す（"5,000" のような桁区切りも
+  // 同じ理由で弾かれるようになった）。
+  const parsed = Number(trimmed);
   return Number.isInteger(parsed) ? parsed : null;
 }
 
@@ -46,6 +61,9 @@ export default function NewEventPage(): ReactNode {
   const [permanentLink, setPermanentLink] = useState<string | null>(null);
   const [requestId, setRequestId] = useState<string | undefined>(undefined);
   const csrfTokenRef = useRef<string | null>(null);
+  // 敵対レビュー GPT F-3 是正: 失敗した送信の再試行で同じキーを使い回すための保持先。
+  // 成功したときだけ null に戻し、次の新規作成で新しいキーを発行させる。
+  const idempotencyKeyRef = useRef<string | null>(null);
 
   const [title, setTitle] = useState("");
   const [organizerLabel, setOrganizerLabel] = useState("");
@@ -133,6 +151,12 @@ export default function NewEventPage(): ReactNode {
       feeDisclosureAccepted: true,
     };
 
+    // 同じ論理送信の再試行では既存のキーを使い回す（初回だけ新規発行）。
+    if (idempotencyKeyRef.current === null) {
+      idempotencyKeyRef.current = newIdempotencyKey();
+    }
+    const idempotencyKey = idempotencyKeyRef.current;
+
     let response: Response;
     try {
       response = await fetch("/api/events", {
@@ -140,7 +164,7 @@ export default function NewEventPage(): ReactNode {
         headers: {
           "content-type": "application/json",
           "X-CSRF-Token": csrfTokenRef.current,
-          "Idempotency-Key": newIdempotencyKey(),
+          "Idempotency-Key": idempotencyKey,
         },
         body: JSON.stringify(payload),
       });
@@ -159,6 +183,8 @@ export default function NewEventPage(): ReactNode {
     }
 
     const body = (await response.json()) as CreatedEventBody;
+    // 成功した論理送信は使い切る。次の作成操作は新しいキーで始める。
+    idempotencyKeyRef.current = null;
     setSubmitting(false);
     setCreated(body);
   }, [

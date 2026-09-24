@@ -35,7 +35,7 @@
  *   含めるため、キー順をそろえずに `JSON.stringify` すると、**挿入直後に計算したハッシュと、
  *   同じ行を読み直して再計算したハッシュが、内容を一切改変していなくても不一致になる**
  *   （`detail` に 2 キー以上あると `tests/integration/audit-chain.test.ts` の
- *   「並行 20 本の追記」で 100% 再現した）。`detail` は `sortDetailKeysDeep` で正準化してから
+ *   「並行 20 本の追記」で 100% 再現した）。`detail` は `sortKeysDeep` で正準化してから
  *   ハッシュに含める（`src/lib/idempotency.ts` の `computeRequestHash` と同じ考え方）。
  */
 
@@ -83,13 +83,13 @@ function bufferHex(value: Buffer | null | undefined): string | null {
  * ため、挿入時に渡したオブジェクトそのままを `JSON.stringify` すると、読み直して再計算した
  * ハッシュと食い違う（上の docstring）。`src/lib/idempotency.ts` の `sortKeysDeep` と同じ方針。
  */
-function sortDetailKeysDeep(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortDetailKeysDeep);
+function sortKeysDeep(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeysDeep);
   if (value !== null && typeof value === "object") {
     const record = value as Record<string, unknown>;
     const sorted: Record<string, unknown> = {};
     for (const k of Object.keys(record).sort()) {
-      sorted[k] = sortDetailKeysDeep(record[k]);
+      sorted[k] = sortKeysDeep(record[k]);
     }
     return sorted;
   }
@@ -114,9 +114,18 @@ interface RowHashInput {
   readonly detail: Record<string, unknown>;
 }
 
-/** 行内容全体（`prev_hash` を含む）の SHA-256。キー順に依存しない正準表現から計算する。 */
+/**
+ * 行内容全体（`prev_hash` を含む）の SHA-256。キー順に依存しない正準表現から計算する。
+ *
+ * ★ トップレベルのフィールドはこの関数の中で常に同じソースコード上の並びで書かれるため
+ *   `JSON.stringify` の出力順は実行のたびに変わらないが（V8 は ES2015 以降、文字列キーの
+ *   列挙順を挿入順と規定している）、**将来別のオブジェクト構築経路が増えたときに同じ前提が
+ *   壊れても気づけない**という指摘（敵対レビュー gemini F-1）を受け、`detail` だけでなく
+ *   オブジェクト全体を `sortKeysDeep` に通してから `JSON.stringify` する。エンジン間の
+ *   列挙順の違いにも構造的に依存しなくなる。
+ */
 async function computeRowHash(input: RowHashInput): Promise<Buffer> {
-  const canonical = JSON.stringify({
+  const canonical = JSON.stringify(sortKeysDeep({
     prevHash: bufferHex(input.prevHash),
     occurredAt: input.occurredAt.toISOString(),
     actorType: input.actorType,
@@ -131,8 +140,8 @@ async function computeRowHash(input: RowHashInput): Promise<Buffer> {
     externalRef: input.externalRef ?? null,
     requestId: input.requestId,
     sourceIpHash: bufferHex(input.sourceIpHash),
-    detail: sortDetailKeysDeep(input.detail),
-  });
+    detail: input.detail,
+  }));
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
   return Buffer.from(digest);
 }

@@ -55,6 +55,81 @@
 
 ---
 
+## G5（敵対レビュー）round 1 の指摘と対応（解消済み）
+
+`9d393be`（上の「本ラウンドで直した実装バグ」を含む初回実装コミット）に対して
+`scripts/review-drive.sh` / `scripts/merge-review.sh` を実行した結果は
+`docs/review-log/task_014.json` の `round: 1` に記録済み。**merge-review の判定は
+`decision: pass`（有効票 2・欠票 0・実効 high 0）**だったため G5 のゲート自体は round 1 の
+時点で通過していたが、gemini 1 件・GPT-6 Astra 9 件、計 10 件の medium 指摘が出た。
+「実効 high が無い」は「直さなくてよい」ではないため、10 件全てを実際に再現してから直した
+（コミットは本ラウンドの最終コミットに含む。各修正の実測・回帰テストの所在はソース中の
+`敵対レビュー <vendor> F-N` コメントを参照）。
+
+1. **[gemini F-1] `src/lib/audit.ts` の監査ハッシュがトップレベルのキー順に依存していた**。
+   `detail`（jsonb）だけを `sortKeysDeep` していたが、トップレベルのオブジェクトリテラルは
+   `JSON.stringify` の出力順を V8 の仕様（ES2015 以降、文字列キーの列挙順は挿入順と規定）に
+   委ねていた。将来オブジェクト構築経路が増えても前提が壊れたことに気づけない、という指摘を
+   受け、`computeRowHash` の入力全体を `sortKeysDeep` に通してから `JSON.stringify` するよう変更。
+   エンジン間の列挙順の違いにも構造的に依存しなくなった。
+2. **[GPT F-1] 並行リクエストで幹事あたりのイベント数・イベントあたりの参加者数の上限を
+   超えられた**。COUNT と INSERT の間に排他制御が無く、異なる冪等キーの並行リクエストが同じ
+   残り枠を読めた（静的追跡による指摘）。`createEvent` / `createParticipants` それぞれに
+   event 単位／organizer 単位のブロッキング advisory xact lock（`EVENT_CREATE_LOCK_NAMESPACE` /
+   `PARTICIPANT_CREATE_LOCK_NAMESPACE`）を追加し、COUNT の前に取得するよう変更。回帰は
+   `tests/integration/events.test.ts` の「並行リクエストでも...上限を超えない」2 本
+   （実際に並行 INSERT を発行して上限超過が起きないことを実測）。
+3. **[GPT F-2] `sort=label_asc` のカーソルページングで参加者が欠落し得た**。`ORDER BY` は
+   `display_label ASC NULLS LAST` を使うのに、カーソルの `WHERE` は `created_at` と `id` しか
+   見ておらず、表示名の順序と作成順序が食い違うと境界の行が抜けた。`WHERE` 側も
+   `(COALESCE(display_label, sentinel), created_at, id)` のタプル比較に揃えて解決。回帰は
+   `tests/integration/events.test.ts`「sort=label_asc のカーソルページングは...重複・欠落なく
+   巡回できる」。
+4. **[GPT F-3] 通信失敗後の再送で冪等キーが変わり、二重作成し得た**。送信のたびに新しい
+   `Idempotency-Key` を発行していたため、サーバーでコミットが成立した直後に応答だけを失うと、
+   再試行が新規キーとして扱われ `createEvent` / `createParticipants` が再実行され得た。
+   `src/app/(liff)/events/new/page.tsx` と `.../participants/page.tsx` の両方で、キーを
+   `useRef` に保持して失敗時は使い回し、成功時だけ使い切る（次の新規送信で新しいキーを発行）
+   方式に変更。
+5. **[GPT F-4] 未登録の決済手段が手数料なし・即時として表示され得た**。
+   `getStaticProviderCapabilities` が見つからないとき呼び出し側が
+   `DEFAULT_PROVIDER_KEY`（`manual_confirm`）へフォールバックしていたため、未確定の
+   `providerKey` でも常に静的表の先頭が見つかり、「未定」への分岐が実質デッドコードだった。
+   フォールバックを撤去し、呼び出し側（`events.ts` の `event.provider_key ?? DEFAULT_PROVIDER_KEY`）
+   で解決してから渡す方針に変更。`estimateFeeForEvent` 自身はもうフォールバックしない。
+6. **[GPT F-5] 参加者 0 名のイベントに正の受取見込額が付いていた**。`getEventSummary` が
+   実際の参加者数 0 を `estimateFeeForEvent` へ `null`（＝未定）として渡していたため、
+   「参加者数未定なら 1 人分」という O-3（作成前画面）向けのロジックが誤って適用されていた。
+   0 は「0 人」として渡すよう修正（`null` は本当に未定の O-3 だけに残す）。回帰は
+   `tests/integration/events.test.ts` の `getEventSummary の内訳（敵対レビュー GPT F-5 / F-6）`。
+7. **[GPT F-6] 自動・手動が混在する支払済み請求がサマリから消えていた**。支払済み件数の
+   集計が `confirmation_method IN ('automatic', 'manual_by_organizer')` しか見ておらず、
+   `mixed` の請求が支払済みにも要対応にも数えられなかった。`breakdown.paidMixed` を追加して
+   `EventSummary` / `SummaryBar`（`mixedCount`）まで配線し、`listParticipants` の
+   `confirmationMethod` も `mixed` を通すよう変更。回帰は `tests/integration/events.test.ts`
+   の `breakdown.paidMixed は常に応答に含まれ...` 他。
+8. **[GPT F-7] 金額の指数表記が別の金額として保存され得た**。`Number.parseInt(raw, 10)` は
+   文字列の先頭だけを読み進めるため、`"5e2"`（ブラウザの `type="number"` は妥当な値として
+   受理する）が「500」ではなく「5」として静かに保存されていた。`Number()` で文字列全体を
+   解釈し、非整数・非数値は `null` にする `parseDefaultAmountMinor` へ変更（"5,000" のような
+   桁区切りも同じ理由で弾かれる）。回帰は新規 `tests/unit/components/EventCreateAmountParsing.test.ts`
+   8 本。
+9. **[GPT F-8] 期限切れの冪等キーも再利用を拒否し続けていた**。`expires_at` は予約時に保存する
+   だけで、競合時に読み比べていなかったため、TTL（24h）を過ぎても既存行がある限りブロックされ
+   続けた。予約 INSERT を `ON CONFLICT (...) DO UPDATE ... WHERE idempotency_key.expires_at < now`
+   に変更し、期限切れの行だけを新しい予約で上書きできるようにした。回帰は
+   `tests/integration/events.test.ts`「TTL（expires_at）を過ぎたキーの再利用（GPT F-8 是正）」。
+10. **[GPT F-9] 「もっと見る」の連打で参加者が重複表示され得た**。`nextCursor` の state 更新が
+    フェッチ完了後まで反映されないため、連打すると同じカーソルで複数回 append され得た。
+    `loadingMore` state でガードし、フェッチ中はボタンも `disabled` にした。
+
+**このラウンドの修正自体（1〜10）に対する追加の敵対レビューは、本ラウンドの最終コミット後に
+`scripts/review-drive.sh` / `scripts/merge-review.sh` を round 2 として実行し、
+`docs/review-log/task_014.json` に追記した。**結果は同ファイルと `docs/PROGRESS.md` の
+該当行を参照。
+
+---
+
 ## C-014-1 [severity: medium] 保持期間（`retention_due_at`）の起点がどこにも書かれていない（P-03）
 
 **指摘**: `docs/research/premortem-phase1b-2026-09-24.md` の P-03 が指摘するとおり、

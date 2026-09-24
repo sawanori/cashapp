@@ -53,6 +53,14 @@ export function participantLimitExceeded(detail?: string): AppError {
   );
 }
 
+/**
+ * `createParticipants` の COUNT → 上限判定 → INSERT を event 単位で直列化する
+ * ブロッキング advisory lock の名前空間（敵対レビュー GPT F-1 是正）。
+ * `src/lib/db/repositories/events.ts` の `EVENT_CREATE_LOCK_NAMESPACE` と同じ理由・同じ方針。
+ * 名前空間が異なるため衝突しない。
+ */
+const PARTICIPANT_CREATE_LOCK_NAMESPACE = 8_314_202;
+
 // ============================================================================
 // トークン発行（作成時のみ。src/lib/db/repositories/events.ts と同じ暫定方針）
 // ============================================================================
@@ -132,6 +140,10 @@ export async function createParticipants(
   items: readonly CreateParticipantItemInput[],
 ): Promise<CreatedParticipant[]> {
   await assertEventOwnedByOrganizer(tx as unknown as postgres.Sql, organizerUserId, eventId);
+
+  // GPT F-1 是正: COUNT の前に event 単位でブロッキングロックを取り、並行リクエストが同じ
+  // 残り枠を同時に読まないようにする（`events.ts` の `EVENT_CREATE_LOCK_NAMESPACE` と同じ方針）。
+  await tx`SELECT pg_advisory_xact_lock(${PARTICIPANT_CREATE_LOCK_NAMESPACE}::int4, hashtext((${eventId})::text))`;
 
   const existingCountRows = await tx<{ n: string }[]>`
     SELECT count(*)::text AS n FROM participant WHERE event_id = ${eventId} AND status = 'active'
@@ -216,7 +228,25 @@ export function parseListParticipantsQuery(searchParams: URLSearchParams): ListP
 interface DecodedCursor {
   readonly createdAt: string;
   readonly id: string;
+  /**
+   * `sort=label_asc` のときだけ使う、`COALESCE(display_label, LABEL_SORT_SENTINEL)` の値。
+   * 他の sort では無視してよい（encode 側は常に埋めるが、decode 側は cursor 生成時の sort と
+   * 実行時の sort が食い違うケース＝クライアントが sort を変えて同じ cursor を使い回した場合の
+   * 安全側フォールバックとして残す。WHERE 句の組み立てはこのフィールドを使わない）。
+   */
+  readonly label: string | null;
 }
+
+/**
+ * `display_label ASC NULLS LAST` を**プレーンな tuple 比較**に変換するための番兵値。
+ * `￿`（noncharacter）は既定の `en_US.UTF-8` / `C.UTF-8` collation で通常の表示名
+ * （40 文字までの人名等）より後ろにソートされるため、`display_label` が NULL の行を
+ * 「`display_label` が最大の文字列を持つ行」として扱える。NULL のまま比較すると
+ * `(a,b,c) > (x,y,z)` の行タプル比較は NULL を含む成分があるだけで全体が UNKNOWN になり
+ * `WHERE` から静かに除外される（実害: label_asc のページングで NULL ラベルの行が
+ * 一切出てこない）。
+ */
+const LABEL_SORT_SENTINEL = "￿";
 
 /**
  * `createdAt` は Postgres の `timestamptz` を**テキストのまま**（`p.created_at::text`）で
@@ -243,8 +273,8 @@ interface DecodedCursor {
  *   マイクロ秒精度で変換される。`id`（uuid）側は組み込み型に `date` のような特別なシリアライザが
  *   無いため、この問題は起きない。
  */
-function encodeCursor(createdAtText: string, id: string): string {
-  const payload = JSON.stringify({ createdAt: createdAtText, id });
+function encodeCursor(createdAtText: string, id: string, label: string | null = null): string {
+  const payload = JSON.stringify({ createdAt: createdAtText, id, label });
   return Buffer.from(payload, "utf8").toString("base64url");
 }
 
@@ -263,8 +293,9 @@ function decodeCursor(cursor: string): DecodedCursor {
   ) {
     throw badRequest("cursor is not valid");
   }
-  const record = payload as { createdAt: string; id: string };
-  return { createdAt: record.createdAt, id: record.id };
+  const record = payload as { createdAt: string; id: string; label?: unknown };
+  const label = typeof record.label === "string" ? record.label : null;
+  return { createdAt: record.createdAt, id: record.id, label };
 }
 
 export type RosterStatus = "unpaid" | "pending_checkout" | "paid" | "canceled";
@@ -275,7 +306,7 @@ export interface ParticipantRow {
   readonly rosterStatus: RosterStatus;
   readonly amountMinor: number | null;
   readonly autoDetected: boolean;
-  readonly confirmationMethod: "automatic" | "manual_by_organizer" | null;
+  readonly confirmationMethod: "automatic" | "manual_by_organizer" | "mixed" | null;
   readonly needsAttention: boolean;
 }
 
@@ -330,6 +361,14 @@ export async function listParticipants(
     // `::text::timestamptz`（二重キャスト）が必須。理由は encodeCursor 直前の docstring。
     if (query.sort === "created_desc") {
       whereParts.push(sql`(p.created_at, p.id) < (${cursor.createdAt}::text::timestamptz, ${cursor.id}::uuid)`);
+    } else if (query.sort === "label_asc") {
+      // ORDER BY と同じ「NULL を番兵値に置き換えた tuple」で比較する（敵対レビュー GPT F-2）。
+      // ORDER BY 側だけ NULLS LAST を使い、WHERE 側が (created_at, id) しか見ていなかったため、
+      // display_label の並び順と cursor の絞り込み条件が食い違い、ページ境界の行が欠落しうる
+      // バグがあった（display_label が同じ作成順どおりに並んでいない限り必ず再現する）。
+      whereParts.push(
+        sql`(COALESCE(p.display_label, ${LABEL_SORT_SENTINEL}), p.created_at, p.id) > (COALESCE(${cursor.label}, ${LABEL_SORT_SENTINEL}), ${cursor.createdAt}::text::timestamptz, ${cursor.id}::uuid)`,
+      );
     } else {
       whereParts.push(sql`(p.created_at, p.id) > (${cursor.createdAt}::text::timestamptz, ${cursor.id}::uuid)`);
     }
@@ -340,7 +379,7 @@ export async function listParticipants(
     query.sort === "created_desc"
       ? sql`p.created_at DESC, p.id DESC`
       : query.sort === "label_asc"
-        ? sql`p.display_label ASC NULLS LAST, p.created_at ASC, p.id ASC`
+        ? sql`COALESCE(p.display_label, ${LABEL_SORT_SENTINEL}) ASC, p.created_at ASC, p.id ASC`
         : sql`p.created_at ASC, p.id ASC`;
 
   const rows = await sql<ParticipantListRow[]>`
@@ -360,7 +399,10 @@ export async function listParticipants(
   const hasMore = rows.length > query.limit;
   const page = hasMore ? rows.slice(0, query.limit) : rows;
   const last = page[page.length - 1];
-  const nextCursor = hasMore && last !== undefined ? encodeCursor(last.created_at_text, last.id) : null;
+  const nextCursor =
+    hasMore && last !== undefined
+      ? encodeCursor(last.created_at_text, last.id, query.sort === "label_asc" ? last.display_label : null)
+      : null;
 
   return {
     items: page.map((row) => ({
@@ -369,8 +411,12 @@ export async function listParticipants(
       rosterStatus: deriveRosterStatus(row),
       amountMinor: row.amount_minor,
       autoDetected: row.auto_detected === true,
+      // 敵対レビュー GPT F-6: 'mixed' も素通りさせる（従来は null に落ちて InvoiceRow の混在表示
+      // が使われなかった）。
       confirmationMethod:
-        row.confirmation_method === "automatic" || row.confirmation_method === "manual_by_organizer"
+        row.confirmation_method === "automatic" ||
+        row.confirmation_method === "manual_by_organizer" ||
+        row.confirmation_method === "mixed"
           ? row.confirmation_method
           : null,
       needsAttention: row.needs_attention === true,

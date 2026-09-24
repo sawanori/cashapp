@@ -59,6 +59,11 @@ export default function ParticipantsPage(): ReactNode {
   const [bulkText, setBulkText] = useState("");
   const [registering, setRegistering] = useState(false);
   const [registerError, setRegisterError] = useState<string | null>(null);
+  // 敵対レビュー GPT F-3 是正: 失敗した登録の再試行で同じキーを使い回すための保持先
+  // （成功したときだけ null に戻す。new/page.tsx と同じ方針）。
+  const registerIdempotencyKeyRef = useRef<string | null>(null);
+  // 敵対レビュー GPT F-9 是正: 「もっと見る」の連打で同一ページを二重取得しない guard。
+  const [loadingMore, setLoadingMore] = useState(false);
   const [issuedTokens, setIssuedTokens] = useState<
     readonly { readonly displayLabel: string | null; readonly claimToken: string }[] | null
   >(null);
@@ -148,9 +153,17 @@ export default function ParticipantsPage(): ReactNode {
   }, [filter, q, loadParticipants]);
 
   const loadMore = useCallback(async () => {
-    if (nextCursor === null) return;
-    await loadParticipants(filter, q, nextCursor, true);
-  }, [filter, q, nextCursor, loadParticipants]);
+    // `nextCursor` state の更新はフェッチ完了後まで反映されないため、連打すると同じ
+    // cursor で複数回 append され、同じ参加者が名簿に重複表示されていた（GPT F-9）。
+    // fetch 中は guard で弾き、ボタンも disabled にする（下の render）。
+    if (nextCursor === null || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      await loadParticipants(filter, q, nextCursor, true);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [filter, q, nextCursor, loadingMore, loadParticipants]);
 
   const remove = useCallback(
     async (participantId: string) => {
@@ -189,6 +202,12 @@ export default function ParticipantsPage(): ReactNode {
     setRegistering(true);
     setRegisterError(null);
 
+    // 同じ論理登録の再試行では既存のキーを使い回す（初回だけ新規発行。new/page.tsx と同じ方針）。
+    if (registerIdempotencyKeyRef.current === null) {
+      registerIdempotencyKeyRef.current = newIdempotencyKey();
+    }
+    const idempotencyKey = registerIdempotencyKeyRef.current;
+
     let response: Response;
     try {
       response = await fetch(`/api/events/${eventId}/participants`, {
@@ -196,7 +215,7 @@ export default function ParticipantsPage(): ReactNode {
         headers: {
           "content-type": "application/json",
           "X-CSRF-Token": csrfTokenRef.current,
-          "Idempotency-Key": newIdempotencyKey(),
+          "Idempotency-Key": idempotencyKey,
         },
         body: JSON.stringify({ participants: labels.map((displayLabel) => ({ displayLabel })) }),
       });
@@ -218,6 +237,8 @@ export default function ParticipantsPage(): ReactNode {
       participants: readonly { readonly id: string; readonly displayLabel: string | null; readonly claimToken: string }[];
     };
     setIssuedTokens(body.participants.map((p) => ({ displayLabel: p.displayLabel, claimToken: p.claimToken })));
+    // 成功した論理登録は使い切る。次の登録操作は新しいキーで始める。
+    registerIdempotencyKeyRef.current = null;
     setBulkText("");
     setRegistering(false);
     await loadParticipants(filter, q, null, false);
@@ -354,11 +375,12 @@ export default function ParticipantsPage(): ReactNode {
         <button
           type="button"
           className="tap-target"
+          disabled={loadingMore}
           onClick={() => {
             void loadMore();
           }}
         >
-          もっと見る
+          {loadingMore ? "読み込み中…" : "もっと見る"}
         </button>
       ) : null}
     </section>

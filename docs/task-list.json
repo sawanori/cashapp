@@ -1610,7 +1610,8 @@
         "[severity: medium] O-2〜O-6.5の5画面にe2e/a11yテストが1本も無い(P-11)。task_022まで機械的なWCAG 2.2 AA確認が無い / 対応案: task_022到達時にまとめて確認するか、各画面に最小1本を持たせる設計変更をするか未決定",
         "[severity: low] 監査連鎖のグローバルブロッキングロック(pg_advisory_xact_lock)はimplementation-plan.md §10-1どおりの仕様実装(P-08)。並列書き込み時の待ちはtask_020のreconcile-load.test.tsで検知・対応する設計 / 対応案不要（仕様どおり）",
         "[severity: low] 幹事あたりの合計請求額の上限は未実装（意図的）。1イベント人数・同時イベント数の上限は実装済み。合計請求額はinvoiceがまだ無いため厳密算出不可、既存コメントでtask_021のabuse-limits.test.ts所有と明記済み / 対応案: task_021で実装。推定値による前倒しは根拠となる閾値が文書に無いため見送った",
-        "[severity: low] Hyperdrive経由の実測(A21)は未実施。統合テストは全てローカル直結(app_rwロール) / 対応案: deferred: task_035完了後に実測"
+        "[severity: low] Hyperdrive経由の実測(A21)は未実施。統合テストは全てローカル直結(app_rwロール) / 対応案: deferred: task_035完了後に実測",
+        "[severity: low・解消済み] 9d393beに対するG5 round1（decision: pass・実効high 0）でgemini 1件・GPT-6 Astra 9件、計10件のmedium指摘が出た（並行リクエストでの上限超過・label_ascページング欠落・冪等キー再発行による二重作成・未確定決済手段のフォールバック・参加者0名での受取見込額・mixed請求のサマリ欠落・金額の指数表記誤変換・期限切れ冪等キーの再利用拒否・もっと見る連打の重複表示・監査ハッシュのキー順依存）。実効highは無かったがG5ゲート通過は指摘の妥当性を免除しないため10件全て再現して修正した / 対応案不要（docs/concerns/task_014.mdの『G5 round1の指摘と対応』に詳細と回帰テストの所在）"
       ]
     },
     {

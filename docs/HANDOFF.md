@@ -1966,6 +1966,47 @@ GPT-6 Astra の敵対レビュー（high 1 / medium 3）。**4 件すべて HEAD
 - 上の (a) (b) がそのまま未解決。**深刻度はどちらも medium で、merge は 2 周連続 pass**。
 - `npm run test:integration` の赤 1 件は他タスク（task_014）の `tests/integration/events.test.ts`。
 
+## task_014（G5 round1 の指摘反映）
+
+`9d393be`（初回実装コミット）に対する G5 round1 は `docs/review-log/task_014.json` に記録済みで
+**merge-review: pass**（有効票 2・欠票 0・実効 high 0）。gemini 1 件・GPT-6 Astra 9 件、計 10 件の
+medium 指摘が出た。
+
+### 決まったこと
+
+- **実効 high が無い（＝ゲート通過）ことと、指摘が直すに値しないことは別**なので 10 件全て
+  実際に再現してから直した。詳細・各修正の所在・回帰テストは `docs/concerns/task_014.md`
+  「G5 round1 の指摘と対応」を参照。要旨:
+  - **並行リクエストでの上限超過（GPT F-1）**: `createEvent` / `createParticipants` それぞれに
+    advisory xact lock を COUNT の前に追加。
+  - **`sort=label_asc` のページング欠落（GPT F-2）**: `WHERE` を `ORDER BY` と同じタプル比較に統一。
+  - **冪等キーの再発行による二重作成（GPT F-3）**: フロントで失敗時にキーを使い回す
+    `useRef` パターンへ（`new/page.tsx` と `participants/page.tsx` の両方）。
+  - **未確定決済手段の手数料フォールバック（GPT F-4）**・**参加者 0 名での受取見込額（GPT F-5）**・
+    **mixed 請求のサマリ欠落（GPT F-6）**: `capabilities-static.ts` / `events.ts` / `SummaryBar` を
+    それぞれ修正。
+  - **金額の指数表記の誤変換（GPT F-7）**: `Number.parseInt` → `Number()` ベースの
+    `parseDefaultAmountMinor` に変更（新規テスト `EventCreateAmountParsing.test.ts`）。
+  - **期限切れ冪等キーの再利用拒否（GPT F-8）**: 予約 INSERT を `ON CONFLICT ... DO UPDATE WHERE
+    expires_at < now` に変更。
+  - **「もっと見る」連打の重複表示（GPT F-9）**: `loadingMore` state でガード。
+  - **監査ハッシュのキー順依存（gemini F-1）**: `computeRowHash` の入力全体を `sortKeysDeep`。
+- **verify_commands 6 本すべて `scripts/record-run.sh task_014` 経由で exit 0**
+  （`typecheck` / `lint` / `test:unit` 38 ファイル 1005/1005 / `test:integration` 6 ファイル
+  100/100 / `gate:constraints` / `gate:wording`）。
+- この修正自体に対する敵対レビューは round2 として同じコミット範囲（`9d393be`..本ラウンドの最終
+  コミット）で回した。結果はこのセクションの直後（または続くコミットの記録）と
+  `docs/review-log/task_014.json` の `round: 2` を参照。
+
+### 未解決
+
+- task_014 自体の残懸念は変わらず 5 件（`docs/concerns/task_014.md` の C-014-1〜5。retention_due_at
+  の起点なし・e2e/a11y 未整備・監査ロックは仕様どおり・合計請求額上限は task_021 送り・Hyperdrive
+  実測は task_035 完了後）。
+- GPT F-3（冪等キー再利用）・F-9（もっと見るガード）はフロントエンドの `useRef` / state ガードで、
+  `tests/integration/**` の対象外のため専用の自動テストは無い（コードレビューと手動でのロジック
+  確認のみ）。E2E 整備は C-014-4 と同じく task_022 送り。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。

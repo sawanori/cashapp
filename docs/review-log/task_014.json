@@ -1,0 +1,231 @@
+[
+  {
+    "schema_version": 1,
+    "task_id": "task_014",
+    "reviewer": "adversarial-reviewer-gemini",
+    "vendor": "gemini",
+    "reviewer_route": "verified",
+    "model_id_requested": "gemini-2.5-pro",
+    "model_id_actual": "gemini-2.5-pro",
+    "model_id_source": "cli_stats",
+    "cli_version": "0.38.1",
+    "backend": "gemini-cli",
+    "ran_at": "2026-09-24T13:48:35Z",
+    "commit": "9e0dad8c21c319d9fbc247c04c438d2d944ab1d2",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "medium",
+        "title": "監査ログのハッシュ計算が `JSON.stringify` の未規定なキー順序に依存している",
+        "detail": "src/lib/audit.ts の `computeRowHash` 関数は、監査ログ行のハッシュを計算するために `JSON.stringify` を使用しています。この関数はネストされた `detail` オブジェクトのキーを `sortDetailKeysDeep` で再帰的にソートしており、キー順序がハッシュの安定性に重要であることを認識しています。しかし、`prevHash`, `occurredAt`, `actorType` 等を含むトップレベルのオブジェクトに対しては同様のソート処理を行っていません。ECMA-262 仕様では `JSON.stringify` がオブジェクトのキーを特定の順序で出力することを保証していないため、異なる JavaScript エンジンや将来のバージョンでは、同じデータから異なるハッシュが生成される可能性があります。これにより、`verifyAuditChain` での検証時に、データが改竄されていないにも関わらずハッシュ不一致が発生し、監査連鎖の信頼性が損なわれるリスクがあります。",
+        "file": "src/lib/audit.ts",
+        "line": 101,
+        "repro": "この脆弱性を確実に実証するには、V8 とは異なるキー順で `JSON.stringify` を実装する JavaScript エンジンで `verifyAuditChain` を実行する必要があります。あるいは、`computeRowHash` のオブジェクトリテラルのキー順を `verifyAuditChain` の再計算ロジックと意図的に変えることで、V8 上でも問題を擬似的に再現できます。例えば、INSERT 時に `{ a: 1, b: 2 }` の順でハッシュを計算し、VERIFY 時に `{ b: 2, a: 1 }` の順で再計算すると、エンジンがキー順を保持する場合に不一致が発生します。",
+        "citation": "「`detail`（jsonb）のキー順は Postgres の JSONB 格納で正規化され、**挿入時に渡したオブジェクト のキー順とは一致しない**...`detail` は `sortDetailKeysDeep` で正準化してから ハッシュに含める」 (Source: src/lib/audit.ts, lines 38-47)",
+        "effective_severity": "medium"
+      }
+    ],
+    "raw_warnings": [],
+    "packet_bytes": 549518,
+    "validated_at": "2026-09-24T14:00:45Z",
+    "classification": "vote",
+    "source_file": "/var/folders/h6/2q0crwpx3zx94d5zxclh_f5c0000gn/T/cashapp-review/task_014/gemini.json",
+    "merged_at": "2026-09-24T14:00:45Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gemini-2.5-pro を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 0,
+        "medium": 1,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 1,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "schema_version": 1,
+    "task_id": "task_014",
+    "reviewer": "adversarial-reviewer-gpt",
+    "vendor": "gpt",
+    "reviewer_route": "cli-fallback",
+    "model_id_requested": "gpt-6-astra",
+    "model_id_actual": "gpt-6-astra",
+    "model_id_source": "self_report",
+    "cli_version": "codex-cli 0.154.0",
+    "backend": "codex",
+    "ran_at": "2026-09-24T13:59:06Z",
+    "commit": "9e0dad8c21c319d9fbc247c04c438d2d944ab1d2",
+    "verdict": "FAIL",
+    "findings": [
+      {
+        "id": "F-1",
+        "severity": "medium",
+        "title": "並行リクエストで人数・イベント数の上限を超えられる",
+        "detail": "人数のCOUNTとINSERTの間に排他制御がなく、異なる冪等キーのリクエストが同じ残枠を使える。createEventのイベント数チェックも同じ構造である。監査ロックは業務INSERT後に取得するため、この競合を防がない。",
+        "file": "src/lib/db/repositories/participants.ts",
+        "line": 136,
+        "repro": "参加者が99名のイベントに、異なるIdempotency-Keyでそれぞれ1名を追加するPOSTを並行送信する。両方のCOUNTが99を返してからINSERTへ進む順序では、両方が成功して101名になる。同様に非キャンセルイベント19件から2件を並行作成すると21件になる。静的追跡による再現手順で、実行は未検証。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-2",
+        "severity": "medium",
+        "title": "名前順のページングで参加者が欠落する",
+        "detail": "label_ascは表示名を先頭に並べるが、カーソル条件はcreated_atとidだけを比較する。表示名の順序と作成順序が異なると、次ページに必要な行が除外される。",
+        "file": "src/lib/db/repositories/participants.ts",
+        "line": 333,
+        "repro": "同じイベントで表示名Bを先に登録・コミットし、表示名Aを後から登録する。GET participants?filter=all&sort=label_asc&limit=1でAとnextCursorを取得し、そのカーソルで次ページを要求する。BはAより作成日時が古いため除外され、取得できない。静的追跡による再現手順で、実行は未検証。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-3",
+        "severity": "medium",
+        "title": "通信失敗後の再送で冪等キーが変わる",
+        "detail": "送信のたびにnewIdempotencyKey()を呼ぶため、サーバーで成功した操作の応答だけが失われると、再試行が新規操作として実行される。参加者登録画面のregisterにも同じ問題がある。",
+        "file": "src/app/(liff)/events/new/page.tsx",
+        "line": 143,
+        "repro": "イベント作成画面で必須項目と同意を入力して送信する。サーバー側のコミット後、応答受信前に通信を切断してfetchを失敗させる。通信復旧後、残っている同じ入力で再度作成ボタンを押す。別のキーが送られ、runIdempotentは前回の成功を再利用せずcreateEventを再実行する。静的追跡による再現手順で、実行は未検証。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-4",
+        "severity": "medium",
+        "title": "未登録の決済手段が手数料なし・即時として表示される",
+        "detail": "指定されたproviderKeyが静的表にない場合、manual_confirmへフォールバックする。表にはmanual_confirmしかないため、未確定の決済手段でもfeeMinorEstimateが0になり、手数料なし・即時という説明が返る。未定を返す分岐には到達しない。",
+        "file": "src/lib/payments/capabilities-static.ts",
+        "line": 79,
+        "repro": "estimateFeeForEvent({providerKey:\"stripe\",defaultAmountMinor:3000,participantCountEstimate:10})を呼ぶ。feeMinorEstimate=0、netMinorEstimate=30000と、manual_confirm用の手数料なし・即時の説明が返る。同じpropsをFeeEstimateへ渡すとその説明が表示される。静的追跡による再現手順で、実行は未検証。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-5",
+        "severity": "medium",
+        "title": "参加者が0名でも1名分の受取見込額を表示する",
+        "detail": "参加者数がnullの場合、集金総額として1人分の既定金額を返す。getEventSummaryは参加者数0をnullへ変換して渡すため、空のイベントにも正の受取見込額が付く。請求確認画面の人数×金額の表示とも食い違う。",
+        "file": "src/lib/payments/capabilities-static.ts",
+        "line": 99,
+        "repro": "defaultAmountMinor=3000のイベントを作り、参加者を登録せずGET /api/events/:idを呼ぶ。participantCount=0なのにnetMinorEstimate=3000が返る。詳細画面は受取見込額¥3,000、請求確認画面は0名×¥3,000=¥0と表示する。静的追跡による再現手順で、実行は未検証。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-6",
+        "severity": "medium",
+        "title": "自動・手動が混在する支払済み請求がサマリから消える",
+        "detail": "支払済み件数はconfirmation_methodがautomaticまたはmanual_by_organizerの行だけを数える。mixedの集計・応答フィールドがなく、画面もSummaryBarへmixedCountを渡さない。またlistParticipantsはmixedをnullへ変換するため、InvoiceRowに存在する混在表示も使われない。",
+        "file": "src/lib/db/repositories/events.ts",
+        "line": 452,
+        "repro": "集計対象をactive参加者1名、その請求をsettlement_rank=40、confirmation_method='mixed'とする入力で追跡する。SQLの両支払済みカウントは0となり、詳細画面は支払済み0/1を表示する。同じ値をlistParticipantsのSQL結果として与えると、status='paid'、confirmationMethod=nullが返る。静的追跡による反例で、実行は未検証。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-7",
+        "severity": "medium",
+        "title": "金額の指数表記を別の金額として保存する",
+        "detail": "number入力の文字列をNumber.parseIntで変換するため、指数部分や小数部分を黙って切り捨てる。送信ボタンはtype='button'であり、フォームの標準検証も実行されない。変換後の整数はAPI側の金額検証を通過する。",
+        "file": "src/app/(liff)/events/new/page.tsx",
+        "line": 40,
+        "repro": "イベント作成画面の既定金額へ1e3を入力し、必須項目と同意を入力して作成する。Number.parseInt('1e3',10)は1なので、1000円ではなくdefaultAmountMinor=1が送信される。3000.9を入力した場合も3000へ切り捨てて送信する。静的追跡による再現手順で、実行は未検証。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-8",
+        "severity": "medium",
+        "title": "期限切れの冪等キーも再利用を拒否する",
+        "detail": "expires_atは予約時に保存するが、競合時には取得も比較もしない。期限切れ行が残っていると、24時間経過後でも過去の応答を返すか、内容不一致の409を返し続ける。",
+        "file": "src/lib/idempotency.ts",
+        "line": 218,
+        "repro": "runIdempotentをnow=2026-09-24T00:00:00Z、同一userRef・endpoint・keyで実行して成功させる。予約行を残したまま、now=2026-09-25T01:00:00Zで同じキーと異なるrequestHashを渡す。expires_atを1時間過ぎているがIDEMPOTENCY_CONFLICTとなり、handlerは実行されない。静的追跡による再現手順で、実行は未検証。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      },
+      {
+        "id": "F-9",
+        "severity": "medium",
+        "title": "「もっと見る」の連打で同じ参加者を重複表示する",
+        "detail": "追加取得中もボタンが有効で、同じnextCursorによる複数リクエストを開始できる。各応答を無条件で配列へ追加するため、同じページが重複する。",
+        "file": "src/app/(liff)/events/[id]/participants/page.tsx",
+        "line": 88,
+        "repro": "未払い参加者100名の名簿で最初の30名を表示する。次ページの応答を遅延させ、その間に「もっと見る」を2回押してから両応答を返す。両方が同じカーソルの30名を追加し、itemsは90件になるが参加者IDは60種類しかない。静的追跡による再現手順で、実行は未検証。",
+        "suggested_fix": "",
+        "effective_severity": "medium"
+      }
+    ],
+    "diagnostics": {
+      "exit_code": 0,
+      "event_types": [
+        "thread.started",
+        "turn.started",
+        "item.completed",
+        "item.completed",
+        "turn.completed"
+      ],
+      "cli_errors": [
+        "Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest."
+      ],
+      "last_message_bytes": 4124,
+      "stderr_tail": ": \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T13:51:06.503919Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.slack.com/.well-known/oauth-protected-resource\\\"\" })\n2026-09-24T13:51:07.307586Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer error=\\\"invalid_request\\\", error_description=\\\"No access token was provided in this request\\\", resource_metadata=\\\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\\\"\" })\n2026-09-24T13:51:07.986705Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: \"Bearer resource_metadata=\\\"https://mcp.stripe.com/.well-known/oauth-protected-resource\\\"\" })\n"
+    },
+    "packet_bytes": 549518,
+    "validated_at": "2026-09-24T14:00:45Z",
+    "classification": "vote",
+    "source_file": "/var/folders/h6/2q0crwpx3zx94d5zxclh_f5c0000gn/T/cashapp-review/task_014/gpt.json",
+    "merged_at": "2026-09-24T14:00:45Z",
+    "round": 1,
+    "validation": {
+      "valid": true,
+      "counts_as_vote": true,
+      "errors": [],
+      "warnings": [
+        "model_whitelist_unconfigured: 合格モデル一覧が読めないため model_id_actual=gpt-6-astra を照合できませんでした（task_010 で作成予定）"
+      ],
+      "downgrades": [],
+      "counts": {
+        "high": 0,
+        "medium": 9,
+        "low": 0,
+        "info": 0,
+        "unknown": 0,
+        "total": 9,
+        "downgraded": 0
+      }
+    }
+  },
+  {
+    "type": "summary",
+    "task_id": "task_014",
+    "round": 1,
+    "merged_at": "2026-09-24T14:00:45Z",
+    "decision": "pass",
+    "envelopes": 2,
+    "votes": 2,
+    "vendors": [
+      "gemini",
+      "gpt"
+    ],
+    "author_vendor": "claude",
+    "missing_votes": 0,
+    "invalid_envelopes": 0,
+    "invalid_reviews": 0,
+    "self_reviews": 0,
+    "task_mismatches": 0,
+    "effective_high": 0,
+    "exit_code": 0
+  }
+]

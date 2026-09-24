@@ -76,12 +76,17 @@ export interface FeeEstimateResult {
 }
 
 export function estimateFeeForEvent(input: FeeEstimateInput): FeeEstimateResult {
-  const capabilities =
-    getStaticProviderCapabilities(input.providerKey) ??
-    getStaticProviderCapabilities(DEFAULT_PROVIDER_KEY);
+  // 敵対レビュー GPT F-4: `input.providerKey` が静的表に無いとき `DEFAULT_PROVIDER_KEY`
+  // （manual_confirm）へフォールバックしていたため、`getStaticProviderCapabilities` は
+  // ほぼ常に何かを見つけてしまい、直後の「表に無ければ『未定』」分岐が実質デッドコードだった
+  // （未確定の決済手段でも manual_confirm の「手数料なし・即時」がそのまま出ていた）。
+  // `providerKey` が未指定（null/undefined 相当）で呼ぶ場合は、呼び出し側
+  // （`src/lib/db/repositories/events.ts` の `event.provider_key ?? DEFAULT_PROVIDER_KEY`）で
+  // 既に解決してから渡すこと。ここではフォールバックしない。
+  const capabilities = getStaticProviderCapabilities(input.providerKey);
 
   if (capabilities === undefined) {
-    // 静的表に載っていない provider_key（設計上あり得ない値）。壊れた表示より安全側に倒す。
+    // 静的表に載っていない provider_key（未確定の決済手段）。確定値を捏造せず「未定」に倒す。
     return {
       totalMinor: null,
       feeMinorEstimate: null,

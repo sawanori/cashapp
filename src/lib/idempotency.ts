@@ -38,6 +38,15 @@
  * ★ `errors.ts` の `ERROR_CODES` は task_014 の `files_to_modify` に含まれないため直接
  *   編集しない。`AppError` の `code` へ型アサーションで新規コードを渡す（実行時の挙動は
  *   `ERROR_CODES` の値と変わらない。将来の統合はそれを所有するタスクの仕事とする）。
+ *
+ * ★ TTL（`expires_at`）を過ぎたキーは再利用できる（敵対レビュー GPT F-8 是正）。修正前は
+ *   予約 INSERT が `ON CONFLICT (user_ref, endpoint, key) DO NOTHING` だったため、行が
+ *   `expires_at` を過ぎていても既存行がある限り常にブロックされ続けた（`state='done'` なら
+ *   24h 以上前の古い応答をいつまでも再生し、`request_hash` が違えば TTL 後も 409 を返す —
+ *   TTL の意味がなかった）。`DO UPDATE ... WHERE idempotency_key.expires_at < ${now}` にし、
+ *   期限切れの行だけを新しい予約で上書きする（期限内の行は `WHERE` が false になり従来どおり
+ *   0 行更新 = 予約失敗の分岐へ落ちる）。同じキーの `INSERT ... ON CONFLICT DO UPDATE` は行
+ *   ロックで直列化されるため、2 つの「期限切れの取り込み」が同時に来ても片方だけが成功する。
  */
 
 import "server-only";
@@ -186,10 +195,17 @@ export async function runIdempotent(
   const now = options.now ?? new Date();
   const expiresAt = new Date(now.getTime() + IDEMPOTENCY_TTL_HOURS * 60 * 60 * 1000);
 
+  // GPT F-8 是正: 期限切れの既存行だけを新しい予約で上書きする（上のモジュール docstring）。
   const reserved = await sql<{ user_ref: Buffer }[]>`
     INSERT INTO idempotency_key (user_ref, endpoint, key, state, request_hash, expires_at)
     VALUES (${userRef}, ${endpoint}, ${key}, 'in_flight', ${requestHash}, ${expiresAt})
-    ON CONFLICT (user_ref, endpoint, key) DO NOTHING
+    ON CONFLICT (user_ref, endpoint, key) DO UPDATE
+      SET state = 'in_flight',
+          request_hash = EXCLUDED.request_hash,
+          expires_at = EXCLUDED.expires_at,
+          response_body = NULL,
+          status_code = NULL
+      WHERE idempotency_key.expires_at < ${now}
     RETURNING user_ref
   `;
 

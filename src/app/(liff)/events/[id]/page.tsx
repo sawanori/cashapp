@@ -30,6 +30,7 @@ interface EventSummaryBody {
     readonly unpaid: number;
     readonly paidAutomatic: number;
     readonly paidManual: number;
+    readonly paidMixed: number;
     readonly needsAttention: number;
   };
   readonly feeEstimate: {
@@ -134,6 +135,7 @@ export default function EventDetailPage(): ReactNode {
         participantCount={summary.participantCount}
         paidAutomaticCount={summary.breakdown.paidAutomatic}
         paidManualCount={summary.breakdown.paidManual}
+        mixedCount={summary.breakdown.paidMixed}
         unpaidCount={summary.breakdown.unpaid}
         needsAttentionCount={summary.breakdown.needsAttention}
         feeMinorEstimate={summary.feeEstimate.feeMinorEstimate}

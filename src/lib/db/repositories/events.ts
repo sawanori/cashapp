@@ -78,6 +78,22 @@ export const MAX_ACTIVE_EVENTS_PER_ORGANIZER = 20;
 /** イベント 1 件あたりの参加者数上限（R-UX-03「1 イベント 100 名の上限をサーバー側で明示」）。 */
 export const MAX_PARTICIPANTS_PER_EVENT = 100;
 
+/**
+ * `createEvent` の COUNT → 上限判定 → INSERT を organizer 単位で直列化する
+ * ブロッキング advisory lock の名前空間（敵対レビュー GPT F-1 是正）。
+ *
+ * 修正前は COUNT と INSERT の間に排他が無く、異なる `Idempotency-Key`（＝別の予約行）を持つ
+ * 並行リクエストが同じ「残り枠」を同時に読めたため、`MAX_ACTIVE_EVENTS_PER_ORGANIZER` を
+ * 超えて作成できた（`docs/review-log/task_014.json` F-1 の repro。静的追跡・未実測とされていたが
+ * `tests/integration/events.test.ts` で実行して実際に再現した）。`src/lib/audit.ts` の
+ * `AUDIT_CHAIN_LOCK_KEY` と同じ方針（トランザクションスコープの `pg_advisory_xact_lock`。
+ * 接続プーラを挟んでも残留しない）で、organizer_user_id 単位に直列化する。第 2 引数は
+ * `hashtext()`（Postgres 組み込み・int4 を返す）に `organizer_user_id::text` を渡して得る
+ * ため、この定数は「イベント作成ロック」という名前空間を表す固定値でしかない
+ * （`AUDIT_CHAIN_LOCK_KEY` とは異なる名前空間なので衝突しない）。
+ */
+const EVENT_CREATE_LOCK_NAMESPACE = 8_314_201;
+
 // ============================================================================
 // 招待トークンの発行（作成時のみ）
 // ============================================================================
@@ -253,6 +269,10 @@ export async function createEvent(
   organizerUserId: string,
   input: CreateEventInput,
 ): Promise<CreateEventResult> {
+  // GPT F-1 是正: COUNT の前に organizer 単位でブロッキングロックを取り、並行リクエストが
+  // 同じ残り枠を同時に読まないようにする（上のコメント参照）。
+  await tx`SELECT pg_advisory_xact_lock(${EVENT_CREATE_LOCK_NAMESPACE}::int4, hashtext((${organizerUserId})::text))`;
+
   const activeCountRows = await tx<{ n: string }[]>`
     SELECT count(*)::text AS n FROM event
     WHERE organizer_user_id = ${organizerUserId} AND status <> 'canceled'
@@ -392,6 +412,8 @@ export interface EventBreakdown {
   readonly unpaid: number;
   readonly paidAutomatic: number;
   readonly paidManual: number;
+  /** `confirmation_method='mixed'` の支払済み件数（敵対レビュー GPT F-6）。0 のことが多い。 */
+  readonly paidMixed: number;
   readonly needsAttention: number;
 }
 
@@ -442,7 +464,14 @@ export async function getEventSummary(
   if (event.organizer_user_id !== organizerUserId) throw eventForbidden();
 
   const breakdownRows = await sql<
-    { participant_count: string; unpaid: string; paid_automatic: string; paid_manual: string; needs_attention: string }[]
+    {
+      participant_count: string;
+      unpaid: string;
+      paid_automatic: string;
+      paid_manual: string;
+      paid_mixed: string;
+      needs_attention: string;
+    }[]
   >`
     SELECT
       count(p.id)::text AS participant_count,
@@ -453,6 +482,10 @@ export async function getEventSummary(
         AS paid_automatic,
       count(*) FILTER (WHERE i.settlement_rank >= 40 AND i.confirmation_method = 'manual_by_organizer')::text
         AS paid_manual,
+      -- 敵対レビュー GPT F-6: mixed（複数の入金経路が混在した請求）を数えないと、
+      -- 「支払済み」であるにもかかわらずどちらのカウントにも入らず要対応にもならないまま消える。
+      count(*) FILTER (WHERE i.settlement_rank >= 40 AND i.confirmation_method = 'mixed')::text
+        AS paid_mixed,
       count(*) FILTER (WHERE i.needs_attention)::text AS needs_attention
     FROM participant p
     LEFT JOIN invoice i ON i.participant_id = p.id
@@ -464,7 +497,10 @@ export async function getEventSummary(
   const feeEstimate = estimateFeeForEvent({
     providerKey: event.provider_key ?? DEFAULT_PROVIDER_KEY,
     defaultAmountMinor: event.default_amount_minor,
-    participantCountEstimate: participantCount > 0 ? participantCount : null,
+    // 敵対レビュー GPT F-5: participantCount===0 を null（＝未定）に丸めると、estimateFeeForEvent
+    // が「参加者数未定なら 1 人分」で計算し、参加者ゼロのイベントに正の受取見込額が付いていた。
+    // 0 は「0 人」として渡す（null は本当に未定の O-3 作成前だけに残す）。
+    participantCountEstimate: participantCount,
   });
 
   return {
@@ -485,6 +521,7 @@ export async function getEventSummary(
       unpaid: Number(breakdown?.unpaid ?? "0"),
       paidAutomatic: Number(breakdown?.paid_automatic ?? "0"),
       paidManual: Number(breakdown?.paid_manual ?? "0"),
+      paidMixed: Number(breakdown?.paid_mixed ?? "0"),
       needsAttention: Number(breakdown?.needs_attention ?? "0"),
     },
     feeEstimate,
