@@ -2188,6 +2188,23 @@ GPT-6 Astra 7 件のうち重複を除く 7 件を**全件修正**した（詳�
 - C-015-1〜7（`docs/concerns/task_015.md`）。C-015-1（未承認リクエストの印が暗黙）は残るが、
   round1 の F-6 修正で「誤判定しても他人がその行を取れない」ところまでは閉じた。
 
+## task_017（引き継ぎ・確認のみ）
+
+### 決まったこと
+
+- task_017 は実装（`c79db44`）と G5 round1 の反映（`a3e42a5`）で完了しており、作り直しはしない。
+  round1 は `merge-review: pass`（有効票 2 / 欠票 0 / 実効 high 0）で、GPT の medium 4・low 1 は
+  同じ周で全件修正済み（F-2〜F-5 の是正がソースに実在することを本セッションで実測確認した）。
+- HEAD `8f04f0a` で verify_commands 6 本を再実行して全て exit 0（`test:unit` 1099/1099 /
+  `test:integration` 193/193）。未コミットで残っていた実行ログ（`docs/run-log/task_017.json`）を
+  コミットに含めた。実装ファイルへの追加変更は無い。
+
+### 未解決
+
+- C-017-1〜11（`docs/concerns/task_017.md`）。設計判断が要るのは C-017-4（手動確認の試行滞留 →
+  task_020）・C-017-8（`applyToLedger` 本体 → task_018）・C-017-11（write-ahead を別トランザクション
+  へ → task_018 / task_026）。C-017-1（PayPay 受取リンク）は PO の一次資料待ちで `verified:false`。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -2380,3 +2397,15 @@ GPT-6 Astra 7 件のうち重複を除く 7 件を**全件修正**した（詳�
 - 2026-09-24T16:03:53Z HEAD=c79db44 決まったこと: task_017: PaymentProvider IF v2・レジストリ・ManualConfirmAdapter・非自動ラベル 8 層・O-0 / 未解決: 未コミット 4 件: docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json tests/gates/probe.test.ts 
 - 2026-09-24T16:04:45Z HEAD=c79db44 決まったこと: task_017: PaymentProvider IF v2・レジストリ・ManualConfirmAdapter・非自動ラベル 8 層・O-0 / 未解決: 未コミット 5 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json tests/gates/probe.test.ts 
 - 2026-09-24T16:19:45Z HEAD=0d9edd2 決まったこと: task_017(G5 round1): PROGRESS に反映結果を 1 行追記 / 未解決: 未コミット 18 件: docs/HANDOFF.md docs/concerns/task_015.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json src/app/(liff)/e/claim/page.tsx src/app/(liff)/e/me/page.tsx 
+- 2026-09-24T16:20:46Z HEAD=d3e5368 決まったこと: task_015(G5 round1 の指摘反映): high 1 件を含む 7 件を再現してから塞ぐ / 未解決: 未コミット 6 件: docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_017.json docs/review-log/task_015.json tests/gates/probe.test.ts 
+- 2026-09-24T16:22:54Z HEAD=8f04f0a 決まったこと: task_017: 最終 HEAD での verify_commands 再実行ログ（6 本とも exit 0） / 未解決: 未コミット 6 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/review-log/task_015.json tests/gates/probe.test.ts 
+- 2026-09-24T16:22:57Z HEAD=8f04f0a 決まったこと: task_017: 最終 HEAD での verify_commands 再実行ログ（6 本とも exit 0） / 未解決: 未コミット 6 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/review-log/task_015.json tests/gates/probe.test.ts 
+- 2026-09-24T16:23:47Z HEAD=8f04f0a 決まったこと: task_017: 最終 HEAD での verify_commands 再実行ログ（6 本とも exit 0） / 未解決: 未コミット 7 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_017.json docs/review-log/task_015.json tests/gates/probe.test.ts 
+- 2026-09-24T16:26:46Z HEAD=8f04f0a 決まったこと: task_017: 最終 HEAD での verify_commands 再実行ログ（6 本とも exit 0） / 未解決: 未コミット 7 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_017.json docs/review-log/task_015.json tests/gates/probe.test.ts 
+- 2026-09-24T16:30:48Z HEAD=8f04f0a 決まったこと: task_017: 最終 HEAD での verify_commands 再実行ログ（6 本とも exit 0） / 未解決: 未コミット 7 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_017.json docs/review-log/task_015.json tests/gates/probe.test.ts 
+- 2026-09-24T16:36:03Z HEAD=8f04f0a 決まったこと: task_017: 最終 HEAD での verify_commands 再実行ログ（6 本とも exit 0） / 未解決: 未コミット 7 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_017.json docs/review-log/task_015.json tests/gates/probe.test.ts 
+- 2026-09-24T16:36:06Z HEAD=8f04f0a 決まったこと: task_017: 最終 HEAD での verify_commands 再実行ログ（6 本とも exit 0） / 未解決: 未コミット 7 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_017.json docs/review-log/task_015.json tests/gates/probe.test.ts 
+- 2026-09-24T16:37:14Z HEAD=8f04f0a 決まったこと: task_017: 最終 HEAD での verify_commands 再実行ログ（6 本とも exit 0） / 未解決: 未コミット 8 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json docs/review-log/task_015.json tests/gates/probe.test.ts 
+- 2026-09-24T16:38:55Z HEAD=8f04f0a 決まったこと: task_017: 最終 HEAD での verify_commands 再実行ログ（6 本とも exit 0） / 未解決: 未コミット 8 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json docs/review-log/task_015.json tests/gates/probe.test.ts 
+- 2026-09-24T16:40:39Z HEAD=8f04f0a 決まったこと: task_017: 最終 HEAD での verify_commands 再実行ログ（6 本とも exit 0） / 未解決: 未コミット 8 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json docs/review-log/task_015.json tests/gates/probe.test.ts 
+- 2026-09-24T16:40:42Z HEAD=8f04f0a 決まったこと: task_017: 最終 HEAD での verify_commands 再実行ログ（6 本とも exit 0） / 未解決: 未コミット 8 件: docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_017.json docs/review-log/task_015.json tests/gates/probe.test.ts 

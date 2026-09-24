@@ -471,3 +471,11 @@
   **verify_commands 6 本すべて `scripts/record-run.sh task_017` 経由で exit 0**
   （`typecheck` / `lint` / `test:unit` 43 ファイル **1099/1099** / `test:integration`
   11 ファイル **193/193** / `gate:constraints` / `gate:wording`）。残懸念は 11 件（C-017-1〜11）。
+- task_017（引き継ぎ・確認のみ）: DONE_WITH_CONCERNS — 実装（`c79db44`）と G5 round1 の指摘反映
+  （`a3e42a5`）は既にコミット済みで、レビュー round1 は `merge-review: pass`（有効票 2 / 実効 high 0）。
+  本セッションでは作り直さず、(1) F-2〜F-5 の是正がソースに実在することを実測確認
+  （`registry.ts:214` の `!== "on"`、`money.ts:58-65` の整数・範囲検査、P-6 の `GET /api/e/me` 参照、
+  `SummaryBar.tsx:74` の `mixedCount === 0`）、(2) verify_commands 6 本を HEAD `8f04f0a` で再実行して
+  全て exit 0（`test:unit` 1099/1099・`test:integration` 193/193）、(3) done_definition 5 項目めの
+  「決済 SDK 無し」を `npm ls --all` の走査で確認（一致は `is-promise` の偽陽性 1 行のみ）を行い、
+  未コミットで残っていた `docs/run-log/task_017.json` の実行ログをコミットした。追加の実装変更は無い。
