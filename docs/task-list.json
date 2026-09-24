@@ -2302,7 +2302,13 @@
         "[severity: low] apply-pending は payment_event に無い ledger_dedupe_key を既定規則で復元する / 対応案: 独自宣言を持つアダプタ追加時（task_026/030）に列追加を検討",
         "[severity: low] deferred: Hyperdrive 経路での実測（A21 / P-05 / P-09）は task_035 完了後",
         "[severity: low] deferred: 本番での 200 疎通は task_025（ローカルは wrangler dev --test-scheduled で 6 パス各 1 回の fetch と 404 を確認済み）",
-        "[severity: low] ReconcileDeps.lockKey はテスト隔離専用の差し替え口。本番経路は既定 RECONCILE_LOCK_KEY を使う"
+        "[severity: low] ReconcileDeps.lockKey はテスト隔離専用の差し替え口。本番経路は既定 RECONCILE_LOCK_KEY を使う",
+        "[severity: high] 保留 Webhook の再適用で受取先 binding の突合（W8）が効かない（G5 F-2）。payment_event に受信 binding の列が無く expectedBindingId を渡せない / 対応案: 列を足す migration（task_011）＋ 受信時に書く（task_018）。C-020-11",
+        "[severity: medium] 同じ試行への 2 回目以降の返金が poll の provider_event_id 重複で捨てられる（G5 F-6） / 対応案: Phase 1 は statusQuery を持つ出荷アダプタが無く発現しない。実アダプタ導入時（task_026/030）に累計/差分を決めて鍵へ織り込む。C-020-12",
+        "[severity: medium] withTimeout は照会を中断しないため実効並列が 5 を超えうる（G5 F-7） / 対応案: StatusQuerier に AbortSignal を渡す契約へ広げる（Phase 2）。C-020-13",
+        "[severity: medium] 走査 1 は settlement_status 等値集合に書き換えて invoice_recon_idx の Index Cond が効くようになったが（EXPLAIN 実測）、ORDER BY updated_at の Sort と payment_attempt の Seq Scan は残る / 対応案: 専用索引の migration（task_011）。C-020-14",
+        "[severity: low] 巡回のため走査ごとに最大 100 行の no-op UPDATE を出す（死行が増える） / 対応案: last_reconciled_at 列（task_011）を足せば触らずに並べ替えられる。C-020-15",
+        "[severity: low] G5 は reject（gpt high 6・medium 1 / gemini PASS）。修正ラウンド 1 周で F-1・F-3・F-4・F-5 を修正し、残りは上記に記録。再レビューはしない（共通ルール G5）"
       ]
     },
     {

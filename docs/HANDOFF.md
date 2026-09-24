@@ -2487,6 +2487,27 @@ GPT-6 Astra 7 件のうち重複を除く 7 件を**全件修正**した（詳�
 - C21/C22（apply.ts 拡張）は担当タスク未定。required_status_checks 登録・gate-contract.yml
   の実走確認は git push 後の CI 待ちで deferred のまま。
 
+## task_020（修正ラウンド: G5 reject と指摘 high 1・medium 4）
+
+### 決まったこと
+
+- 走査は「拾った行を必ず触る」ことで巡回させる（`touchScanned`）。触らないと状態が変わらない
+  再照会では `updated_at` が動かず、先頭バッチ以外が永久に照会されない。W9（時刻カーソル禁止）は
+  守っている（保存するのは行の更新時刻だけで、走査条件は状態のみ）。
+- 走査 2（paid 再照会）が適用してよいのは支払済み後の変化だけ（`POST_PAID_KINDS`）。
+  再照会で返る `succeeded` は Webhook 計上分と別 dedupe 鍵で二重 credit になるため捨てる。
+- `/api/cron/apply-pending` は `id` のキーセットでページを進める（上限 1000 行）。
+  ゲートが閉じた保留で 1 ページ目が埋まっても後続の適用可能なイベントへ到達する。
+
+### 未解決 / concerns
+
+- **C-020-11（high）**: 保留 Webhook の再適用では受取先 binding の突合（W8）が効かない。
+  `payment_event` に受信 binding の列が無い。migration は task_011、受信時の書き込みは task_018 所有。
+- C-020-14 / C-020-15: 走査 1 の `ORDER BY updated_at` の Sort と `payment_attempt` の Seq Scan、
+  および巡回のための no-op UPDATE（死行）。どちらも専用索引・`last_reconciled_at` 列（task_011）待ち。
+- check_043（organizer_label の NULL 化）と audit-verify の 7 日窓は前ラウンドから変わらず未達。
+  G5 は reject のままで再レビューはしない（共通ルール）。
+
 ## ターンログ（Stop フック自動追記）
 
 各ターン終了時に scripts/append-handoff.sh が 1 行追記する。決まったこと・未解決の本文は上の各タスク節に書く。
@@ -2752,3 +2773,6 @@ GPT-6 Astra 7 件のうち重複を除く 7 件を**全件修正**した（詳�
 - 2026-09-24T19:03:22Z HEAD=e8c6395 決まったこと: task_020: 敵対レビュー記録（G5） / 未解決: 未コミット 41 件: docs/HANDOFF.md docs/concerns/task_023.md docs/decisions/ADR-007-raw-userid-consent.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json 
 - 2026-09-24T19:06:25Z HEAD=e8c6395 決まったこと: task_020: 敵対レビュー記録（G5） / 未解決: 未コミット 48 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_023.md docs/decisions/ADR-007-raw-userid-consent.md docs/ops/line-channels.md docs/ops/monitoring.md docs/run-log/task_008.json docs/run-log/task_012.json 
 - 2026-09-24T19:07:24Z HEAD=e8c6395 決まったこと: task_020: 敵対レビュー記録（G5） / 未解決: 未コミット 50 件: docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_019.md docs/concerns/task_023.md docs/decisions/ADR-007-raw-userid-consent.md docs/ops/line-channels.md docs/ops/monitoring.md docs/run-log/task_008.json 
+- 2026-09-24T19:11:49Z HEAD=162738d 決まったこと: tests(record-evidence): 共有実行のフィクスチャ script の引用を修正（直前のコミットで赤のまま push していた） / 未解決: 未コミット 38 件: .github/workflows/e2e.yml docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json docs/run-log/task_018.json 
+- 2026-09-24T19:12:24Z HEAD=162738d 決まったこと: tests(record-evidence): 共有実行のフィクスチャ script の引用を修正（直前のコミットで赤のまま push していた） / 未解決: 未コミット 40 件: .github/workflows/e2e.yml docs/HANDOFF.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json docs/run-log/task_016.json docs/run-log/task_017.json 
+- 2026-09-24T19:16:23Z HEAD=162738d 決まったこと: tests(record-evidence): 共有実行のフィクスチャ script の引用を修正（直前のコミットで赤のまま push していた） / 未解決: 未コミット 44 件: .github/workflows/e2e.yml docs/HANDOFF.md docs/PROGRESS.md docs/concerns/task_020.md docs/run-log/task_008.json docs/run-log/task_012.json docs/run-log/task_014.json docs/run-log/task_015.json 

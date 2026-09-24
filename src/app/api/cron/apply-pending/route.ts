@@ -29,8 +29,17 @@ import type { NormalizedEvent, PaymentEventKind, ProviderBinding } from "@/lib/p
 
 const CODE_NOT_FOUND = "NOT_FOUND" as ErrorCode;
 
-/** 1 回で拾う上限。 */
+/** 1 回で**適用する**上限。 */
 export const APPLY_PENDING_LIMIT = 100;
+
+/**
+ * 1 回で**読み飛ばせる**上限（GPT 敵対レビュー F-5）。
+ *
+ * ゲートが閉じている事業者の保留が先頭に 100 件たまると、`id` 昇順の 1 ページ目がそれで
+ * 埋まり、後続の「適用できる」イベントへ永久に到達しない（先頭詰まり）。見送った行は
+ * 状態が変わらないので、次回も同じ 1 ページ目が返ってくる。ページを進めて読み飛ばす。
+ */
+export const APPLY_PENDING_MAX_SCAN = 1_000;
 
 interface CronRouteEnv extends DbEnv {
   readonly APP_ENV?: string | undefined;
@@ -76,6 +85,8 @@ export interface ApplyPendingOptions {
   readonly requestId: string;
   readonly now?: Date;
   readonly limit?: number;
+  /** 見送った行を読み飛ばす上限。既定は `APPLY_PENDING_MAX_SCAN`。 */
+  readonly maxScan?: number;
   /** 既定は `defaultApplyGate`。テストは開/閉を直接渡す。 */
   readonly applyGate?: (binding: ProviderBinding) => Promise<string | null>;
 }
@@ -113,66 +124,83 @@ export async function runApplyPending(
 ): Promise<ApplyPendingResult> {
   const now = options.now ?? new Date();
   const limit = options.limit ?? APPLY_PENDING_LIMIT;
-
-  const rows = await tx<PendingRow[]>`
-    SELECT id, provider_key, provider_event_id, event_type, kind, external_ref,
-           business_idem_key, amount_minor, currency, occurred_at, trust
-    FROM payment_event
-    WHERE apply_result IS NULL AND processed_at IS NULL
-    ORDER BY id ASC
-    LIMIT ${limit}
-    FOR UPDATE SKIP LOCKED
-  `;
+  const maxScan = Math.max(limit, options.maxScan ?? APPLY_PENDING_MAX_SCAN);
 
   let applied = 0;
   let duplicates = 0;
   let stillHeld = 0;
   let other = 0;
+  let picked = 0;
+  // `id` は identity（1 から）なので 0 から始めれば 1 ページ目も同じ形で書ける。
+  let cursor = "0";
 
-  for (const row of rows) {
-    const bindings = await tx<AttemptBindingRow[]>`
-      SELECT b.id, b.organizer_user_id, b.provider_key, b.status, b.credential_ref,
-             b.credential_fp, b.receiving_identifier, b.receiving_identifier_kind
-      FROM payment_attempt a
-      JOIN provider_binding b ON b.id = a.provider_binding_id
-      WHERE a.provider_key = ${row.provider_key} AND a.external_ref = ${row.external_ref}
+  // ★ 見送った行で 1 ページ目が埋まっても、ページを進めて後続へ到達する（F-5）。
+  //   進むのは**この実行の中だけ**で、次回の実行は必ず先頭から読み直す（時刻カーソルを
+  //   持たない再照合と同じ考え方。飛んでも次回で拾える）。
+  while (picked < maxScan && applied + duplicates + other < limit) {
+    const pageSize = Math.min(limit, maxScan - picked);
+    const rows = await tx<PendingRow[]>`
+      SELECT id, provider_key, provider_event_id, event_type, kind, external_ref,
+             business_idem_key, amount_minor, currency, occurred_at, trust
+      FROM payment_event
+      WHERE apply_result IS NULL AND processed_at IS NULL
+        AND id > ${cursor}::bigint
+      ORDER BY id ASC
+      LIMIT ${pageSize}
+      FOR UPDATE SKIP LOCKED
     `;
-    const bindingRow = bindings[0];
-    if (bindingRow !== undefined) {
-      const binding: ProviderBinding = {
-        id: bindingRow.id,
-        organizerUserId: bindingRow.organizer_user_id,
-        providerKey: bindingRow.provider_key,
-        status: bindingRow.status as ProviderBinding["status"],
-        credentialRef: bindingRow.credential_ref,
-        credentialFp: bindingRow.credential_fp,
-        receivingIdentifier: bindingRow.receiving_identifier,
-        receivingIdentifierKind:
-          bindingRow.receiving_identifier_kind as ProviderBinding["receivingIdentifierKind"],
-      };
-      const gate =
-        options.applyGate ?? ((b: ProviderBinding) => defaultApplyGate(tx, options.appEnv, b, now));
-      const holdReason = await gate(binding);
-      if (holdReason !== null) {
-        stillHeld += 1;
-        continue;
+    if (rows.length === 0) break;
+    picked += rows.length;
+    cursor = rows[rows.length - 1]?.id ?? cursor;
+
+    for (const row of rows) {
+      const bindings = await tx<AttemptBindingRow[]>`
+        SELECT b.id, b.organizer_user_id, b.provider_key, b.status, b.credential_ref,
+               b.credential_fp, b.receiving_identifier, b.receiving_identifier_kind
+        FROM payment_attempt a
+        JOIN provider_binding b ON b.id = a.provider_binding_id
+        WHERE a.provider_key = ${row.provider_key} AND a.external_ref = ${row.external_ref}
+      `;
+      const bindingRow = bindings[0];
+      if (bindingRow !== undefined) {
+        const binding: ProviderBinding = {
+          id: bindingRow.id,
+          organizerUserId: bindingRow.organizer_user_id,
+          providerKey: bindingRow.provider_key,
+          status: bindingRow.status as ProviderBinding["status"],
+          credentialRef: bindingRow.credential_ref,
+          credentialFp: bindingRow.credential_fp,
+          receivingIdentifier: bindingRow.receiving_identifier,
+          receivingIdentifierKind:
+            bindingRow.receiving_identifier_kind as ProviderBinding["receivingIdentifierKind"],
+        };
+        const gate =
+          options.applyGate ??
+          ((b: ProviderBinding) => defaultApplyGate(tx, options.appEnv, b, now));
+        const holdReason = await gate(binding);
+        if (holdReason !== null) {
+          stillHeld += 1;
+          continue;
+        }
       }
+
+      const outcome = await applyToLedger(tx, {
+        event: toEvent(row),
+        paymentEventId: row.id,
+        ingestionSource: "webhook",
+        requestId: options.requestId,
+        recordedBy: `cron:apply-pending:${row.provider_key}`,
+        now,
+      });
+      if (outcome.result === "applied") applied += 1;
+      else if (outcome.result === "duplicate") duplicates += 1;
+      else other += 1;
     }
 
-    const outcome = await applyToLedger(tx, {
-      event: toEvent(row),
-      paymentEventId: row.id,
-      ingestionSource: "webhook",
-      requestId: options.requestId,
-      recordedBy: `cron:apply-pending:${row.provider_key}`,
-      now,
-    });
-    if (outcome.result === "applied") applied += 1;
-    else if (outcome.result === "duplicate") duplicates += 1;
-    else other += 1;
+    if (rows.length < pageSize) break;
   }
 
-  return { picked: rows.length, applied, duplicates, stillHeld, other };
+  return { picked, applied, duplicates, stillHeld, other };
 }
 
 async function handle(request: Request): Promise<Response> {

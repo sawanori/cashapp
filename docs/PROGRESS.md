@@ -802,3 +802,30 @@
   パターン B と文言不一致（`docs/acceptance-checks.json` は files_to_modify 外で未改訂）、
   `check_114` の外形監視実測（staging 前提）と `check_115`（週次メトリクス、所有タスク不在）は
   継続 deferred。残懸念 6 件（medium 3・low 3）は `docs/concerns/task_023.md`。
+- task_020（修正ラウンド）: DONE_WITH_CONCERNS — G5 敵対レビューの reject（gpt high 6・medium 1 /
+  gemini PASS）とレビューのギャップ（high 1・medium 4）を 1 周で修正した。**直した 4 件**:
+  (1) **F-3 / 指摘の high**: 走査 1 は `ORDER BY invoice.updated_at ASC LIMIT 100` なのに、状態が
+  変わらない再照会では `invoice` が一切 UPDATE されず順序キーが凍結し、**101 件目以降が二度と
+  照会されない**（R-OPS-08 の backstop が無音で停止）。バッチ末尾で拾った行を触る
+  `touchScanned`（`UPDATE invoice SET needs_attention = needs_attention`。トリガが `updated_at` を
+  進める）を足した。時刻カーソルは持たない（W9 の grep も 0 violation）。回帰テストを
+  `tests/integration/reconcile-load.test.ts` に追加（30 件・バッチ 10・照会は全件 reject を 3 巡）。
+  **修正前は 30 件中 10 件しか照会されないことを実測**（`Set(asked).size` が 30 に対し 10 で fail）。
+  (2) **F-4**: 走査 2 の並びを `paid_at ASC` → `updated_at ASC` ＋触り戻しに変え、走査 2 の
+  打ち切りも `truncated` に載せた。(3) **F-1**: 走査 2 が `succeeded` を再適用すると Webhook で
+  計上済みの入金と**別の dedupe 鍵**で二重 credit になるため、走査 2 は `POST_PAID_KINDS`
+  （refunded / refund_pending / refund_failed / disputed / dispute_resolved）だけを適用するようにし、
+  台帳行も poll イベントも増えないことをテストで固定した。(4) **F-5**: `/api/cron/apply-pending` は
+  ゲートが閉じた先頭 100 件で 1 ページ目が埋まると後続へ到達しないため、`id` のキーセットで
+  ページを進める（`APPLY_PENDING_MAX_SCAN = 1000` で上限）。**索引のギャップ**は走査 1 の WHERE を
+  `settlement_status = ANY(...)`（`rank.ts` から導出）に書き換え、EXPLAIN で
+  `Index Scan using invoice_recon_idx`（Index Cond あり）まで確認した（`ORDER BY updated_at` の Sort と
+  `payment_attempt` の Seq Scan は残る＝ C-020-14）。**直さず記録した 3 件**: F-2（保留 Webhook で
+  受取先 binding の突合が効かない。列追加が task_011 所有のため **high のまま C-020-11**）、
+  F-6（2 回目以降の返金が poll の重複で落ちる。Phase 1 は statusQuery を持つ出荷アダプタが無く
+  未発現）、F-7（timeout が照会を中断しない）。check_043（organizer_label の NULL 化）と
+  audit-verify の 7 日窓は前ラウンドどおり task_011 / task_018 待ちで未達のまま。
+  **verify_commands 4 本は `scripts/record-run.sh task_020` 経由で再実行し全て exit 0**
+  （`typecheck` / `test:integration` **22 ファイル 257/257 pass** / `audit:verify` ok:true /
+  `gate:constraints` **29 entry 0 violation**）。`docs/review-log/task_020.json` は検証者が
+  コミット済み（e8c6395）のため再作成していない。残懸念 16 件は `docs/concerns/task_020.md`。

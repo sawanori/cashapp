@@ -5,6 +5,8 @@
  *   - 上限に達した回は `truncated`（`reconciliation_run.note='truncated'`）
  *   - 1 件 3 秒 timeout: 応答しない事業者があっても実行全体が止まらない
  *   - 並列 5: 同時に走る照会が 5 を超えない
+ *   - **前進しない照会**（事業者が落ちている等）を何巡させても、全件が一度は照会される
+ *     （順序キーが凍結して先頭バッチだけを見続けないこと。GPT 敵対レビュー F-3 / W9）
  *
  * 300 件は 1 つのトランザクション内に作り、最後にロールバックする（他タスクのデータを汚さない）。
  */
@@ -266,3 +268,94 @@ async function insertBulk2(tx: postgres.TransactionSql): Promise<Bulk> {
   }
   return { eventId: event!.id, externalRefs: refs };
 }
+
+/**
+ * 「前進しない照会」の巡回を見るための束。`invoice.updated_at` を **1 日ずつ過去へずらして**
+ * 入れる（`invoice_set_updated_at` は BEFORE UPDATE なので、過去の時刻を置けるのは INSERT
+ * のときだけ）。走査は `updated_at ASC` なので、古い順に 1 バッチずつ拾われるのが正。
+ */
+async function insertStaleBulk(tx: postgres.TransactionSql, count: number): Promise<Bulk> {
+  const suffix = `r-${crypto.randomUUID().slice(0, 8)}`;
+  const [user] = await tx<{ id: string }[]>`
+    INSERT INTO app_user (line_user_ref, identity_scope, line_env)
+    VALUES (${Buffer.from(`rot-${suffix}`)}, ${`rot:${suffix}`}, 'development')
+    RETURNING id
+  `;
+  const [binding] = await tx<{ id: string }[]>`
+    INSERT INTO provider_binding (organizer_user_id, provider_key, status, capabilities)
+    VALUES (${user!.id}, ${FIXTURE_PROVIDER_KEY}, 'active', '{}'::jsonb)
+    RETURNING id
+  `;
+  const [event] = await tx<{ id: string }[]>`
+    INSERT INTO event (organizer_user_id, title, organizer_label, join_token_hash,
+                       minors_included, provider_key, provider_binding_id)
+    VALUES (${user!.id}, ${`rot-${suffix}`}, 'organizer', ${Buffer.from(`jt-rot-${suffix}`)},
+            false, ${FIXTURE_PROVIDER_KEY}, ${binding!.id})
+    RETURNING id
+  `;
+  const refs: string[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const [participant] = await tx<{ id: string }[]>`
+      INSERT INTO participant (event_id, display_label) VALUES (${event!.id}, ${`p-${i}`})
+      RETURNING id
+    `;
+    const staleAt = new Date(Date.now() - (count - i) * 24 * 60 * 60 * 1000);
+    const [invoice] = await tx<{ id: string }[]>`
+      INSERT INTO invoice (event_id, participant_id, amount_minor, updated_at)
+      VALUES (${event!.id}, ${participant!.id}, 3000, ${staleAt})
+      RETURNING id
+    `;
+    const externalRef = `iv_${invoice!.id.replace(/-/g, "")}_1`;
+    await tx`
+      INSERT INTO payment_attempt (invoice_id, provider_key, provider_binding_id, external_ref,
+                                   amount_minor, status)
+      VALUES (${invoice!.id}, ${FIXTURE_PROVIDER_KEY}, ${binding!.id}, ${externalRef},
+              3000, 'redirected')
+    `;
+    refs.push(externalRef);
+  }
+  return { eventId: event!.id, externalRefs: refs };
+}
+
+describe("走査の巡回（GPT 敵対レビュー F-3 / W9）", () => {
+  it(
+    "照会が失敗し続けても、バッチを跨いで全件が一度は照会される",
+    async () => {
+      await withRollback(appRw, async (tx) => {
+        const count = 30;
+        const batchLimit = 10;
+        const bulk = await insertStaleBulk(tx, count);
+
+        // 事業者が落ちている＝どの請求も状態が前進しない。拾った行を触って順序キーを
+        // 回していなければ、何回走らせても先頭 10 件だけが照会され続ける。
+        const asked: string[] = [];
+        const querier = {
+          query(_binding: { readonly providerKey: string }, externalRef: string) {
+            asked.push(externalRef);
+            return Promise.reject(new Error("provider unavailable"));
+          },
+        };
+
+        for (let i = 0; i < count / batchLimit; i += 1) {
+          const result = await runReconcileInTransaction(tx, {
+            querier,
+            requestId: `req-rot-${i}`,
+            lockKey: FILE_LOCK_KEY,
+            forcePaidRescan: false,
+            batchLimit,
+          });
+          expect(result.ran).toBe(true);
+          expect(result.scanned).toBe(batchLimit);
+          expect(result.advanced).toBe(0);
+        }
+
+        // ★ 全件が一度は事業者へ照会された（先頭バッチで止まっていない）。
+        expect(new Set(asked).size).toBe(count);
+        for (const ref of bulk.externalRefs) expect(asked).toContain(ref);
+        // 状態は 1 件も動いていない（W9: 次回の走査が同じ集合を拾う）。
+        expect(await unpaidCount(tx, bulk.eventId)).toBe(count);
+      });
+    },
+    60_000,
+  );
+});

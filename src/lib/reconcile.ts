@@ -13,11 +13,17 @@
  *   試行が生きている（`is_open`）か、**期限切れから 4 日以内**（W10: Stripe の再送が最長 3 日 ＋ 余裕）。
  *   `ORDER BY invoice.updated_at ASC LIMIT 100`。上限に達したら `reconciliation_run.truncated`
  *   と `note='truncated'` を残す（取りこぼしではなく「続きは次回」）。
+ *   ★ バッチの最後に**拾った行を必ず触る**（`touchScanned`）。触らないと、状態が変わらない
+ *   再照会では `updated_at` が動かず、先頭 100 件だけが 5 分ごとに再照会されて 101 件目
+ *   以降が二度と照会されない（順序キーの凍結。GPT 敵対レビュー F-3）。
  *
  * ★ 走査 2（支払済みの再照会・R-PAY-07）: `settlement_rank >= 40 AND paid_at > now() - 30 日` を
  *   **日次 1 回**だけ再照会し、事業者側での返金・紛争を反映する。「日次 1 回」の判定は
  *   `reconciliation_run` に直近 24 時間の paid 再照会があるかで行う（走査 1 の取りこぼしとは
  *   無関係。再照会は毎回 30 日窓を丸ごと見るため、飛んでも次回で拾える）。
+ *   並び順は走査 1 と同じ `updated_at ASC`＋触り戻しで巡回させる（`paid_at ASC` は固定値なので
+ *   先頭 100 件から進まない。F-4）。適用するのは `POST_PAID_KINDS` だけで、再照会で返る
+ *   `succeeded` は Webhook で計上済みの入金と二重になるため捨てる（F-1）。
  *
  * ★ 1 件あたり 3 秒 timeout・並列 5。外部 API が遅いときに Worker の実行時間上限
  *   （Cron Triggers: 15 分 / CPU 30 秒。docs/vendor-docs/cloudflare/cron-triggers.md）へ
@@ -36,8 +42,10 @@ import type postgres from "postgres";
 import { insertPaymentEvent, redactRawPayload } from "@/lib/db/repositories/events-log";
 import { applyToLedger } from "@/lib/ledger/apply";
 import { businessIdemKey, ledgerDedupeKey } from "@/lib/ledger/dedupe";
+import { rankOf, SETTLEMENT_STATUSES } from "@/lib/ledger/rank";
 import type {
   NormalizedEvent,
+  PaymentEventKind,
   PaymentSnapshot,
   ProviderBinding,
 } from "@/lib/payments/types";
@@ -62,6 +70,35 @@ export const PAID_RESCAN_DAYS = 30;
 
 /** 走査 2 を回す間隔（日次 1 回）。 */
 export const PAID_RESCAN_INTERVAL_HOURS = 24;
+
+/** 「支払済み」とみなすランクの下限（`invoice_recon_idx` の部分索引の述語と同じ値）。 */
+const PAID_RANK = 40;
+
+/**
+ * 走査 1 が見る `settlement_status` の集合（ランク 40 未満）。`rank.ts` から導出するので、
+ * 状態を足しても取りこぼさない。等値集合で書くのは `invoice_recon_idx`
+ * （`(settlement_status, updated_at) WHERE settlement_rank < 40 AND lifecycle_state='active'`）
+ * の先頭列を等値で固定しないと索引の順序が使えないためである。
+ */
+export const OPEN_SETTLEMENT_STATUSES: readonly string[] = SETTLEMENT_STATUSES.filter(
+  (status) => rankOf(status) < PAID_RANK,
+);
+
+/**
+ * 走査 2 で**適用してよい**種別（R-PAY-07 / GPT 敵対レビュー F-1）。
+ *
+ * 走査 2 の目的は「支払済みになった後の変化（返金・紛争）を拾う」ことだけである。
+ * すでに入金済みの請求に対して事業者が返す `succeeded` を再び台帳へ流すと、Webhook で
+ * 計上済みの入金と**別の dedupe 鍵**（`poll:...`）で二重の credit が入り、残高が壊れる。
+ * ここに無い種別は照会しても台帳にも請求にも触らない。
+ */
+export const POST_PAID_KINDS: ReadonlySet<PaymentEventKind> = new Set<PaymentEventKind>([
+  "refunded",
+  "refund_pending",
+  "refund_failed",
+  "disputed",
+  "dispute_resolved",
+]);
 
 /** 走査で拾った 1 件分。 */
 export interface ReconcileTarget {
@@ -209,7 +246,8 @@ export async function selectOpenTargets(
            a.provider_binding_id, a.external_ref, a.status AS attempt_status
     FROM invoice i
     JOIN payment_attempt a ON a.invoice_id = i.id
-    WHERE i.settlement_rank < 40
+    WHERE i.settlement_status = ANY(${[...OPEN_SETTLEMENT_STATUSES]}::text[])
+      AND i.settlement_rank < ${PAID_RANK}
       AND i.lifecycle_state = 'active'
       AND (a.is_open OR (a.status = 'expired' AND a.updated_at > ${graceFrom}))
     ORDER BY i.updated_at ASC
@@ -225,7 +263,11 @@ export async function selectOpenTargets(
   }));
 }
 
-/** 走査 2: 支払済み 30 日以内（事業者側の返金・紛争の反映）。 */
+/**
+ * 走査 2: 支払済み 30 日以内（事業者側の返金・紛争の反映）。
+ * 並びは `updated_at ASC`（＝最も長く触っていない順）。`paid_at` で並べると順序が固定され、
+ * 先頭 100 件以外が 30 日窓から外れるまで一度も再照会されない（F-4）。
+ */
 export async function selectPaidTargets(
   tx: postgres.TransactionSql,
   now: Date,
@@ -237,9 +279,9 @@ export async function selectPaidTargets(
            a.provider_binding_id, a.external_ref, a.status AS attempt_status
     FROM invoice i
     JOIN payment_attempt a ON a.invoice_id = i.id
-    WHERE i.settlement_rank >= 40
+    WHERE i.settlement_rank >= ${PAID_RANK}
       AND i.paid_at > ${since}
-    ORDER BY i.paid_at ASC
+    ORDER BY i.updated_at ASC
     LIMIT ${limit}
   `;
   return rows.map((row) => ({
@@ -250,6 +292,30 @@ export async function selectPaidTargets(
     externalRef: row.external_ref,
     finalQuery: false,
   }));
+}
+
+/**
+ * 走査で拾った請求の**並び順キーを回す**（GPT 敵対レビュー F-3 / F-4 / R-OPS-08）。
+ *
+ * 走査は `ORDER BY invoice.updated_at ASC LIMIT 100` で並べる。照会が失敗した・状態が
+ * 変わらなかった請求は `applyToLedger` が `invoice` を一切 UPDATE しないため、順序キーが
+ * 凍結して**先頭 100 件だけ**が延々と再照会され、101 件目以降が二度と照会されなくなる。
+ * バッチの最後に拾った行を一度触れば（`invoice_set_updated_at` トリガが `updated_at` を
+ * 進める）、次回は未照会の行が先頭に来る。**時刻カーソルではない**（W9。どこにも「前回時刻」を
+ * 保存せず、走査条件は状態だけで書かれている。1 回飛んでも次回が同じ集合を拾う）。
+ *
+ * 値を変えない自己代入にしているのは、状態遷移を `src/lib/ledger/apply.ts` の外で書かない
+ * ため（W3）。触るのは行のバージョンと `updated_at` だけである。
+ */
+async function touchScanned(
+  tx: postgres.TransactionSql,
+  invoiceIds: readonly string[],
+): Promise<void> {
+  if (invoiceIds.length === 0) return;
+  await tx`
+    UPDATE invoice SET needs_attention = needs_attention
+    WHERE id = ANY(${[...invoiceIds]}::uuid[])
+  `;
 }
 
 /** 直近 24 時間に走査 2 を回したか。 */
@@ -345,12 +411,18 @@ async function applySnapshot(
   };
 }
 
-/** 1 走査分を照会 → 適用する。 */
+/**
+ * 1 走査分を照会 → 適用する。
+ *
+ * `allowedKinds` が `null` でなければ、その集合に無い種別の照会結果は**捨てる**
+ * （走査 2 が支払済みの請求へ `succeeded` を再適用して二重計上するのを防ぐ。F-1）。
+ */
 async function processTargets(
   tx: postgres.TransactionSql,
   targets: readonly ReconcileTarget[],
   deps: ReconcileDeps,
   now: Date,
+  allowedKinds: ReadonlySet<PaymentEventKind> | null,
 ): Promise<ApplyTally> {
   const timeoutMs = deps.timeoutMs ?? RECONCILE_QUERY_TIMEOUT_MS;
   const concurrency = deps.concurrency ?? RECONCILE_CONCURRENCY;
@@ -388,6 +460,8 @@ async function processTargets(
     const snapshot = snapshots[i];
     const target = targets[i];
     if (snapshot === null || snapshot === undefined || target === undefined) continue;
+    // 走査 2: 支払済み後の変化以外（再照会で返る `succeeded` など）は台帳に触らない（F-1）。
+    if (allowedKinds !== null && !allowedKinds.has(snapshot.kind)) continue;
     const tally = await applySnapshot(tx, target, snapshot, deps.requestId, now);
     advanced += tally.advanced;
     mismatches += tally.mismatches;
@@ -432,8 +506,9 @@ export async function runReconcileInTransaction(
 
   // ── 走査 1
   const openTargets = await selectOpenTargets(tx, now, limit);
-  const truncated = openTargets.length >= limit;
-  const openTally = await processTargets(tx, openTargets, deps, now);
+  const openTally = await processTargets(tx, openTargets, deps, now, null);
+  // 拾った行を触って順序キーを回す（触らないと先頭 100 件で止まる。F-3）。
+  await touchScanned(tx, openTargets.map((target) => target.invoiceId));
 
   // ── 走査 2（日次 1 回）
   const runPaidRescan = deps.forcePaidRescan ?? (await paidRescanDue(tx, now));
@@ -441,8 +516,14 @@ export async function runReconcileInTransaction(
   let paidTally: ApplyTally = { advanced: 0, mismatches: 0, changed: 0 };
   if (runPaidRescan) {
     paidTargets = await selectPaidTargets(tx, now, limit);
-    paidTally = await processTargets(tx, paidTargets, deps, now);
+    paidTally = await processTargets(tx, paidTargets, deps, now, POST_PAID_KINDS);
+    // 走査 2 も同じ理由で回す（回さないと先頭 100 件だけを毎日見続ける。F-4）。
+    await touchScanned(tx, paidTargets.map((target) => target.invoiceId));
   }
+
+  // 上限に達した走査があれば truncated（「取りこぼし」ではなく「続きは次回」。走査 2 の
+  // 打ち切りも報告する。F-4）。
+  const truncated = openTargets.length >= limit || paidTargets.length >= limit;
 
   const rows = await tx<{ id: string }[]>`
     INSERT INTO reconciliation_run

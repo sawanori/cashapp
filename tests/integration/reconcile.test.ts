@@ -220,6 +220,37 @@ describe("支払済みの再照会（走査 2 / check_103 / R-PAY-07）", () => 
     });
   });
 
+  it("再照会で succeeded が返っても、支払済みの請求に二重の入金を作らない（F-1）", async () => {
+    await withRollback(appRw, async (tx) => {
+      const scenario = await insertPaidScenario(tx, "rc-nodup");
+      const calls: string[] = [];
+      // Webhook で計上済みの入金と同じ事実が、poll の別 dedupe 鍵で返ってくる筋書き。
+      const specs = new Map<string, SnapshotSpec>([
+        [scenario.externalRef, { kind: "succeeded", amountMinor: 3000 }],
+      ]);
+
+      const result = await runReconcileInTransaction(tx, {
+        querier: snapshotQuerier(specs, calls),
+        requestId: "req-rc-nodup",
+        lockKey: FILE_LOCK_KEY,
+        forcePaidRescan: true,
+      });
+
+      expect(calls).toContain(scenario.externalRef);
+      expect(result.postPaidChanges).toBe(0);
+      const ledger = await tx<{ count: number }[]>`
+        SELECT count(*)::int AS count FROM ledger_entry WHERE invoice_id = ${scenario.invoiceId}
+      `;
+      expect(ledger[0]?.count).toBe(0);
+      const polled = await tx<{ count: number }[]>`
+        SELECT count(*)::int AS count FROM payment_event
+        WHERE external_ref = ${scenario.externalRef} AND ingestion_source = 'poll'
+      `;
+      expect(polled[0]?.count).toBe(0);
+      expect(await invoiceStatus(tx, scenario.invoiceId)).toBe("paid");
+    });
+  });
+
   it("直近 24 時間に再照会があれば走査 2 は回さない（日次 1 回）", async () => {
     await withRollback(appRw, async (tx) => {
       const scenario = await insertPaidScenario(tx, "rc-daily");
