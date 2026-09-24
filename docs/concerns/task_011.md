@@ -28,6 +28,16 @@
 | 3 | medium | `ALLOW_PRIVILEGED_DB_ROLE` の `APP_ENV === "development"` はローカル限定条件になっていない | **修正**（4 条件目として「経路が direct」を追加。Hyperdrive 経路では常に拒否。C-011-4 を更新） |
 | 4 | medium | 「gate.yml に integration ジョブが追加され PR で緑」が未達 | **deferred 継続**（C-011-1。指摘自身が「現環境では修正不能のため deferred で正しい」としている） |
 
+## 処理結果の一覧（3 周目レビューの 4 指摘 ＋ 検証失敗 1 件）
+
+| # | 深刻度 | 指摘 | 結果 |
+|---|---|---|---|
+| 0 | （検証失敗） | `npm run test:integration` が exit 1（`tuple concurrently updated` で `db-role.test.ts` が 5 skipped） | **修正**（下記 #1 と同一原因） |
+| 1 | high | `ensureAppRwLoginPassword()` の `ALTER ROLE` が並列ワーカーから同時に走り、統合テストが間欠的に落ちる | **修正**（`tests/integration/setup.ts` をアドバイザリロックで直列化。回帰テスト 1 件追加、58 → 59 ケース） |
+| 2 | medium | 最終 HEAD の失敗 run が run-log に未コミットのまま放置されている | **修正**（失敗 run を消さずにそのまま残し、修正後の最終 HEAD での再実行ログと一緒にコミットした） |
+| 3 | medium | 「gate.yml に integration ジョブが追加され PR で緑」が未達 | **deferred 継続**（C-011-1。`.github/workflows/` は `gate-integration.yml` 1 本のみ・`gate.yml` 不在・`docs/run-log/task_009.json` 不在を本ラウンドでも再確認） |
+| 4 | medium | `payment_attempt` の cross-owner が 0007 適用後も DB で塞がれていない | **deferred 継続**（C-011-7。指摘の `fix` 自身が「PO 裁定（task_017 / task_018）で (a)/(b) を選ぶ」としており、入口となる `createCheckout` は task_017 の担当で未着手） |
+
 ---
 
 ## C-011-1 — CI の実走（PR で緑・required status check 登録）
@@ -205,6 +215,31 @@
   外せる構造は変わらないが、`postgres` 1 つの奪取では外せなくなる）。
   本番プロジェクトの権限設計と一体で判断するのが妥当。
 - **対応予定タスク**: task_024（本番プロジェクト構築・権限の棚卸し）。
+
+## C-011-10 — `ALTER ROLE app_rw` の直列化は 1 つのヘルパ内だけで閉じている
+
+- **指摘**: 3 周目レビュー high の対処として `ensureAppRwLoginPassword()` を
+  `pg_advisory_xact_lock(1101100001)` を張ったトランザクションで包んだが、
+  アドバイザリロックは**同じ鍵を取る側にしか効かない**。将来このヘルパを経由せずに
+  `ALTER ROLE app_rw ...` を撃つコード（別の統合テスト・seed・運用スクリプト）が
+  増えると、同じ `tuple concurrently updated` が再発する。
+- **深刻度**: low
+- **状態**: **accepted-risk**
+- **実測（本ラウンド）**:
+  - 再現（修正前）: 2 本の psql から同時に `ALTER ROLE app_rw LOGIN PASSWORD ...` →
+    **3/3 回** `ERROR: tuple concurrently updated`。
+  - ロックの効果: 同じ文を `BEGIN; SELECT pg_advisory_xact_lock(1101100001); … COMMIT;` で
+    包んで 3 本同時 × 5 回 → **15/15 回 COMMIT**（失敗 0）。
+  - 回帰テストの妥当性: 追加した「独立した 4 接続から同時に呼ぶ」ケースは、修正を外すと
+    **3/3 回 fail**（4 本中 3 本が `tuple concurrently updated` で reject）、
+    修正を戻すと pass する。
+  - スイート全体（回帰テスト追加前）: `npm run test:integration` を **10 連続** で実行し
+    10/10 が exit 0・`Tests 58 passed (58)`・skip 0。
+  - スイート全体（回帰テスト追加後）: **6 連続** で 6/6 が exit 0・`Tests 59 passed (59)`・skip 0。
+  - 比較対象: レビューの実測では修正前が 5 回中 2 回 exit 1（`Tests 53 passed | 5 skipped`）。
+- **緩和**: 鍵の定数と「使用箇所はこの関数だけに限る」旨を `setup.ts` のコメントに明記した。
+- **対応予定タスク**: 統合テストを増やす後続タスク（task_014 以降）で `ALTER ROLE` が要る場合は
+  必ずこのヘルパを経由する。
 
 ## C-011-6 — 担当範囲外のファイルに触れた
 

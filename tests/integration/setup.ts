@@ -51,14 +51,38 @@ export function createAppRwSql(): postgres.Sql {
 }
 
 /**
+ * `ALTER ROLE app_rw` を直列化するためのアドバイザリロックの鍵。
+ *
+ * vitest はテストファイルを別ワーカーで並列に走らせるため、複数ファイルの `beforeAll` が
+ * 同じ `pg_authid` の行を同時に UPDATE すると Postgres が `tuple concurrently updated`
+ * （XX000）を投げ、スイート全体が起動前に落ちる。実測: 2 本の psql から同時に
+ * `ALTER ROLE app_rw LOGIN PASSWORD ...` を撃つと 3/3 回この失敗が出る。
+ *
+ * ロックはトランザクションスコープ（`pg_advisory_xact_lock`）のみを使う。セッションスコープの
+ * `pg_advisory_lock` は接続がプールに戻っても解放されず、別のテストを巻き込むため使わない
+ * （task_011 scope の「セッションスコープの pg_try_advisory_lock は使わない」と同じ方針）。
+ *
+ * 鍵は「task_011 / app_rw のログイン情報」を表す固定の bigint。他の用途と衝突しないよう
+ * 使用箇所はこの関数だけに限る。
+ */
+const APP_RW_LOGIN_LOCK_KEY = 1101100001;
+
+/**
  * app_rw にローカル専用パスワードを設定する。マイグレーションはロールを作るだけで
  * パスワードを設定しないため（秘密値を SQL に埋めない）、テスト側で毎回設定する。
+ *
+ * 並列に走る別テストファイルと同時に呼ばれても安全なように、アドバイザリロックを
+ * 張ったトランザクション内で 1 文だけを実行する（上のコメントの根拠を参照）。
  */
 export async function ensureAppRwLoginPassword(sql: postgres.Sql): Promise<void> {
   // パスワードはプレースホルダに出来ない（ALTER ROLE はパラメータを取らない）。
   // 値はローカル専用の定数であり、シングルクォートのみエスケープする。
   const escaped = LOCAL_APP_RW_PASSWORD.replace(/'/g, "''");
-  await sql.unsafe(`ALTER ROLE app_rw LOGIN PASSWORD '${escaped}'`);
+  await sql.begin(async (tx) => {
+    // ロックの取得と ALTER ROLE は同一トランザクション・同一接続でなければ直列化されない。
+    await tx`SELECT pg_advisory_xact_lock(${APP_RW_LOGIN_LOCK_KEY}::bigint)`;
+    await tx.unsafe(`ALTER ROLE app_rw LOGIN PASSWORD '${escaped}'`);
+  });
 }
 
 /** ロールバック専用の番兵。`withRollback` 以外では投げない。 */

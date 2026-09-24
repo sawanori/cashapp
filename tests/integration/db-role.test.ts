@@ -126,3 +126,44 @@ describe("ランタイム DB ロールの実効検査", () => {
     }
   });
 });
+
+/**
+ * テスト土台そのものの回帰検査。
+ *
+ * vitest はテストファイルを別ワーカーで並列に走らせるため、`schema.test.ts` と
+ * 本ファイルの `beforeAll` が同時に `ALTER ROLE app_rw ...` を撃つ。これは同一の
+ * `pg_authid` 行への同時 UPDATE なので、直列化しないと Postgres が
+ * `tuple concurrently updated` を投げ、**スイート全体が起動前に落ちて
+ * 本ファイルのテストが 1 件も走らない**（実測: 修正前は 5 回中 2 回 exit 1 で 5 skipped）。
+ *
+ * `ensureAppRwLoginPassword()` はアドバイザリロックで直列化するので、
+ * 独立した複数接続から同時に呼んでも全部成功する。
+ */
+describe("テスト土台: app_rw のログイン情報設定は並列呼び出しでも壊れない", () => {
+  it("独立した 4 接続から同時に呼んでも tuple concurrently updated にならない", async () => {
+    const CONCURRENCY = 4;
+    const pools = Array.from({ length: CONCURRENCY }, () => createMigratorSql());
+    try {
+      const results = await Promise.allSettled(
+        pools.map((pool) => ensureAppRwLoginPassword(pool)),
+      );
+      const rejected = results.filter((r) => r.status === "rejected");
+      const reasons = rejected.map((r) =>
+        r.status === "rejected" && r.reason instanceof Error ? r.reason.message : String(r),
+      );
+      expect(reasons).toEqual([]);
+      expect(results).toHaveLength(CONCURRENCY);
+    } finally {
+      await Promise.all(pools.map((pool) => pool.end({ timeout: 5 })));
+    }
+
+    // 直列化しても最終状態は正しい（app_rw でログインできる）ことまで確かめる。
+    const appRw = postgres(appRwConnectionString(), { max: 1, prepare: false, onnotice: () => {} });
+    try {
+      const rows = await appRw<{ actual_role: string }[]>`SELECT session_user AS actual_role`;
+      expect(rows[0]?.actual_role).toBe(RUNTIME_DB_ROLE);
+    } finally {
+      await appRw.end({ timeout: 5 });
+    }
+  });
+});
